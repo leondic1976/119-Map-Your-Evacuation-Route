@@ -18,6 +18,7 @@ import {
 import { DoorGeom, WallModel, WinGeom } from '../lib/walls';
 import { Layers } from '../lib/store';
 import { C_ACCENT, C_DANGER, C_SAFE, FacilitySymbol, NorthArrow, ScaleBar, SymIgnition } from './Symbols';
+import { FACILITY_CAPTION } from '../lib/words';
 
 /** 실 바탕 — 저채도 8색 (건축 도면 관례) */
 export const ROOM_FILL: Record<RoomKind, string> = {
@@ -57,6 +58,8 @@ export interface PlanViewProps {
   print?: boolean;
   /** 연기 오버레이가 켜져 있으면 실 바탕을 흐리게 해 오버레이가 비쳐 보이게 한다 */
   dimRooms?: boolean;
+  /** 초등 — 기호 밑에 무슨 뜻인지 쉬운 말로 적어 준다 */
+  easy?: boolean;
 }
 
 function fmtArea(r: Room): string {
@@ -349,7 +352,21 @@ function Dimensions({ plan }: { plan: Plan }) {
 /* ------------------------------------------------------------------ */
 
 export default function PlanView(props: PlanViewProps) {
-  const { plan, model, layers, ignition, drillPath, drillPos, blocked, routeNo, showNorth, showScaleBar, print, dimRooms } = props;
+  const {
+    plan,
+    model,
+    layers,
+    ignition,
+    drillPath,
+    drillPos,
+    blocked,
+    routeNo,
+    showNorth,
+    showScaleBar,
+    print,
+    dimRooms,
+    easy,
+  } = props;
   const b = planBounds(plan);
 
   return (
@@ -386,8 +403,26 @@ export default function PlanView(props: PlanViewProps) {
       {layers.facilities && (
         <g>
           {plan.facilities.map((f) => (
-            <g key={f.id} transform={`translate(${f.x} ${f.y}) rotate(${f.rot})`}>
-              <FacilitySymbol type={f.type} size={f.size} />
+            <g key={f.id}>
+              <g transform={`translate(${f.x} ${f.y}) rotate(${f.rot})`}>
+                <FacilitySymbol type={f.type} size={f.size} />
+              </g>
+              {easy && (
+                <text
+                  x={f.x}
+                  y={f.y + (f.type === 'partition' ? 22 : (f.size ?? 46) / 2 + 20)}
+                  textAnchor="middle"
+                  fontSize={17}
+                  fontWeight={700}
+                  fill="#2b333d"
+                  stroke="#ffffff"
+                  strokeWidth={5}
+                  strokeLinejoin="round"
+                  style={{ paintOrder: 'stroke' }}
+                >
+                  {FACILITY_CAPTION[f.type]}
+                </text>
+              )}
             </g>
           ))}
           {plan.doors
@@ -482,7 +517,6 @@ export function legendItems(plan: Plan): { kind: string; label: string }[] {
   if (plan.routes.some((r) => r.kind === 'alt')) out.push({ kind: 'alt', label: '대체 피난동선' });
   if (plan.doors.some((d) => d.kind === 'entrance')) out.push({ kind: 'exit', label: '현관(피난 종점)' });
   if (has('extinguisher')) out.push({ kind: 'extinguisher', label: '소화기' });
-  if (has('detector')) out.push({ kind: 'detector', label: '연기감지기' });
   if (has('refuge')) out.push({ kind: 'refuge', label: '대피공간' });
   if (has('partition')) out.push({ kind: 'partition', label: '경량칸막이' });
   if (has('downladder')) out.push({ kind: 'downladder', label: '하향식 피난구' });

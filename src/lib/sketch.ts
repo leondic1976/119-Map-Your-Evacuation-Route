@@ -150,8 +150,11 @@ function collapse(pts: Pt[]): Pt[] {
   return res;
 }
 
-/** 시작점과 끝점이 가까우면 닫힌 모양으로 본다 */
-export function looksClosed(raw: Pt[]): boolean {
+/**
+ * 시작점과 끝점이 가까우면 닫힌 모양으로 본다.
+ * ratio 를 키우면 대충 그린 것도 닫혔다고 봐 준다(초등).
+ */
+export function looksClosed(raw: Pt[], ratio = 0.28): boolean {
   if (raw.length < 4) return false;
   let x0 = Infinity;
   let y0 = Infinity;
@@ -166,7 +169,7 @@ export function looksClosed(raw: Pt[]): boolean {
   const diag = Math.hypot(x1 - x0, y1 - y0);
   if (diag < 80) return false;
   const gap = Math.hypot(raw[0].x - raw[raw.length - 1].x, raw[0].y - raw[raw.length - 1].y);
-  return gap < Math.max(60, diag * 0.28);
+  return gap < Math.max(60, diag * ratio);
 }
 
 /**
@@ -309,6 +312,12 @@ export interface SketchOptions extends StraightenOptions {
   mode?: SketchMode;
   /** 개구부로 볼 최소·최대 길이(cm) */
   openingRange?: [number, number];
+  /**
+   * 너그럽게 보기(초등).
+   * 잔떨림을 더 걷어내고, 덜 닫힌 모양도 방으로 받아 주고,
+   * 거의 네모난 것은 아예 네모로 만들어 준다.
+   */
+  easy?: boolean;
 }
 
 export type SketchResult =
@@ -330,19 +339,20 @@ function roomRects(plan: Plan): Rect[] {
 }
 
 /** 곧게 편 선 전체가 한 벽 위에 놓여 있으면 개구부로 본다 */
-function asOpening(plan: Plan, line: Pt[], range: [number, number]): SketchResult | null {
+function asOpening(plan: Plan, line: Pt[], range: [number, number], easy = false): SketchResult | null {
   if (line.length !== 2 || plan.rooms.length === 0) return null;
   const [a, b] = line;
   const len = Math.hypot(b.x - a.x, b.y - a.y);
   if (len < range[0] || len > range[1]) return null;
   const dir: 'h' | 'v' = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? 'h' : 'v';
   const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  const hit = nearestWallSegment(plan.rooms, mid, 40);
+  const reach = easy ? 60 : 40;
+  const hit = nearestWallSegment(plan.rooms, mid, reach);
   if (!hit || hit.dir !== dir) return null;
   // 양 끝도 같은 벽 위에 있어야 한다 (방을 가로지른 선과 구분)
   for (const p of [a, b, mid]) {
     const across = dir === 'h' ? Math.abs(p.y - hit.line) : Math.abs(p.x - hit.line);
-    if (across > 40) return null;
+    if (across > reach) return null;
   }
   const along = dir === 'h' ? mid.x : mid.y;
   if (along < hit.a + len / 2 - 1 || along > hit.b - len / 2 + 1) return null;
@@ -358,7 +368,7 @@ function asOpening(plan: Plan, line: Pt[], range: [number, number]): SketchResul
 }
 
 /** 방을 가로지른 선이면 그 방을 둘로 나눈다 */
-function asSplit(plan: Plan, line: Pt[]): SketchResult | null {
+function asSplit(plan: Plan, line: Pt[], easy = false): SketchResult | null {
   if (line.length < 2) return null;
   const a = line[0];
   const b = line[line.length - 1];
@@ -368,19 +378,20 @@ function asSplit(plan: Plan, line: Pt[]): SketchResult | null {
     (r) => mid.x > r.x && mid.x < r.x + r.w && mid.y > r.y && mid.y < r.y + r.h,
   );
   if (!room) return null;
-  const margin = 40;
+  const margin = easy ? 30 : 40;
+  const need = easy ? 0.34 : 0.5;
   if (dir === 'h') {
     // 가로선 → 위아래로 나눈다
     const at = Math.round((a.y + b.y) / 2);
     if (at < room.y + margin || at > room.y + room.h - margin) return null;
     const span = Math.abs(b.x - a.x);
-    if (span < room.w * 0.5) return null;
+    if (span < room.w * need) return null;
     return { kind: 'split', outline: line, roomId: room.id, axis: 'h', at };
   }
   const at = Math.round((a.x + b.x) / 2);
   if (at < room.x + margin || at > room.x + room.w - margin) return null;
   const span = Math.abs(b.y - a.y);
-  if (span < room.h * 0.5) return null;
+  if (span < room.h * need) return null;
   return { kind: 'split', outline: line, roomId: room.id, axis: 'v', at };
 }
 
@@ -390,20 +401,45 @@ function asSplit(plan: Plan, line: Pt[]): SketchResult | null {
  * 벽 위에 짧게 그은 선이 방 분할로 오해받지 않게 하기 위함이다.
  */
 export function interpretStroke(plan: Plan, raw: Pt[], options: SketchOptions = {}): SketchResult {
-  const o = { ...DEFAULTS, ...options };
+  const easy = Boolean(options.easy);
+  // 너그럽게 볼 때는 잔떨림을 더 걷어내고 짧은 계단을 더 많이 흡수한다
+  const o = {
+    ...DEFAULTS,
+    ...options,
+    tolerance: options.tolerance ?? (easy ? 30 : DEFAULTS.tolerance),
+    minSeg: options.minSeg ?? (easy ? 45 : DEFAULTS.minSeg),
+  };
   const mode: SketchMode = options.mode ?? 'auto';
   const range: [number, number] = options.openingRange ?? [60, 280];
 
   if (raw.length < 2) return { kind: 'none', outline: [], reason: '너무 짧게 그렸다.' };
 
-  const closed = mode === 'room' || (mode === 'auto' && looksClosed(raw));
+  const closed = mode === 'room' || (mode === 'auto' && looksClosed(raw, easy ? 0.46 : 0.28));
 
   if (closed) {
     const poly = straightenLoop(raw, o);
     if (poly.length >= 4) {
       const b = boundsOf(poly);
       if (b.w >= 60 && b.h >= 60) {
-        const rects = polygonToRects(poly, roomRects(plan), Math.max(40, o.grid * 4));
+        const avoid = roomRects(plan);
+        let rects = polygonToRects(poly, avoid, Math.max(40, o.grid * 4));
+        // 거의 네모나게 그렸으면 아예 네모로 받아 준다 (초등)
+        if (easy && rects.length > 1) {
+          const drawn = rects.reduce((sum, r) => sum + r.w * r.h, 0);
+          if (drawn >= b.w * b.h * 0.78) {
+            const box = polygonToRects(
+              [
+                { x: b.x, y: b.y },
+                { x: b.x + b.w, y: b.y },
+                { x: b.x + b.w, y: b.y + b.h },
+                { x: b.x, y: b.y + b.h },
+              ],
+              avoid,
+              Math.max(40, o.grid * 4),
+            );
+            if (box.length > 0 && box.length < rects.length) rects = box;
+          }
+        }
         if (rects.length > 0) return { kind: 'rooms', outline: poly.concat([poly[0]]), rects };
         return { kind: 'none', outline: poly.concat([poly[0]]), reason: '이미 방이 있는 자리다.' };
       }
@@ -418,17 +454,17 @@ export function interpretStroke(plan: Plan, raw: Pt[], options: SketchOptions = 
   const single = longestSegment(line);
 
   if (mode === 'opening') {
-    const op = asOpening(plan, single, range);
+    const op = asOpening(plan, single, range, easy);
     return op ?? { kind: 'none', outline: single, reason: '벽 위에 그어야 문·창이 된다.' };
   }
   if (mode === 'wall') {
-    const sp = asSplit(plan, single);
+    const sp = asSplit(plan, single, easy);
     return sp ?? { kind: 'none', outline: single, reason: '방을 가로지르도록 그어야 벽이 된다.' };
   }
 
-  const opening = asOpening(plan, single, range);
+  const opening = asOpening(plan, single, range, easy);
   if (opening) return opening;
-  const split = asSplit(plan, single);
+  const split = asSplit(plan, single, easy);
   if (split) return split;
 
   return {

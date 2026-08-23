@@ -248,6 +248,14 @@ export const IconGrid = (p: Props) => (
   </Svg>
 );
 
+/** 뒤로 가기 */
+export const IconBack = (p: Props) => (
+  <Svg {...p}>
+    <path d="M20 12H5" />
+    <path d="M11 5.5L4.5 12l6.5 6.5" />
+  </Svg>
+);
+
 export const IconChevron = (p: Props) => (
   <Svg {...p}>
     <path d="M9 5.5l6.5 6.5L9 18.5" />

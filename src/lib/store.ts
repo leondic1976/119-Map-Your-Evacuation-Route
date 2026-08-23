@@ -24,7 +24,7 @@ import {
 } from './types';
 import { ScenarioSetup, ScenarioState } from './scenario';
 import { SketchMode } from './sketch';
-import { loadLevel, saveLevel, saveLocal } from './storage';
+import { loadLevel, loadTutorialSeen, saveLevel, saveLocal, saveTutorialSeen } from './storage';
 
 /**
  * 이용 수준.
@@ -109,7 +109,7 @@ export const STEPS: StepDef[] = [
   { key: 'plan', no: '01', title: '평면 작성', short: '평면', tool: 'room', guide: '표준 평면을 불러오거나, 도면 사진을 올려 자동 인식하거나, 직접 그린다.' },
   { key: 'meta', no: '02', title: '세대 정보', short: '세대', tool: 'select', guide: '동·호수와 사용승인 연도를 입력하면 우리 집 피난시설 유형을 안내한다.' },
   { key: 'opening', no: '03', title: '개구부', short: '개구부', tool: 'door', guide: '현관문과 실문·창호를 배치하고 유효 폭과 상시 개방 여부를 정한다.' },
-  { key: 'facility', no: '04', title: '설비 표기', short: '설비', tool: 'facility', guide: '소화기, 대피공간·경량칸막이·하향식 피난구, 연기감지기를 표기한다.' },
+  { key: 'facility', no: '04', title: '설비 표기', short: '설비', tool: 'facility', guide: '소화기와 대피공간·경량칸막이·하향식 피난구를 표기한다.' },
   { key: 'route', no: '05', title: '피난동선', short: '동선', tool: 'route', guide: '주 동선을 자동 생성하고, 대체 동선을 더한다. 구간별 거리와 소요시간을 확인한다.' },
   { key: 'sim', no: '06', title: '확산 해석', short: '해석', tool: 'select', guide: '발화 지점을 정하고 시간을 옮겨가며 연기가 어디를 먼저 막는지 본다.' },
   { key: 'drill', no: '07', title: '대피 훈련', short: '훈련', tool: 'select', guide: '상황을 정하고 행동을 골라 본다. 선택마다 시간이 흐르고 노출이 쌓인다.' },
@@ -185,6 +185,14 @@ export interface DrillState {
   state: ScenarioState | null;
 }
 
+/** 따라하기 안내 진행 상태 */
+export interface TutorialState {
+  active: boolean;
+  index: number;
+  /** 이미 끝까지 본 수준들 — 다시 뜨지 않게 한다 */
+  seen: string[];
+}
+
 export interface ToolOptions {
   /** 자유 그리기 해석 방식 */
   sketchMode: SketchMode;
@@ -217,6 +225,7 @@ export interface AppState {
   sim: SimState;
   drill: DrillState;
   toast: { text: string; kind: 'info' | 'warn' } | null;
+  tutorial: TutorialState;
   /** 도면 커서 좌표 (상태 표시줄) */
   cursor: Pt | null;
 }
@@ -253,6 +262,7 @@ function initialState(): AppState {
     sim: { origin: null, cause: 'kitchen', time: 60, playing: false, speed: 4, tMax: 300 },
     drill: { setup: null, state: null },
     toast: null,
+    tutorial: { active: false, index: 0, seen: [] },
     cursor: null,
   };
 }
@@ -366,6 +376,29 @@ export class AppStore {
     this.scheduleSave();
   }
 
+  /**
+   * 처음부터 다시 — 그린 것을 모두 지우고 첫 단계로 돌아간다.
+   * 실행 취소로 되살릴 수 있도록 이력에는 남긴다.
+   */
+  resetPlan(): void {
+    const past = this.state.past.concat([this.state.plan]);
+    if (past.length > HISTORY_LIMIT) past.splice(0, past.length - HISTORY_LIMIT);
+    this.state = {
+      ...this.state,
+      plan: emptyPlan(),
+      past,
+      future: [],
+      step: 0,
+      tool: this.state.level === 'elementary' ? 'sketch' : 'select',
+      selection: null,
+      sim: { origin: null, cause: 'kitchen', time: 60, playing: false, speed: 4, tMax: 300 },
+      drill: { setup: null, state: null },
+      toast: { text: '처음부터 다시 시작한다. 되돌리려면 Ctrl+Z 를 누른다.', kind: 'info' },
+    };
+    this.emit();
+    this.scheduleSave();
+  }
+
   undo(): void {
     const { past, future, plan } = this.state;
     if (past.length === 0) return;
@@ -442,6 +475,31 @@ export class AppStore {
   restoreLevel(): void {
     const saved = loadLevel();
     if (saved && saved !== this.state.level) this.setLevel(saved);
+  }
+
+  /* ---------------- 따라하기 안내 ---------------- */
+
+  /** 저장된 '이미 본' 기록을 복원하고, 처음이면 안내를 띄운다 */
+  restoreTutorial(): void {
+    const seen = loadTutorialSeen();
+    const first = !seen.includes(this.state.level);
+    this.set({ tutorial: { active: first, index: 0, seen } });
+  }
+
+  startTutorial(): void {
+    this.set({ tutorial: { ...this.state.tutorial, active: true, index: 0 } });
+  }
+
+  /** 안내를 닫는다. 끝까지 봤으면 다시 뜨지 않도록 기록한다 */
+  stopTutorial(completed = false): void {
+    const t = this.state.tutorial;
+    const seen = completed && !t.seen.includes(this.state.level) ? t.seen.concat([this.state.level]) : t.seen;
+    if (seen !== t.seen) saveTutorialSeen(seen);
+    this.set({ tutorial: { active: false, index: 0, seen } });
+  }
+
+  coachGoto(index: number): void {
+    this.set({ tutorial: { ...this.state.tutorial, index: Math.max(0, index) } });
   }
 
   setTool(tool: ToolKey): void {

@@ -40,7 +40,29 @@ import { SketchResult, interpretStroke, nameForNewRoom, splitRoom } from '../lib
 import { SmokeField, densityAt } from '../lib/firesim';
 import { Grid, cellAt } from '../lib/grid';
 import { C_ACCENT, C_DANGER, C_SAFE } from './Symbols';
-import { IconFit, IconMinus, IconPlus } from './Icons';
+import { IconClose, IconFit, IconMinus, IconPlus, IconSketch, IconTrash } from './Icons';
+
+const SEL_LABEL: Record<Selection['kind'], string> = {
+  room: '방',
+  door: '문',
+  window: '창',
+  facility: '설비',
+  route: '피난동선',
+  note: '주기',
+};
+
+function selectionName(plan: Plan, sel: Selection): string {
+  switch (sel.kind) {
+    case 'room':
+      return plan.rooms.find((r) => r.id === sel.id)?.name ?? '';
+    case 'route':
+      return plan.routes.find((r) => r.id === sel.id)?.label ?? '';
+    case 'note':
+      return plan.notes.find((n) => n.id === sel.id)?.text.slice(0, 12) ?? '';
+    default:
+      return '';
+  }
+}
 
 type Drag =
   | { type: 'none' }
@@ -150,15 +172,46 @@ export default function Canvas({
 
   const fitRef = useRef(fit);
   fitRef.current = fit;
-  const roomCount = plan.rooms.length;
-  const didFit = useRef(false);
+
+  /**
+   * 도면은 늘 캔버스 한가운데 놓는다.
+   * 실이 늘거나 줄어 도면 크기가 달라지면 다시 맞춘다. 다만 끌고 있는 중에는
+   * 손 밑에서 도면이 튀지 않도록 미룬다(놓는 순간 맞춘다).
+   */
+  const bounds = planBounds(plan);
+  const boundsKey =
+    plan.rooms.length === 0
+      ? 'empty'
+      : `${Math.round(bounds.x)},${Math.round(bounds.y)},${Math.round(bounds.w)},${Math.round(bounds.h)}`;
+  const dragging = drag.type !== 'none';
+  const pendingFit = useRef(false);
+
   useEffect(() => {
-    if (roomCount > 0 && !didFit.current) {
-      didFit.current = true;
-      fitRef.current();
+    if (plan.rooms.length === 0) return;
+    if (dragging) {
+      pendingFit.current = true;
+      return;
     }
-    if (roomCount === 0) didFit.current = false;
-  }, [roomCount]);
+    pendingFit.current = false;
+    const t = setTimeout(() => fitRef.current(), 60);
+    return () => clearTimeout(t);
+  }, [boundsKey, dragging, plan.rooms.length]);
+
+  /* 창·패널 크기가 바뀌어도 가운데를 지킨다 */
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      if (first) {
+        first = false;
+        return;
+      }
+      if (store.getState().plan.rooms.length > 0) fitRef.current();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const onFit = () => fitRef.current();
@@ -283,11 +336,12 @@ export default function Canvas({
         setStroke([]);
         return;
       }
+      const easy = app.level === 'elementary';
       const res: SketchResult = interpretStroke(plan, raw, {
         grid: snap ? snapSize : 1,
         mode: options.sketchMode,
-        minSeg: Math.max(20, snapSize * 3),
-        tolerance: Math.max(10, 14 / view.zoom),
+        easy,
+        tolerance: easy ? Math.max(22, 26 / view.zoom) : Math.max(10, 14 / view.zoom),
       });
       setStroke([]);
 
@@ -371,7 +425,7 @@ export default function Canvas({
         }
       }
     },
-    [plan, options.sketchMode, options.sketchOpening, options.roomKind, options.doorKind, snap, snapSize, view.zoom, showGhost],
+    [plan, app.level, options.sketchMode, options.sketchOpening, options.roomKind, options.doorKind, snap, snapSize, view.zoom, showGhost],
   );
 
   /* ---------- 히트 테스트 ---------- */
@@ -765,7 +819,7 @@ export default function Canvas({
   const draftPreview = tool === 'route' && draft.length > 0 && hover ? axisSnap(draft[draft.length - 1], hover) : null;
 
   return (
-    <div className="canvas-wrap" ref={wrapRef}>
+    <div className="canvas-wrap" ref={wrapRef} data-coach="canvas">
       {/* 연기는 실 바탕 위·선묘 아래에 놓는다 — 도면이 가려지지 않는다 */}
       <canvas className="smoke" ref={canvasRef} />
       <svg
@@ -794,6 +848,7 @@ export default function Canvas({
             drillPos={drillPos}
             blocked={blocked}
             dimRooms={Boolean(field && layers.smoke)}
+            easy={app.level === 'elementary'}
             showNorth
             showScaleBar
           />
@@ -892,13 +947,48 @@ export default function Canvas({
         </g>
       </svg>
 
+      {/* 고른 것이 무엇인지, 지우려면 어디를 눌러야 하는지 도면 위에서 바로 보여 준다 */}
+      {selection && (
+        <div className="sel-bar" data-coach="sel-bar">
+          <span className="what">{SEL_LABEL[selection.kind]}</span>
+          <b>{selectionName(plan, selection)}</b>
+          <span className="hint">오른쪽에서 자세히 고칠 수 있다</span>
+          <button
+            type="button"
+            className="del"
+            onClick={() => {
+              store.update((p) => removeSelection(p, selection));
+              store.select(null);
+            }}
+          >
+            <IconTrash size={14} /> 지우기
+          </button>
+          <button type="button" className="x" onClick={() => store.select(null)} aria-label="선택 해제">
+            <IconClose size={14} />
+          </button>
+        </div>
+      )}
+
       {plan.rooms.length === 0 && (
         <div className="canvas-empty">
           <div>
-            <strong>아직 평면이 없다</strong>
-            오른쪽에서 표준 평면을 불러오거나, 도면 사진을 올려 자동 인식하거나,
-            <br />
-            자유 그리기(<span className="kbd">S</span>)로 집 모양을 쓱 그린다. 손을 떼면 반듯해진다.
+            <strong>여기에 우리 집을 그린다</strong>
+            마우스로 끌어서 집 모양을 그리면 된다. 삐뚤빼뚤해도 손을 떼면 반듯해진다.
+            <button
+              type="button"
+              className="sketch-cta cta"
+              onClick={() => store.setTool('sketch')}
+              aria-pressed={tool === 'sketch'}
+            >
+              <span className="ico">
+                <IconSketch size={22} />
+              </span>
+              <span>
+                <b>{tool === 'sketch' ? '준비됐다! 도면 위에 그려 보자' : '직접 그리기 시작'}</b>
+                <span>마우스로 끌면 집이 그려진다 · 단축키 S</span>
+              </span>
+            </button>
+            <div className="or">또는 오른쪽에서 표준 평면을 고르거나 도면 사진을 올린다</div>
           </div>
         </div>
       )}

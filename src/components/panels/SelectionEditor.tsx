@@ -22,7 +22,7 @@ import {
   updateWindow,
 } from '../../lib/store';
 import { Field, Group, KV, NumField } from './ui';
-import { IconTrash } from '../Icons';
+import { IconBack, IconTrash } from '../Icons';
 import { routeMetric } from '../../lib/routing';
 import { fmtSec } from './ui';
 
@@ -41,7 +41,6 @@ const ROOM_KINDS: RoomKind[] = [
 const DOOR_KINDS: DoorKind[] = ['entrance', 'room', 'sliding', 'folding'];
 const FACILITY_KINDS: FacilityType[] = [
   'extinguisher',
-  'detector',
   'refuge',
   'partition',
   'downladder',
@@ -57,13 +56,22 @@ export default function SelectionEditor() {
     store.select(null);
   };
 
+  /**
+   * 세부 설정에 들어오면 나가는 길이 보여야 한다.
+   * '뒤로'가 없으면 목록으로 돌아갈 방법을 찾지 못한다.
+   */
   const header = (title: string) => (
-    <h3>
-      {title}
-      <button type="button" className="btn sm" onClick={del} title="삭제 (Delete)" aria-label="선택 요소 삭제">
-        <IconTrash size={14} />
+    <>
+      <button type="button" className="insp-back" onClick={() => store.select(null)}>
+        <IconBack size={14} /> 뒤로 (목록으로)
       </button>
-    </h3>
+      <h3>
+        {title}
+        <button type="button" className="btn sm danger" onClick={del} title="지우기 (Delete)">
+          <IconTrash size={14} /> 지우기
+        </button>
+      </h3>
+    </>
   );
 
   if (selection.kind === 'room') {

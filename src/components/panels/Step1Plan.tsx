@@ -49,7 +49,7 @@ function GestureOpening() {
 }
 
 export default function Step1Plan() {
-  const { plan, selection, level } = useApp();
+  const { plan, selection, level, tool } = useApp();
   const [area, setArea] = useState(84);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TraceResult | null>(null);
@@ -155,8 +155,20 @@ export default function Step1Plan() {
       <p className="note" style={{ marginTop: 0 }}>
         도화지에 그리듯 마우스로 끌면 된다. 삐뚤빼뚤해도 손을 떼는 순간 반듯한 직선으로 펴진다.
       </p>
-      <button type="button" className="btn pri wide" onClick={() => store.setTool('sketch')}>
-        <IconSketch size={16} /> 자유 그리기 시작 (S)
+      <button
+        type="button"
+        className="sketch-cta"
+        data-coach="sketch-start"
+        aria-pressed={tool === 'sketch'}
+        onClick={() => store.setTool('sketch')}
+      >
+        <span className="ico">
+          <IconSketch size={22} />
+        </span>
+        <span>
+          <b>{tool === 'sketch' ? '준비됐다! 도면 위에 그려 보자' : '직접 그리기 시작'}</b>
+          <span>마우스로 끌면 집이 그려진다 · 단축키 S</span>
+        </span>
       </button>
       <div style={{ height: 10 }} />
       <div className="sketch-guide">
@@ -177,7 +189,7 @@ export default function Step1Plan() {
         <GestureOpening />
         <div>
           <b>벽 위에 짧게 → 문·창</b>
-          <span>벽을 따라 그으면 그 길이가 문 폭이 된다. 위 도구 막대에서 문·창을 고른다.</span>
+          <span>벽을 따라 그으면 그 길이가 그대로 문 폭이 된다. 위 도구 막대에서 문인지 창인지 고른다.</span>
         </div>
       </div>
       <p className="note">
@@ -209,7 +221,7 @@ export default function Step1Plan() {
         </p>
       </Group>
 
-      <Group title="도면 이미지로 시작">
+      <Group title={level === 'elementary' ? '사진으로 시작하기 (어려움)' : '도면 이미지로 시작'}>
         <input
           ref={fileRef}
           type="file"

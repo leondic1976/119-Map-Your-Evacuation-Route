@@ -5,7 +5,9 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import Canvas from './Canvas';
+import Coach from './Coach';
 import Inspector from './Inspector';
+import Manual from './Manual';
 import PrintSheet from './PrintSheet';
 import { OptionBar, ToolRail } from './ToolRail';
 import { store, useApp, useField, useModel } from './useStore';
@@ -14,6 +16,7 @@ import { downloadPlan, loadLocal, readPlanFile } from '../lib/storage';
 import { Pt, planArea } from '../lib/types';
 import { routeASET, safetyMargin } from '../lib/firesim';
 import { rset } from '../lib/routing';
+import { stepShort, stepTitle } from '../lib/words';
 import {
   IconCheck,
   IconClose,
@@ -21,7 +24,9 @@ import {
   IconInfo,
   IconPrint,
   IconRedo,
+  IconRefresh,
   IconSave,
+  IconSketch,
   IconUndo,
 } from './Icons';
 
@@ -49,6 +54,8 @@ export default function AppShell() {
   const [pickMode, setPickMode] = useState(false);
   const [preview, setPreview] = useState(false);
   const [help, setHelp] = useState(false);
+  const [manual, setManual] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   /* 브라우저 자동 저장 복원 */
   useEffect(() => {
@@ -59,6 +66,8 @@ export default function AppShell() {
       store.toast('이전에 작성하던 내용을 불러왔다.');
       window.dispatchEvent(new Event('evac:fit'));
     }
+    // 처음 온 이용자에게는 따라하기를 띄운다
+    store.restoreTutorial();
   }, []);
 
   /* 알림 자동 소멸 */
@@ -179,7 +188,7 @@ export default function AppShell() {
             aria-label="문서 제목"
             onChange={(e) => store.update((p) => setMeta(p, { title: e.target.value }))}
           />
-          <div className="level-seg" role="group" aria-label="이용 수준">
+          <div className="level-seg" role="group" aria-label="이용 수준" data-coach="level">
             {LEVELS.map((l) => (
               <button
                 key={l.key}
@@ -235,19 +244,51 @@ export default function AppShell() {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            className="tb"
+            data-coach="reset"
+            onClick={() => setConfirmReset(true)}
+            title="그린 것을 모두 지우고 처음부터 다시 시작한다"
+          >
+            <IconRefresh size={15} /> 처음부터
+          </button>
+          <button
+            type="button"
+            className="tb accent"
+            onClick={() => store.startTutorial()}
+            title="한 걸음씩 따라 하며 배운다"
+          >
+            <IconSketch size={15} /> 따라하기
+          </button>
+          <button
+            type="button"
+            className="tb accent"
+            data-coach="manual"
+            onClick={() => setManual(true)}
+            title="사용 설명서를 연다"
+          >
+            <IconInfo size={15} /> 설명서
+          </button>
           <button type="button" className="tb" onClick={() => downloadPlan(plan)} title="프로젝트 파일 저장 (Ctrl+S)">
             <IconSave size={15} /> 저장
           </button>
-          <button type="button" className="tb" onClick={() => setHelp(true)} title="도움말 (?)">
-            <IconInfo size={15} />
+          <button type="button" className="tb" onClick={() => setHelp(true)} title="단축키 (?)">
+            <span style={{ fontWeight: 700, fontSize: 13 }}>?</span>
           </button>
-          <button type="button" className="tb primary" onClick={() => window.print()} title="인쇄 (Ctrl+P)">
-            <IconPrint size={15} /> 피난안내도 인쇄
+          <button
+            type="button"
+            className="tb primary"
+            data-coach="print"
+            onClick={() => window.print()}
+            title="인쇄 (Ctrl+P)"
+          >
+            <IconPrint size={15} /> {level === 'elementary' ? '뽑기' : '피난안내도 인쇄'}
           </button>
         </div>
 
         {/* 단계 스테퍼 */}
-        <nav className="stepper" aria-label="작성 단계">
+        <nav className="stepper" aria-label="작성 단계" data-coach="stepper">
           {STEPS.map((s, i) => (
             <button
               key={s.key}
@@ -257,7 +298,7 @@ export default function AppShell() {
               onClick={() => store.setStep(i)}
             >
               <span className="no">{s.no}</span>
-              <span className="ti">{s.title}</span>
+              <span className="ti">{stepTitle(level, i, s.title)}</span>
               {stepDone(plan, i, drill) && (
                 <span className="done" aria-label="완료">
                   <IconCheck size={13} />
@@ -350,6 +391,40 @@ export default function AppShell() {
       )}
 
       {help && <HelpModal onClose={() => setHelp(false)} />}
+
+      {manual && <Manual onClose={() => setManual(false)} />}
+
+      {confirmReset && (
+        <div className="modal-back" onClick={() => setConfirmReset(false)}>
+          <div className="modal" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
+            <header>처음부터 다시 시작할까?</header>
+            <div className="body">
+              <p style={{ margin: 0, fontSize: 13 }}>
+                지금까지 그린 것이 모두 지워지고 첫 단계로 돌아간다. 실수로 눌렀다면 지운 뒤에도{' '}
+                <span className="kbd">Ctrl</span>+<span className="kbd">Z</span> 로 되돌릴 수 있다.
+              </p>
+              <p className="note">남겨 두고 싶으면 먼저 위쪽 “저장”으로 파일을 내려받는다.</p>
+            </div>
+            <footer>
+              <button type="button" className="btn" onClick={() => setConfirmReset(false)}>
+                그만두기
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                onClick={() => {
+                  store.resetPlan();
+                  setConfirmReset(false);
+                }}
+              >
+                <IconRefresh size={15} /> 모두 지우고 다시
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      <Coach />
     </>
   );
 }

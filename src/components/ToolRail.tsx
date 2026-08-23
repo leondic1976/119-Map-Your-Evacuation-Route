@@ -38,10 +38,24 @@ const ICONS: Record<ToolKey, React.ComponentType<{ size?: number }>> = {
   pan: IconHand,
 };
 
+/** 도구 막대에 함께 보여 줄 짧은 이름 — 아이콘만으로는 무엇인지 알기 어렵다 */
+const SHORT: Record<ToolKey, string> = {
+  select: '고르기',
+  sketch: '그리기',
+  room: '방',
+  door: '문',
+  window: '창',
+  facility: '설비',
+  route: '동선',
+  note: '글자',
+  measure: '길이',
+  pan: '손',
+};
+
 export function ToolRail() {
   const { tool } = useApp();
   return (
-    <div className="rail" role="toolbar" aria-label="도구 막대" aria-orientation="vertical">
+    <div className="rail" role="toolbar" aria-label="도구 막대" aria-orientation="vertical" data-coach="rail">
       {TOOLS.map((t, i) => {
         const Icon = ICONS[t.key];
         return (
@@ -55,6 +69,7 @@ export function ToolRail() {
               onClick={() => store.setTool(t.key)}
             >
               <Icon size={20} />
+              <span className="nm">{SHORT[t.key]}</span>
               <span className="sc" aria-hidden="true">
                 {t.shortcut}
               </span>
@@ -83,7 +98,6 @@ const DOOR_KINDS: DoorKind[] = ['entrance', 'room', 'sliding', 'folding'];
 
 const FACILITIES: FacilityType[] = [
   'extinguisher',
-  'detector',
   'refuge',
   'partition',
   'downladder',
@@ -95,7 +109,7 @@ export function OptionBar() {
   const def = TOOLS.find((t) => t.key === tool);
 
   return (
-    <div className="optbar" role="group" aria-label="도구 옵션">
+    <div className="optbar" role="group" aria-label="도구 옵션" data-coach="optbar">
       <span className="lbl">{def?.label}</span>
       <span className="hint">{def?.hint}</span>
       <span className="sep" />

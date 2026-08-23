@@ -32,24 +32,6 @@ export function SymExtinguisher({ size = 44 }: SymProps) {
   );
 }
 
-/** 연기감지기 — 원 안 파형 */
-export function SymDetector({ size = 38 }: SymProps) {
-  const s = size / 38;
-  return (
-    <g transform={`scale(${s})`}>
-      <circle r={18} fill="#fff" stroke={C_ACCENT} strokeWidth={3} />
-      <circle r={5} fill={C_ACCENT} />
-      <path
-        d="M-12 -6c3 -3 6 -3 9 0M-12 7c3 3 6 3 9 0M12 -6c-3 -3 -6 -3 -9 0M12 7c-3 3 -6 3 -9 0"
-        fill="none"
-        stroke={C_ACCENT}
-        strokeWidth={2.4}
-        strokeLinecap="round"
-      />
-    </g>
-  );
-}
-
 /** 피난 방향 인물 (피난구 유도등 계열 기호에 공통으로 쓰는 실루엣) */
 function RunningFigure({ color = '#fff' }: { color?: string }) {
   return (
@@ -160,8 +142,6 @@ export function FacilitySymbol({ type, size }: { type: FacilityType; size?: numb
   switch (type) {
     case 'extinguisher':
       return <SymExtinguisher size={size} />;
-    case 'detector':
-      return <SymDetector size={size} />;
     case 'refuge':
       return <SymRefuge size={size} />;
     case 'downladder':

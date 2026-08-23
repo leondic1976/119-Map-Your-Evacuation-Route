@@ -5,6 +5,7 @@
    ================================================================== */
 
 :root {
+  --rail-w: 76px;
   /* 기관 신뢰색 */
   --accent-50: #eef4fa;
   --accent-100: #d6e4f2;
@@ -57,7 +58,6 @@
   --radius-lg: 6px;
   --shadow-1: 0 1px 2px rgba(16, 30, 48, 0.08), 0 1px 1px rgba(16, 30, 48, 0.04);
   --shadow-2: 0 4px 14px rgba(16, 30, 48, 0.12);
-  --rail-w: 58px;
   --inspector-w: 384px;
   --topbar-h: 46px;
   --stepper-h: 58px;
@@ -87,6 +87,38 @@ body {
   background: var(--n2);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'tnum' 1;
+}
+
+/*
+ * 한글 줄바꿈.
+ * 기본값(break-word)은 낱말 한가운데를 잘라 "알아서 나 / 눠 받는다" 처럼 읽힌다.
+ * keep-all 로 어절 단위로만 끊고, 끊을 데가 없는 아주 긴 토막만 예외로 자른다.
+ */
+body,
+input,
+select,
+textarea,
+button {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-break: strict;
+  hyphens: none;
+}
+
+/* 한 줄로 붙어 있어야 읽히는 것들 */
+.kbd,
+.badge,
+.save-chip,
+.level-seg button,
+.rail button .nm,
+.statusbar span,
+.sel-bar .what,
+.assist .tag,
+.coach-count,
+.metric .v,
+table.tbl td.n,
+table.tbl th {
+  white-space: nowrap;
 }
 
 button,
@@ -364,16 +396,27 @@ textarea {
 }
 
 .rail button {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
+  width: 64px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 5px 2px 4px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   background: transparent;
   color: var(--n7);
   cursor: pointer;
   position: relative;
+}
+
+.rail button .nm {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
 }
 
 .rail button:hover {
@@ -390,14 +433,14 @@ textarea {
 .rail .sc {
   position: absolute;
   right: 3px;
-  bottom: 1px;
+  top: 3px;
   font-size: 9px;
   font-weight: 700;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .rail hr {
-  width: 30px;
+  width: 44px;
   border: none;
   border-top: 1px solid var(--n3);
   margin: 5px 0;
@@ -453,6 +496,10 @@ textarea {
   background-position: -1px -1px;
 }
 
+.canvas-wrap canvas.smoke {
+  z-index: 0;
+}
+
 .canvas-wrap svg.stage {
   position: absolute;
   inset: 0;
@@ -460,8 +507,18 @@ textarea {
   height: 100%;
   display: block;
   cursor: crosshair;
-  /* 연기 캔버스 위에 선묘가 오도록 */
+  /* 연기 캔버스(0) 위에 선묘가 오도록 */
   z-index: 1;
+}
+
+/*
+ * 도면 위에 얹는 것들은 반드시 stage(1) 보다 위여야 한다.
+ * 이걸 빠뜨리면 단추가 SVG 에 덮여 눌리지 않는다 — 실제로 한 번 그랬다.
+ */
+.canvas-wrap .zoom-pad,
+.canvas-wrap .sel-bar,
+.canvas-wrap .canvas-empty {
+  z-index: 3;
 }
 
 .canvas-wrap svg.stage.tool-select {
@@ -1203,21 +1260,31 @@ table.tbl tr.hi td {
   width: 560px;
   max-width: 92vw;
   max-height: 84vh;
-  overflow: auto;
+  /* 머리글·바닥글은 고정하고 본문만 구른다 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .modal header {
+  flex: none;
   padding: 14px 18px;
   border-bottom: 1px solid var(--n3);
   font-weight: 700;
   font-size: 15px;
+  display: flex;
+  align-items: center;
 }
 
 .modal .body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px 18px;
 }
 
 .modal footer {
+  flex: none;
   padding: 12px 18px;
   border-top: 1px solid var(--n3);
   display: flex;
@@ -1452,4 +1519,657 @@ table.tbl tr.hi td {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ==================================================================
+   따라하기 안내 덮개
+   ================================================================== */
+
+.coach {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+/* 뚫린 자리만 빼고 덮는 네 조각 — 덮인 곳은 눌리지 않는다 */
+.coach-band {
+  position: fixed;
+  background: rgba(7, 32, 58, 0.56);
+  pointer-events: auto;
+}
+
+.coach-ring {
+  position: fixed;
+  border: 3px solid #ffd166;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 3px rgba(255, 209, 102, 0.3),
+    0 0 22px rgba(255, 209, 102, 0.5);
+  pointer-events: none;
+  animation: coach-pulse 1.7s ease-in-out infinite;
+}
+
+.coach-ring.done {
+  border-color: #4ade80;
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.3),
+    0 0 22px rgba(74, 222, 128, 0.5);
+  animation: none;
+}
+
+@keyframes coach-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(255, 209, 102, 0.3),
+      0 0 22px rgba(255, 209, 102, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 7px rgba(255, 209, 102, 0.16),
+      0 0 30px rgba(255, 209, 102, 0.65);
+  }
+}
+
+.coach-bubble {
+  position: fixed;
+  background: var(--n0);
+  border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(7, 32, 58, 0.35);
+  padding: 12px 14px 12px;
+  pointer-events: auto;
+  border: 1px solid var(--n3);
+}
+
+.coach-tail {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--n0);
+  border: 1px solid var(--n3);
+  transform: rotate(45deg);
+  border-radius: 2px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.coach-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.coach-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-600);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.coach-dots {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.coach-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--n4);
+}
+
+.coach-dots i.past {
+  background: var(--safe-500);
+  background: var(--safe-600);
+}
+
+.coach-dots i.on {
+  background: var(--accent-700);
+  width: 16px;
+  border-radius: 3px;
+}
+
+.coach-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--n6);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.coach-x:hover {
+  background: var(--n2);
+  color: var(--n8);
+}
+
+.coach-bubble h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+  color: var(--accent-800);
+}
+
+.coach-bubble p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--n7);
+}
+
+.coach-bubble.big h3 {
+  font-size: 17px;
+}
+
+.coach-bubble.big p {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.coach-todo {
+  margin-top: 9px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warn-600);
+  background: var(--warn-50);
+  border-radius: var(--radius);
+  padding: 6px 9px;
+}
+
+.coach-todo.done {
+  color: var(--safe-700);
+  background: var(--safe-50);
+}
+
+.coach-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--n2);
+}
+
+.btn.sm.pri {
+  background: var(--accent-700);
+  border-color: var(--accent-800);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn.sm.pri:hover:not(:disabled) {
+  background: var(--accent-600);
+}
+
+/* 자유 그리기 시작 — 눈에 띄게 */
+.sketch-cta {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 13px 14px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--accent-700), var(--accent-500));
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 3px 10px rgba(15, 61, 104, 0.28);
+}
+
+.sketch-cta:hover {
+  background: linear-gradient(135deg, var(--accent-600), #3a7cb8);
+  box-shadow: 0 5px 16px rgba(15, 61, 104, 0.34);
+}
+
+.sketch-cta .ico {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+}
+
+.sketch-cta b {
+  display: block;
+  font-size: 14.5px;
+  letter-spacing: -0.2px;
+}
+
+.sketch-cta span {
+  display: block;
+  font-size: 11.5px;
+  opacity: 0.88;
+  margin-top: 1px;
+}
+
+.sketch-cta[aria-pressed='true'] {
+  background: linear-gradient(135deg, var(--safe-600), #16a06a);
+  box-shadow: 0 3px 10px rgba(14, 124, 79, 0.3);
+}
+
+/* 빈 도면 위의 큰 시작 단추 */
+.canvas-empty .cta {
+  pointer-events: auto;
+  margin-top: 14px;
+}
+
+@media print {
+  .coach {
+    display: none !important;
+  }
+}
+
+/* 도면 위 선택 알림 막대 — 무엇을 골랐고 어떻게 지우는지 바로 보인다 */
+.sel-bar {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--n0);
+  border: 1px solid var(--n4);
+  border-radius: 999px;
+  box-shadow: var(--shadow-2);
+  padding: 5px 6px 5px 12px;
+  font-size: 12.5px;
+  max-width: 92%;
+}
+
+.sel-bar .what {
+  background: var(--accent-50);
+  color: var(--accent-700);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.sel-bar b {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sel-bar .hint {
+  color: var(--n5);
+  font-size: 11.5px;
+}
+
+.sel-bar .del,
+.sel-bar .x {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--danger-600);
+  background: var(--danger-600);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sel-bar .del:hover {
+  background: var(--danger-500);
+}
+
+.sel-bar .x {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  background: var(--n1);
+  border-color: var(--n4);
+  color: var(--n7);
+}
+
+.sel-bar .x:hover {
+  background: var(--n2);
+}
+
+.canvas-empty div .or {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--n5);
+}
+
+.canvas-empty div {
+  pointer-events: auto;
+}
+
+/* ==================================================================
+   그리기 도우미 · 사용 설명서
+   ================================================================== */
+
+.assist {
+  border: 1px solid var(--accent-300);
+  border-left: 4px solid var(--accent-600);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--accent-50), var(--n0));
+  padding: 10px 12px 11px;
+  margin-bottom: 4px;
+}
+
+.assist.done {
+  border-color: var(--safe-100);
+  border-left-color: var(--safe-600);
+  background: linear-gradient(180deg, var(--safe-50), var(--n0));
+}
+
+.assist-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.assist .tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--accent-700);
+  background: var(--n0);
+  border: 1px solid var(--accent-300);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.assist.done .tag {
+  color: var(--safe-700);
+  border-color: var(--safe-100);
+}
+
+.assist .prog {
+  flex: 1;
+  height: 16px;
+  position: relative;
+  background: var(--n0);
+  border: 1px solid var(--n3);
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.assist .prog i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--safe-600);
+  opacity: 0.22;
+  transition: width 0.35s ease;
+}
+
+.assist .prog b {
+  position: relative;
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 10.5px;
+  color: var(--n7);
+  font-variant-numeric: tabular-nums;
+}
+
+.assist-main {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+
+.assist-main .ico {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--warn-50);
+  color: var(--warn-600);
+}
+
+.assist.done .assist-main .ico {
+  background: var(--safe-50);
+  color: var(--safe-600);
+}
+
+.assist-main b {
+  display: block;
+  font-size: 13.5px;
+  letter-spacing: -0.2px;
+}
+
+.assist-main p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--n7);
+  line-height: 1.55;
+}
+
+.assist-go {
+  margin-top: 9px;
+  width: 100%;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent-700);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.assist-go:hover {
+  background: var(--accent-600);
+}
+
+.assist.done .assist-go {
+  background: var(--safe-600);
+}
+
+.assist-rest {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.assist-rest button {
+  border: 1px dashed var(--n4);
+  background: var(--n0);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: var(--n7);
+  cursor: pointer;
+}
+
+.assist-rest button:hover {
+  border-color: var(--accent-500);
+  color: var(--accent-700);
+}
+
+/* 상단 바 안내 단추 */
+.tb.accent {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.42);
+  font-weight: 600;
+}
+
+.tb.accent:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* 사용 설명서 */
+.modal.manual {
+  width: 660px;
+}
+
+.manual-lead {
+  background: var(--accent-50);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.manual-lead p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.manual-sec {
+  border: 1px solid var(--n3);
+  border-radius: var(--radius);
+  margin-bottom: 7px;
+  overflow: hidden;
+}
+
+.manual-h {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: var(--n1);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--n8);
+  text-align: left;
+}
+
+.manual-h:hover {
+  background: var(--n2);
+}
+
+.manual-h span {
+  flex: 1;
+}
+
+.manual-h i {
+  font-style: normal;
+  font-size: 17px;
+  color: var(--n5);
+  line-height: 1;
+}
+
+.manual-sec.open .manual-h {
+  background: var(--accent-50);
+  color: var(--accent-800);
+}
+
+.manual-body {
+  padding: 10px 13px 12px;
+}
+
+.manual-body ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.manual-body li {
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--n3);
+  font-size: 12.5px;
+  align-items: baseline;
+}
+
+.manual-body li:last-child {
+  border-bottom: none;
+}
+
+.manual-body li b {
+  color: var(--accent-800);
+}
+
+.manual-body li .kbd {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.manual-body li span:last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--n7);
+  line-height: 1.55;
+}
+
+.sign-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sign {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  border: 1px solid var(--n3);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  background: var(--n1);
+}
+
+.sign b {
+  display: block;
+  font-size: 12.5px;
+}
+
+.sign span {
+  display: block;
+  font-size: 11px;
+  color: var(--n6);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+/* 세부 설정에서 목록으로 돌아가는 길 */
+.insp-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 7px;
+  margin-bottom: 8px;
+  border: 1px solid var(--n4);
+  border-radius: 999px;
+  background: var(--n1);
+  color: var(--n7);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.insp-back:hover {
+  background: var(--accent-50);
+  border-color: var(--accent-500);
+  color: var(--accent-700);
 }

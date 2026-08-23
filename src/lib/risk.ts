@@ -315,21 +315,7 @@ export function diagnose(plan: Plan, g?: Grid): Diagnosis {
     fix: '현관과 주방에 각각 1개씩 두고, 가족 모두가 위치를 알도록 한다. 주방에는 K급을 권장한다.',
   });
 
-  /* 4. 연기감지기 */
-  const det = plan.facilities.filter((f) => f.type === 'detector');
-  push({
-    id: 'detector',
-    label: '연기감지기',
-    weight: 10,
-    status: det.length >= 1 ? 'pass' : 'warn',
-    detail:
-      det.length >= 1
-        ? `연기감지기 ${det.length}개소가 표기되어 있다.`
-        : '연기감지기가 표기되지 않았다. 야간 인지 지연이 사망의 주요 원인이다.',
-    fix: '거실과 각 침실 천장의 감지기 위치를 확인해 표기한다. 떼어 두지 않는다.',
-  });
-
-  /* 5. 세대 피난시설 (준공연도 기준) */
+  /* 4. 세대 피난시설 (준공연도 기준) */
   const era = eraFor(plan.meta.approvalYear);
   const facil = plan.facilities.filter(
     (f) => f.type === 'refuge' || f.type === 'partition' || f.type === 'downladder',

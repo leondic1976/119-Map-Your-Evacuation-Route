@@ -7,6 +7,7 @@
  *   npm test
  */
 import {
+  FACILITY_LABEL,
   Plan,
   PlanTypeKey,
   ROOM_KIND_LABEL,
@@ -18,7 +19,7 @@ import {
 } from '../src/lib/types';
 import { TEMPLATES, buildFromTemplate, builtArea, getTemplate } from '../src/lib/templates';
 import { EXT_WALL, INT_WALL, buildWalls, inWall } from '../src/lib/walls';
-import { buildGrid, cellAt, cellCenter, connected, nearestWalkable, walkableArea } from '../src/lib/grid';
+import { Grid, buildGrid, cellAt, cellCenter, connected, nearestWalkable, walkableArea } from '../src/lib/grid';
 import { distanceField, exitPoints, generateRoutes, orthogonalize, routeMetric, rset } from '../src/lib/routing';
 import {
   BLOCK_LEVEL,
@@ -48,7 +49,10 @@ import {
   straighten,
   straightenLoop,
 } from '../src/lib/sketch';
-import { AppStore, HISTORY_LIMIT, STEPS, addRoom, removeSelection, stepDone } from '../src/lib/store';
+import { AppStore, HISTORY_LIMIT, STEPS, TOOLS, addRoom, removeSelection, stepDone } from '../src/lib/store';
+import { COACH_TARGETS, manualSections, tutorialFor } from '../src/lib/tutorial';
+import { assistFor, progress } from '../src/lib/assist';
+import { FACILITY_CAPTION, FACILITY_EASY, FACILITY_WHY, ROOM_EASY, STEP_EASY } from '../src/lib/words';
 
 /* ------------------------------------------------------------------ */
 /* 아주 작은 검증 틀                                                    */
@@ -1195,6 +1199,246 @@ check('그려 넣은 방으로도 벽·격자가 만들어진다', () => {
   assert(model.walls.length >= 4, `벽 ${model.walls.length}조각`);
   const g = buildGrid(plan, 10, model);
   assert(walkableArea(g) > 40, `통행 면적 ${walkableArea(g).toFixed(1)}㎡`);
+});
+
+/* ------------------------------------------------------------------ */
+/* 11. 안내 · 도우미 · 낱말이 기능과 어긋나지 않는지                     */
+/* ------------------------------------------------------------------ */
+
+section('안내 · 도우미 · 낱말');
+
+const LEVELS_ALL = ['elementary', 'secondary'] as const;
+
+check('따라하기가 모든 작성 단계를 다룬다', () => {
+  for (const level of LEVELS_ALL) {
+    const covered = new Set(
+      tutorialFor(level)
+        .map((s) => s.goStep)
+        .filter((v): v is number => v !== undefined),
+    );
+    const missing = STEPS.map((s, i) => (covered.has(i) ? null : `${s.no} ${s.title}`)).filter(Boolean);
+    assert(missing.length === 0, `${level}: 안내에 없는 단계 — ${missing.join(', ')}`);
+  }
+});
+
+check('따라하기가 가리키는 곳이 모두 정해진 이름이다', () => {
+  for (const level of LEVELS_ALL) {
+    for (const s of tutorialFor(level)) {
+      if (!s.target) continue;
+      assert(
+        (COACH_TARGETS as readonly string[]).includes(s.target),
+        `${level}/${s.id}: 알 수 없는 대상 ${s.target}`,
+      );
+    }
+  }
+});
+
+check('따라하기 문안이 비어 있지 않고 id 가 겹치지 않는다', () => {
+  for (const level of LEVELS_ALL) {
+    const steps = tutorialFor(level);
+    assert(steps.length >= 8, `${level}: 안내 ${steps.length}개`);
+    const ids = new Set(steps.map((s) => s.id));
+    assert(ids.size === steps.length, `${level}: id 중복`);
+    for (const s of steps) {
+      assert(s.title.length > 2, `${level}/${s.id}: 제목 없음`);
+      assert(s.body.length > 15, `${level}/${s.id}: 본문이 너무 짧다`);
+      if (s.goStep !== undefined) {
+        assert(s.goStep >= 0 && s.goStep < STEPS.length, `${level}/${s.id}: 단계 ${s.goStep}`);
+      }
+      if (s.wait) assert(Boolean(s.done), `${level}/${s.id}: 기다리는데 끝 판정이 없다`);
+    }
+  }
+});
+
+check('설명서가 도구와 단계를 하나도 빠뜨리지 않는다', () => {
+  for (const level of LEVELS_ALL) {
+    const secs = manualSections(level);
+    const text = JSON.stringify(secs);
+    for (const s of STEPS) assert(text.includes(s.title), `${level}: 단계 "${s.title}" 누락`);
+    for (const t of TOOLS) assert(text.includes(t.label), `${level}: 도구 "${t.label}" 누락`);
+    const tools = secs.find((s) => s.id === 'tools')!;
+    assert(tools.items.length === TOOLS.length, `${level}: 도구 설명 ${tools.items.length} / ${TOOLS.length}`);
+  }
+});
+
+check('초등 낱말이 모든 항목에 갖춰져 있다', () => {
+  assert(STEP_EASY.length === STEPS.length, `단계 낱말 ${STEP_EASY.length} / ${STEPS.length}`);
+  STEP_EASY.forEach((s, i) => {
+    assert(s.title.length > 1 && s.short.length > 0 && s.guide.length > 10, `${i}번째 단계 낱말 부족`);
+  });
+  for (const k of Object.keys(FACILITY_LABEL) as (keyof typeof FACILITY_LABEL)[]) {
+    assert(Boolean(FACILITY_EASY[k]), `기호 "${k}" 쉬운 이름 없음`);
+    assert(Boolean(FACILITY_CAPTION[k]), `기호 "${k}" 도면 캡션 없음`);
+    assert(Boolean(FACILITY_WHY[k]), `기호 "${k}" 설명 없음`);
+  }
+  for (const k of Object.keys(ROOM_KIND_LABEL) as (keyof typeof ROOM_KIND_LABEL)[]) {
+    assert(Boolean(ROOM_EASY[k]), `실 용도 "${k}" 쉬운 이름 없음`);
+  }
+});
+
+check('설비 표기에 감지기가 남아 있지 않다', () => {
+  assert(!('detector' in FACILITY_LABEL), '기호 목록에 감지기가 남아 있다');
+  for (const t of TEMPLATES) {
+    const p = buildFromTemplate(t.key, t.defaultArea);
+    assert(
+      p.facilities.every((f) => (f.type as string) !== 'detector'),
+      `${t.key} 표준 평면에 감지기가 남아 있다`,
+    );
+  }
+  const migrated = migrate({
+    rooms: [],
+    facilities: [
+      { id: 'a', type: 'detector', x: 0, y: 0, rot: 0 },
+      { id: 'b', type: 'extinguisher', x: 0, y: 0, rot: 0 },
+    ],
+  });
+  assert(migrated.facilities.length === 1, '구버전 파일의 감지기가 걸러지지 않았다');
+  assert(migrated.facilities[0].type === 'extinguisher', '엉뚱한 것이 걸러졌다');
+});
+
+check('도우미가 상황마다 다음 할 일을 알려 준다', () => {
+  const empty = assistFor(emptyPlan(), 0);
+  assert(empty[0].id === 'no-room', `빈 도면 → ${empty[0].id}`);
+  assert(Boolean(empty[0].action), '할 일 단추가 없다');
+
+  const oneRoom: Plan = {
+    ...emptyPlan(),
+    rooms: [{ id: 'a', kind: 'room', name: '방', x: 0, y: 0, w: 500, h: 400 }],
+  };
+  assert(assistFor(oneRoom, 0)[0].id === 'one-room', '방 하나일 때 안내가 다르다');
+
+  const noDoor: Plan = { ...bay3, doors: bay3.doors.filter((d) => d.kind !== 'entrance') };
+  const ids = assistFor(noDoor, 2).map((a) => a.id);
+  assert(ids.includes('no-entrance'), `현관문 없음을 못 짚는다: ${ids.join(',')}`);
+
+  const full: Plan = {
+    ...bay3,
+    routes: primary,
+    meta: { ...bay3.meta, dong: '101', ho: '502' },
+  };
+  const done = assistFor(full, 8);
+  assert(done.every((a) => a.tone !== 'warn'), `다 됐는데 경고가 남았다: ${done.map((a) => a.id).join(',')}`);
+});
+
+check('도우미가 모든 상황을 짚고 문안에 빈 곳이 없다', () => {
+  const oneRoom: Plan = {
+    ...emptyPlan(),
+    rooms: [{ id: 'a', kind: 'room', name: '방', x: 0, y: 0, w: 500, h: 400 }],
+  };
+  const withAddr: Plan = { ...bay3, meta: { ...bay3.meta, dong: '101', ho: '502' } };
+  const noExt: Plan = { ...withAddr, facilities: withAddr.facilities.filter((f) => f.type !== 'extinguisher') };
+  const noEscape: Plan = {
+    ...withAddr,
+    facilities: withAddr.facilities.filter(
+      (f) => f.type !== 'refuge' && f.type !== 'partition' && f.type !== 'downladder',
+    ),
+  };
+  const onlyPrimary: Plan = { ...withAddr, routes: primary };
+  const full: Plan = { ...withAddr, routes: primary.concat(generateRoutes(bay3, bay3Grid, { target: 'facility' })) };
+
+  // 문을 모두 없애 갇힌 방을 만든다
+  const smallPlan = buildFromTemplate('small', 39);
+  const bed = smallPlan.rooms.find((r) => r.name === '침실1')!;
+  const stuck: Plan = {
+    ...smallPlan,
+    doors: smallPlan.doors.filter((d) => {
+      const onLeft = Math.abs(d.x - bed.x) < 2 && d.y > bed.y && d.y < bed.y + bed.h;
+      const onRight = Math.abs(d.x - (bed.x + bed.w)) < 2 && d.y > bed.y && d.y < bed.y + bed.h;
+      const onTop = Math.abs(d.y - bed.y) < 2 && d.x > bed.x && d.x < bed.x + bed.w;
+      const onBottom = Math.abs(d.y - (bed.y + bed.h)) < 2 && d.x > bed.x && d.x < bed.x + bed.w;
+      return !(onLeft || onRight || onTop || onBottom);
+    }),
+  };
+
+  const cases: [Plan, Grid | undefined][] = [
+    [emptyPlan(), undefined],
+    [oneRoom, undefined],
+    [bay3, bay3Grid],
+    [{ ...bay3, doors: bay3.doors.filter((d) => d.kind !== 'entrance') }, bay3Grid],
+    [noExt, bay3Grid],
+    [noEscape, bay3Grid],
+    [onlyPrimary, bay3Grid],
+    [full, bay3Grid],
+    [stuck, buildGrid(stuck)],
+  ];
+
+  const seen = new Set<string>();
+  for (const [p, g] of cases) {
+    for (let step = 0; step < STEPS.length; step += 1) {
+      for (const a of assistFor(p, step, g)) {
+        seen.add(a.id);
+        assert(a.title.length > 2, `${a.id}: 제목 없음`);
+        assert(a.body.length > 10, `${a.id}: 본문 없음`);
+        assert(['todo', 'ok', 'warn', 'done'].includes(a.tone), `${a.id}: 말투 ${a.tone}`);
+        if (a.action) {
+          assert(a.action.label.length > 1, `${a.id}: 단추 이름 없음`);
+          if (a.action.kind === 'step') {
+            const v = Number(a.action.value);
+            assert(v >= 0 && v < STEPS.length, `${a.id}: 단계 ${v}`);
+          }
+        }
+      }
+    }
+  }
+
+  const want = [
+    'no-room',
+    'one-room',
+    'no-entrance',
+    'stuck-room',
+    'no-address',
+    'no-ext',
+    'no-escape',
+    'no-route',
+    'no-alt',
+    'all-set',
+  ];
+  const missing = want.filter((id) => !seen.has(id));
+  assert(missing.length === 0, `짚지 못한 상황: ${missing.join(', ')}`);
+});
+
+check('진행 정도가 0에서 1 사이로 늘어난다', () => {
+  const a = progress(emptyPlan());
+  near(a.value, 0, 0.001, '빈 도면 진행');
+  const b = progress(bay3);
+  assert(b.value > a.value, `${a.value} → ${b.value}`);
+  const c = progress({ ...bay3, routes: primary, meta: { ...bay3.meta, dong: '1', ho: '2' } });
+  near(c.value, 1, 0.001, '다 채운 진행');
+  assert(c.label === '6 / 6', c.label);
+});
+
+check('초등은 대충 그려도 방으로 받아 준다', () => {
+  // 시작점과 끝점이 한참 벌어진, 많이 흔들린 사각형
+  const sloppy = wobble({ x: 0, y: 0 }, { x: 800, y: 0 }, 12, 26, 3)
+    .concat(wobble({ x: 800, y: 0 }, { x: 800, y: 600 }, 12, 26, 60))
+    .concat(wobble({ x: 800, y: 600 }, { x: 0, y: 600 }, 12, 26, 120))
+    .concat(wobble({ x: 0, y: 600 }, { x: 60, y: 120 }, 8, 26, 180));
+
+  const strict = interpretStroke(emptyPlan(), sloppy, { grid: 5 });
+  const easy = interpretStroke(emptyPlan(), sloppy, { grid: 10, easy: true });
+  assert(easy.kind === 'rooms', `초등 해석 ${easy.kind}`);
+  if (easy.kind !== 'rooms') return;
+  assert(easy.rects.length <= 2, `조각 ${easy.rects.length}개 — 너무 잘게 나뉜다`);
+  const area = easy.rects.reduce((s, r) => s + r.w * r.h, 0) / 10000;
+  assert(area > 30, `면적 ${area.toFixed(1)}㎡`);
+  // 엄격 모드보다 초등 쪽이 조각이 적거나 같아야 한다
+  if (strict.kind === 'rooms') {
+    assert(easy.rects.length <= strict.rects.length, `초등 ${easy.rects.length} vs 일반 ${strict.rects.length}`);
+  }
+});
+
+check('초등은 짧게 가로질러도 벽으로 받아 준다', () => {
+  const living = bay3.rooms.find((r) => r.kind === 'living')!;
+  const midX = Math.round(living.x + living.w / 2);
+  // 방 높이의 40% 만 가로지른 짧은 선
+  const short = wobble(
+    { x: midX, y: living.y + living.h * 0.3 },
+    { x: midX + 8, y: living.y + living.h * 0.7 },
+    14,
+    9,
+  );
+  const easy = interpretStroke(bay3, short, { grid: 10, easy: true });
+  assert(easy.kind === 'split', `초등 해석 ${easy.kind}`);
 });
 
 /* ------------------------------------------------------------------ */

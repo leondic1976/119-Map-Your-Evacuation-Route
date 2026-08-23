@@ -93,7 +93,6 @@ export type FacilityType =
   | 'refuge'
   | 'partition'
   | 'downladder'
-  | 'detector'
   | 'exit'
   | 'assembly';
 
@@ -102,7 +101,6 @@ export const FACILITY_LABEL: Record<FacilityType, string> = {
   refuge: '대피공간',
   partition: '경량칸막이',
   downladder: '하향식 피난구',
-  detector: '연기감지기',
   exit: '피난 종점',
   assembly: '집결지',
 };

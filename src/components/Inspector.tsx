@@ -4,6 +4,8 @@
 import React from 'react';
 import { STEPS } from '../lib/store';
 import { useApp } from './useStore';
+import AssistPanel from './Assist';
+import { stepGuide, stepTitle } from '../lib/words';
 import { Grid } from '../lib/grid';
 import { SmokeField } from '../lib/firesim';
 import Step1Plan from './panels/Step1Plan';
@@ -25,15 +27,22 @@ interface Props {
 }
 
 export default function Inspector({ grid, field, pickMode, setPickMode, onPreview }: Props) {
-  const { step } = useApp();
+  const { step, level } = useApp();
   const def = STEPS[step];
+  const title = stepTitle(level, step, def.title);
 
   return (
-    <aside className="inspector" aria-label={`${def.title} 검사기`}>
+    <aside className="inspector" aria-label={`${title} 검사기`} data-coach="inspector">
       <div className="insp-head">
-        <div className="no">STEP {def.no}</div>
-        <h2>{def.title}</h2>
-        <p>{def.guide}</p>
+        <div className="no">
+          {level === 'elementary' ? `${step + 1}번째 걸음` : `STEP ${def.no}`}
+        </div>
+        <h2>{title}</h2>
+        <p>{stepGuide(level, step, def.guide)}</p>
+      </div>
+
+      <div style={{ padding: '10px 14px 0' }}>
+        <AssistPanel grid={grid} />
       </div>
       {step === 0 && <Step1Plan />}
       {step === 1 && <Step2Meta />}

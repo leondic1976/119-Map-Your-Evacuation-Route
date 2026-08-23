@@ -1,6 +1,6 @@
 'use client';
 
-/** 04 설비 표기 — 소화기·세대 피난시설·연기감지기 */
+/** 04 설비 표기 — 소화기·세대 피난시설 */
 import React from 'react';
 import { store, useApp } from '../useStore';
 import { addFacility } from '../../lib/store';
@@ -9,10 +9,10 @@ import { eraFor } from '../../lib/risk';
 import { Callout, Group, KV } from './ui';
 import SelectionEditor from './SelectionEditor';
 import { LegendMark } from '../Symbols';
+import { FACILITY_EASY, FACILITY_WHY } from '../../lib/words';
 
 const QUICK: { type: FacilityType; hint: string }[] = [
   { type: 'extinguisher', hint: '현관·주방에 각 1개. 가족 모두가 위치를 안다.' },
-  { type: 'detector', hint: '거실·침실 천장. 떼어 두지 않는다.' },
   { type: 'refuge', hint: '발코니의 방화문 있는 2㎡ 이상 공간.' },
   { type: 'partition', hint: '세대 경계벽. 두드리면 빈 소리가 난다.' },
   { type: 'downladder', hint: '발코니 바닥 피난구. 덮개 위를 비운다.' },
@@ -20,7 +20,9 @@ const QUICK: { type: FacilityType; hint: string }[] = [
 ];
 
 export default function Step4Facility() {
-  const { plan, selection } = useApp();
+  const { plan, selection, level } = useApp();
+  const easy = level === 'elementary';
+  const name = (t: FacilityType) => (easy ? FACILITY_EASY[t] : FACILITY_LABEL[t]);
   const era = eraFor(plan.meta.approvalYear);
   const b = planBounds(plan);
 
@@ -58,11 +60,11 @@ export default function Step4Facility() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <b style={{ fontSize: 12.5 }}>{FACILITY_LABEL[q.type]}</b>
+                <b style={{ fontSize: 12.5 }}>{name(q.type)}</b>
                 {counts(q.type) > 0 && <span className="badge pass">{counts(q.type)}</span>}
               </div>
               <div className="note" style={{ margin: '2px 0 6px' }}>
-                {q.hint}
+                {easy ? FACILITY_WHY[q.type] : q.hint}
               </div>
               <div className="btn-row">
                 <button type="button" className="btn sm" onClick={() => place(q.type)}>
@@ -80,11 +82,10 @@ export default function Step4Facility() {
       {selection?.kind === 'facility' && <SelectionEditor />}
 
       <Group title={`표기 현황 (${plan.facilities.length})`}>
-        <KV k="소화기" v={`${counts('extinguisher')}개`} />
-        <KV k="연기감지기" v={`${counts('detector')}개`} />
-        <KV k="대피공간" v={`${counts('refuge')}개`} />
-        <KV k="경량칸막이" v={`${counts('partition')}개`} />
-        <KV k="하향식 피난구" v={`${counts('downladder')}개`} />
+        <KV k={name('extinguisher')} v={`${counts('extinguisher')}개`} />
+        <KV k={name('refuge')} v={`${counts('refuge')}개`} />
+        <KV k={name('partition')} v={`${counts('partition')}개`} />
+        <KV k={name('downladder')} v={`${counts('downladder')}개`} />
         {counts('refuge') + counts('partition') + counts('downladder') === 0 && (
           <Callout kind="warn" title="대체 피난수단이 없다">
             현관이 막히면 갈 곳이 없다. 발코니에서 실제 시설을 확인해 표기한다. 아무것도 없다면 외기에 접한

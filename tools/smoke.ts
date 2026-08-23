@@ -77,9 +77,26 @@ function assert(cond: boolean, msg: string): void {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * 따라하기 덮개는 처음 온 이용자에게 저절로 뜬다.
+ * 본 시나리오에서는 방해가 되므로 '이미 봤다'로 표시해 둔다.
+ * (자동 표시 자체는 따로 검증한다)
+ */
+async function silenceCoach(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    window.localStorage.setItem('evac-tutorial-seen-v1', '["elementary","secondary"]'),
+  );
+}
+
 async function stepTo(page: Page, title: string): Promise<void> {
-  await page.locator('.stepper .step', { hasText: title }).first().click();
+  await page.locator('.stepper .step', { hasText: title }).first().click({ timeout: 6000 });
   await page.waitForTimeout(140);
+}
+
+/** 단계 이름은 이용 수준에 따라 달라진다(초등: "집 그리기"). 번호로 여는 쪽이 안전하다 */
+async function stepAt(page: Page, index: number): Promise<void> {
+  await page.locator('.stepper .step').nth(index).click({ timeout: 6000 });
+  await page.waitForTimeout(160);
 }
 
 async function roomCount(page: Page): Promise<number> {
@@ -105,7 +122,7 @@ async function waitSaved(page: Page, expect: number, timeout = 4000): Promise<nu
 }
 
 async function loadTemplate(page: Page, label: string): Promise<number> {
-  await stepTo(page, '평면 작성');
+  await stepAt(page, 0);
   await page.locator('.tmpl', { hasText: label }).first().click();
   await page.waitForTimeout(260);
   const rows = await page.locator('.inspector table.tbl tbody tr').count();
@@ -130,6 +147,7 @@ async function main(): Promise<void> {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(server.url, { waitUntil: 'networkidle' });
     await page.evaluate(() => window.localStorage.clear());
+    await silenceCoach(page);
     await page.reload({ waitUntil: 'networkidle' });
 
     /* 1 */
@@ -468,7 +486,7 @@ async function main(): Promise<void> {
 
     /* 24 */
     await check('도움말에 단축키가 모두 나온다', async () => {
-      await page.locator('.topbar button[title^="도움말"]').click();
+      await page.locator('.topbar button[title^="단축키"]').click();
       await page.waitForSelector('.modal');
       const text = await page.locator('.modal').innerText();
       for (const k of ['V', 'R', 'D', 'W', 'F', 'L', 'T', 'M', 'H']) {
@@ -513,6 +531,7 @@ async function main(): Promise<void> {
 
     await check('이용 수준을 초등으로 바꾸면 자유 그리기가 앞에 온다', async () => {
       await page.evaluate(() => window.localStorage.clear());
+      await silenceCoach(page);
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForSelector('.level-seg');
       await page.locator('.level-seg button', { hasText: '초등' }).click();
@@ -526,7 +545,7 @@ async function main(): Promise<void> {
     });
 
     await check('삐뚤빼뚤 그린 사각형이 반듯한 방이 된다', async () => {
-      await page.locator('.inspector button', { hasText: '자유 그리기 시작' }).click();
+      await page.locator('[data-coach="sketch-start"]').click();
       await page.waitForTimeout(180);
       const pressed = await page.locator('.rail button[aria-pressed="true"]').getAttribute('aria-label');
       assert(pressed?.includes('자유 그리기') ?? false, `${pressed}`);
@@ -607,6 +626,275 @@ async function main(): Promise<void> {
       assert(snap.includes('스냅 5cm'), snap);
     });
 
+    /* --- 안내 · 도우미 · 편집 --- */
+
+    await check('확대·축소·화면 맞춤 단추가 눌린다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await silenceCoach(page);
+      await page.reload({ waitUntil: 'networkidle' });
+      await loadTemplate(page, '3베이 판상형');
+      const zoom = async () => {
+        const t = await page.locator('.statusbar').innerText();
+        return Number(t.match(/축척\s*(\d+)/)?.[1] ?? 0);
+      };
+      // SVG 에 덮여 눌리지 않던 적이 있다 — 실제로 눌러 축척이 바뀌는지 본다
+      const before = await zoom();
+      await page.locator('.zoom-pad button[title="확대"]').click({ timeout: 4000 });
+      await page.waitForTimeout(250);
+      const bigger = await zoom();
+      assert(bigger > before, `확대 ${before}% → ${bigger}%`);
+      await page.locator('.zoom-pad button[title="축소"]').click({ timeout: 4000 });
+      await page.waitForTimeout(250);
+      assert((await zoom()) < bigger, '축소가 되지 않는다');
+      await page.locator('.zoom-pad button[title="화면 맞춤"]').click({ timeout: 4000 });
+      await page.waitForTimeout(300);
+      assert((await zoom()) > 0, '화면 맞춤이 되지 않는다');
+    });
+
+    await check('도면이 늘 캔버스 한가운데 온다', async () => {
+      const off = await page.evaluate(() => {
+        const g = document.querySelector('svg.stage > g') as SVGGElement | null;
+        const wrap = document.querySelector('.canvas-wrap') as HTMLElement | null;
+        if (!g || !wrap) return null;
+        const b = g.getBoundingClientRect();
+        const w = wrap.getBoundingClientRect();
+        return {
+          dx: b.left + b.width / 2 - (w.left + w.width / 2),
+          dy: b.top + b.height / 2 - (w.top + w.height / 2),
+          ww: w.width,
+          wh: w.height,
+        };
+      });
+      assert(Boolean(off), '도면을 찾지 못했다');
+      // 방위표·축척막대까지 포함한 경계라 완전 정중앙은 아니다. 한쪽으로 크게 치우치지만 않으면 된다
+      assert(Math.abs(off!.dx) < off!.ww * 0.2, `가로 치우침 ${Math.round(off!.dx)}px`);
+      assert(Math.abs(off!.dy) < off!.wh * 0.2, `세로 치우침 ${Math.round(off!.dy)}px`);
+    });
+
+    await check('선택 막대로 도면 위에서 바로 지운다', async () => {
+      const before = await roomCount(page);
+      await page.locator('.rail button', { hasText: '고르기' }).click();
+      await page.locator('.inspector table.tbl tbody tr').first().click();
+      await page.waitForTimeout(250);
+      const bar = page.locator('.sel-bar');
+      assert((await bar.count()) === 1, '선택 막대가 뜨지 않는다');
+      const text = await bar.innerText();
+      assert(text.includes('방'), text);
+      await bar.locator('button', { hasText: '지우기' }).click();
+      const after = await waitSaved(page, before - 1);
+      assert(after === before - 1, `${before} → ${after}`);
+      assert((await page.locator('.sel-bar').count()) === 0, '지운 뒤에도 막대가 남아 있다');
+    });
+
+    await check('처음부터 단추가 모두 지우고 되돌릴 수 있다', async () => {
+      const before = await roomCount(page);
+      assert(before > 0, '지울 것이 없다');
+      await page.locator('.topbar button', { hasText: '처음부터' }).click();
+      await page.waitForSelector('.modal-back');
+      await page.locator('.modal footer button', { hasText: '모두 지우고 다시' }).click();
+      const cleared = await waitSaved(page, 0);
+      assert(cleared === 0, `남은 실 ${cleared}`);
+      const stepNow = await page.locator('.stepper .step[aria-current="step"]').innerText();
+      assert(stepNow.includes('01'), stepNow);
+      await page.keyboard.press('Control+z');
+      const back = await waitSaved(page, before);
+      assert(back === before, `되돌리기 ${back} / ${before}`);
+    });
+
+    await check('도우미가 지금 할 일을 알려 주고 눌러 처리한다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await silenceCoach(page);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.assist');
+      let text = await page.locator('.assist').innerText();
+      assert(text.includes('집 모양을 그린다'), text);
+      await loadTemplate(page, '3베이 판상형');
+      await page.waitForTimeout(300);
+      text = await page.locator('.assist').innerText();
+      // 평면이 생겼으니 다음 할 일로 넘어가야 한다
+      assert(!text.includes('집 모양을 그린다'), text);
+      const go = page.locator('.assist-go');
+      assert((await go.count()) === 1, '할 일 단추가 없다');
+    });
+
+    await check('도우미가 문이 없다고 짚어 준다', async () => {
+      // 현관문을 모두 지우면 도우미가 알아채야 한다
+      await page.evaluate(() => {
+        const raw = window.localStorage.getItem('evac-plan-v1');
+        const p = JSON.parse(raw || '{}');
+        p.doors = (p.doors || []).filter((d: { kind: string }) => d.kind !== 'entrance');
+        window.localStorage.setItem('evac-plan-v1', JSON.stringify(p));
+      });
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.assist');
+      await page.waitForTimeout(500);
+      const text = await page.locator('.assist').innerText();
+      assert(text.includes('나가는 문이 없다'), text);
+    });
+
+    await check('사용 설명서 레이어가 열리고 기호를 설명한다', async () => {
+      await page.locator('.topbar button', { hasText: '설명서' }).click();
+      await page.waitForSelector('.modal.manual');
+      const head = await page.locator('.modal.manual header').innerText();
+      assert(head.includes('사용 설명서'), head);
+      await page.locator('.manual-h', { hasText: '도구' }).first().click();
+      await page.waitForTimeout(200);
+      const tools = await page.locator('.manual-body li').count();
+      assert(tools >= 10, `도구 설명 ${tools}개`);
+      await page.locator('.manual-h', { hasText: '도면 기호' }).click();
+      await page.waitForTimeout(200);
+      const signs = await page.locator('.sign').count();
+      assert(signs >= 6, `기호 ${signs}개`);
+      await page.locator('.modal.manual footer button').click();
+      await page.waitForTimeout(200);
+    });
+
+    await check('따라하기가 모든 안내에서 가리킬 곳을 찾는다', async () => {
+      await page.locator('.topbar button', { hasText: '따라하기' }).click();
+      await page.waitForSelector('.coach-bubble');
+      const total = Number((await page.locator('.coach-count').innerText()).split('/')[1].trim());
+      assert(total >= 8, `안내 ${total}개`);
+      const missing: string[] = [];
+      for (let i = 0; i < total; i += 1) {
+        await page.waitForTimeout(260);
+        const title = await page.locator('.coach-bubble h3').innerText();
+        // 첫 안내(가운데)만 가리키는 곳이 없다
+        if (i > 0 && (await page.locator('.coach-ring').count()) === 0) missing.push(title);
+        if (i < total - 1) await page.locator('.coach-bubble button', { hasText: '다음' }).click();
+      }
+      assert(missing.length === 0, `가리킬 곳을 못 찾음: ${missing.join(', ')}`);
+      await page.locator('.coach-bubble button', { hasText: '마치기' }).click();
+      await page.waitForTimeout(300);
+      assert((await page.locator('.coach').count()) === 0, '안내가 닫히지 않았다');
+    });
+
+    await check('따라하기가 첫 방문에 저절로 뜨고 다시 뜨지 않는다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.coach-bubble', { timeout: 8000 });
+      assert(true, '');
+      // 끝까지 보면 다시 뜨지 않는다
+      const total = Number((await page.locator('.coach-count').innerText()).split('/')[1].trim());
+      for (let i = 0; i < total - 1; i += 1) {
+        await page.locator('.coach-bubble button', { hasText: '다음' }).click();
+        await page.waitForTimeout(150);
+      }
+      await page.locator('.coach-bubble button', { hasText: '마치기' }).click();
+      await page.waitForTimeout(300);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(900);
+      assert((await page.locator('.coach').count()) === 0, '끝까지 봤는데 또 뜬다');
+    });
+
+    await check('초등 모드는 쉬운 말과 기호 설명을 쓴다', async () => {
+      await page.locator('.level-seg button', { hasText: '초등' }).click();
+      await page.waitForTimeout(300);
+      const steps = await page.locator('.stepper').innerText();
+      assert(steps.includes('집 그리기') && steps.includes('나가는 길'), steps.slice(0, 120));
+      const rail = await page.locator('.rail').innerText();
+      assert(rail.includes('그리기') && rail.includes('고르기'), rail.slice(0, 80));
+      await stepTo(page, '소화기 표시');
+      const insp = await page.locator('.inspector').innerText();
+      assert(insp.includes('부수고 옆집으로') || insp.includes('숨어서 기다리는 방'), insp.slice(0, 200));
+    });
+
+    await check('세부 설정에서 목록으로 돌아갈 수 있다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await silenceCoach(page);
+      await page.reload({ waitUntil: 'networkidle' });
+      await loadTemplate(page, '3베이 판상형');
+      for (const [stepName, rowSel] of [
+        ['평면 작성', '.inspector table.tbl tbody tr'],
+        ['개구부', '.inspector table.tbl tbody tr'],
+      ] as const) {
+        await stepTo(page, stepName);
+        await page.locator(rowSel).first().click();
+        await page.waitForTimeout(220);
+        const back = page.locator('.insp-back');
+        assert((await back.count()) >= 1, `${stepName}: 뒤로 단추가 없다`);
+        await back.first().click();
+        await page.waitForTimeout(220);
+        const rows = await page.locator(rowSel).count();
+        assert(rows > 0, `${stepName}: 목록으로 돌아오지 못했다`);
+        assert((await page.locator('.insp-back').count()) === 0, `${stepName}: 세부 설정이 남아 있다`);
+      }
+    });
+
+    await check('모든 단계의 단추를 눌러도 오류가 나지 않는다', async () => {
+      const before = errors.length;
+      let last = '(시작)';
+      try {
+      // 파일 저장·인쇄처럼 창을 여는 것은 뺀다
+      // 파일 선택창·인쇄창을 여는 것은 자동으로 닫을 수 없으므로 뺀다
+      const SKIP = [
+        '인쇄',
+        '뽑기',
+        '저장',
+        '불러오기',
+        '올리기',
+        '사진',
+        '파일',
+        'PNG',
+        '내려받기',
+        '미리보기',
+        '지우기',
+        '처음부터',
+        '설명서',
+        '따라하기',
+      ];
+      // 혹시 열리면 곧바로 닫는다
+      page.on('filechooser', (fc) => fc.setFiles([]).catch(() => undefined));
+      for (const level of ['중고', '초등']) {
+        await page.evaluate(() => window.localStorage.clear());
+        await silenceCoach(page);
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.locator('.level-seg button', { hasText: level }).click({ timeout: 5000 });
+        await page.waitForTimeout(250);
+        await loadTemplate(page, '3베이 판상형');
+        for (let i = 0; i < 9; i += 1) {
+          last = `${level} / ${i + 1}단계 열기`;
+          await page.locator('.stepper .step').nth(i).click({ timeout: 5000 });
+          await page.waitForTimeout(220);
+          const buttons = page.locator('.inspector .panel button');
+          const n = await buttons.count();
+          for (let k = 0; k < n; k += 1) {
+            const btn = buttons.nth(k);
+            let label = '';
+            try {
+              label = (await btn.innerText()).trim();
+              if (!(await btn.isVisible()) || (await btn.isDisabled())) continue;
+            } catch {
+              continue;
+            }
+            if (SKIP.some((w) => label.includes(w))) continue;
+            last = `${level} / ${i + 1}단계 / "${label.replace(/\s+/g, ' ').slice(0, 24)}"`;
+            try {
+              await btn.click({ timeout: 1500, noWaitAfter: true });
+            } catch {
+              /* 자리가 바뀌어 못 누른 것은 넘어간다 */
+            }
+            await page.waitForTimeout(60);
+            // 모달이 열렸으면 닫아 다음 단추를 막지 않게 한다
+            if ((await page.locator('.modal-back').count()) > 0) {
+              await page.keyboard.press('Escape');
+              const closeBtn = page.locator('.modal footer button').first();
+              if ((await closeBtn.count()) > 0) {
+                await closeBtn.click({ timeout: 1500 }).catch(() => undefined);
+              }
+              await page.waitForTimeout(120);
+            }
+          }
+          await page.waitForTimeout(120);
+        }
+      }
+      } catch (e) {
+        const why = e instanceof Error ? e.message.replace(/\s+/g, ' ').slice(0, 90) : String(e);
+        throw new Error(`${last} 에서 멈춤 — ${why}`);
+      }
+      const fresh = errors.slice(before).filter((e) => !e.includes('ResizeObserver'));
+      assert(fresh.length === 0, `${last} 에서 오류 ${fresh.length}건: ${fresh.slice(0, 3).join(' | ')}`);
+    });
+
     /* 25 */
     await check('콘솔 오류 없이 전 과정이 끝난다', async () => {
       const real = errors.filter((e) => !e.includes('ResizeObserver'));
@@ -633,6 +921,10 @@ async function main(): Promise<void> {
         });
         await page2.goto(`file:///${standalone.split(path.sep).join('/')}`);
         await page2.waitForSelector('.stepper .step', { timeout: 20000 });
+        // 처음 열면 따라하기가 뜬다 — 오프라인에서도 뜨는지 확인하고 닫는다
+        await page2.waitForSelector('.coach-bubble', { timeout: 8000 });
+        await page2.locator('.coach-bubble button', { hasText: '그만 보기' }).click();
+        await page2.waitForTimeout(250);
         await page2.locator('.tmpl', { hasText: '타워형' }).first().click();
         await page2.waitForTimeout(700);
         const rects = await page2.locator('.stage rect').count();

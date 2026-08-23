@@ -4,10 +4,21 @@
  * 모든 데이터는 이용자 기기 안에서만 처리한다(서버 미전송).
  * 자동 저장은 브라우저 localStorage, 영구 보관은 JSON 파일 내려받기를 쓴다.
  */
-import { PLAN_VERSION, Plan, emptyPlan, emptyMeta } from './types';
+import { FacilityType, PLAN_VERSION, Plan, emptyPlan, emptyMeta } from './types';
+
+/** 지금 쓰는 설비 기호 — 구버전 파일의 사라진 기호는 걸러 낸다 */
+const KNOWN_FACILITIES: FacilityType[] = [
+  'extinguisher',
+  'refuge',
+  'partition',
+  'downladder',
+  'exit',
+  'assembly',
+];
 
 export const STORAGE_KEY = 'evac-plan-v1';
 export const LEVEL_KEY = 'evac-level-v1';
+export const TUTORIAL_KEY = 'evac-tutorial-seen-v1';
 
 export function serialize(plan: Plan): string {
   return JSON.stringify({ ...plan, version: PLAN_VERSION }, null, 2);
@@ -29,7 +40,9 @@ export function migrate(raw: unknown): Plan {
       ? o.doors.map((d) => ({ ...d, alwaysOpen: Boolean(d.alwaysOpen), hinge: d.hinge ?? -1, swing: d.swing ?? 1 }))
       : [],
     windows: Array.isArray(o.windows) ? o.windows : [],
-    facilities: Array.isArray(o.facilities) ? o.facilities.map((f) => ({ ...f, rot: f.rot ?? 0 })) : [],
+    facilities: Array.isArray(o.facilities)
+      ? o.facilities.filter((f) => KNOWN_FACILITIES.includes(f.type)).map((f) => ({ ...f, rot: f.rot ?? 0 }))
+      : [],
     routes: Array.isArray(o.routes) ? o.routes : [],
     notes: Array.isArray(o.notes) ? o.notes : [],
     background: o.background ?? null,
@@ -96,6 +109,25 @@ export function loadLevel(): 'elementary' | 'secondary' | null {
     return v === 'elementary' || v === 'secondary' ? v : null;
   } catch {
     return null;
+  }
+}
+
+/** 따라하기를 이미 본 수준들 */
+export function loadTutorialSeen(): string[] {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return [];
+    const v = window.localStorage.getItem(TUTORIAL_KEY);
+    return v ? (JSON.parse(v) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveTutorialSeen(levels: string[]): void {
+  try {
+    window.localStorage.setItem(TUTORIAL_KEY, JSON.stringify(levels));
+  } catch {
+    /* 무시 */
   }
 }
 

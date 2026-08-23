@@ -116,7 +116,6 @@ const BAY3: TemplateSpec = {
   ],
   facilities: [
     { type: 'extinguisher', x: 570, y: 150 },
-    { type: 'detector', x: 520, y: 560 },
     { type: 'partition', x: 1160, y: 820, rot: 90, size: 90 },
   ],
 };
@@ -172,7 +171,6 @@ const BAY4: TemplateSpec = {
   ],
   facilities: [
     { type: 'extinguisher', x: 610, y: 150 },
-    { type: 'detector', x: 900, y: 600 },
     { type: 'refuge', x: 1330, y: 860, rot: 0 },
   ],
 };
@@ -218,7 +216,6 @@ const TOWER: TemplateSpec = {
   ],
   facilities: [
     { type: 'extinguisher', x: 130, y: 130 },
-    { type: 'detector', x: 690, y: 430 },
     { type: 'downladder', x: 820, y: 740, rot: 0 },
   ],
 };
@@ -259,7 +256,6 @@ const SMALL: TemplateSpec = {
   ],
   facilities: [
     { type: 'extinguisher', x: 105, y: 105 },
-    { type: 'detector', x: 520, y: 380 },
     { type: 'partition', x: 700, y: 700, rot: 90, size: 90 },
   ],
 };

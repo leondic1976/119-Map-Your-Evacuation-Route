@@ -31,6 +31,21 @@ export interface Assist {
   action?: AssistAction;
 }
 
+/** 밖으로 나갈 수 없는 방 이름들 — 문을 빠뜨렸는지 본다 */
+export function stuckRooms(plan: Plan, grid: Grid): string[] {
+  const exits = exitPoints(plan, grid);
+  if (exits.length === 0) return [];
+  const out: string[] = [];
+  for (const r of plan.rooms) {
+    if (r.kind === 'balcony') continue;
+    const c = roomCenter(r);
+    const cell = nearestWalkable(grid, c.x, c.y);
+    if (cell < 0) continue;
+    if (!exits.some((e) => connected(grid, cell, e.cell))) out.push(r.name);
+  }
+  return out;
+}
+
 /** 이 단계에서 볼 도우미 — 앞에 있는 것이 지금 할 일이다 */
 export function assistFor(plan: Plan, step: number, grid?: Grid): Assist[] {
   const out: Assist[] = [];
@@ -76,15 +91,7 @@ export function assistFor(plan: Plan, step: number, grid?: Grid): Assist[] {
 
   /* 문이 없어 갇힌 방 찾기 */
   if (grid && entrances.length > 0) {
-    const exits = exitPoints(plan, grid);
-    const stuck: string[] = [];
-    for (const r of plan.rooms) {
-      if (r.kind === 'balcony') continue;
-      const c = roomCenter(r);
-      const cell = nearestWalkable(grid, c.x, c.y);
-      if (cell < 0) continue;
-      if (!exits.some((e) => connected(grid, cell, e.cell))) stuck.push(r.name);
-    }
+    const stuck = stuckRooms(plan, grid);
     if (stuck.length > 0) {
       out.push({
         id: 'stuck-room',

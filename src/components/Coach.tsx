@@ -8,8 +8,9 @@
  * 이용자가 할 일을 마치면(방을 그리면, 문을 놓으면) 저절로 다음 안내로 넘어간다.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { store, useApp } from './useStore';
+import { store, useApp, useModel } from './useStore';
 import { CoachContext, CoachStep, canAdvance, isDone, tutorialFor } from '../lib/tutorial';
+import { stuckRooms } from '../lib/assist';
 import { IconCheck, IconChevron, IconClose } from './Icons';
 
 interface Rect {
@@ -22,13 +23,24 @@ interface Rect {
 const PAD = 6;
 const GAP = 14;
 
-function measure(target?: string): Rect | null {
-  if (!target) return null;
+function rectOf(target: string): Rect | null {
   const el = document.querySelector(`[data-coach="${target}"]`);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   if (r.width < 1 || r.height < 1) return null;
-  return { x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 };
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+
+/** 밝힐 곳들을 하나로 묶은 사각형 */
+function measure(target?: string, also?: readonly string[]): Rect | null {
+  if (!target) return null;
+  const rects = [target, ...(also ?? [])].map(rectOf).filter((r): r is Rect => r !== null);
+  if (rects.length === 0) return null;
+  const x0 = Math.min(...rects.map((r) => r.x));
+  const y0 = Math.min(...rects.map((r) => r.y));
+  const x1 = Math.max(...rects.map((r) => r.x + r.w));
+  const y1 = Math.max(...rects.map((r) => r.y + r.h));
+  return { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: y1 - y0 + PAD * 2 };
 }
 
 export default function Coach() {
@@ -41,28 +53,35 @@ export default function Coach() {
   const [vw, setVw] = useState(1280);
   const [vh, setVh] = useState(800);
 
+  // 갇힌 방이 있는지는 격자를 봐야 안다. plan 이 바뀔 때만 다시 만든다.
+  const { grid } = useModel(plan);
   const ctx: CoachContext = {
     plan,
     tool,
     step,
     drilled: Boolean(drill.state && drill.state.outcome !== 'ongoing'),
+    stuck: tutorial.active ? stuckRooms(plan, grid).length : 0,
   };
 
-  /* 안내가 바뀌면 해당 작성 단계로 옮긴다 */
+  /*
+   * 안내가 바뀌면 해당 작성 단계로 옮긴다.
+   * 이미 그 단계에 있어도 다시 부른다 — 단계에 들어설 때 맞춰 주는 기본값
+   * (예: 현관문이 생겼으니 다음 문은 실문)을 다시 적용하기 위해서다.
+   */
   useEffect(() => {
     if (!tutorial.active || !current) return;
-    if (current.goStep !== undefined && store.getState().step !== current.goStep) {
-      store.setStep(current.goStep);
-    }
+    if (current.goStep !== undefined) store.setStep(current.goStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tutorial.active, index]);
 
   /* 가리킬 곳의 위치를 계속 따라간다 (패널이 바뀌면 자리도 바뀐다) */
+  const alsoKey = (current?.also ?? []).join(',');
   const sync = useCallback(() => {
-    setRect(measure(current?.target));
+    setRect(measure(current?.target, current?.also));
     setVw(window.innerWidth);
     setVh(window.innerHeight);
-  }, [current?.target]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.target, alsoKey]);
 
   useLayoutEffect(() => {
     if (!tutorial.active) return;

@@ -1532,11 +1532,15 @@ table.tbl tr.hi td {
   pointer-events: none;
 }
 
-/* 뚫린 자리만 빼고 덮는 네 조각 — 덮인 곳은 눌리지 않는다 */
+/*
+ * 뚫린 자리만 빼고 덮는 네 조각.
+ * 어둡게만 하고 손길은 막지 않는다. 막아 두면, 밝힌 곳 밖에 손이 닿아야 하는
+ * 안내에서 이용자가 아무것도 할 수 없게 된다(문 만들기에서 실제로 그랬다).
+ */
 .coach-band {
   position: fixed;
-  background: rgba(7, 32, 58, 0.56);
-  pointer-events: auto;
+  background: rgba(7, 32, 58, 0.5);
+  pointer-events: none;
 }
 
 .coach-ring {

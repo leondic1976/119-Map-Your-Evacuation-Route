@@ -44,11 +44,19 @@ export interface CoachContext {
   step: number;
   /** 훈련을 끝냈는지 */
   drilled: boolean;
+  /** 문이 없어 밖으로 나갈 수 없는 방의 수 */
+  stuck: number;
 }
 
 export interface CoachStep {
   id: string;
   target?: CoachTarget;
+  /**
+   * 함께 밝혀 둘 곳.
+   * 이용자가 직접 해야 하는 안내(wait)에서는 손이 닿아야 할 곳을 모두 밝힌다.
+   * 옵션 막대만 밝히고 도면을 어둡게 두면 어디에 그어야 할지 알 수 없다.
+   */
+  also?: CoachTarget[];
   title: string;
   body: string;
   /** 이 안내로 올 때 맞출 작성 단계 (0~8) */
@@ -122,27 +130,40 @@ const ELEMENTARY: CoachStep[] = [
     target: 'inspector',
     goStep: 1,
     title: '우리 집이 몇 동 몇 호일까',
-    body: '동과 호수를 적는다. 119에 신고할 때 가장 먼저 말해야 하는 것이다. 지은 해를 넣으면 우리 집에 어떤 피난시설이 있는지도 알려 준다.',
     place: 'left',
+    body: '동과 호수를 적는다. 119에 신고할 때 가장 먼저 말해야 하는 것이다. 지은 해를 넣으면 우리 집에 어떤 피난시설이 있는지도 알려 준다.',
     wait: true,
     done: hasInfo,
   },
   {
     id: 'draw-door',
     target: 'optbar',
+    also: ['canvas'],
     goStep: 2,
-    title: '이제 문을 만든다',
-    body: '벽을 따라 짧게 그으면 문이 된다. 밖으로 나가는 문을 만든 뒤 그 문을 눌러 "현관문"으로 바꾼다.',
+    title: '이제 밖으로 나가는 문을 만든다',
+    body: '위 막대에 종류가 "현관문"으로 되어 있는지 보고, 집 바깥쪽 벽을 한 번 누른다. 그 자리에 현관문이 생긴다.',
     place: 'bottom',
     wait: true,
     done: hasEntrance,
   },
   {
+    id: 'inner-door',
+    target: 'canvas',
+    also: ['optbar'],
+    goStep: 2,
+    title: '방과 방 사이에도 문이 필요하다',
+    body: '문이 없으면 그 방에서는 나올 수가 없다. 위 막대의 종류가 "실문"으로 바뀌어 있다. 방과 방 사이 벽을 한 번 누른다.',
+    place: 'bottom',
+    wait: true,
+    done: (c) => c.stuck === 0,
+  },
+  {
     id: 'facility',
     target: 'inspector',
+    also: ['canvas'],
     goStep: 3,
     title: '소화기는 어디 있지?',
-    body: '우리 집 소화기가 어디 있는지 찾아서 표시한다. 발코니에 피난 사다리나 대피공간이 있으면 그것도 함께 표시한다.',
+    body: '"가운데 놓기"를 누르면 도면에 소화기가 놓인다. 끌어서 실제 자리로 옮긴다. 발코니에 피난 사다리가 있으면 그것도 함께 표시한다.',
     place: 'left',
     wait: true,
     done: (c) => c.plan.facilities.length > 0,
@@ -150,6 +171,7 @@ const ELEMENTARY: CoachStep[] = [
   {
     id: 'route',
     target: 'inspector',
+    also: ['canvas'],
     goStep: 4,
     title: '길은 저절로 그려진다',
     body: '"주 동선" 단추를 누르면 방마다 현관까지 가는 길이 그려진다. 몇 미터인지, 몇 초 걸리는지도 나온다.',

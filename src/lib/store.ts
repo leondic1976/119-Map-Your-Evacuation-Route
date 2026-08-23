@@ -453,7 +453,21 @@ export class AppStore {
     const s = Math.max(0, Math.min(STEPS.length - 1, step));
     const def = STEPS[s];
     const layers = { ...this.state.layers, smoke: def.key === 'sim' || def.key === 'drill' };
-    this.set({ step: s, tool: this.toolForStep(def), layers, selection: null });
+    /*
+     * 개구부 단계에 들어설 때 종류를 알아서 맞춘다.
+     * 현관문이 아직 없으면 처음 놓을 문은 십중팔구 현관문이고,
+     * 이미 있으면 그다음은 방과 방 사이 실문이다.
+     */
+    const options =
+      def.key === 'opening'
+        ? {
+            ...this.state.options,
+            doorKind: (this.state.plan.doors.some((d) => d.kind === 'entrance')
+              ? 'room'
+              : 'entrance') as DoorKind,
+          }
+        : this.state.options;
+    this.set({ step: s, tool: this.toolForStep(def), layers, options, selection: null });
   }
 
   /** 이용 수준 변경 — 눈금 간격과 현재 도구를 함께 맞춘다 */

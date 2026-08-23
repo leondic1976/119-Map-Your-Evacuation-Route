@@ -798,6 +798,164 @@ async function main(): Promise<void> {
       assert(insp.includes('부수고 옆집으로') || insp.includes('숨어서 기다리는 방'), insp.slice(0, 200));
     });
 
+    await check('초등 따라하기를 처음부터 끝까지 직접 해낸다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.coach-bubble', { timeout: 10000 });
+      await page.locator('.coach-bubble button', { hasText: '그만 보기' }).click();
+      await page.locator('.level-seg button', { hasText: '초등' }).click();
+      await page.waitForTimeout(300);
+      await page.locator('.topbar button', { hasText: '따라하기' }).click();
+      await page.waitForSelector('.coach-bubble');
+
+      const total = Number((await page.locator('.coach-count').innerText()).split('/')[1].trim());
+      assert(total === 16, `초등 안내 ${total}걸음`);
+
+      const idx = async () => Number((await page.locator('.coach-count').innerText()).split('/')[0].trim());
+      const title = async () => (await page.locator('.coach-bubble h3').innerText()).trim();
+      const waiting = async () => (await page.locator('.coach-todo').count()) > 0;
+      const nextBtn = () => page.locator('.coach-bubble button', { hasText: '다음' });
+      const canNext = async () => nextBtn().isEnabled();
+
+      const worldToScreen = (wx: number, wy: number) =>
+        page.evaluate(
+          ([x, y]) => {
+            const g = document.querySelector('svg.stage > g') as SVGGElement | null;
+            const m = g?.getScreenCTM();
+            return m ? { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f } : { x: 0, y: 0 };
+          },
+          [wx, wy],
+        );
+      const bounds = async () =>
+        page.evaluate(() => {
+          const p = JSON.parse(window.localStorage.getItem('evac-plan-v1') || '{}');
+          const rs = (p.rooms || []) as { x: number; y: number; w: number; h: number }[];
+          if (rs.length === 0) return null;
+          const x0 = Math.min(...rs.map((r) => r.x));
+          const y0 = Math.min(...rs.map((r) => r.y));
+          const x1 = Math.max(...rs.map((r) => r.x + r.w));
+          const y1 = Math.max(...rs.map((r) => r.y + r.h));
+          return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+        });
+      const stroke = async (pts: { x: number; y: number }[]) => {
+        await page.mouse.move(pts[0].x, pts[0].y);
+        await page.mouse.down();
+        for (let i = 1; i < pts.length; i += 1) {
+          await page.mouse.move(pts[i].x + Math.sin(i * 3.1) * 5, pts[i].y + Math.cos(i * 2.3) * 5);
+        }
+        await page.mouse.up();
+        await page.waitForTimeout(700);
+      };
+
+      const log: string[] = [];
+      for (let guard = 0; guard < 40; guard += 1) {
+        const i = await idx();
+        const t = await title();
+        log.push(`${i}. ${t}`);
+        if (i >= total) break;
+
+        if (await waiting()) {
+          // 이용자가 직접 해야 하는 대목 — 실제로 해낸다
+          if (t.includes('집 모양을 그린다')) {
+            await page.locator('[data-coach="sketch-start"]').click();
+          } else if (t.includes('한 바퀴')) {
+            const box = (await page.locator('.canvas-wrap').boundingBox())!;
+            const x0 = box.x + 200;
+            const y0 = box.y + 140;
+            const x1 = box.x + 640;
+            const y1 = box.y + 450;
+            const pts: { x: number; y: number }[] = [];
+            const edge = (a: number[], b: number[], n: number) => {
+              for (let k = 0; k <= n; k += 1) {
+                const f = k / n;
+                pts.push({ x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f });
+              }
+            };
+            edge([x0, y0], [x1, y0], 8);
+            edge([x1, y0], [x1, y1], 8);
+            edge([x1, y1], [x0, y1], 8);
+            edge([x0, y1], [x0, y0], 8);
+            await stroke(pts);
+          } else if (t.includes('벽이 된다')) {
+            const b0 = (await bounds())!;
+            const a = await worldToScreen(b0.x + b0.w / 2, b0.y + 40);
+            const c = await worldToScreen(b0.x + b0.w / 2, b0.y + b0.h - 40);
+            await stroke([a, { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }, c]);
+          } else if (t.includes('몇 동 몇 호')) {
+            const inputs = page.locator('.inspector input[type="text"]');
+            await inputs.nth(1).fill('101');
+            await inputs.nth(2).fill('502');
+            await page.waitForTimeout(400);
+          } else if (t.includes('나가는 문')) {
+            // 위 막대의 종류가 현관문인지 확인하고 바깥 벽을 누른다
+            const kind = await page.locator('.optbar select').first().inputValue();
+            assert(kind === 'entrance', `문 종류가 ${kind} 로 되어 있다`);
+            const b0 = (await bounds())!;
+            const at = await worldToScreen(b0.x + b0.w * 0.3, b0.y);
+            await page.mouse.click(at.x, at.y);
+            await page.waitForTimeout(700);
+          } else if (t.includes('방과 방 사이')) {
+            const kind = await page.locator('.optbar select').first().inputValue();
+            assert(kind === 'room', `문 종류가 ${kind} 로 되어 있다`);
+            const b0 = (await bounds())!;
+            // 방을 나눈 가운데 벽을 누른다
+            const at = await worldToScreen(b0.x + b0.w / 2, b0.y + b0.h / 2);
+            await page.mouse.click(at.x, at.y);
+            await page.waitForTimeout(800);
+          } else if (t.includes('소화기')) {
+            await page
+              .locator('.inspector .card', { hasText: '소화기' })
+              .locator('button', { hasText: '가운데 놓기' })
+              .click();
+            await page.waitForTimeout(700);
+          } else if (t.includes('길은 저절로')) {
+            await page.locator('.inspector button', { hasText: '주 동선' }).first().click();
+            await page.waitForTimeout(900);
+          } else {
+            assert(false, `${i}걸음 "${t}": 무엇을 해야 하는지 모른다`);
+          }
+
+          // 해냈으면 저절로 넘어가야 한다
+          await page.waitForTimeout(1400);
+          const moved = await idx();
+          assert(moved > i, `${i}걸음 "${t}" 에서 넘어가지 않는다`);
+          continue;
+        }
+
+        assert(await canNext(), `${i}걸음 "${t}": 다음으로 넘어갈 수 없다`);
+        await nextBtn().click();
+        await page.waitForTimeout(420);
+      }
+
+      assert(log.length >= total, `거쳐 온 걸음 ${log.length} / ${total}\n        ${log.join('\n        ')}`);
+      await page.locator('.coach-bubble button', { hasText: '마치기' }).click();
+      await page.waitForTimeout(400);
+      assert((await page.locator('.coach').count()) === 0, '마지막에 닫히지 않았다');
+
+      // 따라간 결과 실제로 도면이 완성되어 있어야 한다
+      const made = await page.evaluate(() => {
+        const p = JSON.parse(window.localStorage.getItem('evac-plan-v1') || '{}');
+        return {
+          rooms: (p.rooms || []).length,
+          entrance: (p.doors || []).filter((d: { kind: string }) => d.kind === 'entrance').length,
+          doors: (p.doors || []).length,
+          facilities: (p.facilities || []).length,
+          routes: (p.routes || []).length,
+          dong: p.meta?.dong ?? '',
+        };
+      });
+      // 도우미가 "문이 없다"고 짚는 방이 남아 있으면 안 된다
+      const assistText = await page.locator('.assist').innerText();
+      const stuck = assistText.includes('문이 없다');
+      const stuckNames = stuck ? assistText.replace(/\s+/g, ' ').slice(0, 70) : '';
+      assert(made.rooms >= 2, `방 ${made.rooms}개`);
+      assert(made.entrance >= 1, '현관문이 없다');
+      assert(made.facilities >= 1, '설비가 없다');
+      assert(made.routes >= 2, `동선 ${made.routes}개 — 방마다 길이 있어야 한다`);
+      assert(made.dong === '101', `동 ${made.dong}`);
+      assert(!stuck, `밖으로 못 나가는 방이 남았다: ${stuckNames}`);
+    });
+
     await check('세부 설정에서 목록으로 돌아갈 수 있다', async () => {
       await page.evaluate(() => window.localStorage.clear());
       await silenceCoach(page);

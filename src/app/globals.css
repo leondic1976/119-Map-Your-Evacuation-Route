@@ -173,6 +173,41 @@ textarea {
   flex: 1;
 }
 
+/* 이용 수준 (초등 / 중고·일반) */
+.level-seg {
+  display: flex;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex: none;
+}
+
+.level-seg button {
+  border: none;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.82);
+  padding: 0 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+
+.level-seg button:last-child {
+  border-right: none;
+}
+
+.level-seg button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.level-seg button[aria-pressed='true'] {
+  background: #ffffff;
+  color: var(--accent-800);
+  font-weight: 700;
+}
+
 .save-chip {
   display: inline-flex;
   align-items: center;
@@ -431,6 +466,37 @@ textarea {
 
 .canvas-wrap svg.stage.tool-select {
   cursor: default;
+}
+
+.canvas-wrap svg.stage.tool-sketch {
+  cursor: crosshair;
+}
+
+/* 자유 그리기 안내 카드 */
+.sketch-guide {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--n3);
+  border-radius: var(--radius);
+  background: var(--n1);
+  padding: 9px 10px;
+  margin-bottom: 7px;
+}
+
+.sketch-guide b {
+  display: block;
+  font-size: 12.5px;
+}
+
+.sketch-guide span {
+  font-size: 11.5px;
+  color: var(--n6);
+}
+
+.sketch-guide svg {
+  display: block;
 }
 
 .canvas-wrap svg.stage.tool-pan {

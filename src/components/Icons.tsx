@@ -35,6 +35,15 @@ export const IconSelect = (p: Props) => (
   </Svg>
 );
 
+/** 자유 그리기 — 삐뚤빼뚤한 선이 반듯해진다 */
+export const IconSketch = (p: Props) => (
+  <Svg {...p}>
+    <path d="M3 8.5c1.6-2 3.2 1.6 4.8-.4S11 5.4 12.6 7s3.2-2.2 4.8-.6" />
+    <path d="M3 15.5h18" />
+    <path d="M18.4 13.2l2.6 2.3-2.6 2.3" />
+  </Svg>
+);
+
 export const IconRoom = (p: Props) => (
   <Svg {...p}>
     <rect x="3" y="4.5" width="18" height="15" rx="1" />

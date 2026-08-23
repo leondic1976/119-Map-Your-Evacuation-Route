@@ -10,6 +10,7 @@ import {
   Plan,
   PlanTypeKey,
   ROOM_KIND_LABEL,
+  Room,
   emptyPlan,
   planArea,
   polylineLength,
@@ -38,6 +39,15 @@ import { ACTIONS, applyAction, availableActions, evaluate, startScenario } from 
 import { otsu, scaleFromArea, scaleFromMeasure, trace } from '../src/lib/autotrace';
 import { diagnose, eraFor, HAZARDS, PROCEDURE } from '../src/lib/risk';
 import { migrate, parsePlan, serialize } from '../src/lib/storage';
+import {
+  interpretStroke,
+  looksClosed,
+  polygonToRects,
+  simplify,
+  splitRoom,
+  straighten,
+  straightenLoop,
+} from '../src/lib/sketch';
 import { AppStore, HISTORY_LIMIT, STEPS, addRoom, removeSelection, stepDone } from '../src/lib/store';
 
 /* ------------------------------------------------------------------ */
@@ -940,6 +950,251 @@ check('알 수 없는 표준 평면 키는 오류를 낸다', () => {
     threw = true;
   }
   assert(threw, '오류가 발생하지 않았다');
+});
+
+/* ------------------------------------------------------------------ */
+/* 10. 자유 그리기 보정                                                 */
+/* ------------------------------------------------------------------ */
+
+section('자유 그리기 보정');
+
+/** 결정적 잔떨림 — 같은 입력이면 늘 같은 결과가 나오게 한다 */
+function jitter(i: number, amp: number): number {
+  const v = Math.sin(i * 12.9898) * 43758.5453;
+  return (v - Math.floor(v) - 0.5) * 2 * amp;
+}
+
+/** 두 점 사이를 흔들리며 잇는 손그림 */
+function wobble(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  n: number,
+  amp: number,
+  seed = 0,
+): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    out.push({
+      x: a.x + (b.x - a.x) * t + jitter(seed + i, amp),
+      y: a.y + (b.y - a.y) * t + jitter(seed + i + 500, amp),
+    });
+  }
+  return out;
+}
+
+/** 손으로 대충 두른 사각형 */
+function wobbleRect(x: number, y: number, w: number, h: number, amp = 9) {
+  return wobble({ x, y }, { x: x + w, y }, 10, amp, 1)
+    .concat(wobble({ x: x + w, y }, { x: x + w, y: y + h }, 10, amp, 40))
+    .concat(wobble({ x: x + w, y: y + h }, { x, y: y + h }, 10, amp, 80))
+    .concat(wobble({ x, y: y + h }, { x, y }, 10, amp, 120));
+}
+
+check('잔떨림이 있는 직선이 두 점으로 줄어든다', () => {
+  const raw = wobble({ x: 0, y: 0 }, { x: 400, y: 0 }, 40, 6);
+  const simple = simplify(raw, 18);
+  assert(simple.length === 2, `단순화 결과 ${simple.length}점`);
+});
+
+check('보정된 선은 수평·수직 구간만 남는다', () => {
+  const raw = wobble({ x: 0, y: 0 }, { x: 300, y: 12 }, 30, 8).concat(
+    wobble({ x: 300, y: 12 }, { x: 310, y: 260 }, 30, 8, 900),
+  );
+  const line = straighten(raw, { grid: 5 });
+  assert(line.length >= 2, `점 ${line.length}개`);
+  for (let i = 1; i < line.length; i += 1) {
+    const a = line[i - 1];
+    const b = line[i];
+    assert(a.x === b.x || a.y === b.y, `사선 구간 (${a.x},${a.y})→(${b.x},${b.y})`);
+  }
+});
+
+check('보정된 좌표가 눈금에 맞춰진다', () => {
+  const raw = wobble({ x: 3, y: 7 }, { x: 297, y: 11 }, 30, 7);
+  for (const grid of [5, 10, 25]) {
+    const line = straighten(raw, { grid });
+    for (const p of line) {
+      assert(p.x % grid === 0 && p.y % grid === 0, `눈금 ${grid} 에 안 맞음 (${p.x},${p.y})`);
+    }
+  }
+});
+
+check('닫힌 모양과 열린 선을 구분한다', () => {
+  assert(looksClosed(wobbleRect(0, 0, 400, 300)), '닫힌 모양을 못 알아본다');
+  assert(!looksClosed(wobble({ x: 0, y: 0 }, { x: 400, y: 0 }, 20, 6)), '열린 선을 닫혔다고 본다');
+  assert(!looksClosed(wobble({ x: 0, y: 0 }, { x: 20, y: 10 }, 5, 2)), '너무 작은 선');
+});
+
+check('손으로 두른 사각형이 네 꼭짓점으로 펴진다', () => {
+  const poly = straightenLoop(wobbleRect(100, 100, 500, 400), { grid: 10 });
+  assert(poly.length === 4, `꼭짓점 ${poly.length}개: ${JSON.stringify(poly)}`);
+  const xs = poly.map((p) => p.x);
+  const ys = poly.map((p) => p.y);
+  near(Math.min(...xs), 100, 20, '좌측');
+  near(Math.max(...xs), 600, 20, '우측');
+  near(Math.min(...ys), 100, 20, '상단');
+  near(Math.max(...ys), 500, 20, '하단');
+  for (let i = 0; i < poly.length; i += 1) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    assert(a.x === b.x || a.y === b.y, '변이 축에 나란하지 않다');
+  }
+});
+
+check('직사각형 다각형은 사각형 하나가 된다', () => {
+  const rects = polygonToRects([
+    { x: 0, y: 0 },
+    { x: 400, y: 0 },
+    { x: 400, y: 300 },
+    { x: 0, y: 300 },
+  ]);
+  assert(rects.length === 1, `사각형 ${rects.length}개`);
+  near(rects[0].w * rects[0].h, 400 * 300, 1, '면적');
+});
+
+check('ㄱ자 다각형이 사각형 두 개로 나뉜다', () => {
+  const poly = [
+    { x: 0, y: 0 },
+    { x: 600, y: 0 },
+    { x: 600, y: 200 },
+    { x: 300, y: 200 },
+    { x: 300, y: 500 },
+    { x: 0, y: 500 },
+  ];
+  const rects = polygonToRects(poly);
+  assert(rects.length === 2, `사각형 ${rects.length}개`);
+  const area = rects.reduce((a, r) => a + r.w * r.h, 0);
+  near(area, 600 * 200 + 300 * 300, 1, '합계 면적');
+  for (let i = 0; i < rects.length; i += 1) {
+    for (let j = i + 1; j < rects.length; j += 1) {
+      const a = rects[i];
+      const b = rects[j];
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      assert(ox <= 0 || oy <= 0, '나뉜 사각형이 겹친다');
+    }
+  }
+});
+
+check('이미 실이 있는 자리는 비켜 간다', () => {
+  const poly = [
+    { x: 0, y: 0 },
+    { x: 600, y: 0 },
+    { x: 600, y: 400 },
+    { x: 0, y: 400 },
+  ];
+  const rects = polygonToRects(poly, [{ x: 0, y: 0, w: 300, h: 400 }]);
+  const area = rects.reduce((a, r) => a + r.w * r.h, 0);
+  near(area, 300 * 400, 1, '남은 면적');
+  assert(rects.every((r) => r.x >= 300 - 0.5), '기존 실을 침범한다');
+});
+
+check('닫힌 손그림이 방으로 해석된다', () => {
+  const res = interpretStroke(emptyPlan(), wobbleRect(0, 0, 700, 500), { grid: 10 });
+  assert(res.kind === 'rooms', `해석 ${res.kind}`);
+  if (res.kind !== 'rooms') return;
+  assert(res.rects.length === 1, `사각형 ${res.rects.length}개`);
+  near((res.rects[0].w * res.rects[0].h) / 10000, 35, 4, '면적(㎡)');
+});
+
+check('방을 가로지른 선이 벽으로 해석된다', () => {
+  const living = bay3.rooms.find((r) => r.kind === 'living')!;
+  const midX = Math.round(living.x + living.w / 2);
+  const raw = wobble(
+    { x: midX, y: living.y + 20 },
+    { x: midX + 6, y: living.y + living.h - 20 },
+    24,
+    7,
+  );
+  const res = interpretStroke(bay3, raw, { grid: 10 });
+  assert(res.kind === 'split', `해석 ${res.kind}`);
+  if (res.kind !== 'split') return;
+  assert(res.roomId === living.id, '다른 실을 골랐다');
+  assert(res.axis === 'v', `축 ${res.axis}`);
+  near(res.at, midX, 30, '벽 위치');
+});
+
+check('벽 위에 그은 선이 문으로 해석된다', () => {
+  const raw = wobble({ x: 70, y: 3 }, { x: 160, y: -2 }, 16, 5);
+  const res = interpretStroke(bay3, raw, { grid: 5 });
+  assert(res.kind === 'opening', `해석 ${res.kind}`);
+  if (res.kind !== 'opening') return;
+  assert(res.dir === 'h', `방향 ${res.dir}`);
+  near(res.y, 0, 6, '벽 위 위치');
+  near(res.width, 90, 25, '문 폭');
+});
+
+check('나눈 방 둘이 원래 방을 빈틈없이 채운다', () => {
+  const room = bay3.rooms.find((r) => r.kind === 'living')!;
+  const out = splitRoom(room, 'v', room.x + 200)!;
+  assert(Boolean(out), '분할 실패');
+  const a = { ...room, ...out.keep };
+  const b = out.create;
+  near(a.w + b.w, room.w, 0.001, '폭 합계');
+  assert(a.x + a.w === b.x, '경계가 어긋난다');
+  assert(a.h === b.h && a.y === b.y, '높이가 다르다');
+  assert(b.name !== room.name, '이름이 겹친다');
+  assert(!splitRoom(room, 'v', room.x + 10), '가장자리 분할이 막히지 않는다');
+});
+
+check('여러 번 나눠도 방 이름이 겹치지 않는다', () => {
+  let rooms: Room[] = [{ id: 'a', name: '침실', kind: 'room', x: 0, y: 0, w: 800, h: 600 }];
+  for (let i = 0; i < 4; i += 1) {
+    const target = rooms[0];
+    const out = splitRoom(
+      target,
+      'v',
+      target.x + Math.round(target.w / 2),
+      rooms.map((r) => r.name),
+    );
+    assert(Boolean(out), `${i + 1}번째 분할 실패`);
+    rooms = rooms
+      .map((r) => (r.id === out!.keep.id ? { ...r, ...out!.keep } : r))
+      .concat([{ ...out!.create, id: `n${i}` }]);
+  }
+  const names = rooms.map((r) => r.name);
+  assert(new Set(names).size === names.length, `이름 중복: ${names.join(', ')}`);
+  assert(rooms.length === 5, `방 ${rooms.length}개`);
+});
+
+check('해석할 수 없는 선은 까닭을 알려 준다', () => {
+  const res = interpretStroke(emptyPlan(), wobble({ x: 0, y: 0 }, { x: 500, y: 4 }, 20, 5), { grid: 10 });
+  assert(res.kind === 'none', `해석 ${res.kind}`);
+  if (res.kind !== 'none') return;
+  assert(res.reason.length > 10, '설명이 없다');
+});
+
+check('해석 방식을 직접 고르면 그대로 따른다', () => {
+  const open = wobble({ x: 0, y: 0 }, { x: 600, y: 8 }, 20, 6).concat(
+    wobble({ x: 600, y: 8 }, { x: 600, y: 400 }, 20, 6, 700),
+  );
+  const forced = interpretStroke(emptyPlan(), open, { grid: 10, mode: 'room' });
+  assert(forced.kind === 'rooms', `방 강제 → ${forced.kind}`);
+  const wall = interpretStroke(emptyPlan(), open, { grid: 10, mode: 'wall' });
+  assert(wall.kind === 'none', `벽 강제(실 없음) → ${wall.kind}`);
+});
+
+check('그려 넣은 방으로도 벽·격자가 만들어진다', () => {
+  const drawn = interpretStroke(emptyPlan(), wobbleRect(0, 0, 900, 700), { grid: 10 });
+  assert(drawn.kind === 'rooms', '방 생성 실패');
+  if (drawn.kind !== 'rooms') return;
+  const plan: Plan = {
+    ...emptyPlan(),
+    rooms: drawn.rects.map((r, i) => ({
+      id: `sk${i}`,
+      kind: 'living' as const,
+      name: `실${i + 1}`,
+      x: r.x,
+      y: r.y,
+      w: r.w,
+      h: r.h,
+    })),
+  };
+  const model = buildWalls(plan);
+  assert(model.walls.length >= 4, `벽 ${model.walls.length}조각`);
+  const g = buildGrid(plan, 10, model);
+  assert(walkableArea(g) > 40, `통행 면적 ${walkableArea(g).toFixed(1)}㎡`);
 });
 
 /* ------------------------------------------------------------------ */

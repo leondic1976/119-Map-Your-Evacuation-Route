@@ -23,10 +23,45 @@ import {
   nid,
 } from './types';
 import { ScenarioSetup, ScenarioState } from './scenario';
-import { saveLocal } from './storage';
+import { SketchMode } from './sketch';
+import { loadLevel, saveLevel, saveLocal } from './storage';
+
+/**
+ * 이용 수준.
+ * 초등은 도화지에 그리듯 자유 그리기를 앞세우고 눈금을 굵게 잡는다.
+ * 중·고등은 치수를 직접 다루는 정밀 도구를 기본으로 한다.
+ */
+export type LevelKey = 'elementary' | 'secondary';
+
+export interface LevelDef {
+  key: LevelKey;
+  label: string;
+  short: string;
+  hint: string;
+  /** 기본 스냅 간격(cm) */
+  snap: number;
+}
+
+export const LEVELS: LevelDef[] = [
+  {
+    key: 'elementary',
+    label: '초등학생',
+    short: '초등',
+    hint: '마우스로 쓱쓱 그리면 반듯한 도면이 된다.',
+    snap: 10,
+  },
+  {
+    key: 'secondary',
+    label: '중·고등·일반',
+    short: '중고·일반',
+    hint: '치수를 직접 넣어 정확한 도면을 만든다.',
+    snap: 5,
+  },
+];
 
 export type ToolKey =
   | 'select'
+  | 'sketch'
   | 'room'
   | 'door'
   | 'window'
@@ -45,6 +80,12 @@ export interface ToolDef {
 
 export const TOOLS: ToolDef[] = [
   { key: 'select', label: '선택·이동', shortcut: 'V', hint: '요소를 고르고 옮기거나 크기를 바꾼다.' },
+  {
+    key: 'sketch',
+    label: '자유 그리기',
+    shortcut: 'S',
+    hint: '도화지에 그리듯 끌면 손을 뗄 때 반듯한 직선으로 펴진다.',
+  },
   { key: 'room', label: '실 작도', shortcut: 'R', hint: '드래그해 사각형 실을 만든다.' },
   { key: 'door', label: '개구부', shortcut: 'D', hint: '벽을 눌러 문을 놓는다.' },
   { key: 'window', label: '창호', shortcut: 'W', hint: '외벽을 눌러 창을 놓는다.' },
@@ -145,6 +186,10 @@ export interface DrillState {
 }
 
 export interface ToolOptions {
+  /** 자유 그리기 해석 방식 */
+  sketchMode: SketchMode;
+  /** 자유 그리기로 만들 개구부 종류 */
+  sketchOpening: 'door' | 'window';
   roomKind: RoomKind;
   doorKind: DoorKind;
   doorWidth: number;
@@ -156,6 +201,7 @@ export interface ToolOptions {
 
 export interface AppState {
   plan: Plan;
+  level: LevelKey;
   step: number;
   tool: ToolKey;
   options: ToolOptions;
@@ -181,9 +227,12 @@ const AUTOSAVE_DEBOUNCE = 600;
 function initialState(): AppState {
   return {
     plan: emptyPlan(),
+    level: 'secondary',
     step: 0,
     tool: 'select',
     options: {
+      sketchMode: 'auto',
+      sketchOpening: 'door',
       roomKind: 'room',
       doorKind: 'room',
       doorWidth: 90,
@@ -361,11 +410,38 @@ export class AppStore {
 
   /* ---------------- 화면 상태 ---------------- */
 
+  /** 단계 기본 도구 — 초등은 실 작도 대신 자유 그리기로 연다 */
+  private toolForStep(def: StepDef): ToolKey {
+    if (this.state.level === 'elementary' && def.tool === 'room') return 'sketch';
+    return def.tool;
+  }
+
   setStep(step: number): void {
     const s = Math.max(0, Math.min(STEPS.length - 1, step));
     const def = STEPS[s];
     const layers = { ...this.state.layers, smoke: def.key === 'sim' || def.key === 'drill' };
-    this.set({ step: s, tool: def.tool, layers, selection: null });
+    this.set({ step: s, tool: this.toolForStep(def), layers, selection: null });
+  }
+
+  /** 이용 수준 변경 — 눈금 간격과 현재 도구를 함께 맞춘다 */
+  setLevel(level: LevelKey): void {
+    const def = LEVELS.find((l) => l.key === level) ?? LEVELS[1];
+    const step = STEPS[this.state.step];
+    const tool =
+      level === 'elementary' && this.state.tool === 'room'
+        ? 'sketch'
+        : level === 'secondary' && this.state.tool === 'sketch' && step?.tool === 'room'
+          ? 'room'
+          : this.state.tool;
+    this.state = { ...this.state, level, snapSize: def.snap, tool };
+    this.emit();
+    saveLevel(level);
+  }
+
+  /** 저장된 이용 수준 복원 (첫 진입 시 한 번) */
+  restoreLevel(): void {
+    const saved = loadLevel();
+    if (saved && saved !== this.state.level) this.setLevel(saved);
   }
 
   setTool(tool: ToolKey): void {

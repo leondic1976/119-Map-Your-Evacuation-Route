@@ -9,7 +9,7 @@ import Inspector from './Inspector';
 import PrintSheet from './PrintSheet';
 import { OptionBar, ToolRail } from './ToolRail';
 import { store, useApp, useField, useModel } from './useStore';
-import { LAYER_LABEL, Layers, STEPS, TOOLS, removeSelection, setMeta, stepDone } from '../lib/store';
+import { LAYER_LABEL, LEVELS, Layers, STEPS, TOOLS, removeSelection, setMeta, stepDone } from '../lib/store';
 import { downloadPlan, loadLocal, readPlanFile } from '../lib/storage';
 import { Pt, planArea } from '../lib/types';
 import { routeASET, safetyMargin } from '../lib/firesim';
@@ -43,7 +43,7 @@ const LAYER_KEYS: (keyof Layers)[] = [
 
 export default function AppShell() {
   const app = useApp();
-  const { plan, step, view, layers, sim, drill, toast, cursor, selection, tool } = app;
+  const { plan, step, view, layers, sim, drill, toast, cursor, selection, tool, level } = app;
   const { model, grid } = useModel(plan);
   const [showLayers, setShowLayers] = useState(false);
   const [pickMode, setPickMode] = useState(false);
@@ -52,6 +52,7 @@ export default function AppShell() {
 
   /* 브라우저 자동 저장 복원 */
   useEffect(() => {
+    store.restoreLevel();
     const saved = loadLocal();
     if (saved && saved.rooms.length > 0) {
       store.replacePlan(saved);
@@ -178,6 +179,20 @@ export default function AppShell() {
             aria-label="문서 제목"
             onChange={(e) => store.update((p) => setMeta(p, { title: e.target.value }))}
           />
+          <div className="level-seg" role="group" aria-label="이용 수준">
+            {LEVELS.map((l) => (
+              <button
+                key={l.key}
+                type="button"
+                aria-pressed={level === l.key}
+                title={l.hint}
+                onClick={() => store.setLevel(l.key)}
+              >
+                {l.short}
+              </button>
+            ))}
+          </div>
+
           <span className={`save-chip${app.saveError ? ' err' : ''}`} title="브라우저 자동 저장 상태">
             <i className="save-dot" />
             {app.saveError ? '자동 저장 불가' : saved ? `자동 저장 ${saved}` : '자동 저장 대기'}
@@ -441,6 +456,24 @@ function HelpModal({ onClose }: { onClose: () => void }) {
               </tr>
             </tbody>
           </table>
+
+          <h3 style={{ margin: '14px 0 6px', fontSize: 13 }}>이용 수준</h3>
+          <table className="tbl">
+            <tbody>
+              {LEVELS.map((l) => (
+                <tr key={l.key}>
+                  <td style={{ width: 110 }}>{l.label}</td>
+                  <td>
+                    {l.hint} 눈금 {l.snap}cm.
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="note">
+            자유 그리기(<span className="kbd">S</span>)는 두 수준 모두에서 쓸 수 있다. 닫힌 모양은 방,
+            방을 가로지른 선은 벽, 벽 위에 그은 선은 문·창이 된다.
+          </p>
 
           <div className="callout warn" style={{ marginTop: 14 }}>
             <b>이 도구가 하지 않는 일</b>

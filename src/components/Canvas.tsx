@@ -36,15 +36,17 @@ import {
 } from '../lib/store';
 import { nearestWallSegment } from '../lib/walls';
 import { orthogonalize } from '../lib/routing';
+import { SketchResult, interpretStroke, nameForNewRoom, splitRoom } from '../lib/sketch';
 import { SmokeField, densityAt } from '../lib/firesim';
 import { Grid, cellAt } from '../lib/grid';
-import { C_ACCENT, C_DANGER } from './Symbols';
+import { C_ACCENT, C_DANGER, C_SAFE } from './Symbols';
 import { IconFit, IconMinus, IconPlus } from './Icons';
 
 type Drag =
   | { type: 'none' }
   | { type: 'pan'; sx: number; sy: number; ox: number; oy: number }
   | { type: 'newroom'; from: Pt; to: Pt }
+  | { type: 'sketch' }
   | { type: 'move'; sel: Selection; from: Pt; orig: unknown }
   | { type: 'resize'; id: string; handle: string; orig: Room }
   | { type: 'movept'; routeId: string; index: number };
@@ -83,6 +85,11 @@ export default function Canvas({
   const [hover, setHover] = useState<Pt | null>(null);
   const [measure, setMeasure] = useState<Pt[]>([]);
   const [spaceDown, setSpaceDown] = useState(false);
+  /** 자유 그리기 — 그리는 중인 원래 선 */
+  const [stroke, setStroke] = useState<Pt[]>([]);
+  /** 손을 뗀 뒤 잠깐 보여 주는 보정 결과 */
+  const [ghost, setGhost] = useState<{ pts: Pt[]; ok: boolean } | null>(null);
+  const ghostTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---------- 좌표 변환 ---------- */
 
@@ -254,6 +261,119 @@ export default function Canvas({
     store.toast('동선을 추가했다.');
   }, [draft, options.routeKind]);
 
+  /* ---------- 자유 그리기 ---------- */
+
+  const showGhost = useCallback((pts: Pt[], ok: boolean) => {
+    if (ghostTimer.current) clearTimeout(ghostTimer.current);
+    setGhost(pts.length >= 2 ? { pts, ok } : null);
+    ghostTimer.current = setTimeout(() => setGhost(null), 1100);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (ghostTimer.current) clearTimeout(ghostTimer.current);
+    },
+    [],
+  );
+
+  /** 손을 뗄 때: 그린 선을 해석해 방·벽·개구부로 바꾼다 */
+  const applySketch = useCallback(
+    (raw: Pt[]) => {
+      if (raw.length < 2) {
+        setStroke([]);
+        return;
+      }
+      const res: SketchResult = interpretStroke(plan, raw, {
+        grid: snap ? snapSize : 1,
+        mode: options.sketchMode,
+        minSeg: Math.max(20, snapSize * 3),
+        tolerance: Math.max(10, 14 / view.zoom),
+      });
+      setStroke([]);
+
+      switch (res.kind) {
+        case 'rooms': {
+          const kind = options.roomKind;
+          store.update((p) => {
+            let rooms = p.rooms;
+            res.rects.forEach((r) => {
+              rooms = rooms.concat([
+                {
+                  id: nid('r'),
+                  kind,
+                  name: nameForNewRoom(rooms, kind, ROOM_KIND_LABEL[kind]),
+                  x: Math.round(r.x),
+                  y: Math.round(r.y),
+                  w: Math.round(r.w),
+                  h: Math.round(r.h),
+                },
+              ]);
+            });
+            return { ...p, rooms };
+          });
+          showGhost(res.outline, true);
+          store.toast(
+            res.rects.length > 1
+              ? `그린 모양을 반듯하게 펴서 방 ${res.rects.length}칸으로 만들었다.`
+              : '그린 모양을 반듯한 방으로 만들었다.',
+          );
+          break;
+        }
+        case 'split': {
+          const room = plan.rooms.find((r) => r.id === res.roomId);
+          const out = room
+            ? splitRoom(room, res.axis, res.at, plan.rooms.map((r) => r.name))
+            : null;
+          if (!out) {
+            store.toast('벽을 놓기에는 너무 가장자리다. 방 가운데 쪽을 가로질러 그어 본다.', 'warn');
+            showGhost(res.outline, false);
+            break;
+          }
+          store.update((p) => ({
+            ...p,
+            rooms: p.rooms
+              .map((r) => (r.id === out.keep.id ? { ...r, ...out.keep } : r))
+              .concat([{ ...out.create, id: nid('r') }]),
+          }));
+          showGhost(res.outline, true);
+          store.toast('벽을 세워 방을 둘로 나눴다.');
+          break;
+        }
+        case 'opening': {
+          if (options.sketchOpening === 'window') {
+            store.update((p) =>
+              addWindow(p, { kind: 'window', x: res.x, y: res.y, dir: res.dir, width: res.width }),
+            );
+            store.toast(`창을 ${res.width}cm 폭으로 놓았다.`);
+          } else {
+            const kind = options.doorKind;
+            store.update((p) =>
+              addDoor(p, {
+                kind,
+                x: res.x,
+                y: res.y,
+                dir: res.dir,
+                width: res.width,
+                swing: 1,
+                hinge: -1,
+                alwaysOpen: kind === 'sliding',
+              }),
+            );
+            store.toast(`문을 ${res.width}cm 폭으로 놓았다.`);
+          }
+          showGhost(res.outline, true);
+          break;
+        }
+        default: {
+          showGhost(res.outline, false);
+          store.toast(res.reason, 'warn');
+          break;
+        }
+      }
+    },
+    [plan, options.sketchMode, options.sketchOpening, options.roomKind, options.doorKind, snap, snapSize, view.zoom, showGhost],
+  );
+
   /* ---------- 히트 테스트 ---------- */
 
   const hitTest = useCallback(
@@ -316,6 +436,13 @@ export default function Canvas({
     }
 
     switch (tool) {
+      case 'sketch': {
+        setGhost(null);
+        setStroke([p]);
+        setDrag({ type: 'sketch' });
+        (e.target as Element).setPointerCapture?.(e.pointerId);
+        break;
+      }
       case 'select': {
         const hit = hitTest(p);
         store.select(hit);
@@ -434,6 +561,15 @@ export default function Canvas({
       store.setView({ ox: drag.ox + (e.clientX - drag.sx), oy: drag.oy + (e.clientY - drag.sy) });
       return;
     }
+    if (drag.type === 'sketch') {
+      setStroke((prev) => {
+        const last = prev[prev.length - 1];
+        // 화면상 3px 이상 움직였을 때만 점을 쌓는다
+        if (last && Math.hypot(p.x - last.x, p.y - last.y) < 3 / view.zoom) return prev;
+        return prev.concat([p]);
+      });
+      return;
+    }
     if (drag.type === 'newroom') {
       setDrag({ ...drag, to: snapPoint(p) });
       return;
@@ -505,6 +641,11 @@ export default function Canvas({
   };
 
   const onPointerUp = () => {
+    if (drag.type === 'sketch') {
+      applySketch(stroke);
+      setDrag({ type: 'none' });
+      return;
+    }
     if (drag.type === 'newroom') {
       const { from, to } = drag;
       const x = Math.min(from.x, to.x);
@@ -711,6 +852,33 @@ export default function Canvas({
             </g>
           )}
 
+          {stroke.length > 1 && (
+            <path
+              d={stroke.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+              fill="none"
+              stroke="#c98a12"
+              strokeWidth={5 / view.zoom + 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.85}
+              pointerEvents="none"
+            />
+          )}
+
+          {ghost && (
+            <path
+              d={ghost.pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+              fill="none"
+              stroke={ghost.ok ? C_SAFE : C_DANGER}
+              strokeWidth={6 / view.zoom + 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={ghost.ok ? undefined : `${10 / view.zoom} ${7 / view.zoom}`}
+              opacity={0.9}
+              pointerEvents="none"
+            />
+          )}
+
           {measure.length > 0 && (
             <MeasureOverlay pts={measure} hover={hover} zoom={view.zoom} />
           )}
@@ -730,7 +898,7 @@ export default function Canvas({
             <strong>아직 평면이 없다</strong>
             오른쪽에서 표준 평면을 불러오거나, 도면 사진을 올려 자동 인식하거나,
             <br />
-            실 작도 도구(<span className="kbd">R</span>)로 직접 그린다.
+            자유 그리기(<span className="kbd">S</span>)로 집 모양을 쓱 그린다. 손을 떼면 반듯해진다.
           </div>
         </div>
       )}

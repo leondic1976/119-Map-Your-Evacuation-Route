@@ -479,6 +479,134 @@ async function main(): Promise<void> {
       await page.waitForTimeout(150);
     });
 
+    /* --- 자유 그리기 (초등 모드) --- */
+
+    /** 도면 좌표 → 화면 좌표 (캔버스의 변환 행렬을 그대로 쓴다) */
+    const toScreen = async (wx: number, wy: number): Promise<{ x: number; y: number }> =>
+      page.evaluate(
+        ([x, y]) => {
+          const g = document.querySelector('svg.stage > g') as SVGGElement | null;
+          const m = g?.getScreenCTM();
+          if (!m) return { x: 0, y: 0 };
+          return { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f };
+        },
+        [wx, wy],
+      );
+
+    /** 사람이 그은 것처럼 흔들리며 끄는 몸짓 */
+    const wobbleDrag = async (path: { x: number; y: number }[]) => {
+      await page.mouse.move(path[0].x, path[0].y);
+      await page.mouse.down();
+      for (let i = 1; i < path.length; i += 1) {
+        const jx = Math.sin(i * 3.1) * 3.5;
+        const jy = Math.cos(i * 2.3) * 3.5;
+        await page.mouse.move(path[i].x + jx, path[i].y + jy);
+      }
+      await page.mouse.up();
+    };
+
+    const readRooms = async () =>
+      page.evaluate(() => {
+        const p = JSON.parse(window.localStorage.getItem('evac-plan-v1') || '{}');
+        return (p.rooms || []) as { id: string; x: number; y: number; w: number; h: number }[];
+      });
+
+    await check('이용 수준을 초등으로 바꾸면 자유 그리기가 앞에 온다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.level-seg');
+      await page.locator('.level-seg button', { hasText: '초등' }).click();
+      await page.waitForTimeout(220);
+      const pressed = await page.locator('.level-seg button[aria-pressed="true"]').innerText();
+      assert(pressed.includes('초등'), pressed);
+      const heads = await page.locator('.inspector .group h3').allInnerTexts();
+      assert(heads[0]?.includes('자유 그리기'), heads.join(' / '));
+      const snap = await page.locator('.statusbar').innerText();
+      assert(snap.includes('스냅 10cm'), snap);
+    });
+
+    await check('삐뚤빼뚤 그린 사각형이 반듯한 방이 된다', async () => {
+      await page.locator('.inspector button', { hasText: '자유 그리기 시작' }).click();
+      await page.waitForTimeout(180);
+      const pressed = await page.locator('.rail button[aria-pressed="true"]').getAttribute('aria-label');
+      assert(pressed?.includes('자유 그리기') ?? false, `${pressed}`);
+
+      const box = (await page.locator('.canvas-wrap').boundingBox())!;
+      const x0 = box.x + 200;
+      const y0 = box.y + 140;
+      const x1 = box.x + 640;
+      const y1 = box.y + 470;
+      const path: { x: number; y: number }[] = [];
+      const edge = (a: number[], b: number[], n: number) => {
+        for (let i = 0; i <= n; i += 1) {
+          const t = i / n;
+          path.push({ x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t });
+        }
+      };
+      edge([x0, y0], [x1, y0], 8);
+      edge([x1, y0], [x1, y1], 8);
+      edge([x1, y1], [x0, y1], 8);
+      edge([x0, y1], [x0, y0], 8);
+      await wobbleDrag(path);
+
+      const rooms = await waitSaved(page, 1);
+      assert(rooms === 1, `실 ${rooms}개`);
+      const list = await readRooms();
+      const r = list[0];
+      // 손떨림이 남지 않고 눈금(10cm)에 딱 맞아야 한다
+      for (const v of [r.x, r.y, r.w, r.h]) {
+        assert(v % 10 === 0, `눈금에 맞지 않는다: ${JSON.stringify(r)}`);
+      }
+      assert(r.w > 200 && r.h > 200, `크기 ${r.w}×${r.h}`);
+      const status = await page.locator('.statusbar').innerText();
+      assert(/전용면적\s*[\d.]+/.test(status), status);
+    });
+
+    await check('방을 가로질러 그으면 벽이 서고 둘로 나뉜다', async () => {
+      const before = await readRooms();
+      const r = before[0];
+      const midX = r.x + r.w / 2;
+      const a = await toScreen(midX, r.y + 30);
+      const b = await toScreen(midX, r.y + r.h - 30);
+      const path: { x: number; y: number }[] = [];
+      for (let i = 0; i <= 14; i += 1) {
+        const t = i / 14;
+        path.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      }
+      await wobbleDrag(path);
+
+      const rooms = await waitSaved(page, 2);
+      assert(rooms === 2, `실 ${rooms}개`);
+      const after = await readRooms();
+      const total = after.reduce((s, x) => s + x.w * x.h, 0);
+      assert(Math.abs(total - r.w * r.h) < 1, `면적이 보존되지 않았다 (${total} vs ${r.w * r.h})`);
+      const sorted = after.slice().sort((p, q) => p.x - q.x);
+      assert(sorted[0].x + sorted[0].w === sorted[1].x, '나뉜 경계가 어긋난다');
+    });
+
+    await check('자유 그리기 결과도 실행 취소로 되돌아간다', async () => {
+      await page.locator('.canvas-wrap').click({ position: { x: 12, y: 12 } });
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+z');
+      const rooms = await waitSaved(page, 1);
+      assert(rooms === 1, `되돌린 뒤 실 ${rooms}개`);
+      await page.keyboard.press('Control+Shift+z');
+      const back = await waitSaved(page, 2);
+      assert(back === 2, `다시 실행 뒤 실 ${back}개`);
+    });
+
+    await check('이용 수준이 새로 고쳐도 기억된다', async () => {
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.level-seg');
+      await page.waitForTimeout(400);
+      const pressed = await page.locator('.level-seg button[aria-pressed="true"]').innerText();
+      assert(pressed.includes('초등'), pressed);
+      await page.locator('.level-seg button', { hasText: '중고' }).click();
+      await page.waitForTimeout(220);
+      const snap = await page.locator('.statusbar').innerText();
+      assert(snap.includes('스냅 5cm'), snap);
+    });
+
     /* 25 */
     await check('콘솔 오류 없이 전 과정이 끝난다', async () => {
       const real = errors.filter((e) => !e.includes('ResizeObserver'));

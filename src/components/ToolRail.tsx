@@ -12,6 +12,7 @@ import {
   IconRoute,
   IconRuler,
   IconSelect,
+  IconSketch,
   IconText,
   IconWindow,
 } from './Icons';
@@ -26,6 +27,7 @@ import {
 
 const ICONS: Record<ToolKey, React.ComponentType<{ size?: number }>> = {
   select: IconSelect,
+  sketch: IconSketch,
   room: IconRoom,
   door: IconDoor,
   window: IconWindow,
@@ -44,7 +46,7 @@ export function ToolRail() {
         const Icon = ICONS[t.key];
         return (
           <React.Fragment key={t.key}>
-            {(i === 1 || i === 5 || i === 7) && <hr />}
+            {(i === 1 || i === 6 || i === 8) && <hr />}
             <button
               type="button"
               aria-pressed={tool === t.key}
@@ -97,6 +99,77 @@ export function OptionBar() {
       <span className="lbl">{def?.label}</span>
       <span className="hint">{def?.hint}</span>
       <span className="sep" />
+
+      {tool === 'sketch' && (
+        <>
+          <span className="lbl">해석</span>
+          <div className="seg" style={{ width: 250 }}>
+            <button
+              type="button"
+              aria-pressed={options.sketchMode === 'auto'}
+              title="그린 모양을 보고 알아서 판단한다"
+              onClick={() => store.setOptions({ sketchMode: 'auto' })}
+            >
+              자동
+            </button>
+            <button
+              type="button"
+              aria-pressed={options.sketchMode === 'room'}
+              title="닫힌 모양으로 보고 방을 만든다"
+              onClick={() => store.setOptions({ sketchMode: 'room' })}
+            >
+              방
+            </button>
+            <button
+              type="button"
+              aria-pressed={options.sketchMode === 'wall'}
+              title="방을 가로지르는 벽으로 본다"
+              onClick={() => store.setOptions({ sketchMode: 'wall' })}
+            >
+              벽
+            </button>
+            <button
+              type="button"
+              aria-pressed={options.sketchMode === 'opening'}
+              title="벽 위에 그은 문·창으로 본다"
+              onClick={() => store.setOptions({ sketchMode: 'opening' })}
+            >
+              문·창
+            </button>
+          </div>
+          <span className="sep" />
+          <span className="lbl">방 용도</span>
+          <select
+            aria-label="새로 그릴 실의 용도"
+            value={options.roomKind}
+            onChange={(e) => store.setOptions({ roomKind: e.target.value as RoomKind })}
+            style={{ width: 108, height: 26 }}
+          >
+            {ROOM_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {ROOM_KIND_LABEL[k]}
+              </option>
+            ))}
+          </select>
+          <span className="lbl">개구부</span>
+          <div className="seg" style={{ width: 96 }}>
+            <button
+              type="button"
+              aria-pressed={options.sketchOpening === 'door'}
+              onClick={() => store.setOptions({ sketchOpening: 'door' })}
+            >
+              문
+            </button>
+            <button
+              type="button"
+              aria-pressed={options.sketchOpening === 'window'}
+              onClick={() => store.setOptions({ sketchOpening: 'window' })}
+            >
+              창
+            </button>
+          </div>
+        </>
+      )}
 
       {tool === 'room' && (
         <>

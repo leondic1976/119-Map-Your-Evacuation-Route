@@ -9,10 +9,47 @@ import { imageDataFromSrc, readImageFile } from '../../lib/storage';
 import { TraceResult, scaleFromArea, trace } from '../../lib/autotrace';
 import { Callout, Field, Group, KV, Metric, NumField } from './ui';
 import SelectionEditor from './SelectionEditor';
-import { IconImage, IconRefresh, IconTrash } from '../Icons';
+import { IconImage, IconRefresh, IconSketch, IconTrash } from '../Icons';
+
+/** 자유 그리기 세 가지 몸짓을 그림으로 보여 준다 */
+function GestureRoom() {
+  return (
+    <svg width="46" height="34" viewBox="0 0 46 34" aria-hidden="true">
+      <path
+        d="M7 26c-1-7 0-14 1-17 4-1 22-2 30 0 1 4 1 12 0 17-8 2-27 1-31 0z"
+        fill="#eaf1f8"
+        stroke="#98a4b3"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <rect x="8" y="8" width="30" height="18" fill="none" stroke="#0e7c4f" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function GestureWall() {
+  return (
+    <svg width="46" height="34" viewBox="0 0 46 34" aria-hidden="true">
+      <rect x="6" y="7" width="34" height="20" fill="#f5f1e8" stroke="#2a3038" strokeWidth="1.6" />
+      <path d="M22 8c1.5 4-1.5 8 .5 12 .8 1.6.4 4 .4 6" fill="none" stroke="#98a4b3" strokeWidth="1.6" />
+      <path d="M23 7v20" stroke="#0e7c4f" strokeWidth="2.4" />
+    </svg>
+  );
+}
+
+function GestureOpening() {
+  return (
+    <svg width="46" height="34" viewBox="0 0 46 34" aria-hidden="true">
+      <rect x="6" y="7" width="34" height="20" fill="#f1f3f5" stroke="#2a3038" strokeWidth="1.6" />
+      <path d="M6 27h34" stroke="#2a3038" strokeWidth="3.4" />
+      <path d="M16 27.5c3-1.2 8-1.2 12 0" fill="none" stroke="#98a4b3" strokeWidth="1.6" />
+      <path d="M16 27h12" stroke="#c8102e" strokeWidth="3.4" />
+    </svg>
+  );
+}
 
 export default function Step1Plan() {
-  const { plan, selection } = useApp();
+  const { plan, selection, level } = useApp();
   const [area, setArea] = useState(84);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TraceResult | null>(null);
@@ -113,8 +150,46 @@ export default function Step1Plan() {
 
   const total = planArea(plan);
 
+  const sketchSection = (
+    <Group title="자유 그리기">
+      <p className="note" style={{ marginTop: 0 }}>
+        도화지에 그리듯 마우스로 끌면 된다. 삐뚤빼뚤해도 손을 떼는 순간 반듯한 직선으로 펴진다.
+      </p>
+      <button type="button" className="btn pri wide" onClick={() => store.setTool('sketch')}>
+        <IconSketch size={16} /> 자유 그리기 시작 (S)
+      </button>
+      <div style={{ height: 10 }} />
+      <div className="sketch-guide">
+        <GestureRoom />
+        <div>
+          <b>닫힌 모양 → 방</b>
+          <span>집 모양을 한 바퀴 둘러 그린다. ㄱ자·ㄷ자로 그려도 알아서 나눠 받는다.</span>
+        </div>
+      </div>
+      <div className="sketch-guide">
+        <GestureWall />
+        <div>
+          <b>방을 가로질러 → 벽</b>
+          <span>방 한가운데를 쭉 그으면 그 자리에 벽이 서고 방이 둘로 나뉜다.</span>
+        </div>
+      </div>
+      <div className="sketch-guide">
+        <GestureOpening />
+        <div>
+          <b>벽 위에 짧게 → 문·창</b>
+          <span>벽을 따라 그으면 그 길이가 문 폭이 된다. 위 도구 막대에서 문·창을 고른다.</span>
+        </div>
+      </div>
+      <p className="note">
+        마음에 들지 않으면 <span className="kbd">Ctrl</span>+<span className="kbd">Z</span> 로 되돌린다.
+      </p>
+    </Group>
+  );
+
   return (
     <div className="panel">
+      {level === 'elementary' && sketchSection}
+
       <Group title="표준 평면 불러오기">
         <NumField label="전용면적" value={area} min={20} max={250} step={1} suffix="㎡" onChange={setArea} />
         {TEMPLATES.map((t) => (
@@ -238,6 +313,8 @@ export default function Step1Plan() {
           </>
         )}
       </Group>
+
+      {level === 'secondary' && sketchSection}
 
       {selection ? (
         <SelectionEditor />

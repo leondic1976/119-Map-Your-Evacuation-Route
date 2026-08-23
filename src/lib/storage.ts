@@ -7,6 +7,7 @@
 import { PLAN_VERSION, Plan, emptyPlan, emptyMeta } from './types';
 
 export const STORAGE_KEY = 'evac-plan-v1';
+export const LEVEL_KEY = 'evac-level-v1';
 
 export function serialize(plan: Plan): string {
   return JSON.stringify({ ...plan, version: PLAN_VERSION }, null, 2);
@@ -74,6 +75,25 @@ export function loadLocal(): Plan | null {
     const text = window.localStorage.getItem(STORAGE_KEY);
     if (!text) return null;
     return migrate(JSON.parse(text));
+  } catch {
+    return null;
+  }
+}
+
+/** 이용 수준은 계획 파일과 무관한 화면 설정이라 따로 둔다 */
+export function saveLevel(level: string): void {
+  try {
+    window.localStorage.setItem(LEVEL_KEY, level);
+  } catch {
+    /* 무시 */
+  }
+}
+
+export function loadLevel(): 'elementary' | 'secondary' | null {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    const v = window.localStorage.getItem(LEVEL_KEY);
+    return v === 'elementary' || v === 'secondary' ? v : null;
   } catch {
     return null;
   }

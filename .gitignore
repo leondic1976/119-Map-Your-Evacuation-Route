@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+test-results/
+playwright-report/
+.env*.local
+
+# 검증 중 만들어지는 화면 기록
+.shots/

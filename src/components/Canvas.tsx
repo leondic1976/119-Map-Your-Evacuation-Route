@@ -35,7 +35,14 @@ import {
   updateWindow,
 } from '../lib/store';
 import { nearestWallSegment } from '../lib/walls';
-import { orthogonalize } from '../lib/routing';
+import {
+  ExitPoint,
+  exitNear,
+  exitPoints,
+  orthogonalize,
+  roomContaining,
+  roomsMissingRoute,
+} from '../lib/routing';
 import { SketchResult, interpretStroke, nameForNewRoom, splitRoom } from '../lib/sketch';
 import { SmokeField, densityAt } from '../lib/firesim';
 import { Grid, cellAt } from '../lib/grid';
@@ -107,6 +114,10 @@ export default function Canvas({
   const [hover, setHover] = useState<Pt | null>(null);
   const [measure, setMeasure] = useState<Pt[]>([]);
   const [spaceDown, setSpaceDown] = useState(false);
+  /** 동선 작도 — 지금 그리는 선이 어느 구획실에서 시작했는지 */
+  const [draftRoom, setDraftRoom] = useState<Room | null>(null);
+  /** 두 번 눌렸을 때 동선이 두 개 만들어지지 않도록 즉시 비우는 거울 */
+  const draftRef = useRef<Pt[]>([]);
   /** 자유 그리기 — 그리는 중인 원래 선 */
   const [stroke, setStroke] = useState<Pt[]>([]);
   /** 손을 뗀 뒤 잠깐 보여 주는 보정 결과 */
@@ -153,6 +164,25 @@ export default function Canvas({
 
   /* ---------- 화면 맞춤 ---------- */
 
+  /**
+   * 주어진 배율에서 도면을 캔버스 한가운데 놓는다.
+   * 확대·축소를 해도 도면이 화면 밖으로 밀려나지 않게 하는 것이 목적이라,
+   * 커서 쪽으로 당겨 가는 흔한 방식을 쓰지 않는다.
+   */
+  const centerAt = useCallback(
+    (zoom: number) => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const b = planBounds(plan);
+      store.setView({
+        zoom,
+        ox: (el.clientWidth - b.w * zoom) / 2 - b.x * zoom,
+        oy: (el.clientHeight - b.h * zoom) / 2 - b.y * zoom,
+      });
+    },
+    [plan],
+  );
+
   const fit = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -162,13 +192,17 @@ export default function Canvas({
       (el.clientWidth - pad * 2) / Math.max(1, b.w),
       (el.clientHeight - pad * 2) / Math.max(1, b.h),
     );
-    const z = Math.max(0.12, Math.min(3, zoom));
-    store.setView({
-      zoom: z,
-      ox: (el.clientWidth - b.w * z) / 2 - b.x * z,
-      oy: (el.clientHeight - b.h * z) / 2 - b.y * z,
-    });
-  }, [plan]);
+    centerAt(Math.max(0.12, Math.min(3, zoom)));
+  }, [plan, centerAt]);
+
+  /** 도면을 가운데 둔 채 배율만 바꾼다 */
+  const zoomCentered = useCallback(
+    (factor: number) => {
+      const z = Math.max(0.12, Math.min(4, store.getState().view.zoom * factor));
+      centerAt(z);
+    },
+    [centerAt],
+  );
 
   const fitRef = useRef(fit);
   fitRef.current = fit;
@@ -184,15 +218,19 @@ export default function Canvas({
       ? 'empty'
       : `${Math.round(bounds.x)},${Math.round(bounds.y)},${Math.round(bounds.w)},${Math.round(bounds.h)}`;
   const dragging = drag.type !== 'none';
-  const pendingFit = useRef(false);
+  /** 마지막으로 화면에 맞춘 도면 크기 — 같은 크기로는 다시 맞추지 않는다 */
+  const fittedKey = useRef('');
 
   useEffect(() => {
-    if (plan.rooms.length === 0) return;
-    if (dragging) {
-      pendingFit.current = true;
+    if (plan.rooms.length === 0) {
+      fittedKey.current = '';
       return;
     }
-    pendingFit.current = false;
+    // 끌고 있는 동안에는 손 밑에서 도면이 튀지 않게 미룬다
+    if (dragging) return;
+    // 도면 크기가 그대로면 그냥 둔다. 그래야 Shift 로 옮겨 둔 자리가 유지된다
+    if (fittedKey.current === boundsKey) return;
+    fittedKey.current = boundsKey;
     const t = setTimeout(() => fitRef.current(), 60);
     return () => clearTimeout(t);
   }, [boundsKey, dragging, plan.rooms.length]);
@@ -263,56 +301,74 @@ export default function Canvas({
     }
   }, [field, time, view.zoom, view.ox, view.oy, grid, layers.smoke]);
 
-  /* ---------- 키보드 ---------- */
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space') setSpaceDown(true);
-      const target = e.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (e.key === 'Escape') {
-        setDraft([]);
-        setMeasure([]);
-        store.select(null);
-      }
-      if (e.key === 'Enter' && draft.length >= 2) finishRoute();
-    };
-    const up = (e: KeyboardEvent) => {
-      if (e.code === 'Space') setSpaceDown(false);
-    };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    return () => {
-      window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft]);
-
   /* ---------- 동선 작도 ---------- */
 
-  const finishRoute = useCallback(() => {
-    if (draft.length < 2) {
-      setDraft([]);
-      return;
-    }
-    const pts = orthogonalize(draft, 8);
-    if (pts.length < 2) {
-      setDraft([]);
-      return;
-    }
-    store.update((p) =>
-      addRoute(p, {
-        kind: options.routeKind,
-        points: pts,
-        endpoint: 'custom',
-        label: `직접 그린 ${options.routeKind === 'primary' ? '주' : '대체'} 동선`,
-        manual: true,
-      }),
-    );
+  /** 지금 도면에 있는 피난 종점들 (현관문·대피공간·경량칸막이·하향식 피난구) */
+  const exits: ExitPoint[] = useMemo(
+    () => (tool === 'route' ? exitPoints(plan, grid) : []),
+    [tool, plan, grid],
+  );
+
+  /** 아직 동선이 없는 구획실 — 다음에 어디서 시작할지 짚어 준다 */
+  const missing = useMemo(
+    () => (tool === 'route' ? roomsMissingRoute(plan) : []),
+    [tool, plan],
+  );
+
+  const cancelRoute = useCallback(() => {
+    draftRef.current = [];
     setDraft([]);
-    store.toast('동선을 추가했다.');
-  }, [draft, options.routeKind]);
+    setDraftRoom(null);
+  }, []);
+
+  /**
+   * 동선 하나를 맺는다.
+   * 종점(exit)에 닿아 끝났으면 그 종점 이름으로, 아니면 '직접 지정'으로 남긴다.
+   * 한 번 부르면 곧바로 초안을 비워, 더블클릭으로 두 개가 만들어지지 않게 한다.
+   */
+  const finishRoute = useCallback(
+    (exit?: ExitPoint | null) => {
+      const raw = draftRef.current;
+      draftRef.current = [];
+      if (raw.length < 2) {
+        cancelRoute();
+        return;
+      }
+      const pts = orthogonalize(raw, 8);
+      if (pts.length < 2) {
+        cancelRoute();
+        return;
+      }
+      const from = draftRoom;
+      const label = exit
+        ? `${from ? from.name : '직접 그린 동선'} → ${exit.label}`
+        : `${from ? from.name : '직접 그린'} 동선`;
+      store.update((p) =>
+        addRoute(p, {
+          kind: options.routeKind,
+          points: pts,
+          endpoint: exit ? exit.kind : 'custom',
+          fromRoom: from?.id,
+          label,
+          manual: true,
+        }),
+      );
+      setDraft([]);
+      setDraftRoom(null);
+
+      const left = roomsMissingRoute(store.getState().plan);
+      if (exit) {
+        store.toast(
+          left.length > 0
+            ? `${label} 완료. 아직 ${left.map((r) => r.name).slice(0, 3).join(', ')}${left.length > 3 ? ' 외' : ''}가 남았다.`
+            : `${label} 완료. 모든 방에 길이 생겼다.`,
+        );
+      } else {
+        store.toast('동선을 맺었다. 종점에 닿으면 저절로 끝난다.');
+      }
+    },
+    [draftRoom, options.routeKind, cancelRoute],
+  );
 
   /* ---------- 자유 그리기 ---------- */
 
@@ -428,6 +484,37 @@ export default function Canvas({
     [plan, app.level, options.sketchMode, options.sketchOpening, options.roomKind, options.doorKind, snap, snapSize, view.zoom, showGhost],
   );
 
+  /* ---------- 키보드 ---------- */
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpaceDown(true);
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (e.key === 'Escape') {
+        cancelRoute();
+        setMeasure([]);
+        store.select(null);
+      }
+      if (e.key === 'Enter' && draftRef.current.length >= 2) finishRoute(null);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpaceDown(false);
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, finishRoute, cancelRoute]);
+
+  /* 도구를 바꾸면 그리던 동선은 접는다 */
+  useEffect(() => {
+    if (tool !== 'route' && draftRef.current.length > 0) cancelRoute();
+  }, [tool, cancelRoute]);
+
   /* ---------- 히트 테스트 ---------- */
 
   const hitTest = useCallback(
@@ -476,7 +563,7 @@ export default function Canvas({
   /* ---------- 포인터 ---------- */
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.button === 1 || spaceDown || tool === 'pan') {
+    if (e.button === 1 || e.shiftKey || spaceDown || tool === 'pan') {
       setDrag({ type: 'pan', sx: e.clientX, sy: e.clientY, ox: view.ox, oy: view.oy });
       (e.target as Element).setPointerCapture?.(e.pointerId);
       return;
@@ -581,12 +668,43 @@ export default function Canvas({
       }
       case 'route': {
         const last = draft[draft.length - 1];
-        const np = last ? axisSnap(last, p) : { x: Math.round(p.x), y: Math.round(p.y) };
-        if (last && Math.abs(np.x - last.x) < 2 && Math.abs(np.y - last.y) < 2) {
-          finishRoute();
+
+        // 시작은 반드시 구획실 안에서 — 어느 방의 동선인지 분명해야 한다
+        if (!last) {
+          const room = roomContaining(plan, p);
+          if (!room) {
+            store.toast('방 안에서 시작한다. 길을 그릴 방을 눌러 본다.', 'warn');
+            return;
+          }
+          const start = { x: Math.round(p.x), y: Math.round(p.y) };
+          draftRef.current = [start];
+          setDraft([start]);
+          setDraftRoom(room);
+          store.toast(`${room.name}에서 시작한다. 현관문이나 피난설비에 닿으면 저절로 끝난다.`);
           return;
         }
-        setDraft(draft.concat([np]));
+
+        // 종점 가까이 찍었으면 거기서 맺는다
+        const hitExit = exitNear(exits, p, 80);
+        if (hitExit) {
+          const corner = axisSnap(last, { x: hitExit.x, y: hitExit.y });
+          const tail: Pt[] = [corner];
+          if (Math.abs(corner.x - hitExit.x) > 1 || Math.abs(corner.y - hitExit.y) > 1) {
+            tail.push({ x: Math.round(hitExit.x), y: Math.round(hitExit.y) });
+          }
+          draftRef.current = draft.concat(tail);
+          setDraft(draftRef.current);
+          finishRoute(hitExit);
+          return;
+        }
+
+        const np = axisSnap(last, p);
+        if (Math.abs(np.x - last.x) < 2 && Math.abs(np.y - last.y) < 2) {
+          finishRoute(null);
+          return;
+        }
+        draftRef.current = draft.concat([np]);
+        setDraft(draftRef.current);
         break;
       }
       case 'note': {
@@ -732,11 +850,7 @@ export default function Canvas({
   };
 
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    const el = svgRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const center = { x: e.clientX - r.left, y: e.clientY - r.top };
-    store.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12, center);
+    zoomCentered(e.deltaY < 0 ? 1.12 : 1 / 1.12);
   };
 
   const startResize = (e: React.PointerEvent, room: Room, handle: string) => {
@@ -833,7 +947,7 @@ export default function Canvas({
           store.setCursor(null);
         }}
         onWheel={onWheel}
-        onDoubleClick={() => tool === 'route' && finishRoute()}
+        onDoubleClick={() => tool === 'route' && finishRoute(null)}
         role="application"
         aria-label="작도 캔버스"
       >
@@ -887,6 +1001,63 @@ export default function Canvas({
             />
           )}
 
+          {/* 동선 도구 — 아직 길이 없는 구획실을 짚어 준다 */}
+          {tool === 'route' &&
+            draft.length === 0 &&
+            missing.map((r) => (
+              <g key={`miss-${r.id}`} pointerEvents="none">
+                <rect
+                  x={r.x + 8}
+                  y={r.y + 8}
+                  width={Math.max(0, r.w - 16)}
+                  height={Math.max(0, r.h - 16)}
+                  fill="rgba(201,138,18,0.10)"
+                  stroke="#c98a12"
+                  strokeWidth={3}
+                  strokeDasharray="16 10"
+                  rx={6}
+                />
+                <text
+                  x={r.x + r.w / 2}
+                  y={r.y + r.h / 2 - 34}
+                  textAnchor="middle"
+                  fontSize={19}
+                  fontWeight={700}
+                  fill="#a06d08"
+                  stroke="#fff"
+                  strokeWidth={5}
+                  strokeLinejoin="round"
+                  style={{ paintOrder: 'stroke' }}
+                >
+                  여기서 시작
+                </text>
+              </g>
+            ))}
+
+          {/* 종점 과녁 — 여기에 닿으면 저절로 끝난다 */}
+          {tool === 'route' &&
+            draft.length > 0 &&
+            exits.map((e) => (
+              <g key={`exit-${e.id}`} transform={`translate(${e.x} ${e.y})`} pointerEvents="none">
+                <circle r={80} fill="rgba(14,124,79,0.10)" stroke={C_SAFE} strokeWidth={3} strokeDasharray="12 8" />
+                <circle r={16} fill="#fff" stroke={C_SAFE} strokeWidth={5} />
+                {/* 도면 위쪽 종점은 글자를 아래에 둔다 — 위에는 상태 막대가 있다 */}
+                <text
+                  y={e.y < bounds.y + bounds.h * 0.25 ? 112 : -96}
+                  textAnchor="middle"
+                  fontSize={20}
+                  fontWeight={800}
+                  fill={C_SAFE}
+                  stroke="#fff"
+                  strokeWidth={6}
+                  strokeLinejoin="round"
+                  style={{ paintOrder: 'stroke' }}
+                >
+                  {e.label}에서 끝
+                </text>
+              </g>
+            ))}
+
           {draft.length > 0 && (
             <g>
               <path
@@ -904,6 +1075,23 @@ export default function Canvas({
               {draft.map((p, i) => (
                 <circle key={i} cx={p.x} cy={p.y} r={7 / view.zoom + 2} fill="#fff" stroke={C_ACCENT} strokeWidth={2 / view.zoom} />
               ))}
+              {/* 시작점을 크게 — 어디서 출발했는지 */}
+              <g transform={`translate(${draft[0].x} ${draft[0].y})`} pointerEvents="none">
+                <circle r={15} fill="#fff" stroke={options.routeKind === 'primary' ? '#0e7c4f' : C_ACCENT} strokeWidth={5} />
+                <text
+                  y={-26}
+                  textAnchor="middle"
+                  fontSize={19}
+                  fontWeight={800}
+                  fill={options.routeKind === 'primary' ? '#0e7c4f' : C_ACCENT}
+                  stroke="#fff"
+                  strokeWidth={5}
+                  strokeLinejoin="round"
+                  style={{ paintOrder: 'stroke' }}
+                >
+                  {draftRoom ? `${draftRoom.name} 출발` : '출발'}
+                </text>
+              </g>
             </g>
           )}
 
@@ -946,6 +1134,35 @@ export default function Canvas({
           )}
         </g>
       </svg>
+
+      {/* 동선을 그리는 중임을 알리고, 끝내는 방법을 늘 보여 준다 */}
+      {tool === 'route' && draft.length > 0 && (
+        <div className="draw-bar">
+          <span className="what">{options.routeKind === 'primary' ? '주 동선' : '대체 동선'}</span>
+          <b>{draftRoom ? `${draftRoom.name} 출발` : '그리는 중'}</b>
+          <span className="hint">
+            점 {draft.length}개 · 초록 과녁(현관문·피난설비)을 누르면 저절로 끝난다
+          </span>
+          <button type="button" className="ok" onClick={() => finishRoute(null)} disabled={draft.length < 2}>
+            여기서 끝내기
+          </button>
+          <button type="button" className="x" onClick={cancelRoute}>
+            취소
+          </button>
+        </div>
+      )}
+
+      {tool === 'route' && draft.length === 0 && plan.rooms.length > 0 && (
+        <div className="draw-bar hintonly">
+          <span className="what">동선</span>
+          <b>{missing.length > 0 ? `${missing[0].name}부터 그려 보자` : '모든 방에 길이 있다'}</b>
+          <span className="hint">
+            {missing.length > 0
+              ? '노란 테두리가 있는 방 안을 눌러 시작한다. 초록 과녁에 닿으면 끝난다.'
+              : '더 그리려면 아무 방 안을 눌러 시작한다.'}
+          </span>
+        </div>
+      )}
 
       {/* 고른 것이 무엇인지, 지우려면 어디를 눌러야 하는지 도면 위에서 바로 보여 준다 */}
       {selection && (
@@ -994,10 +1211,10 @@ export default function Canvas({
       )}
 
       <div className="zoom-pad">
-        <button type="button" title="확대" aria-label="확대" onClick={() => store.zoomBy(1.2)}>
+        <button type="button" title="확대" aria-label="확대" onClick={() => zoomCentered(1.2)}>
           <IconPlus size={16} />
         </button>
-        <button type="button" title="축소" aria-label="축소" onClick={() => store.zoomBy(1 / 1.2)}>
+        <button type="button" title="축소" aria-label="축소" onClick={() => zoomCentered(1 / 1.2)}>
           <IconMinus size={16} />
         </button>
         <button type="button" title="화면 맞춤" aria-label="화면 맞춤" onClick={fit}>

@@ -88,6 +88,13 @@ async function silenceCoach(page: Page): Promise<void> {
   );
 }
 
+/** 풍선글의 "안내 8 / 16" 에서 숫자만 뽑는다 */
+async function coachCount(page: Page, which: 1 | 2): Promise<number> {
+  const t = await page.locator('.coach-count').innerText();
+  const m = t.match(/(\d+)\s*\/\s*(\d+)/);
+  return m ? Number(m[which]) : NaN;
+}
+
 async function stepTo(page: Page, title: string): Promise<void> {
   await page.locator('.stepper .step', { hasText: title }).first().click({ timeout: 6000 });
   await page.waitForTimeout(140);
@@ -752,7 +759,7 @@ async function main(): Promise<void> {
     await check('따라하기가 모든 안내에서 가리킬 곳을 찾는다', async () => {
       await page.locator('.topbar button', { hasText: '따라하기' }).click();
       await page.waitForSelector('.coach-bubble');
-      const total = Number((await page.locator('.coach-count').innerText()).split('/')[1].trim());
+      const total = await coachCount(page, 2);
       assert(total >= 8, `안내 ${total}개`);
       const missing: string[] = [];
       for (let i = 0; i < total; i += 1) {
@@ -768,13 +775,39 @@ async function main(): Promise<void> {
       assert((await page.locator('.coach').count()) === 0, '안내가 닫히지 않았다');
     });
 
+    await check('따라하기 풍선글을 끌어서 옮길 수 있다', async () => {
+      await page.locator('.topbar button', { hasText: '따라하기' }).click();
+      await page.waitForSelector('.coach-bubble');
+      const before = (await page.locator('.coach-bubble').boundingBox())!;
+      const head = (await page.locator('.coach-head').boundingBox())!;
+      // 손잡이(머리글)를 잡고 끈다 — 단추가 아닌 빈 곳을 잡아야 한다
+      await page.mouse.move(head.x + 30, head.y + head.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(head.x + 30 - 180, head.y + head.height / 2 + 120, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      const after = (await page.locator('.coach-bubble').boundingBox())!;
+      assert(Math.abs(after.x - before.x) > 100, `가로로 ${Math.round(after.x - before.x)}px 밖에 안 움직였다`);
+      assert(Math.abs(after.y - before.y) > 60, `세로로 ${Math.round(after.y - before.y)}px 밖에 안 움직였다`);
+
+      // 다음 안내로 가면 제자리로 돌아온다
+      await page.locator('.coach-bubble button', { hasText: '다음' }).click();
+      await page.waitForTimeout(400);
+      await page.locator('.coach-bubble button', { hasText: '이전' }).click();
+      await page.waitForTimeout(400);
+      const back = (await page.locator('.coach-bubble').boundingBox())!;
+      assert(Math.abs(back.x - before.x) < 40, `제자리로 돌아오지 않았다 (${Math.round(back.x - before.x)}px)`);
+      await page.locator('.coach-bubble button', { hasText: '그만 보기' }).click();
+      await page.waitForTimeout(250);
+    });
+
     await check('따라하기가 첫 방문에 저절로 뜨고 다시 뜨지 않는다', async () => {
       await page.evaluate(() => window.localStorage.clear());
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForSelector('.coach-bubble', { timeout: 8000 });
       assert(true, '');
       // 끝까지 보면 다시 뜨지 않는다
-      const total = Number((await page.locator('.coach-count').innerText()).split('/')[1].trim());
+      const total = await coachCount(page, 2);
       for (let i = 0; i < total - 1; i += 1) {
         await page.locator('.coach-bubble button', { hasText: '다음' }).click();
         await page.waitForTimeout(150);
@@ -808,10 +841,10 @@ async function main(): Promise<void> {
       await page.locator('.topbar button', { hasText: '따라하기' }).click();
       await page.waitForSelector('.coach-bubble');
 
-      const total = Number((await page.locator('.coach-count').innerText()).split('/')[1].trim());
+      const total = await coachCount(page, 2);
       assert(total === 16, `초등 안내 ${total}걸음`);
 
-      const idx = async () => Number((await page.locator('.coach-count').innerText()).split('/')[0].trim());
+      const idx = async () => await coachCount(page, 1);
       const title = async () => (await page.locator('.coach-bubble h3').innerText()).trim();
       const waiting = async () => (await page.locator('.coach-todo').count()) > 0;
       const nextBtn = () => page.locator('.coach-bubble button', { hasText: '다음' });
@@ -954,6 +987,174 @@ async function main(): Promise<void> {
       assert(made.routes >= 2, `동선 ${made.routes}개 — 방마다 길이 있어야 한다`);
       assert(made.dong === '101', `동 ${made.dong}`);
       assert(!stuck, `밖으로 못 나가는 방이 남았다: ${stuckNames}`);
+    });
+
+    await check('동선은 방에서 시작해 종점에 닿으면 저절로 끝난다', async () => {
+      await page.evaluate(() => window.localStorage.clear());
+      await silenceCoach(page);
+      await page.reload({ waitUntil: 'networkidle' });
+      await loadTemplate(page, '3베이 판상형');
+      await stepAt(page, 4);
+      await page.locator('.rail button', { hasText: '동선' }).click();
+      await page.waitForTimeout(300);
+
+      const w2s = (wx: number, wy: number) =>
+        page.evaluate(
+          ([x, y]) => {
+            const g = document.querySelector('svg.stage > g') as SVGGElement | null;
+            const m = g?.getScreenCTM();
+            return m ? { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f } : { x: 0, y: 0 };
+          },
+          [wx, wy],
+        );
+      const plan = async () =>
+        page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-plan-v1') || '{}'));
+
+      // 아직 길이 없는 방을 짚어 준다
+      const hint = await page.locator('.draw-bar').innerText();
+      assert(hint.includes('부터 그려 보자'), hint);
+      const marks = await page.locator('.stage text', { hasText: '여기서 시작' }).count();
+      assert(marks >= 3, `시작 안내 ${marks}곳`);
+
+      const p0 = await plan();
+      const room = p0.rooms.find((r: { name: string }) => r.name === '침실3');
+      const door = p0.doors.find((d: { kind: string }) => d.kind === 'entrance');
+      assert(Boolean(room && door), '표준 평면에 침실3·현관문이 없다');
+
+      // 방 밖(도면 바깥의 빈 캔버스)에서 시작하면 시작되지 않는다
+      const wrap = (await page.locator('.canvas-wrap').boundingBox())!;
+      await page.mouse.click(wrap.x + 18, wrap.y + wrap.height - 18);
+      await page.waitForTimeout(300);
+      assert((await page.locator('.draw-bar b').innerText()).includes('부터'), '도면 밖에서 시작되어 버렸다');
+
+      // 방 안에서 시작 → 그리는 중 막대가 뜬다
+      const start = await w2s(room.x + room.w / 2, room.y + room.h / 2);
+      await page.mouse.click(start.x, start.y);
+      await page.waitForTimeout(350);
+      const bar = await page.locator('.draw-bar').innerText();
+      assert(bar.includes('침실3 출발'), bar);
+      assert((await page.locator('.draw-bar .ok').count()) === 1, '끝내기 단추가 없다');
+
+      // 종점 과녁이 보인다
+      const targets = await page.locator('.stage text', { hasText: '에서 끝' }).count();
+      assert(targets >= 1, `종점 과녁 ${targets}곳`);
+
+      // 중간 한 점을 찍고 현관문 위를 누른다 → 저절로 끝난다
+      const mid = await w2s(room.x + room.w / 2, door.y + 120);
+      await page.mouse.click(mid.x, mid.y);
+      await page.waitForTimeout(250);
+      const at = await w2s(door.x, door.y);
+      await page.mouse.click(at.x, at.y);
+      await page.waitForTimeout(900);
+
+      assert((await page.locator('.draw-bar b').innerText()).includes('부터'), '끝나지 않고 계속 그리고 있다');
+      const p1 = await plan();
+      assert(p1.routes.length === 1, `동선 ${p1.routes.length}개`);
+      const r = p1.routes[0];
+      assert(r.endpoint === 'entrance', `종점 ${r.endpoint}`);
+      assert(String(r.label).includes('침실3') && String(r.label).includes('현관문'), r.label);
+      assert(r.fromRoom === room.id, '시작한 방이 기록되지 않았다');
+      const lastPt = r.points[r.points.length - 1];
+      assert(
+        Math.hypot(lastPt.x - door.x, lastPt.y - door.y) < 20,
+        `끝점이 현관문에서 ${Math.round(Math.hypot(lastPt.x - door.x, lastPt.y - door.y))}cm 떨어졌다`,
+      );
+      // 남은 방 안내가 줄어든다
+      const after = await page.locator('.draw-bar b').innerText();
+      assert(!after.includes('침실3'), `아직 침실3 을 시키고 있다: ${after}`);
+    });
+
+    await check('동선 작도를 취소할 수 있고 두 번 만들어지지 않는다', async () => {
+      const w2s = (wx: number, wy: number) =>
+        page.evaluate(
+          ([x, y]) => {
+            const g = document.querySelector('svg.stage > g') as SVGGElement | null;
+            const m = g?.getScreenCTM();
+            return m ? { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f } : { x: 0, y: 0 };
+          },
+          [wx, wy],
+        );
+      const routes = async () =>
+        page.evaluate(() => (JSON.parse(window.localStorage.getItem('evac-plan-v1') || '{}').routes || []).length);
+      const rooms = async () =>
+        page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-plan-v1') || '{}').rooms);
+
+      const before = await routes();
+      const list = await rooms();
+      const room = list.find((r: { name: string }) => r.name === '침실2');
+
+      // 그리다가 취소
+      let a = await w2s(room.x + 60, room.y + 60);
+      await page.mouse.click(a.x, a.y);
+      await page.waitForTimeout(250);
+      await page.locator('.draw-bar .x').click();
+      await page.waitForTimeout(400);
+      assert((await routes()) === before, '취소했는데 동선이 생겼다');
+      assert((await page.locator('.draw-bar b').innerText()).includes('부터'), '취소 후에도 그리는 중이다');
+
+      // Esc 로도 접힌다
+      await page.mouse.click(a.x, a.y);
+      await page.waitForTimeout(250);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+      assert((await routes()) === before, 'Esc 로 취소했는데 동선이 생겼다');
+
+      // 더블클릭으로 끝내도 하나만 생긴다
+      a = await w2s(room.x + 60, room.y + 60);
+      const b2 = await w2s(room.x + room.w - 60, room.y + 60);
+      await page.mouse.click(a.x, a.y);
+      await page.waitForTimeout(200);
+      await page.mouse.click(b2.x, b2.y);
+      await page.waitForTimeout(200);
+      await page.mouse.dblclick(b2.x, b2.y);
+      await page.waitForTimeout(900);
+      const after = await routes();
+      assert(after === before + 1, `더블클릭으로 ${after - before}개가 생겼다`);
+    });
+
+    await check('확대·축소해도 도면이 가운데 머물고 Shift 드래그로 옮겨진다', async () => {
+      const offset = () =>
+        page.evaluate(() => {
+          const g = document.querySelector('svg.stage > g') as SVGGElement | null;
+          const wrap = document.querySelector('.canvas-wrap') as HTMLElement | null;
+          if (!g || !wrap) return null;
+          const b = g.getBoundingClientRect();
+          const w = wrap.getBoundingClientRect();
+          return { dx: b.left + b.width / 2 - (w.left + w.width / 2), ww: w.width };
+        });
+
+      for (const f of ['확대', '확대', '축소']) {
+        await page.locator(`.zoom-pad button[title="${f}"]`).click();
+        await page.waitForTimeout(300);
+        const o = (await offset())!;
+        assert(Math.abs(o.dx) < o.ww * 0.2, `${f} 뒤 가로 치우침 ${Math.round(o.dx)}px`);
+      }
+
+      // 휠로 확대해도 가운데
+      const box = (await page.locator('.canvas-wrap').boundingBox())!;
+      await page.mouse.move(box.x + 120, box.y + 120);
+      await page.mouse.wheel(0, -400);
+      await page.waitForTimeout(350);
+      const o2 = (await offset())!;
+      assert(Math.abs(o2.dx) < o2.ww * 0.2, `휠 확대 뒤 치우침 ${Math.round(o2.dx)}px`);
+
+      // Shift 를 누른 채 끌면 옮겨진다
+      const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      await page.keyboard.down('Shift');
+      await page.mouse.move(mid.x, mid.y);
+      await page.mouse.down();
+      await page.mouse.move(mid.x + 160, mid.y, { steps: 6 });
+      await page.mouse.up();
+      await page.keyboard.up('Shift');
+      await page.waitForTimeout(300);
+      const o3 = (await offset())!;
+      assert(o3.dx > 90, `Shift 드래그로 옮겨지지 않았다 (${Math.round(o3.dx)}px)`);
+
+      // 화면 맞춤으로 되돌아온다
+      await page.locator('.zoom-pad button[title="화면 맞춤"]').click();
+      await page.waitForTimeout(350);
+      const o4 = (await offset())!;
+      assert(Math.abs(o4.dx) < o4.ww * 0.2, `화면 맞춤 뒤 치우침 ${Math.round(o4.dx)}px`);
     });
 
     await check('세부 설정에서 목록으로 돌아갈 수 있다', async () => {

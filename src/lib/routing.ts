@@ -61,6 +61,47 @@ export function exitPoints(plan: Plan, g: Grid): ExitPoint[] {
   return out;
 }
 
+/** 종점 가까이에 찍었는지 — 수동 작도를 여기서 끝맺게 한다 */
+export function exitNear(exits: ExitPoint[], p: Pt, tol = 70): ExitPoint | null {
+  let best: ExitPoint | null = null;
+  let bd = tol;
+  for (const e of exits) {
+    const d = Math.hypot(e.x - p.x, e.y - p.y);
+    if (d <= bd) {
+      bd = d;
+      best = e;
+    }
+  }
+  return best;
+}
+
+/** 아직 동선이 없는 구획실 — 하나씩 그려 나가도록 짚어 준다 */
+export function roomsMissingRoute(plan: Plan): Room[] {
+  const covered = new Set<string>();
+  for (const r of plan.routes) {
+    if (r.fromRoom) covered.add(r.fromRoom);
+  }
+  // 직접 그린 동선은 시작점이 어느 실 안인지로 따진다
+  for (const r of plan.routes) {
+    if (r.fromRoom || r.points.length === 0) continue;
+    const s = r.points[0];
+    const room = plan.rooms.find(
+      (x) => s.x >= x.x && s.x <= x.x + x.w && s.y >= x.y && s.y <= x.y + x.h,
+    );
+    if (room) covered.add(room.id);
+  }
+  return routableRooms(plan).filter((r) => !covered.has(r.id));
+}
+
+/** 점이 들어 있는 구획실 */
+export function roomContaining(plan: Plan, p: Pt): Room | null {
+  for (let i = plan.rooms.length - 1; i >= 0; i -= 1) {
+    const r = plan.rooms[i];
+    if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return r;
+  }
+  return null;
+}
+
 export interface DistField {
   /** Float64 — 다익스트라 재방문 판정에서 반올림 오차가 생기지 않도록 배정밀도를 쓴다 */
   cost: Float64Array;

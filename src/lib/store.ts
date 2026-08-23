@@ -93,7 +93,7 @@ export const TOOLS: ToolDef[] = [
   { key: 'route', label: '동선 작도', shortcut: 'L', hint: '클릭으로 꺾은선을 그린다. 더블클릭·Enter로 끝낸다.' },
   { key: 'note', label: '주기', shortcut: 'T', hint: '도면에 글자를 넣는다.' },
   { key: 'measure', label: '거리 측정', shortcut: 'M', hint: '두 점 사이 거리를 잰다.' },
-  { key: 'pan', label: '화면 이동', shortcut: 'H', hint: '도면을 끌어 옮긴다. 스페이스로도 된다.' },
+  { key: 'pan', label: '화면 이동', shortcut: 'H', hint: '도면을 끌어 옮긴다. Shift 를 누른 채 끌어도 된다.' },
 ];
 
 export interface StepDef {

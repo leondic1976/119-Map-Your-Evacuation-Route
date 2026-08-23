@@ -14,13 +14,25 @@ import {
   Room,
   emptyPlan,
   planArea,
+  planBounds,
   polylineLength,
   roomCenter,
 } from '../src/lib/types';
 import { TEMPLATES, buildFromTemplate, builtArea, getTemplate } from '../src/lib/templates';
 import { EXT_WALL, INT_WALL, buildWalls, inWall } from '../src/lib/walls';
 import { Grid, buildGrid, cellAt, cellCenter, connected, nearestWalkable, walkableArea } from '../src/lib/grid';
-import { distanceField, exitPoints, generateRoutes, orthogonalize, routeMetric, rset } from '../src/lib/routing';
+import {
+  distanceField,
+  exitNear,
+  exitPoints,
+  generateRoutes,
+  orthogonalize,
+  roomContaining,
+  roomsMissingRoute,
+  routableRooms,
+  routeMetric,
+  rset,
+} from '../src/lib/routing';
 import {
   BLOCK_LEVEL,
   DENSITY_RAMP,
@@ -398,6 +410,53 @@ check('모든 표준 평면에서 동선이 생성된다', () => {
     const rs = generateRoutes(p, g, { target: 'entrance' });
     assert(rs.length > 0, `${t.key} 동선 없음`);
   }
+});
+
+check('종점 가까이 찍으면 그 종점을 집어낸다', () => {
+  const exits = exitPoints(bay3, bay3Grid);
+  const ent = exits.find((e) => e.kind === 'entrance')!;
+  assert(Boolean(exitNear(exits, { x: ent.x + 20, y: ent.y + 20 }, 80)?.kind === 'entrance'), '가까운데 못 집는다');
+  assert(exitNear(exits, { x: ent.x + 300, y: ent.y + 300 }, 80) === null, '먼데도 집는다');
+  // 여럿이면 가장 가까운 것
+  const near = exitNear(exits, { x: ent.x + 5, y: ent.y + 5 }, 400);
+  assert(near?.id === ent.id, '가장 가까운 종점이 아니다');
+});
+
+check('점이 들어 있는 구획실을 찾는다', () => {
+  const living = bay3.rooms.find((r) => r.kind === 'living')!;
+  const c = roomCenter(living);
+  assert(roomContaining(bay3, c)?.id === living.id, '실 안인데 못 찾는다');
+  const b = planBounds(bay3);
+  assert(roomContaining(bay3, { x: b.x - 200, y: b.y - 200 }) === null, '도면 밖인데 찾는다');
+});
+
+check('아직 동선이 없는 구획실을 짚어 준다', () => {
+  const targets = routableRooms(bay3);
+  assert(roomsMissingRoute(bay3).length === targets.length, '동선이 없는데 다 있다고 한다');
+
+  // 자동 생성 동선은 fromRoom 으로 따진다
+  const withAuto: Plan = { ...bay3, routes: primary };
+  assert(roomsMissingRoute(withAuto).length === 0, '자동 동선을 못 알아본다');
+
+  // 직접 그린 동선은 시작점이 든 실로 따진다
+  const living = bay3.rooms.find((r) => r.kind === 'living')!;
+  const c = roomCenter(living);
+  const manual: Plan = {
+    ...bay3,
+    routes: [
+      {
+        id: 'm1',
+        kind: 'primary',
+        points: [c, { x: c.x, y: c.y - 200 }],
+        endpoint: 'entrance',
+        label: '직접',
+        manual: true,
+      },
+    ],
+  };
+  const left = roomsMissingRoute(manual);
+  assert(!left.some((r) => r.id === living.id), '직접 그린 동선의 시작 실을 못 알아본다');
+  assert(left.length === targets.length - 1, `남은 실 ${left.length} / ${targets.length - 1}`);
 });
 
 check('수동 작도 자유선이 직각으로 정리된다', () => {

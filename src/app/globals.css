@@ -2177,3 +2177,113 @@ table.tbl tr.hi td {
   border-color: var(--accent-500);
   color: var(--accent-700);
 }
+
+/* 동선을 그리는 중임을 알리는 막대 — 끝내는 방법이 늘 보이게 */
+.draw-bar {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--n0);
+  border: 1px solid var(--safe-600);
+  border-radius: 999px;
+  box-shadow: var(--shadow-2);
+  padding: 5px 6px 5px 12px;
+  font-size: 12.5px;
+  max-width: 94%;
+  z-index: 3;
+}
+
+.draw-bar.hintonly {
+  border-color: var(--n4);
+  padding-right: 14px;
+}
+
+.draw-bar .what {
+  background: var(--safe-50);
+  color: var(--safe-700);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.draw-bar.hintonly .what {
+  background: var(--n2);
+  color: var(--n7);
+}
+
+.draw-bar b {
+  white-space: nowrap;
+}
+
+.draw-bar .hint {
+  color: var(--n6);
+  font-size: 11.5px;
+}
+
+.draw-bar .ok,
+.draw-bar .x {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--safe-600);
+  background: var(--safe-600);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.draw-bar .ok:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.draw-bar .ok:hover:not(:disabled) {
+  background: #12996f;
+}
+
+.draw-bar .x {
+  background: var(--n1);
+  border-color: var(--n4);
+  color: var(--n7);
+}
+
+.draw-bar .x:hover {
+  background: var(--n2);
+}
+
+/* 풍선글을 끌어 옮기는 손잡이 */
+.coach-head {
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.coach-grip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  padding: 2px 3px;
+  opacity: 0.5;
+}
+
+.coach-grip i {
+  display: block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--n5);
+}
+
+.coach-bubble:hover .coach-grip {
+  opacity: 0.85;
+}

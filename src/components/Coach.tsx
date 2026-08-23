@@ -7,7 +7,7 @@
  * 뚫린 자리는 그대로 눌러 쓸 수 있고, 나머지는 눌리지 않아 헤매지 않는다.
  * 이용자가 할 일을 마치면(방을 그리면, 문을 놓으면) 저절로 다음 안내로 넘어간다.
  */
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { store, useApp, useModel } from './useStore';
 import { CoachContext, CoachStep, canAdvance, isDone, tutorialFor } from '../lib/tutorial';
 import { stuckRooms } from '../lib/assist';
@@ -52,6 +52,9 @@ export default function Coach() {
   const [rect, setRect] = useState<Rect | null>(null);
   const [vw, setVw] = useState(1280);
   const [vh, setVh] = useState(800);
+  /** 이용자가 풍선글을 끌어 옮긴 만큼 — 눌러야 할 곳을 가릴 때 치울 수 있게 */
+  const [nudge, setNudge] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const dragFrom = useRef<{ x: number; y: number; dx: number; dy: number } | null>(null);
 
   // 갇힌 방이 있는지는 격자를 봐야 안다. plan 이 바뀔 때만 다시 만든다.
   const { grid } = useModel(plan);
@@ -115,6 +118,32 @@ export default function Coach() {
     return () => clearTimeout(t);
   }, [tutorial.active, finished, index, next]);
 
+  /* 안내가 바뀌면 옮겨 둔 자리는 되돌린다 */
+  useEffect(() => {
+    setNudge({ dx: 0, dy: 0 });
+  }, [index]);
+
+  /* 풍선글 끌어 옮기기 */
+  const onGrab = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      if ((e.target as HTMLElement).closest('button')) return;
+      e.preventDefault();
+      dragFrom.current = { x: e.clientX, y: e.clientY, dx: nudge.dx, dy: nudge.dy };
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    },
+    [nudge],
+  );
+
+  const onGrabMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    const from = dragFrom.current;
+    if (!from) return;
+    setNudge({ dx: from.dx + (e.clientX - from.x), dy: from.dy + (e.clientY - from.y) });
+  }, []);
+
+  const onGrabEnd = useCallback(() => {
+    dragFrom.current = null;
+  }, []);
+
   /* Esc 로 닫는다 */
   useEffect(() => {
     if (!tutorial.active) return;
@@ -165,6 +194,10 @@ export default function Coach() {
     by = Math.max(14, Math.min(vh - 230, by));
   }
 
+  // 이용자가 옮겨 둔 만큼 더한다 (화면 밖으로는 나가지 않게)
+  bx = Math.max(8, Math.min(vw - width - 8, bx + nudge.dx));
+  by = Math.max(8, Math.min(vh - 90, by + nudge.dy));
+
   const band = (s: React.CSSProperties) => <div className="coach-band" style={s} />;
 
   return (
@@ -192,9 +225,21 @@ export default function Coach() {
       <div className={`coach-bubble${big ? ' big' : ''}`} style={{ left: bx, top: by, width }}>
         {tail && <i className="coach-tail" style={tail} />}
 
-        <div className="coach-head">
+        <div
+          className="coach-head"
+          onPointerDown={onGrab}
+          onPointerMove={onGrabMove}
+          onPointerUp={onGrabEnd}
+          onPointerCancel={onGrabEnd}
+          title="끌어서 옮길 수 있다"
+        >
+          <span className="coach-grip" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
           <span className="coach-count">
-            {index + 1} / {steps.length}
+            안내 {index + 1} / {steps.length}
           </span>
           <div className="coach-dots" aria-hidden="true">
             {steps.map((s, i) => (

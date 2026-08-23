@@ -503,13 +503,13 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             <tbody>
               <tr>
                 <td style={{ width: 110 }}>
-                  <span className="kbd">Space</span> + 드래그
+                  <span className="kbd">Shift</span> + 드래그
                 </td>
-                <td>화면 이동 (휠 버튼도 같다)</td>
+                <td>화면 이동 (스페이스·휠 버튼도 같다)</td>
               </tr>
               <tr>
                 <td>휠</td>
-                <td>커서 기준 확대·축소</td>
+                <td>확대·축소 (도면은 늘 화면 한가운데 머문다)</td>
               </tr>
               <tr>
                 <td>

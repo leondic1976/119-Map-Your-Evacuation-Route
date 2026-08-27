@@ -1,0 +1,30 @@
+{
+  "id": "fire",
+  "label": "불이 났어요",
+  "primarySpread": 0.06,
+  "secondarySpread": 0.22,
+  "primaryGrowth": 0.05,
+  "ignitionThreshold": 0.6,
+  "fuelBurnRate": 0.01,
+  "secondaryEmission": 0.15,
+  "descendThreshold": 0.6,
+  "descendRate": 0.1,
+  "exposureRate": 0.01,
+  "visionBase": 8,
+  "doorClosedFactor": 0.08,
+  "crouchFactor": 0.35,
+  "timeLimitTicks": 480,
+  "ignitionWeights": {
+    "gas_range": 40,
+    "power_strip": 20,
+    "heater": 8,
+    "candle": 7,
+    "bed": 6,
+    "sofa": 6,
+    "bookshelf": 5,
+    "wardrobe": 4,
+    "tv": 4
+  },
+  "scenarioKeys": ["fire_exit_available", "fire_exit_blocked"],
+  "specialRules": ["smokeDescends", "doorHeatCheck", "elevatorLocked"]
+}

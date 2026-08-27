@@ -120,9 +120,10 @@ process.stdout.write(`    파일    ${path.relative(root, target)}\n`);
 process.stdout.write(`    크기    ${bytes(size)}  (CSS ${bytes(css)} · JS ${bytes(js)})\n`);
 process.stdout.write(`    외부 참조 ${leftovers.length}건\n`);
 
-if (size > 1024 * 1024) {
-  process.stdout.write('\n  주의: 1MB 를 넘었다. 배경 이미지가 포함되지 않았는지 확인한다.\n');
+/* 어린이 화면(게임·리포트)이 더해져 1MB 를 조금 넘는다. 상한은 4MB 다 (docs/DESIGN-v1.1-changes.md NFR-3) */
+if (size > 4 * 1024 * 1024) {
+  process.stdout.write('\n  주의: 4MB 를 넘었다. 배경 이미지나 큰 자산이 섞이지 않았는지 확인한다.\n');
 } else {
-  process.stdout.write('    1MB 미만 — 배포 기준 충족\n');
+  process.stdout.write('    4MB 미만 — 배포 기준 충족\n');
 }
 process.stdout.write('\n  USB 로 복사해 브라우저에서 더블클릭하면 열린다.\n\n');

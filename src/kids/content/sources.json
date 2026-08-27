@@ -1,0 +1,72 @@
+[
+  {
+    "id": "app-guide",
+    "title": "이 앱의 사용 안내 문장 (안전 지식이 아닌 조작 안내)",
+    "publisher": "우리집 대피지도",
+    "retrievedAt": "2026-08-27",
+    "verified": true
+  },
+  {
+    "id": "nfa-apt-fire",
+    "title": "아파트 화재 피난행동요령",
+    "publisher": "소방청",
+    "url": "https://www.nfa.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "nfa-fire-manual",
+    "title": "화재 피난안전 매뉴얼",
+    "publisher": "소방청",
+    "url": "https://www.nfa.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "safekorea-fire",
+    "title": "국민행동요령 — 화재",
+    "publisher": "행정안전부 국민재난안전포털",
+    "url": "https://www.safekorea.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "safekorea-quake",
+    "title": "국민행동요령 — 지진",
+    "publisher": "행정안전부 국민재난안전포털",
+    "url": "https://www.safekorea.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "safekorea-flood",
+    "title": "국민행동요령 — 풍수해",
+    "publisher": "행정안전부 국민재난안전포털",
+    "url": "https://www.safekorea.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "safekorea-gas",
+    "title": "국민행동요령 — 가스",
+    "publisher": "행정안전부 국민재난안전포털",
+    "url": "https://www.safekorea.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "mois-quake-age",
+    "title": "지진·지진해일·화산재 행동요령 연령별 통합교재",
+    "publisher": "행정안전부",
+    "url": "https://www.mois.go.kr/",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  },
+  {
+    "id": "local-apt-refuge",
+    "title": "아파트 화재안전 안내 — 경량칸막이·대피공간·하향식 피난구",
+    "publisher": "시·도 소방본부",
+    "retrievedAt": "2026-08-27",
+    "verified": false
+  }
+]

@@ -46,7 +46,7 @@ const LAYER_KEYS: (keyof Layers)[] = [
   'trace',
 ];
 
-export default function AppShell() {
+export default function AppShell({ onLeave }: { onLeave?: () => void } = {}) {
   const app = useApp();
   const { plan, step, view, layers, sim, drill, toast, cursor, selection, tool, level } = app;
   const { model, grid } = useModel(plan);
@@ -276,6 +276,17 @@ export default function AppShell() {
           <button type="button" className="tb" onClick={() => setHelp(true)} title="단축키 (?)">
             <span style={{ fontWeight: 700, fontSize: 13 }}>?</span>
           </button>
+          {onLeave && (
+            <button
+              type="button"
+              className="tb"
+              data-coach="leave"
+              onClick={onLeave}
+              title="첫 화면으로 돌아가 이용자를 다시 고른다. 그린 것은 남는다."
+            >
+              첫 화면
+            </button>
+          )}
           <button
             type="button"
             className="tb primary"

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import React from 'react';
 import './globals.css';
+import '../kids/ui/kids.css';
+import '../kids/ui/kids-game.css';
 
 export const metadata: Metadata = {
   title: '우리 아파트 피난로 그리기',

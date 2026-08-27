@@ -52,6 +52,7 @@ import { ACTIONS, applyAction, availableActions, evaluate, startScenario } from 
 import { otsu, scaleFromArea, scaleFromMeasure, trace } from '../src/lib/autotrace';
 import { diagnose, eraFor, HAZARDS, PROCEDURE } from '../src/lib/risk';
 import { migrate, parsePlan, serialize } from '../src/lib/storage';
+import { kidsTests } from './kids-tests';
 import {
   interpretStroke,
   looksClosed,
@@ -1499,6 +1500,12 @@ check('초등은 짧게 가로질러도 벽으로 받아 준다', () => {
   const easy = interpretStroke(bay3, short, { grid: 10, easy: true });
   assert(easy.kind === 'split', `초등 해석 ${easy.kind}`);
 });
+
+/* ------------------------------------------------------------------ */
+/* 어린이 화면 — src/kids                                              */
+/* ------------------------------------------------------------------ */
+
+kidsTests(check, assert);
 
 /* ------------------------------------------------------------------ */
 

@@ -1,0 +1,108 @@
+[
+  {
+    "id": "dyn.usedElevator",
+    "polarity": "fix",
+    "headline": { "easy": "엘리베이터를 탔네. 불이 나면 멈출 수 있어.", "normal": "엘리베이터를 이용했습니다. 화재 때는 전기가 끊겨 멈출 수 있고 연기가 들어옵니다." },
+    "cardId": "fire.elevator.forbidden",
+    "weight": 100,
+    "action": { "type": "replay" },
+    "sourceIds": ["nfa-apt-fire", "safekorea-fire"]
+  },
+  {
+    "id": "dyn.openedHotDoor",
+    "polarity": "fix",
+    "headline": { "easy": "뜨거운 문을 열었어. 열기 전에 만져 보자.", "normal": "뜨거운 문을 열었습니다. 문을 열기 전에 손등으로 온도를 확인하세요." },
+    "cardId": "fire.door.heatcheck",
+    "weight": 95,
+    "action": { "type": "replay" },
+    "sourceIds": ["safekorea-fire", "nfa-fire-manual"]
+  },
+  {
+    "id": "dyn.stoodInHazard",
+    "polarity": "fix",
+    "headline": { "easy": "연기 속에서 서서 걸었어. 낮은 자세가 훨씬 안전해.", "normal": "연기 속에서 선 채로 이동했습니다. 자세를 낮추면 숨 쉴 공기가 남아 있습니다." },
+    "cardId": "fire.smoke.posture",
+    "weight": 90,
+    "action": { "type": "replay" },
+    "sourceIds": ["safekorea-fire", "nfa-fire-manual"]
+  },
+  {
+    "id": "dyn.passedHazardSource",
+    "polarity": "fix",
+    "headline": { "easy": "불이 시작된 곳 가까이를 지나갔어.", "normal": "불이 시작된 곳 바로 옆을 지나갔습니다. 돌아가더라도 발화 지점을 피하는 편이 안전합니다." },
+    "cardId": "fire.route.hazard",
+    "weight": 80,
+    "action": { "type": "editRoute" },
+    "sourceIds": ["safekorea-fire"]
+  },
+  {
+    "id": "dyn.trapped",
+    "polarity": "fix",
+    "headline": { "easy": "나갈 길이 하나뿐이었어. 다른 길도 만들어 두자.", "normal": "나갈 길이 하나뿐이어서 막히자 갇혔습니다. 대체 피난수단을 마련해 두세요." },
+    "cardId": "fire.secondexit",
+    "weight": 100,
+    "action": { "type": "editPlan" },
+    "sourceIds": ["nfa-apt-fire", "local-apt-refuge"]
+  },
+  {
+    "id": "dyn.offRoute",
+    "polarity": "fix",
+    "headline": { "easy": "네가 그린 길이랑 다르게 갔네. 왜 그랬을까?", "normal": "미리 그린 경로와 다르게 이동했습니다. 그린 길이 실제로 쓸 만한지 다시 살펴보세요." },
+    "weight": 60,
+    "action": { "type": "editRoute" },
+    "sourceIds": ["app-guide"]
+  },
+  {
+    "id": "dyn.closedDoor",
+    "polarity": "good",
+    "headline": { "easy": "문을 닫고 나왔어! 불이 훨씬 천천히 번져.", "normal": "지나온 문을 닫았습니다. 닫힌 문은 불과 연기의 확산을 크게 늦춥니다." },
+    "cardId": "fire.door.close",
+    "weight": 90,
+    "sourceIds": ["safekorea-fire"]
+  },
+  {
+    "id": "dyn.crouched",
+    "polarity": "good",
+    "headline": { "easy": "낮은 자세로 잘 지나갔어!", "normal": "연기 속에서 낮은 자세로 이동했습니다." },
+    "cardId": "fire.smoke.posture",
+    "weight": 85,
+    "sourceIds": ["safekorea-fire", "nfa-fire-manual"]
+  },
+  {
+    "id": "dyn.checkedDoor",
+    "polarity": "good",
+    "headline": { "easy": "문을 만져 보고 확인했구나. 소방관처럼 했어!", "normal": "문을 열기 전에 온도를 확인했습니다." },
+    "cardId": "fire.door.heatcheck",
+    "weight": 85,
+    "sourceIds": ["safekorea-fire", "nfa-fire-manual"]
+  },
+  {
+    "id": "dyn.usedAlternate",
+    "polarity": "good",
+    "headline": { "easy": "첫 번째 길이 막히니까 다른 길을 찾았어!", "normal": "주 경로가 막히자 대체 피난수단으로 대피했습니다." },
+    "cardId": "fire.secondexit",
+    "weight": 95,
+    "sourceIds": ["nfa-apt-fire", "local-apt-refuge"]
+  },
+  {
+    "id": "dyn.success",
+    "polarity": "good",
+    "headline": { "easy": "무사히 안전한 곳까지 갔어!", "normal": "안전한 곳까지 무사히 대피했습니다." },
+    "weight": 120,
+    "sourceIds": ["app-guide"]
+  },
+  {
+    "id": "dyn.fallback.tried",
+    "polarity": "good",
+    "headline": { "easy": "끝까지 포기하지 않고 해 봤어!", "normal": "끝까지 포기하지 않고 대피를 시도했습니다." },
+    "weight": 10,
+    "sourceIds": ["app-guide"]
+  },
+  {
+    "id": "dyn.fallback.first",
+    "polarity": "good",
+    "headline": { "easy": "처음인데 우리 집 지도를 다 그렸구나!", "normal": "첫 시도에 우리 집 지도를 완성했습니다." },
+    "weight": 10,
+    "sourceIds": ["app-guide"]
+  }
+]

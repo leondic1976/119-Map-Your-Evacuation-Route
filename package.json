@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": false,
   "license": "MIT",
-  "description": "우리 아파트 피난로 그리기 — 공동주택 세대 피난계획 작성 웹 시스템",
+  "description": "우리 아파트 피난로 그리기 · 우리집 대피지도 — 공동주택 세대 피난계획 작성과 초등학생용 대피 게임 웹 시스템",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,12 +12,16 @@
     "test": "tsx tools/test.ts",
     "smoke": "tsx tools/smoke.ts",
     "build:standalone": "tsx tools/standalone.ts",
-    "verify": "npm run typecheck && npm test && npm run build:standalone && npm run build && npm run smoke"
+    "verify": "npm run typecheck && npm run validate && npm test && npm run build:standalone && npm run build && npm run smoke",
+    "validate": "tsx tools/validate.ts",
+    "validate:strict": "tsx tools/validate.ts --strict",
+    "shots": "tsx tools/shot-kids.ts"
   },
   "dependencies": {
     "next": "15.5.4",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

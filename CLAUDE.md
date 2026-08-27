@@ -98,3 +98,28 @@ powershell -c "[console]::beep(400,250); [console]::beep(300,400)"
 
 화면 문구·주석·커밋 메시지 모두 한국어. "~다"로 끝나는 평서체를 쓰고 존댓말은 쓰지 않는다.
 초등용 문구만 예외로 "~자", "~해 보자" 같은 권유형을 쓴다.
+
+## 9. 어린이 화면(src/kids)의 절대 규칙
+
+설계서는 `docs/DESIGN-v1.0.md` 와 변경 명세 `docs/DESIGN-v1.1-changes.md` 다.
+둘이 어긋나면 v1.1 이 이긴다. 구현과 어긋나는 결정을 하면 코드보다 설계서를 먼저 고친다.
+
+1. 런타임에 생성형 AI 를 부르지 않는다. 캐릭터의 말은 전부 `content/guide/*.json` 의 고정 문장이다.
+2. **챗봇·자유 텍스트 입력·검색을 만들지 않는다.** 대사는 트리거(`GuideTrigger`) 기반이다.
+3. **3D 를 만들지 않는다.** 그래픽은 전부 SVG 다. 에디터·게임·인쇄가 `ui/PlanSvg.tsx` 하나를 쓴다.
+4. `src/kids/core/**` 에서 `react`·`zustand`·`document`·`window` 를 부르지 않는다.
+5. **위험장 엔진(`core/hazard/field.ts`)에 재난 이름을 넣지 않는다.** `'fire'`·`smoke`·`화재`·`연기`가
+   그 파일에 나오면 `npm test` 가 실패한다. 재난은 `content/hazards/*.json` 프리셋으로 들어온다.
+6. 모든 안전 문장에 `sourceIds` 가 있어야 한다. 출처는 `content/sources.json` 에 있어야 하고,
+   `verified: false` 인 출처의 문장은 화면에 "검수 대기"로 표시된다. 조작 안내 문장은 `app-guide` 를 쓴다.
+7. **그리기 편의(FR-7.*)가 다른 모든 기능보다 앞선다.** 조작을 늘리는 방향의 구현은 거부하고 대안을 낸다.
+   팔레트 클릭 → 도면 클릭이면 놓여야 하고, 겹침은 시도부터 막고, 백지에서 시작하지 않는다.
+8. 랜덤 발화는 **시작 즉시 이길 수 없는 판을 내지 않는다.** `tools/kids-tests.ts` 가 평면 3종 × seed 100 을 돈다.
+9. 실패해도 리포트에 **잘한 점이 하나는** 있어야 하고, 고칠 점은 **세 개까지**만 보인다. 점수·등급·순위를 만들지 않는다.
+10. 시간제한은 기본이 아니다. 연습 모드가 기본이고, 경고음·붉은 점멸을 쓰지 않는다.
+11. 기본판은 화재 1종이다. 지진·침수·가스 규칙은 `EXTENSION_RULES` 에 두고 기본 규칙셋에 섞지 않는다.
+    재난 탭은 `HAZARD_PRESETS` 수만큼만 생긴다.
+12. 단일 HTML 은 4MB 를 넘지 않는다. 런타임 의존성은 `react`·`react-dom`·`zustand` 뿐이다.
+
+콘텐츠를 더하면 `npm run validate` 를 돌린다. 규칙을 더하면 `content/ruleMessages.json` 에
+`reportHeadline`·`praise` 두 문장(각 easy·normal)과 `content/guide/rules.json` 의 `ruleFail` 대사를 함께 더한다.

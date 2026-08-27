@@ -1,0 +1,94 @@
+{
+  "rules": {
+    "RULE-C-01": {
+      "reportHeadline": { "easy": "출발점이 방 밖에 있어. 네 방 안에서 시작하자.", "normal": "출발점이 방 안에 있지 않습니다. 잠자는 방 안 칸에서 시작하세요." },
+      "praise": { "easy": "{roomName}에서 시작하는 길이구나.", "normal": "{roomName}에서 출발하는 경로입니다." },
+      "whyCardId": "fire.my_spot.why"
+    },
+    "RULE-C-02": {
+      "reportHeadline": { "easy": "가족이 만나는 곳을 아직 안 정했어.", "normal": "집 밖에서 가족이 만날 곳이 아직 없습니다." },
+      "praise": { "easy": "만나는 곳까지 정했구나. 흩어져도 다시 모일 수 있어.", "normal": "가족이 만날 곳을 정했습니다." },
+      "whyCardId": "general.meeting_point"
+    },
+    "RULE-C-03": {
+      "reportHeadline": { "easy": "{roomName}에서 나갈 길이 없어. 문을 하나 놓아 주자.", "normal": "{roomName}에서 나갈 문이 없습니다. 벽에 문을 놓으세요." },
+      "praise": { "easy": "모든 방에서 나갈 수 있어. 갇히는 곳이 없구나.", "normal": "모든 방에서 밖으로 나갈 수 있습니다." },
+      "whyCardId": "general.isolated.room"
+    },
+    "RULE-C-04": {
+      "reportHeadline": { "easy": "길이 중간에 끊겼어. 한 칸씩 이어 그리자.", "normal": "경로가 중간에 끊겼습니다. 옆 칸으로 이어지게 그리세요." },
+      "praise": { "easy": "길이 처음부터 끝까지 이어져 있어.", "normal": "경로가 끊김 없이 이어집니다." },
+      "whyCardId": "general.route.wall"
+    },
+    "RULE-C-05": {
+      "reportHeadline": { "easy": "길이 벽을 뚫고 지나가. 문이 있는 쪽으로 돌리자.", "normal": "경로가 문 없는 벽을 가로지릅니다. 문을 놓거나 경로를 바꾸세요." },
+      "praise": { "easy": "문이 있는 곳으로만 지나갔어.", "normal": "경로가 개구부로만 방을 넘어갑니다." },
+      "whyCardId": "general.route.wall"
+    },
+    "RULE-C-06": {
+      "reportHeadline": { "easy": "길이 안전한 곳에서 안 끝났어. 밝게 표시한 곳까지 이어 보자.", "normal": "경로가 안전한 곳에서 끝나지 않았습니다. 강조된 칸까지 이으세요." },
+      "praise": { "easy": "안전한 곳에서 길이 끝났어. 아주 좋아.", "normal": "경로가 안전한 곳에서 끝납니다." },
+      "whyCardId": "general.route.end"
+    },
+    "RULE-C-07": {
+      "reportHeadline": { "easy": "소화기 자리를 아직 몰라. 어른께 여쭤보자.", "normal": "소화기 위치가 표시되지 않았습니다. 보호자와 확인하세요." },
+      "praise": { "easy": "소화기 자리를 알고 있구나.", "normal": "소화기 위치를 알고 있습니다." },
+      "whyCardId": "fire.extinguisher.where"
+    },
+    "RULE-C-08": {
+      "reportHeadline": { "easy": "감지기 자리를 아직 몰라. 천장을 찾아보자.", "normal": "화재감지기 위치가 표시되지 않았습니다." },
+      "praise": { "easy": "감지기 자리까지 표시했구나.", "normal": "화재감지기 위치를 표시했습니다." },
+      "whyCardId": "general.detector.what"
+    },
+    "RULE-F-01": {
+      "reportHeadline": { "easy": "첫 번째 길이 현관문을 안 지나. 현관으로 나가자.", "normal": "주 경로가 현관문을 지나지 않습니다." },
+      "praise": { "easy": "현관문으로 나가는 길이구나.", "normal": "주 경로가 현관문을 지납니다." },
+      "whyCardId": "fire.front_door.what"
+    },
+    "RULE-F-02": {
+      "reportHeadline": { "easy": "길이 불 나기 쉬운 곳 바로 옆을 지나. 조금 돌아가자.", "normal": "경로가 가스레인지·보일러 바로 옆을 지납니다. 비켜 가세요." },
+      "praise": { "easy": "불붙기 쉬운 곳을 비켜 갔구나.", "normal": "발화 위험이 큰 곳을 비켜 갑니다." },
+      "whyCardId": "fire.route.hazard"
+    },
+    "RULE-F-03": {
+      "reportHeadline": { "easy": "길이 승강기 앞을 지나. 불이 나면 승강기는 멈춰. 계단으로!", "normal": "경로가 승강기를 지납니다. 계단으로 바꾸세요." },
+      "praise": { "easy": "승강기를 지나지 않았어. 아주 잘했어.", "normal": "경로가 승강기를 지나지 않습니다." },
+      "whyCardId": "fire.elevator.forbidden"
+    },
+    "RULE-F-04": {
+      "reportHeadline": { "easy": "현관이 막히면 갈 곳이 없어. 다른 길도 만들어 두자.", "normal": "대체 피난수단이 없습니다. 경량칸막이·대피공간·하향식 피난구를 표시하세요." },
+      "praise": { "easy": "다른 피난 길까지 갖췄구나.", "normal": "대체 피난수단을 갖췄습니다." },
+      "whyCardId": "fire.secondexit"
+    },
+    "RULE-F-05": {
+      "reportHeadline": { "easy": "두 번째 길이 피난설비에서 안 끝났어. 대피공간이나 경량칸막이로!", "normal": "보조 경로가 대체 피난설비에서 끝나지 않았습니다." },
+      "praise": { "easy": "{facility}(으)로 가는 두 번째 길이구나. 잘 골랐어.", "normal": "보조 경로가 {facility}에서 끝납니다." },
+      "whyCardId": "fire.apt.exit_blocked"
+    },
+    "RULE-F-06": {
+      "reportHeadline": { "easy": "길이 너무 돌아가. 조금 곧게 펴 보자.", "normal": "경로가 최단경로보다 많이 깁니다." },
+      "praise": { "easy": "돌아가지 않고 곧게 잘 그렸어.", "normal": "경로가 충분히 짧습니다." },
+      "whyCardId": "general.route.short"
+    },
+    "RULE-F-07": {
+      "reportHeadline": { "easy": "발코니도 그려 두자. 못 나갈 때 쓰는 길이 있을 수 있어.", "normal": "발코니와 그곳의 피난설비를 표시하세요." },
+      "praise": { "easy": "발코니까지 챙겼구나.", "normal": "발코니를 표시했습니다." },
+      "whyCardId": "fire.balcony.what"
+    }
+  },
+  "conditions": {
+    "window.adult": "창문으로 나가는 길은 어른과 함께여야 해. 혼자서는 하지 말자.",
+    "descent_device.adult": "완강기는 어른과 함께 쓰는 거야. 혼자 쓰지 않는다."
+  },
+  "guardianMissions": {
+    "meeting_point": { "title": "가족과 만날 곳 정하기", "ask": "불이 나서 밖으로 나오면 우리 가족은 어디에서 만날까요?" },
+    "extinguisher": { "title": "소화기 찾기", "ask": "우리 집 소화기는 어디에 있어요?" },
+    "detector": { "title": "감지기 찾기", "ask": "우리 집 천장에 화재감지기가 어디에 붙어 있어요?" },
+    "secondary_escape": { "title": "또 다른 피난 길 알아보기", "ask": "우리 집에는 경량칸막이·대피공간·하향식 피난구 가운데 무엇이 있어요?" },
+    "gas_valve": { "title": "가스 중간밸브 찾기", "ask": "가스 중간밸브는 어디에 있어요?" }
+  },
+  "unavoidable": {
+    "RULE-F-02": "이 집은 그 옆을 지나야만 나갈 수 있구나. 그러면 낮은 자세로 빠르게 지나가는 게 중요해.",
+    "RULE-G-03": "이 집은 주방을 지나야만 나갈 수 있구나. 그러면 숨을 참고 빠르게 지나가자."
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "id": "apt_2room",
+  "label": "방 두 개 아파트",
+  "hint": "가장 흔한 모양이야. 우리 집과 비슷하면 이걸 고르자.",
+  "plan": {
+    "grid": { "width": 24, "height": 16 },
+    "blocks": [
+      { "kind": "room", "id": "r1", "layer": "home", "roomKind": "bedroom", "rect": { "x": 3, "y": 3, "w": 5, "h": 4 }, "label": "내 방" },
+      { "kind": "room", "id": "r2", "layer": "home", "roomKind": "bedroom", "rect": { "x": 8, "y": 3, "w": 5, "h": 4 }, "label": "안방" },
+      { "kind": "room", "id": "r3", "layer": "home", "roomKind": "bath", "rect": { "x": 13, "y": 3, "w": 4, "h": 4 }, "label": "" },
+      { "kind": "room", "id": "r4", "layer": "home", "roomKind": "corridor", "rect": { "x": 3, "y": 7, "w": 14, "h": 2 }, "label": "" },
+      { "kind": "room", "id": "r5", "layer": "home", "roomKind": "kitchen", "rect": { "x": 3, "y": 9, "w": 5, "h": 4 }, "label": "" },
+      { "kind": "room", "id": "r6", "layer": "home", "roomKind": "living", "rect": { "x": 8, "y": 9, "w": 5, "h": 4 }, "label": "" },
+      { "kind": "room", "id": "r7", "layer": "home", "roomKind": "entry", "rect": { "x": 13, "y": 9, "w": 4, "h": 4 }, "label": "" },
+      { "kind": "room", "id": "r8", "layer": "home", "roomKind": "balcony", "rect": { "x": 3, "y": 13, "w": 10, "h": 2 }, "label": "" },
+
+      { "kind": "opening", "id": "o1", "layer": "home", "openingKind": "door", "cell": { "x": 5, "y": 6 }, "side": "S", "closedByDefault": true },
+      { "kind": "opening", "id": "o2", "layer": "home", "openingKind": "door", "cell": { "x": 10, "y": 6 }, "side": "S", "closedByDefault": true },
+      { "kind": "opening", "id": "o3", "layer": "home", "openingKind": "door", "cell": { "x": 14, "y": 6 }, "side": "S", "closedByDefault": true },
+      { "kind": "opening", "id": "o4", "layer": "home", "openingKind": "door", "cell": { "x": 5, "y": 9 }, "side": "N", "closedByDefault": false },
+      { "kind": "opening", "id": "o5", "layer": "home", "openingKind": "door", "cell": { "x": 10, "y": 9 }, "side": "N", "closedByDefault": false },
+      { "kind": "opening", "id": "o6", "layer": "home", "openingKind": "inner_door", "cell": { "x": 14, "y": 9 }, "side": "N", "closedByDefault": false },
+      { "kind": "opening", "id": "o7", "layer": "home", "openingKind": "front_door", "cell": { "x": 16, "y": 10 }, "side": "E", "closedByDefault": true },
+      { "kind": "opening", "id": "o8", "layer": "home", "openingKind": "balcony_window", "cell": { "x": 10, "y": 12 }, "side": "S", "closedByDefault": true },
+      { "kind": "opening", "id": "o9", "layer": "home", "openingKind": "balcony_window", "cell": { "x": 5, "y": 12 }, "side": "S", "closedByDefault": true },
+      { "kind": "opening", "id": "o10", "layer": "home", "openingKind": "window", "cell": { "x": 5, "y": 3 }, "side": "N", "closedByDefault": true },
+      { "kind": "opening", "id": "o11", "layer": "home", "openingKind": "window", "cell": { "x": 10, "y": 3 }, "side": "N", "closedByDefault": true },
+      { "kind": "opening", "id": "o12", "layer": "home", "openingKind": "window", "cell": { "x": 14, "y": 3 }, "side": "N", "closedByDefault": true },
+
+      { "kind": "safety", "id": "s1", "layer": "home", "subKind": "extinguisher", "cell": { "x": 15, "y": 11 }, "rotation": 0 },
+      { "kind": "safety", "id": "s2", "layer": "home", "subKind": "detector", "cell": { "x": 10, "y": 10 }, "rotation": 0 },
+      { "kind": "safety", "id": "s3", "layer": "home", "subKind": "gas_valve", "cell": { "x": 4, "y": 10 }, "rotation": 0 },
+      { "kind": "safety", "id": "s4", "layer": "home", "subKind": "light_partition", "cell": { "x": 11, "y": 13 }, "rotation": 0 },
+
+      { "kind": "hazard", "id": "h1", "layer": "home", "subKind": "gas_range", "cell": { "x": 3, "y": 10 }, "rotation": 0 },
+
+      { "kind": "furniture", "id": "f1", "layer": "home", "subKind": "bed", "cell": { "x": 4, "y": 4 }, "rotation": 0 },
+      { "kind": "furniture", "id": "f2", "layer": "home", "subKind": "wardrobe", "cell": { "x": 7, "y": 3 }, "rotation": 0 },
+      { "kind": "furniture", "id": "f3", "layer": "home", "subKind": "bed", "cell": { "x": 9, "y": 4 }, "rotation": 0 },
+      { "kind": "furniture", "id": "f4", "layer": "home", "subKind": "sofa", "cell": { "x": 9, "y": 11 }, "rotation": 0 },
+      { "kind": "furniture", "id": "f5", "layer": "home", "subKind": "tv", "cell": { "x": 11, "y": 9 }, "rotation": 0 },
+      { "kind": "furniture", "id": "f6", "layer": "home", "subKind": "fridge", "cell": { "x": 7, "y": 9 }, "rotation": 0 },
+
+      { "kind": "marker", "id": "m1", "layer": "home", "subKind": "my_spot", "cell": { "x": 5, "y": 5 }, "rotation": 0 }
+    ]
+  }
+}

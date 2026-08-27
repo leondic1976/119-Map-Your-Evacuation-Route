@@ -1,0 +1,242 @@
+'use client';
+
+/**
+ * 팔레트 — 자주 쓰는 7종 + 더보기 = 8칸 (FR-7.8).
+ * 단추를 누르면 장전되고, 도면을 누르면 표준 크기로 놓인다 (FR-7.1).
+ * 캐릭터가 가리키는 항목은 밝게 표시된다 (FR-7.10).
+ */
+import React, { useEffect, useState } from 'react';
+import { BLOCKS, PALETTE_BASIC, type BlockCategory, type BlockDef } from '../content';
+import { useKids, type KidsTool } from '../store/kidsStore';
+import { OpeningArt, PointArt } from './BlockArt';
+
+const CATS: { key: BlockCategory; easy: string; normal: string }[] = [
+  { key: 'room', easy: '방', normal: '실' },
+  { key: 'opening', easy: '문·창', normal: '개구부' },
+  { key: 'safety', easy: '안전', normal: '피난설비' },
+  { key: 'furniture', easy: '가구', normal: '가구' },
+  { key: 'hazard', easy: '조심', normal: '위험원' },
+  { key: 'marker', easy: '표시', normal: '표시' },
+];
+
+const ROOM_SWATCH: Record<string, string> = {
+  bedroom: '#fff3d6',
+  living: '#e8f4e2',
+  kitchen: '#ffe4d1',
+  bath: '#dcefff',
+  entry: '#efe9f7',
+  balcony: '#e6f7f4',
+  utility: '#f0f0f0',
+  corridor: '#f6f6ee',
+  stair: '#e0e7ef',
+  elevator_hall: '#f3e2e2',
+};
+
+const TOOLS: { key: KidsTool; easy: string; normal: string; hint: string }[] = [
+  { key: 'select', easy: '고르기', normal: '선택', hint: '눌러서 고르고, 끌어서 옮긴다.' },
+  { key: 'route', easy: '길 그리기', normal: '경로 작도', hint: '출발할 칸부터 끌어서 잇는다.' },
+  { key: 'erase', easy: '지우개', normal: '삭제', hint: '눌러서 지운다.' },
+];
+
+export default function Palette() {
+  const tool = useKids((s) => s.tool);
+  const armed = useKids((s) => s.armed);
+  const gradeMode = useKids((s) => s.profile.gradeMode);
+  const style = useKids((s) => s.profile.blockStyle);
+  const layer = useKids((s) => s.layer);
+  const mode = useKids((s) => s.mode);
+  const paletteHl = useKids((s) => s.highlight?.paletteItem ?? null);
+  const setTool = useKids((s) => s.setTool);
+  const arm = useKids((s) => s.arm);
+  const [more, setMore] = useState(false);
+  const [cat, setCat] = useState<BlockCategory>('safety');
+  const easy = gradeMode === 'easy';
+  const disabled = mode !== 'edit';
+
+  /* 캐릭터가 가리킨 항목이 더보기 안에 있으면 그때 한 번 펼쳐 준다. 그 뒤로는 아이가 고르는 대로다 */
+  useEffect(() => {
+    if (!paletteHl) return;
+    const def = BLOCKS.find((b) => b.id === paletteHl);
+    if (!def || PALETTE_BASIC.includes(def.id)) return;
+    setMore(true);
+    setCat(def.category);
+  }, [paletteHl]);
+  const showMore = more;
+  const activeCat = cat;
+
+  const basics = PALETTE_BASIC.map((id) => BLOCKS.find((b) => b.id === id)).filter((b): b is BlockDef => Boolean(b));
+  const moreItems = BLOCKS.filter((b) => b.category === activeCat && !PALETTE_BASIC.includes(b.id));
+
+  const pick = (b: BlockDef) => {
+    const on = armed?.id === b.id;
+    arm(on ? null : { category: b.category, id: b.id });
+  };
+
+  return (
+    <aside className={`k-palette${disabled ? ' k-disabled' : ''}`} aria-label="블록 팔레트" data-coach="kids-palette">
+      <div className="k-tools">
+        {TOOLS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`k-tool${tool === t.key && !armed ? ' on' : ''}`}
+            aria-pressed={tool === t.key && !armed}
+            title={t.hint}
+            disabled={disabled}
+            data-coach={`kids-tool-${t.key}`}
+            onClick={() => {
+              arm(null);
+              setTool(t.key);
+            }}
+          >
+            <ToolIcon k={t.key} />
+            <span>{easy ? t.easy : t.normal}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="k-blocks k-basic" role="group" aria-label="기본 블록">
+        {basics.map((b) => (
+          <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} />
+        ))}
+        <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
+          <span className="k-block-art">
+            <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+              <circle cx={12} cy={20} r={3.2} fill="#2a3038" />
+              <circle cx={20} cy={20} r={3.2} fill="#2a3038" />
+              <circle cx={28} cy={20} r={3.2} fill="#2a3038" />
+            </svg>
+          </span>
+          <span className="k-block-name">{showMore ? '접기' : '더보기'}</span>
+        </button>
+      </div>
+
+      {showMore && (
+        <div className="k-more-panel">
+          <div className="k-cats" role="tablist" aria-label="블록 갈래">
+            {CATS.map((c) => (
+              <button key={c.key} type="button" role="tab" aria-selected={activeCat === c.key} className={`k-cat${activeCat === c.key ? ' on' : ''}`} onClick={() => setCat(c.key)}>
+                {easy ? c.easy : c.normal}
+              </button>
+            ))}
+          </div>
+          <div className="k-blocks" role="tabpanel">
+            {moreItems.map((b) => (
+              <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} common={b.tags.includes('common') && layer !== 'common'} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {armed && (
+        <div className="k-armed" role="status">
+          {armed.category === 'room' ? '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
+          <button type="button" className="k-link" onClick={() => arm(null)}>
+            그만
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function PaletteButton({
+  def,
+  on,
+  hl,
+  style,
+  easy,
+  disabled,
+  common,
+  onPick,
+}: {
+  def: BlockDef;
+  on: boolean;
+  hl: boolean;
+  style: 'kid' | 'blueprint';
+  easy: boolean;
+  disabled: boolean;
+  common?: boolean;
+  onPick: (b: BlockDef) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`k-block${on ? ' on' : ''}${hl ? ' k-hl' : ''}`}
+      aria-pressed={on}
+      data-block-id={def.id}
+      title={hintFor(def, easy)}
+      disabled={disabled}
+      onClick={() => onPick(def)}
+    >
+      <span className="k-block-art">
+        <BlockPreview def={def} style={style} />
+      </span>
+      <span className="k-block-name">
+        {easy ? def.easy : def.label}
+        {common && <small> (집 밖)</small>}
+      </span>
+    </button>
+  );
+}
+
+function hintFor(b: BlockDef, easy: boolean): string {
+  if (b.category === 'room') return easy ? '도면을 누르면 방이 놓인다.' : '클릭하면 표준 크기로 놓이고, 드래그하면 그 크기로 놓인다.';
+  if (b.category === 'opening') return easy ? '방의 벽을 눌러 놓는다.' : '방 경계선(벽면)에만 놓인다.';
+  if (b.tags.includes('adult')) return '어른과 함께 쓰는 설비다.';
+  return easy ? '놓을 칸을 누른다.' : '셀 중심에 놓인다.';
+}
+
+function BlockPreview({ def, style }: { def: BlockDef; style: 'kid' | 'blueprint' }) {
+  if (def.category === 'room') {
+    return (
+      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+        <rect x={4} y={6} width={32} height={28} fill={style === 'kid' ? (ROOM_SWATCH[def.id] ?? '#fff') : '#fff'} stroke="#2a3038" strokeWidth={3} />
+      </svg>
+    );
+  }
+  if (def.category === 'opening') {
+    return (
+      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+        <path d="M2 14 H38" stroke="#2a3038" strokeWidth={3} />
+        <g transform="translate(20 14)">
+          <OpeningArt kind={def.id} len={26} style={style} />
+        </g>
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <PointArt subKind={def.id} w={40} h={40} style={style} />
+    </svg>
+  );
+}
+
+function ToolIcon({ k }: { k: KidsTool }) {
+  const p = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
+  switch (k) {
+    case 'select':
+      return (
+        <svg {...p}>
+          <path d="M5 3l14 8-6 2-2 6z" />
+        </svg>
+      );
+    case 'route':
+      return (
+        <svg {...p}>
+          <path d="M4 18 H10 V10 H16 V5" />
+          <path d="M13 5l3-3 3 3" />
+          <circle cx={4} cy={18} r={2} />
+        </svg>
+      );
+    case 'erase':
+      return (
+        <svg {...p}>
+          <path d="M4 15l9-9 6 6-6 6H7z" />
+          <path d="M9 21h11" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}

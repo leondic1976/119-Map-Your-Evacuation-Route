@@ -1,0 +1,515 @@
+/*
+ * 어린이 화면 v1.1 — 게임·리포트·말풍선·팔레트 8칸.
+ * kids.css 뒤에 읽힌다. 접두사 k- 를 그대로 쓴다.
+ */
+
+.k-palette.k-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.k-blocks.k-basic {
+  overflow: visible;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--k-line);
+}
+
+.k-block.k-hl {
+  box-shadow: 0 0 0 3px #ffd166 inset;
+  border-color: #e0a100;
+  animation: k-pulse 1.2s ease-in-out infinite;
+}
+
+.k-block.k-more {
+  border-style: dashed;
+}
+
+.k-more-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.k-palette {
+  grid-template-rows: auto auto 1fr auto;
+}
+
+.k-app button,
+.k-block,
+.k-tool {
+  min-height: 48px;
+}
+
+.k-seg.dark {
+  background: var(--k-accent-soft);
+}
+
+.k-seg.dark button {
+  color: var(--k-accent);
+  position: relative;
+  padding-right: 18px;
+}
+
+.k-seg.dark button[aria-pressed="true"] {
+  background: var(--k-accent);
+  color: #fff;
+}
+
+.k-seg.dark .k-tab-no {
+  border-color: var(--tab, #0f3d68);
+  color: var(--tab, #0f3d68);
+  margin-right: 4px;
+}
+
+.k-tb.accent {
+  background: #fff8e1 !important;
+  border-color: #e0a100 !important;
+  color: #7a5200 !important;
+}
+
+.k-dev {
+  font-size: 12px;
+  color: var(--k-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------- 말풍선 (캔버스 위 덮개) */
+.k-bubble {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: #fff;
+  border: 2px solid var(--k-accent);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(16, 30, 48, 0.2);
+  z-index: 6;
+  max-width: 720px;
+  margin: 0 auto;
+  animation: k-pop 0.25s ease-out;
+}
+
+.k-bubble-ilgu {
+  border-color: #c48a5f;
+}
+
+.k-bubble-yeongi {
+  border-color: #c8102e;
+}
+
+.k-bubble-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.k-bubble-avatar small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--k-dim);
+}
+
+.k-bubble-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.k-bubble-text {
+  margin: 4px 0 8px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.k-bubble-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.k-bubble-actions .k-tb {
+  border-color: var(--k-line);
+  background: #fff;
+  color: var(--k-ink);
+}
+
+.k-card-open {
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  background: #f4f7fb;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.k-card-open b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--k-accent);
+}
+
+.k-card-open p {
+  margin: 0;
+}
+
+.k-mission {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #7a5200;
+}
+
+@keyframes k-pop {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-bubble {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------- 게임 덮개 */
+.k-game {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.k-game > * {
+  pointer-events: auto;
+}
+
+.k-game-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--k-line);
+}
+
+.k-gauge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.k-gauge-bar {
+  display: block;
+  width: 160px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--k-line);
+  overflow: hidden;
+}
+
+.k-gauge-bar b {
+  display: block;
+  height: 100%;
+  transition: width 0.25s linear;
+  background: var(--k-safe);
+}
+
+.k-gauge-bar.warn b {
+  background: #e0a100;
+}
+
+.k-gauge-bar.low b {
+  background: var(--k-danger);
+}
+
+.k-practice span {
+  color: var(--k-safe);
+}
+
+.k-posture-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--k-accent-soft);
+  color: var(--k-accent);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.k-posture-chip[data-posture="crouch"] {
+  background: #e6f7ef;
+  color: var(--k-safe);
+}
+
+.k-game-pause {
+  align-self: center;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid var(--k-accent);
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.k-game-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.k-dpad {
+  display: grid;
+  grid-template-columns: 56px 56px 56px;
+  grid-template-rows: 56px 56px 56px;
+  gap: 4px;
+}
+
+.k-dp {
+  min-width: 56px !important;
+  min-height: 56px !important;
+  border-radius: 12px;
+  border: 2px solid var(--k-accent);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--k-accent);
+  display: grid;
+  place-items: center;
+}
+
+.k-dp.up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.k-dp.left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.k-dp.right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.k-dp.down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.k-game-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.k-act {
+  min-width: 96px;
+  min-height: 56px !important;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 2px solid var(--k-safe);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--k-safe);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.k-act.on {
+  background: var(--k-safe);
+  color: #fff;
+}
+
+.k-act:disabled {
+  border-color: var(--k-line);
+  color: var(--k-dim);
+}
+
+.k-canvas[data-mode="game"] .k-canvas-inner {
+  border-color: #1b2027;
+}
+
+/* ---------------------------------------------------- 리포트 */
+.k-report-view {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--k-bg);
+}
+
+.k-report-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: #fff;
+  border: 2px solid var(--k-line);
+}
+
+.k-report-view.success .k-report-banner {
+  border-color: var(--k-safe);
+  background: #eef8f2;
+}
+
+.k-report-banner h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.k-report-banner small {
+  color: var(--k-dim);
+}
+
+.k-master {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ffd166;
+  color: #5a3d00;
+  font-weight: 800;
+}
+
+.k-report-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.k-report-col {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  border: 2px solid var(--k-line);
+}
+
+.k-report-col.good {
+  border-color: var(--k-safe);
+}
+
+.k-report-col.fix {
+  border-color: #e0a100;
+}
+
+.k-report-col h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.k-report-col.good h3 {
+  color: var(--k-safe);
+}
+
+.k-report-col.fix h3 {
+  color: #7a5200;
+}
+
+.k-report-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.k-report-col li {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f7f9f7;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.k-report-col.fix li {
+  background: #fff8e8;
+}
+
+.k-report-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (min-width: 1280px) {
+  .k-report-view {
+    padding: 20px 8%;
+  }
+}
+
+/*
+ * 가운데 세 줄의 자리를 못 박는다. 게임·리포트에서는 위 막대가 없는데,
+ * 자리를 정해 두지 않으면 도면 칸이 auto 줄로 밀려 높이가 0 이 된다.
+ */
+.k-center {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.k-canvas-bar {
+  grid-row: 1;
+}
+
+.k-canvas-wrap {
+  grid-row: 2;
+}
+
+.k-center > .k-report {
+  grid-row: 3;
+}
+
+/* 도우미 패널이 없어졌다 — 가운데 두 칸 (plan2-1.md §4.6) */
+.k-work,
+.k-app.chat-collapsed .k-work {
+  grid-template-columns: var(--k-pal-w) 1fr;
+}
+
+@media (max-width: 1023px) {
+  .k-report-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .k-report-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .k-work,
+  .k-app.chat-collapsed .k-work {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .k-bubble {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .k-dpad {
+    grid-template-columns: 52px 52px 52px;
+    grid-template-rows: 52px 52px 52px;
+  }
+}

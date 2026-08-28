@@ -37,6 +37,7 @@ import { ALL_FAIL_REASONS } from '../src/kids/core/report/verdicts';
 import { selectGuide } from '../src/kids/core/guide/runner';
 import { BLOCKS, GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, PALETTE_BASIC, REPORT_ITEMS, REQUIRED_BLOCKS, RULE_MESSAGES, TEMPLATES, fuelOf, isVerified } from '../src/kids/content';
 import { checklist, missingOf } from '../src/kids/core/checklist';
+import { eul, eun, i } from '../src/kids/core/josa';
 import { ALL_STEPS, validateContent, validatePlan } from '../src/kids/content/validate';
 import { SaveIncompatibleError, parseSave } from '../src/kids/store/migrate';
 import { emptySave, serializeSave } from '../src/kids/store/storage';
@@ -303,6 +304,24 @@ export function kidsTests(check: Check, assert: Assert): void {
     const fourth = selectGuide(rules, { on: 'gameEvent', event: 'x' }, { a: 1000, b: 0 }, 12000);
     assert(fourth?.id === 'a', '쿨다운이 지났는데 침묵');
     assert(selectGuide(rules, { on: 'gameEvent', event: 'y' }, {}, 0) === null, '없는 사건에 말했다');
+  });
+
+  /* ---------------------------------------------------------- 말 */
+
+  check('[어린이] 조사가 받침에 맞게 붙는다 — 화면에 "을(를)" 이 남지 않는다', () => {
+    /* 받침 없음 → 를·가·는 */
+    assert(eul('아파트') === '아파트를', eul('아파트'));
+    assert(i('소화기') === '소화기가', i('소화기'));
+    assert(eun('베란다') === '베란다는', eun('베란다'));
+    /* 받침 있음 → 을·이·은 */
+    assert(eul('현관문') === '현관문을', eul('현관문'));
+    assert(i('창문') === '창문이', i('창문'));
+    assert(eun('방문') === '방문은', eun('방문'));
+    /* 여럿을 이어 붙이면 마지막 낱말을 본다 */
+    assert(i('소화기 · 감지기') === '소화기 · 감지기가', i('소화기 · 감지기'));
+    assert(i('감지기 · 현관문') === '감지기 · 현관문이', i('감지기 · 현관문'));
+    /* 한글이 아닌 것으로 끝나면 받침 없는 쪽 */
+    assert(eul('TV') === 'TV를', eul('TV'));
   });
 
   /* ---------------------------------------------------------- 위험장 */

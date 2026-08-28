@@ -1885,9 +1885,105 @@ async function main(): Promise<void> {
       assert((await page.evaluate(() => document.getElementById('k-page'))) === null, '어린이 인쇄 규칙이 남아 있다');
     });
 
+    /* 26 — 세로 스마트폰에서도 다 쓸 수 있는지 (설계서 v1.2 §13) */
+    await check('[어린이] 세로 스마트폰(390x844)에서 가로로 넘치지 않고 다 쓸 수 있다', async () => {
+      const mob = await browser!.newContext({
+        viewport: { width: 390, height: 844 },
+        locale: 'ko-KR',
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+      });
+      const m = await mob.newPage();
+      const errs: string[] = [];
+      m.on('pageerror', (e) => errs.push(e.message));
+      await m.goto(server.url, { waitUntil: 'networkidle' });
+      await m.evaluate(() => window.localStorage.clear());
+      await m.reload({ waitUntil: 'networkidle' });
+      await m.waitForSelector('.k-gate');
+      await m.locator('[data-audience="kids"]').click();
+      await m.waitForSelector('.k-onboard');
+      await m.locator('[data-template="apt_2room"]').click();
+      await m.waitForSelector('[data-lowfloor="no"]');
+      await m.locator('[data-lowfloor="no"]').click();
+      await m.waitForTimeout(700);
+
+      /*
+       * 가로로 넘치면 아이가 화면 밖 단추를 못 찾는다.
+       * 문서의 scrollWidth 만 보면 안 된다 — .k-app 이 overflow: hidden 이라
+       * 넘친 것이 잘려 나가고 문서는 멀쩡해 보인다. 실제로 칸이 730px 로 벌어져
+       * 도면과 팔레트 오른쪽이 잘린 적이 있다. 그래서 안쪽 상자를 따로 잰다.
+       */
+      const size = await m.evaluate(() => {
+        const boxes: { name: string; over: number }[] = [];
+        for (const sel of ['.k-app', '.k-top', '.k-work', '.k-center', '.k-palette', '.k-bottom']) {
+          const el = document.querySelector(sel) as HTMLElement | null;
+          if (!el) continue;
+          boxes.push({ name: sel, over: Math.round(el.scrollWidth - el.clientWidth) });
+        }
+        const stage = document.querySelector('svg.k-stage') as SVGElement | null;
+        const r = stage?.getBoundingClientRect();
+        return {
+          over: document.documentElement.scrollWidth - window.innerWidth,
+          boxes,
+          app: Math.round((document.querySelector('.k-app') as HTMLElement).getBoundingClientRect().height),
+          win: window.innerHeight,
+          stage: r ? { x: Math.round(r.x), right: Math.round(r.right), w: Math.round(r.width), h: Math.round(r.height) } : null,
+        };
+      });
+      assert(size.over <= 0, `가로로 ${size.over}px 넘친다`);
+      assert(Math.abs(size.app - size.win) <= 2, `앱 높이 ${size.app} / 화면 ${size.win}`);
+      const spill = size.boxes.filter((b) => b.over > 1);
+      assert(spill.length === 0, `잘려 나간 칸: ${spill.map((b) => `${b.name} +${b.over}px`).join(', ')}`);
+
+      /* 도면이 화면 안에 있고, 볼 만한 크기여야 한다 */
+      assert(size.stage !== null, '도면이 없다');
+      assert(size.stage!.x >= -1 && size.stage!.right <= 391, `도면이 화면 밖에 있다 (x=${size.stage!.x} right=${size.stage!.right})`);
+      assert(size.stage!.w >= 240 && size.stage!.h >= 140, `도면이 너무 작다 (${size.stage!.w}x${size.stage!.h})`);
+
+      /* 상단바는 접히고 「더보기」 시트에 나머지가 들어 있다 */
+      assert((await m.locator('[data-coach="kids-more"]').count()) === 1, '더보기 단추가 없다');
+      assert((await m.locator('[data-coach="kids-template"]').isVisible()) === false, '집 모양 단추가 그대로 보인다');
+      await m.locator('[data-coach="kids-more"]').click();
+      await m.waitForSelector('.k-optsheet');
+      const sheet = await m.locator('.k-optsheet').innerText();
+      for (const label of ['집 모양', '내 캐릭터', '사용법', '첫 화면']) {
+        assert(sheet.includes(label), `시트에 ${label} 이 없다`);
+      }
+      await m.locator('.k-optsheet .k-x').click();
+      await m.waitForTimeout(200);
+
+      /* 누르는 것은 좁은 화면에서도 48x48 이상이다 */
+      const small = (await hitTargets(m)).filter((t) => t.w < 48 || t.h < 48);
+      assert(small.length === 0, `48px 미만 ${small.length}개: ${small.slice(0, 3).map((t) => `${t.w}x${t.h} ${t.name}`).join(' | ')}`);
+
+      /* 게임에서는 팔레트가 사라져 도면이 넓어진다 */
+      await m.locator('[data-coach="kids-start-game"]').click();
+      await m.waitForTimeout(400);
+      const anyway = m.locator('[data-coach="kids-start-anyway"]');
+      if (await anyway.count()) await anyway.click();
+      await m.waitForSelector('.k-game');
+      await m.waitForTimeout(500);
+      assert((await m.locator('.k-palette').isVisible()) === false, '게임 중에 팔레트가 남아 있다');
+      assert((await m.locator('.k-dpad').isVisible()) === true, '방향키가 없다');
+      const game = await m.evaluate(() => {
+        const boxes: { name: string; over: number }[] = [];
+        for (const sel of ['.k-app', '.k-work', '.k-center']) {
+          const el = document.querySelector(sel) as HTMLElement | null;
+          if (el) boxes.push({ name: sel, over: Math.round(el.scrollWidth - el.clientWidth) });
+        }
+        return { over: document.documentElement.scrollWidth - window.innerWidth, boxes };
+      });
+      assert(game.over <= 0, `게임에서 가로로 ${game.over}px 넘친다`);
+      const spill2 = game.boxes.filter((b) => b.over > 1);
+      assert(spill2.length === 0, `게임에서 잘려 나간 칸: ${spill2.map((b) => `${b.name} +${b.over}px`).join(', ')}`);
+      assert(errs.length === 0, errs.slice(0, 2).join(' | '));
+      await mob.close();
+    });
+
     await context.close();
 
-    /* 26 — 오프라인 배포본이 있으면 file:// 에서 인터넷 없이 동작하는지 본다 */
+    /* 27 — 오프라인 배포본이 있으면 file:// 에서 인터넷 없이 동작하는지 본다 */
     const standalone = path.join(root, 'dist', 'evacuation-planner.html');
     if (fs.existsSync(standalone)) {
       await check('오프라인 배포본이 인터넷 없이 열린다', async () => {

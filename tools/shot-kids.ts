@@ -1,6 +1,10 @@
 /**
- * 어린이 화면 캡처 — 눈으로 확인하기 위한 임시 도구. out/ 를 띄우고 몇 장 찍는다.
+ * 어린이 화면 캡처 — 눈으로 확인하기 위한 도구. out/ 를 띄우고 몇 장 찍는다.
  *   npx tsx tools/shot-kids.ts <출력 폴더>
+ *
+ * 화면 크기는 KIDS_SHOT_VIEWPORT 로 준다 (`390x844` 처럼). 기본은 1440x900 이다.
+ * 좁은 화면(767px 이하)일 때는 「더보기」 시트도 한 장 찍는다 (설계서 v1.2 §13).
+ * 내려받은 크로미움이 없는 곳에서는 SMOKE_CHROMIUM 으로 다른 실행 파일을 준다.
  */
 import fs from 'node:fs';
 import http from 'node:http';
@@ -43,8 +47,11 @@ async function main(): Promise<void> {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   const addr = server.address();
   const url = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}/`;
-  const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const browser = await chromium.launch({ executablePath: process.env.SMOKE_CHROMIUM || undefined });
+  const vp = /^(\d+)x(\d+)$/.exec(process.env.KIDS_SHOT_VIEWPORT ?? '');
+  const viewport = vp ? { width: Number(vp[1]), height: Number(vp[2]) } : { width: 1440, height: 900 };
+  const narrow = viewport.width <= 767;
+  const page = await browser.newPage({ viewport, isMobile: narrow, hasTouch: narrow, deviceScaleFactor: narrow ? 2 : 1 });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url, { waitUntil: 'networkidle' });
@@ -67,6 +74,15 @@ async function main(): Promise<void> {
   await page.locator('[data-coach="kids-meeting-later"]').click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(dest, '4-ready.png') });
+  if (narrow) {
+    /* 좁은 화면에서는 상단바 단추가 여기로 모인다 */
+    await page.locator('[data-coach="kids-more"]').click();
+    await page.waitForSelector('.k-optsheet');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(dest, '4b-sheet.png') });
+    await page.locator('.k-optsheet .k-x').click();
+    await page.waitForTimeout(300);
+  }
   await page.locator('[data-coach="kids-start-game"]').click();
   await page.waitForSelector('.k-game');
   await page.waitForTimeout(3000);

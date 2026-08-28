@@ -151,6 +151,20 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(bad.length === 0, `이모지 ${bad.slice(0, 3).join(' | ')}`);
   });
 
+  /* -------------------------------------------------- 괄호 조사 */
+
+  check('[점검] 화면 문구에 "을(를)" 같은 괄호 조사가 없다 (작업지침 §8)', () => {
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src', 'kids'), ['.ts', '.tsx', '.json'])) {
+      // 조사를 고르는 당사자는 뺀다 — 주석에서 고쳐야 할 예로 그 꼴을 든다
+      if (rel(f).endsWith('core/josa.ts')) continue;
+      const src = read(f);
+      const m = /을\(를\)|이\(가\)|은\(는\)|와\(과\)|로\(으로\)/.exec(src);
+      if (m) bad.push(`${rel(f)}:${src.slice(0, m.index).split('\n').length} ${m[0]}`);
+    }
+    assert(bad.length === 0, `괄호 조사 ${bad.slice(0, 3).join(' | ')} — core/josa.ts 를 쓴다`);
+  });
+
   /* -------------------------------------------------- 누르는 것의 크기 */
 
   check('[점검] 어린이 화면의 히트박스 기준이 48px 한 곳에서 정해진다 (D6 · NFR-10)', () => {

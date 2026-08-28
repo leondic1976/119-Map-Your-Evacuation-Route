@@ -18,6 +18,7 @@ import type {
 import { isExitKind, isOpening, isRoom } from '../../types/plan';
 import type { EdgeVia, GraphEdge, GraphNode, PlanGraph } from '../../types/graph';
 import { CONDITION_KEY, DEFAULT_PASSABILITY, VN } from '../../types/graph';
+import { i } from '../josa';
 import type { UserProfile } from '../../types/save';
 import { buildOccupancy, roomIdAt, rooms } from '../grid/occupancy';
 import { cellKey, cellsOf, rectCentroid, rectsOverlap, step } from '../grid/geometry';
@@ -138,11 +139,11 @@ export function buildGraph(plan: FloorPlan): PlanGraph {
     const nb = step(o.cell, o.side);
     const b = roomIdAt(occ, nb) ?? VN.outdoor;
     if (!a) {
-      warnings.push(`${openingName(o)}이(가) 어느 방에도 붙어 있지 않다.`);
+      warnings.push(`${i(openingName(o))} 어느 방에도 붙어 있지 않다.`);
       continue;
     }
     if (a === b) {
-      warnings.push(`${openingName(o)}이(가) 같은 방 안쪽에 놓여 있다.`);
+      warnings.push(`${i(openingName(o))} 같은 방 안쪽에 놓여 있다.`);
       continue;
     }
     push(a, b, o.openingKind, o.cell);

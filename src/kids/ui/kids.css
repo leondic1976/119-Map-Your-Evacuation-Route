@@ -3,11 +3,12 @@
  * 모든 누르는 것은 48×48 이상 (설계서 v1.1 §2.2 D6 — NFR-10 의 44px 을 아이 손가락에 맞춰 올린 값).
  * 크기는 --k-hit 하나로 두고 여기서만 고친다. 한글은 낱말 가운데서 끊지 않는다.
  */
+/*
+ * 빛깔은 :root 에 둔다. 덮개(.k-modal-back)와 첫 화면(.k-gate)은 .k-app 밖에 그려지므로
+ * .k-app 안에 두면 그것들이 토큰을 못 받아 테두리가 사라진다.
+ */
 :root {
   --k-hit: 48px;
-}
-
-.k-app {
   --k-bg: #f4f6f2;
   --k-panel: #ffffff;
   --k-line: #d9dfd6;
@@ -19,11 +20,22 @@
   --k-danger: #c8102e;
   --k-safe: #0e7c4f;
   --k-radius: 12px;
+}
+
+.k-app {
   --k-pal-w: 200px;
   --k-howto-w: 268px;
   display: grid;
   grid-template-rows: 60px 1fr 60px;
+  /*
+   * 칸을 minmax(0, 1fr) 로 못 박는다. 적지 않으면 암묵 칸이 auto 가 되어
+   * 안쪽에서 제일 넓은 것(단추가 늘어선 상단바·팔레트) 만큼 벌어진다.
+   * 좁은 화면에서 화면이 390px 인데 칸이 730px 이 되어 오른쪽이 잘렸다.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  /* 모바일 주소창이 오르내려도 아래가 잘리지 않게 dvh 를 쓴다 */
   height: 100vh;
+  height: 100dvh;
   background: var(--k-bg);
   color: var(--k-ink);
   font-family: var(--font-sans, 'Pretendard Variable', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif);
@@ -837,6 +849,16 @@
   background: var(--k-warn);
 }
 
+/* ------------------------------------------------------------ 넓고 좁음 */
+/*
+ * 좁은 화면에서만 나오는 것 (설계서 v1.2 §13).
+ * .k-hide-sm 은 여기에 아무 규칙도 두지 않는다 — display 를 적어 두면 뒤에 오는 이
+ * 규칙이 .k-tb·.k-seg 의 inline-flex 를 덮어쓴다. 감추는 일은 §13 의 미디어 질의가 한다.
+ */
+.k-only-sm {
+  display: none !important;
+}
+
 /* ------------------------------------------------------------ 진입 모달 */
 /*
  * 첫 화면 — 어린이에게 다가가되 유치하지 않게 (설계서 v1.2 §11).
@@ -1329,7 +1351,13 @@
   }
 }
 
-@media (max-width: 1023px) {
+/*
+ * 태블릿 — 팔레트가 도면 위로 올라가 가로 막대가 된다.
+ * 767px 이하는 이 칸이 아니라 kids-game.css 의 세로 스마트폰 규칙이 맡는다
+ * (설계서 v1.2 §13). 두 벌이 겹치면 서로를 덮어써서 갈래가 세로로 서고
+ * 「그만」이 사라진다. 그래서 아래를 열어 둔 범위로 못 박는다.
+ */
+@media (min-width: 768px) and (max-width: 1023px) {
   .k-work {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;

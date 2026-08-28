@@ -845,12 +845,9 @@
 .k-gate {
   position: fixed;
   inset: 0;
+  /* 넓은 화면에서는 왼쪽에 글판, 오른쪽에 그림. 좁으면 그림이 배경으로 깔린다 */
   display: grid;
-  /*
-   * 줄 높이를 내용에 맡긴다. 이걸 빠뜨리면 판이 남은 자리에 맞춰 눌리고,
-   * overflow: hidden 과 겹쳐 아래쪽(기관 표시)이 잘려 나간다.
-   */
-  grid-template-rows: auto auto;
+  grid-template-columns: minmax(0, 1fr);
   align-content: safe center;
   justify-items: center;
   /* 그림의 하늘 맨 위·땅 맨 아래와 같은 색이라 이어 붙인 자리가 보이지 않는다 */
@@ -860,12 +857,52 @@
   overflow: auto;
 }
 
-/* 그림은 화면 폭을 가득 채운다. 어깨가 남으면 판때기처럼 보인다 */
+/*
+ * 그림은 화면 전체를 덮는 배경이다. 판은 그 위에 뜬다.
+ * slice 로 잘라 채우되 인물이 아래쪽 가운데에 오도록 xMidYMax 로 맞춘다 —
+ * 앞서 인물의 얼굴이 잘려 나갔다.
+ */
 .k-gate-scene {
-  display: block;
+  position: fixed;
+  inset: 0;
   width: 100%;
-  max-height: 40vh;
-  justify-self: stretch;
+  height: 100%;
+  z-index: 0;
+}
+
+@media (min-width: 1120px) {
+  .k-gate {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    justify-items: stretch;
+    align-items: center;
+  }
+
+  /* 그림은 오른쪽 칸만 차지한다. 세로로 길어도 인물이 잘리지 않는다 */
+  .k-gate-scene {
+    position: fixed;
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 48vw;
+  }
+
+  /* 왼쪽 칸의 바탕 — 그림과 이어지도록 같은 하늘색에서 시작한다 */
+  .k-gate::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    width: 56vw;
+    background: linear-gradient(115deg, #06131f 0%, #0d2a44 46%, #12405f 100%);
+    z-index: 0;
+  }
+
+  .k-gate-box {
+    grid-column: 1;
+    justify-self: end;
+    margin: 0 clamp(16px, 3vw, 48px) 0 0;
+    width: min(660px, calc(100% - clamp(48px, 7vw, 120px)));
+  }
 }
 
 .k-gate-smoke {
@@ -898,7 +935,8 @@
 .k-gate-box {
   position: relative;
   width: min(1020px, 94vw);
-  margin: -40px auto 24px;
+  margin: 0 auto;
+  z-index: 1;
   padding: 26px 30px 18px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   color: var(--k-ink, #22303a);

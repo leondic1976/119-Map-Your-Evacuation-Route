@@ -16,6 +16,7 @@
 import React, { useEffect } from 'react';
 import GateScene from './GateScene';
 import { KidToken } from '../kids/ui/KidCharacters';
+import { incheon_fire } from '../kids/content/artwork';
 
 export type Audience = 'kids' | 'general';
 
@@ -154,10 +155,14 @@ export default function EntryGate({ onPick }: { onPick: (a: Audience) => void })
         <footer className="k-gate-org">
           <StationMark />
           <span className="k-gate-org-name">
-            <b>부평소방서</b>
-            <small>BUPYEONG FIRE STATION</small>
+            <b>인천광역시 부평소방서</b>
+            <small>BUPYEONG FIRE STATION · 인천소방본부</small>
           </span>
-          <span className="k-gate-org-note">교육용 자료 · 법정 피난안내도를 대체하지 않는다</span>
+          <span className="k-gate-org-note">
+            교육용 자료 · 법정 피난안내도를 대체하지 않는다
+            <br />
+            심볼·캐릭터 — 인천소방본부 · 소방청 (공공누리 제1유형)
+          </span>
         </footer>
       </div>
     </div>
@@ -250,43 +255,11 @@ function GeneralThumb() {
 }
 
 /**
- * 부평소방서 표지 — 방패 · 불꽃 · 119.
- * 공식 엠블럼을 그대로 옮긴 것이 아니라 자리표시로 새로 그린 벡터다.
- * 원본 이미지를 받으면 이 컴포넌트만 갈아 끼운다.
+ * 인천소방 심볼 — 인천광역시 소방본부 누리집에서 공공누리 제1유형(출처표시)으로
+ * 공개한 파일을 화면 크기로 줄여 담았다 (`kids/content/artwork.ts`).
  */
 function StationMark() {
-  return (
-    <svg className="k-gate-org-mark" viewBox="0 0 64 64" width="46" height="46" aria-label="부평소방서 표지">
-      <defs>
-        <linearGradient id="gtOrgShield" x1="0" y1="0" x2="0.5" y2="1">
-          <stop offset="0%" stopColor="#1b5590" />
-          <stop offset="100%" stopColor="#0d3157" />
-        </linearGradient>
-        <linearGradient id="gtOrgFlame" x1="0" y1="1" x2="0.3" y2="0">
-          <stop offset="0%" stopColor="#c8102e" />
-          <stop offset="55%" stopColor="#ff8b2b" />
-          <stop offset="100%" stopColor="#ffd166" />
-        </linearGradient>
-      </defs>
-      <path d="M32 3 L58 11.5 v20.6 C58 46.4 47.2 56.6 32 61 C16.8 56.6 6 46.4 6 32.1 V11.5z" fill="url(#gtOrgShield)" />
-      <path
-        d="M32 6.6 L54.6 14 v18.1 c0 12.4 -9.4 21.4 -22.6 25.3 C18.8 53.5 9.4 44.5 9.4 32.1 V14z"
-        fill="none"
-        stroke="#7fb4e4"
-        strokeWidth="1.4"
-        opacity="0.6"
-      />
-      {/* 불꽃 */}
-      <path
-        d="M32 16 c-5 7.4 2.6 10.6 -.6 17.4 c8.2 -1.6 9.6 -10.4 6.4 -15 c1.6 5.6 -3.6 6.8 -5.8 -2.4z"
-        fill="url(#gtOrgFlame)"
-      />
-      {/* 119 */}
-      <text x="32" y="48" textAnchor="middle" fontSize="13" fontWeight="800" fill="#ffffff" letterSpacing="0.6">
-        119
-      </text>
-    </svg>
-  );
+  return <img className="k-gate-org-mark" src={incheon_fire} width={52} height={52} alt="인천소방 심볼" />;
 }
 
 function TrustMark() {

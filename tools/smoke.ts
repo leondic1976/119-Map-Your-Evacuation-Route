@@ -1796,14 +1796,63 @@ async function main(): Promise<void> {
       const has3d = (await page.locator('.k-replay-canvas').count()) === 1;
       const has2d = (await page.locator('[data-fallback="2d"]').count()) === 1;
       assert(has3d || has2d, '3D 도 2D 도 없다');
+      assert((await page.locator('[data-view="first"]').getAttribute('aria-pressed')) === 'true', '1인칭이 기본이 아니다');
       await page.locator('[data-view="top"]').click();
       await page.waitForTimeout(300);
       assert((await page.locator('[data-view="top"]').getAttribute('aria-pressed')) === 'true', '시점이 안 바뀐다');
+      /* 끌어서 둘러보기 — 시점이 움직이면 되돌리기 단추가 뜬다 */
+      if (has3d) {
+        const cv = await page.locator('.k-replay-canvas').boundingBox();
+        if (cv) {
+          await page.mouse.move(cv.x + cv.width / 2, cv.y + cv.height / 2);
+          await page.mouse.down();
+          await page.mouse.move(cv.x + cv.width / 2 + 140, cv.y + cv.height / 2 + 30, { steps: 6 });
+          await page.mouse.up();
+          await page.waitForTimeout(300);
+          const back = page.locator('.k-replay-hint .k-tb', { hasText: '시점 되돌리기' });
+          assert((await back.count()) === 1, '끌어도 시점이 안 돈다');
+          await back.click();
+          await page.waitForTimeout(200);
+        }
+      }
       await page.locator('[data-coach="kids-replay-play"]').click();
       await page.waitForTimeout(200);
       await page.locator('.k-replay-bar .k-tb', { hasText: '닫기' }).click();
       await page.waitForTimeout(300);
       assert((await page.locator('.k-replay').count()) === 0, '리플레이가 안 닫힌다');
+      await page.locator('[data-coach="kids-edit-plan"]').click();
+      await page.waitForSelector('svg.k-stage');
+    });
+
+    await check('[어린이] 무사히 나오면 3D 마지막이 가족 장면으로 넘어간다 (설계서 v1.2 §8.6)', async () => {
+      await page.locator('[data-coach="kids-start-game"]').click();
+      await page.waitForTimeout(400);
+      const anyway = page.locator('[data-coach="kids-start-anyway"]');
+      if (await anyway.count()) await anyway.click();
+      await page.waitForSelector('.k-game');
+      /* 내 방(안방) → 복도 → 현관 → 현관문 */
+      for (const m of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight']) {
+        await page.keyboard.press(m);
+        await page.waitForTimeout(120);
+      }
+      await page.waitForTimeout(500);
+      if ((await page.locator('.k-report-view').count()) === 0) await page.locator('[data-coach="kids-quit"]').click();
+      await page.waitForSelector('.k-report-view');
+      const head = await page.locator('.k-report-banner h2').innerText();
+      assert(head.includes('무사히'), `성공하지 못했다: ${head}`);
+      await page.locator('[data-coach="kids-replay3d-open"]').click();
+      await page.waitForSelector('.k-replay');
+      const max = Number((await page.locator('.k-replay-range').getAttribute('max')) ?? 0);
+      await page.locator('.k-replay-range').fill(String(Math.max(0, max - 3)));
+      await page.waitForTimeout(200);
+      await page.locator('[data-coach="kids-replay-play"]').click();
+      await page.waitForSelector('.k-ending', { timeout: 20000 });
+      const txt = await page.locator('.k-ending-card').innerText();
+      assert(txt.includes('무사히 나왔어'), `마지막 장면 문구: ${txt.slice(0, 30)}`);
+      assert(/\d+초/.test(txt), '걸린 시간이 없다');
+      await page.locator('.k-ending-actions .k-tb', { hasText: '결과로 돌아가기' }).click();
+      await page.waitForTimeout(300);
+      assert((await page.locator('.k-ending').count()) === 0, '마지막 장면이 안 닫힌다');
       await page.locator('[data-coach="kids-edit-plan"]').click();
       await page.waitForSelector('svg.k-stage');
     });

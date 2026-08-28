@@ -839,3 +839,118 @@
   margin-top: 4px;
   padding-top: 10px;
 }
+
+/* 3D — 둘러보기 안내 */
+.k-replay-canvas {
+  cursor: grab;
+  touch-action: none;
+}
+
+.k-replay-canvas:active {
+  cursor: grabbing;
+}
+
+.k-replay-hint {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(8, 14, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #dbe6f1;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.k-replay-hint .k-tb {
+  border-color: #33465a;
+  background: #17222d;
+  color: #e8eef5;
+}
+
+/* ---------------------------------------------------- 마지막 장면 (성공만) */
+.k-ending {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  background: #0d2f4f;
+  overflow: hidden;
+}
+
+.k-ending-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.k-ending-card {
+  position: relative;
+  width: min(560px, 92vw);
+  margin-bottom: clamp(14px, 4vh, 40px);
+  padding: 18px 24px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--k-ink);
+  box-shadow: 0 20px 50px -14px rgba(4, 18, 33, 0.6);
+  text-align: center;
+  align-self: end;
+}
+
+.k-ending-eyebrow {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--k-safe);
+}
+
+.k-ending-card h2 {
+  margin: 0 0 8px;
+  font-size: clamp(24px, 4vw, 32px);
+  letter-spacing: -0.02em;
+}
+
+.k-ending-lede {
+  margin: 0 0 16px;
+  color: #4d5a68;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.k-ending-lede b {
+  color: var(--k-accent);
+  font-size: 1.15em;
+}
+
+.k-ending-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.k-ending-confetti {
+  animation: k-fall 5s ease-in-out infinite alternate;
+}
+
+@keyframes k-fall {
+  from {
+    transform: translateY(-8px);
+  }
+  to {
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-ending-confetti {
+    animation: none;
+  }
+}

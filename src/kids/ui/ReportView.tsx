@@ -136,6 +136,7 @@ export default function ReportView({ onPrint }: Props) {
           character={profile.playerCharacter}
           tickSeconds={tickSeconds}
           outcome={report.outcome === 'success' ? 'success' : 'failed'}
+          bestTicks={progress.bestTicks}
           onClose={() => setShow3d(false)}
         />
       )}

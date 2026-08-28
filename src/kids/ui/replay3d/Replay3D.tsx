@@ -14,9 +14,10 @@ import type { PlayerCharacter } from '../../types/guide';
 import { playerTone } from '../Avatar';
 import { CS, PlanSvg } from '../PlanSvg';
 import { CloseIcon } from '../Onboarding';
-import { WALL_H, buildDoors, buildHouse, buildPerson, planExtent } from './geometry';
+import { WALL_H, buildCeiling, buildDoors, buildHouse, buildPerson, planExtent } from './geometry';
 import { buildHazardQuads, SMOKE_STRIDE } from './smoke';
 import { compile, disposeMesh, lookAt, makeMesh, mat4, multiply, perspective, updateMesh, type Mesh } from './gl';
+import EndingScene from './EndingScene';
 
 const SOLID_VS = `#version 300 es
 layout(location=0) in vec3 aPos;
@@ -51,8 +52,10 @@ void main(){
   float fire = uFireStrength / (1.0 + dist * dist * 0.5);
   vec3 warm = vec3(1.0, 0.55, 0.2) * fire;
   /* 하늘빛(찬 기운)을 조금 섞어 전부 주황으로 물들지 않게 한다 */
-  vec3 sky = vec3(0.5, 0.58, 0.7) * 0.13;
-  vec3 lit = vColor * (0.66 + 0.4 * d) + sky + warm;
+  vec3 sky = vec3(0.46, 0.55, 0.7) * 0.14;
+  /* 바닥에 가까울수록 살짝 어둡게 — 모서리가 읽힌다 */
+  float ao = clamp(0.72 + vPos.y * 0.09, 0.72, 1.0);
+  vec3 lit = vColor * (0.6 + 0.46 * d) * ao + sky + warm;
   outColor = vec4(lit, 1.0);
 }`;
 
@@ -86,6 +89,8 @@ interface Props {
   character: PlayerCharacter;
   tickSeconds: number;
   outcome: 'success' | 'failed';
+  /** 자기 최고 기록(틱). 마지막 장면에서 견준다 */
+  bestTicks?: number;
   onClose: () => void;
 }
 
@@ -96,13 +101,18 @@ function toneOf(id: string): number[] {
   return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 }
 
-export default function Replay3D({ plan, frames, character, tickSeconds, outcome, onClose }: Props) {
+export default function Replay3D({ plan, frames, character, tickSeconds, outcome, bestTicks, onClose }: Props) {
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
   /* 기본은 1인칭 — 지나온 길을 그때 그 눈높이로 다시 본다 */
   const [view, setView] = useState<ViewMode>('first');
   const [gone, setGone] = useState(false);
+  /** 성공한 판은 끝까지 가면 마지막 장면으로 넘어간다 */
+  const [ending, setEnding] = useState(false);
+  /** 멈춘 뒤 끌어서 둘러보기 — 좌우(yaw)·상하(pitch)와 거리(zoom) */
+  const [orbit, setOrbit] = useState({ yaw: 0, pitch: 0, zoom: 1 });
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<Ctx | null>(null);
   const frame = frames[Math.min(i, frames.length - 1)];
@@ -115,13 +125,14 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
       setI((v) => {
         if (v + 1 >= frames.length) {
           setPlaying(false);
+          if (outcome === 'success') setEnding(true);
           return frames.length - 1;
         }
         return v + 1;
       });
     }, step);
     return () => clearInterval(t);
-  }, [playing, speed, frames.length, tickSeconds]);
+  }, [playing, speed, frames.length, tickSeconds, outcome]);
 
   /* WebGL 준비 — 안 되면 2D 로 내려간다 */
   useEffect(() => {
@@ -145,8 +156,13 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     if (!ctx || !frame) return;
     /* 앞으로 몇 컷을 모아 진행 방향을 잡는다. 한 컷만 보면 벽을 마주 보게 된다 */
     const ahead = frames.slice(i + 1, i + 6);
-    draw(ctx, plan, frame, view, toneOf(character), ahead);
-  }, [frame, view, plan, character, frames, i]);
+    draw(ctx, plan, frame, view, toneOf(character), ahead, orbit);
+  }, [frame, view, plan, character, frames, i, orbit]);
+
+  /* 시점을 바꾸면 둘러보기를 처음으로 되돌린다 */
+  useEffect(() => {
+    setOrbit({ yaw: 0, pitch: 0, zoom: 1 });
+  }, [view]);
 
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);
   const caption = useMemo(() => captionOf(frame, outcome, i === frames.length - 1), [frame, outcome, i, frames.length]);
@@ -155,6 +171,22 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     setPlaying(false);
     setI(v);
   }, []);
+
+  if (ending) {
+    return (
+      <EndingScene
+        character={character}
+        seconds={Math.round((frames[frames.length - 1]?.tick ?? 0) * tickSeconds)}
+        bestSeconds={bestTicks === undefined ? undefined : Math.round(bestTicks * tickSeconds)}
+        onReplay={() => {
+          setEnding(false);
+          setI(0);
+          setPlaying(true);
+        }}
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
     <div className="k-replay" role="dialog" aria-modal="true" aria-label="3D 로 다시 보기" data-coach="kids-replay3d">
@@ -178,11 +210,49 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
             />
           </div>
         ) : (
-          <canvas ref={canvasRef} className="k-replay-canvas" />
+          <canvas
+            ref={canvasRef}
+            className="k-replay-canvas"
+            onPointerDown={(e) => {
+              dragRef.current = { x: e.clientX, y: e.clientY };
+              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              const d = dragRef.current;
+              if (!d) return;
+              const dx = e.clientX - d.x;
+              const dy = e.clientY - d.y;
+              dragRef.current = { x: e.clientX, y: e.clientY };
+              setOrbit((o) => ({
+                ...o,
+                yaw: o.yaw + dx * 0.006,
+                pitch: Math.max(-1.1, Math.min(1.1, o.pitch + dy * 0.005)),
+              }));
+            }}
+            onPointerUp={(e) => {
+              dragRef.current = null;
+              try {
+                (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+              } catch {
+                /* 이미 풀렸다 */
+              }
+            }}
+            onWheel={(e) => {
+              setOrbit((o) => ({ ...o, zoom: Math.max(0.45, Math.min(2.6, o.zoom * (e.deltaY > 0 ? 1.12 : 0.89))) }));
+            }}
+          />
         )}
         <div className="k-replay-caption" role="status">
           <b className="num">{seconds}초</b>
           <span>{caption}</span>
+        </div>
+        <div className="k-replay-hint" role="note">
+          끌어서 둘러보기 · 휠로 확대·축소
+          {(orbit.yaw !== 0 || orbit.pitch !== 0 || orbit.zoom !== 1) && (
+            <button type="button" className="k-tb sm" onClick={() => setOrbit({ yaw: 0, pitch: 0, zoom: 1 })}>
+              시점 되돌리기
+            </button>
+          )}
         </div>
         <button type="button" className="k-x k-replay-close" onClick={onClose} aria-label="닫기">
           <CloseIcon />
@@ -265,6 +335,7 @@ interface Ctx {
   solid: WebGLProgram;
   quad: WebGLProgram;
   house: Mesh;
+  ceiling: Mesh;
   doors: Mesh;
   person: Mesh;
   haze: { vao: WebGLVertexArrayObject | null; buffer: WebGLBuffer | null; count: number };
@@ -284,6 +355,7 @@ function setup(canvas: HTMLCanvasElement, plan: FloorPlan): Ctx | null {
   if (!solid || !quad) return null;
 
   const house = makeMesh(gl, buildHouse(plan));
+  const ceiling = makeMesh(gl, buildCeiling(plan));
   const doors = makeMesh(gl, new Float32Array(0));
   const person = makeMesh(gl, new Float32Array(0));
 
@@ -300,12 +372,13 @@ function setup(canvas: HTMLCanvasElement, plan: FloorPlan): Ctx | null {
   gl.vertexAttribPointer(2, 1, gl.FLOAT, false, b, 24);
   gl.bindVertexArray(null);
 
-  return { gl, solid, quad, house, doors, person, haze: { vao, buffer, count: 0 }, canvas };
+  return { gl, solid, quad, house, ceiling, doors, person, haze: { vao, buffer, count: 0 }, canvas };
 }
 
 function dispose(ctx: Ctx): void {
   const { gl } = ctx;
   disposeMesh(gl, ctx.house);
+  disposeMesh(gl, ctx.ceiling);
   disposeMesh(gl, ctx.doors);
   disposeMesh(gl, ctx.person);
   if (ctx.haze.vao) gl.deleteVertexArray(ctx.haze.vao);
@@ -314,7 +387,21 @@ function dispose(ctx: Ctx): void {
   gl.deleteProgram(ctx.quad);
 }
 
-function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, tone: number[], ahead: ReplayFrame[] = []): void {
+export interface Orbit {
+  yaw: number;
+  pitch: number;
+  zoom: number;
+}
+
+function draw(
+  ctx: Ctx,
+  plan: FloorPlan,
+  frame: ReplayFrame,
+  view: ViewMode,
+  tone: number[],
+  ahead: ReplayFrame[] = [],
+  orbit: Orbit = { yaw: 0, pitch: 0, zoom: 1 },
+): void {
   const { gl, canvas } = ctx;
   /* 해상도 — 리플레이는 실시간 입력이 없으므로 화질을 택한다 (설계서 v1.2 §8.4) */
   const dpr = Math.min(2, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
@@ -352,19 +439,34 @@ function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, ton
     if (len > 0.001) dir = [dx / len, 0, dz / len];
   }
   const eyeH = frame.posture === 'crouch' ? 1.1 : 2.05;
-  const eye =
-    view === 'top'
-      ? [cx, span * 1.55, cz + span * 0.82]
-      : view === 'follow'
-        ? [px - 3.6, 13.5, pz + 7.4]
-        : [px, eyeH, pz];
-  const at =
-    view === 'top'
-      ? [cx, 0, cz]
-      : view === 'follow'
-        ? [px, 0.8, pz]
-        : [px + dir[0] * 4, eyeH - 0.35, pz + dir[2] * 4];
-  const proj = perspective(view === 'top' ? 40 : view === 'follow' ? 46 : 68, w / h, 0.12, 200);
+
+  /*
+   * 둘러보기 — 멈춘 뒤 끌면 좌우·상하로 돌고 휠로 멀어지거나 가까워진다.
+   * 1인칭은 서 있는 자리에서 고개만 돌리고, 나머지는 대상 둘레를 돈다.
+   */
+  let eye: number[];
+  let at: number[];
+  if (view === 'first') {
+    const yaw = Math.atan2(dir[0], dir[2]) + orbit.yaw;
+    const pitch = -orbit.pitch;
+    const d = 4;
+    eye = [px, eyeH, pz];
+    at = [px + Math.sin(yaw) * d * Math.cos(pitch), eyeH + Math.sin(pitch) * d - 0.35, pz + Math.cos(yaw) * d * Math.cos(pitch)];
+  } else {
+    const top = view === 'top';
+    at = top ? [cx, 0, cz] : [px, 0.8, pz];
+    const dist = (top ? span * 1.05 : 13.5) * orbit.zoom;
+    const height = (top ? span * 1.4 : 15.5) * orbit.zoom;
+    const yaw = (top ? 0 : -0.4) + orbit.yaw;
+    const lift = Math.max(-0.4, Math.min(1.2, (top ? 0 : 0) + orbit.pitch));
+    eye = [
+      at[0] + Math.sin(yaw) * dist * Math.cos(lift),
+      Math.max(1.4, height * Math.cos(lift) + dist * Math.sin(lift)),
+      at[2] + Math.cos(yaw) * dist * Math.cos(lift),
+    ];
+  }
+  const fov = (view === 'top' ? 40 : view === 'follow' ? 46 : 68) / (view === 'first' ? orbit.zoom : 1);
+  const proj = perspective(Math.max(24, Math.min(96, fov)), w / h, 0.12, 260);
   const viewM = lookAt(eye, at, [0, 1, 0]);
   const vp = multiply(proj, viewM);
 
@@ -387,6 +489,7 @@ function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, ton
   gl.uniform1f(gl.getUniformLocation(ctx.solid, 'uFireStrength'), (fireV / 255) * 0.9);
 
   drawMesh(gl, ctx.house);
+  if (view === 'first') drawMesh(gl, ctx.ceiling);
   updateMesh(gl, ctx.doors, buildDoors(plan, frame.doorState));
   drawMesh(gl, ctx.doors);
   /* 1인칭에서는 내 몸이 카메라를 가린다 — 그리지 않는다 */

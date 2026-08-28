@@ -146,7 +146,7 @@ export default function KidsPrint({ svgRef, grayscale }: Props) {
             <g key={k} transform={`translate(${i * 700} 0)`}>
               <line x1={0} y1={0} x2={140} y2={0} stroke={s.color} strokeWidth={8} strokeDasharray={s.dash || undefined} strokeLinecap="round" />
               <circle cx={0} cy={0} r={24} fill="#fff" stroke={s.color} strokeWidth={5} />
-              <text x={0} y={10} textAnchor="middle" fontSize={28} fontWeight={800} fill={s.color}>
+              <text x={0} y={10} textAnchor="middle" fontSize={28} fontWeight={800} fill={s.ink}>
                 {s.no}
               </text>
               <text x={160} y={10} fontSize={30} fill={INK}>

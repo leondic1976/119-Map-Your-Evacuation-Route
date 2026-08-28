@@ -9,6 +9,9 @@
  *   D4  겹치는 배치는 시도부터 막는다
  *   FR-7.9 화면은 늘 내용에 맞춰 들어온다. 줌 조작이 없다
  * 게임 중에는 같은 SVG 위에 위험장을 그리고, 칸을 누르면 그 방향으로 한 칸 간다.
+ *
+ * 마우스가 없어도 다 된다 (설계서 v1.0 §7.4). 도면에 Tab 으로 들어와 방향키로 칸을 옮기고
+ * Enter 로 누른다 — 누르는 것과 똑같은 자리로 들어가므로 두 벌을 만들지 않는다.
  */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import type { Cell, Rect, RoomKind, Side } from '../types/plan';
@@ -57,6 +60,8 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   const [movePreview, setMovePreview] = useState<{ id: string; cell: Cell } | null>(null);
   const [roomShift, setRoomShift] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [resizePreview, setResizePreview] = useState<Rect | null>(null);
+  /** 키보드 커서. 도면에 초점이 있을 때만 보인다 */
+  const [caret, setCaret] = useState<Cell | null>(null);
 
   const pair = routes[hazardId];
   const inGame = mode === 'game' && game;
@@ -196,6 +201,75 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     if (dragRef.current) svgRef.current?.setPointerCapture(e.pointerId);
   };
 
+  /**
+   * 키보드로 한 칸을 "누른다". onDown 의 칸 단위 갈래를 그대로 따르되,
+   * 점 하나가 아니라 칸을 받으므로 문·창은 그 칸에서 가장 가까운 벽자리에 놓는다.
+   */
+  const activate = (c: Cell) => {
+    const s = useKids.getState();
+    if (inGame && game) {
+      const pc = game.state.player.cell;
+      const dx = c.x - pc.x;
+      const dy = c.y - pc.y;
+      if (dx === 0 && dy === 0) return;
+      s.gameMove(Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up');
+      return;
+    }
+    if (mode !== 'edit') return;
+    if (step === 'mySpot') {
+      s.pickMyRoom(c);
+      return;
+    }
+    if (step === 'meeting') {
+      s.pickMeeting(c);
+      return;
+    }
+    const mid = { x: c.x + 0.5, y: c.y + 0.5 };
+    if (tool !== 'route') {
+      const cand = candidateAt(mid);
+      if (cand) {
+        s.placeOpening('door', cand.cell, cand.side);
+        return;
+      }
+    }
+    if (tool === 'place' && armed) {
+      if (armed.category === 'room') s.placeRoom(armed.id as RoomKind, c);
+      else if (armed.category === 'opening') {
+        const slot = nearestSlot(slots, mid);
+        if (slot) s.placeOpening(armed.id as never, slot.cell, slot.side);
+        else s.notify('먼저 방을 만들어야 문·창을 놓을 수 있다.', 'warn');
+      } else s.placePoint(armed.category, armed.id as never, c);
+    } else if (tool === 'select') {
+      s.select(hitTest(mid));
+    } else if (tool === 'route') {
+      if (drafting) s.extendRoute(c);
+      else s.startRoute(c);
+    } else if (tool === 'erase') {
+      const id = hitTest(mid);
+      if (id) s.removeBlock(id);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<SVGSVGElement>) => {
+    // 게임 중에는 방향키가 곧 이동이다. 가로채지 않고 그대로 흘려 보낸다
+    if (inGame) return;
+    const DIR: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const d = DIR[e.key];
+    if (d) {
+      e.preventDefault();
+      const from = caret ?? { x: Math.floor(plan.grid.width / 2), y: Math.floor(plan.grid.height / 2) };
+      setCaret({
+        x: Math.max(0, Math.min(plan.grid.width - 1, from.x + d[0])),
+        y: Math.max(0, Math.min(plan.grid.height - 1, from.y + d[1])),
+      });
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      activate(caret ?? { x: Math.floor(plan.grid.width / 2), y: Math.floor(plan.grid.height / 2) });
+    }
+  };
+
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (inGame) return;
     const p = toPoint(e);
@@ -330,6 +404,11 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerLeave={onLeave}
+          onKeyDown={onKeyDown}
+          onFocus={() => setCaret((c) => c ?? { x: Math.floor(plan.grid.width / 2), y: Math.floor(plan.grid.height / 2) })}
+          onBlur={() => setCaret(null)}
+          focusable
+          ariaLabel={`우리집 평면도 — 방향키로 칸을 옮기고 Enter 로 누른다. ${keyHint(step, tool, armed?.category)}`}
           className="k-stage"
         >
           {preview && (
@@ -394,10 +473,35 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
             />
           )}
           {!inGame && tool === 'select' && selectedRoom && isRoom(selectedRoom) && !roomShift && <ResizeHandles rect={selectedRoom.rect} />}
+          {caret && (
+            <rect
+              data-caret
+              x={caret.x * CS + 1}
+              y={caret.y * CS + 1}
+              width={CS - 2}
+              height={CS - 2}
+              rx={5}
+              fill="#ffd166"
+              fillOpacity={0.25}
+              stroke="#0f3d68"
+              strokeWidth={3}
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
         </PlanSvg>
       </div>
     </div>
   );
+}
+
+/** 지금 Enter 를 누르면 무슨 일이 나는지 — 화면을 못 보는 이용자에게 읽어 준다 */
+function keyHint(step: string, tool: string, armed?: string): string {
+  if (step === 'mySpot') return '지금은 네가 자는 방을 고르는 중이다.';
+  if (step === 'meeting') return '지금은 만나는 곳을 놓는 중이다.';
+  if (tool === 'place' && armed) return '지금은 고른 것을 놓는 중이다.';
+  if (tool === 'route') return '지금은 길을 잇는 중이다.';
+  if (tool === 'erase') return '지금은 지우는 중이다.';
+  return '지금은 고르는 중이다.';
 }
 
 /** 방을 놓기 전 표준 크기 미리보기 — 겹치면 붉게 (D4) */

@@ -281,7 +281,7 @@ export default function KidsShell({ onLeave }: Props) {
                       type="button"
                       aria-pressed={routeSlot === slot}
                       data-slot={slot}
-                      style={{ ['--tab' as string]: SLOT_STYLE[slot].color }}
+                      style={{ ['--tab' as string]: SLOT_STYLE[slot].color, ['--tab-ink' as string]: SLOT_STYLE[slot].ink }}
                       onClick={() => useKids.getState().setStep(slot === 'primary' ? 'route' : 'routeAlt')}
                     >
                       <i className="k-tab-no">{SLOT_STYLE[slot].no}</i> {SLOT_STYLE[slot].short}
@@ -534,6 +534,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['5. 대피 연습', '“대피 연습 시작!”을 누르면 불이 난다. 화살표로 움직이고, 연기가 오면 “낮게!”'],
         ['6. 결과', '잘한 점과 고칠 점을 본다. “다시 해보기”나 “지도 고치기”를 누른다.'],
         ['7. 뽑기', '한 장으로 뽑아 잘 보이는 곳에 붙인다.'],
+        ['마우스가 없어도', 'Tab 을 눌러 도면으로 들어가고, 방향키로 칸을 옮긴 다음 Enter 를 누르면 된다.'],
       ]
     : [
         ['평면', '집 모양(템플릿)에서 시작해 방을 옮기고 크기를 바꾼다. 방은 직사각형만 된다. 팔레트 클릭 → 도면 클릭이면 표준 크기로 놓인다.'],
@@ -542,6 +543,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['게임', '발화점은 매번 다르다. 방향키로 이동, 스페이스로 자세, T 문 만져보기, C 문 닫기, P 멈춤. 연습 모드가 기본이다.'],
         ['리포트', '규칙 엔진(정적)과 플레이 로그(동적)를 합쳐 잘한 점·고칠 점으로 정리한다. [왜?]를 누르면 학습 카드가 펼쳐진다.'],
         ['인쇄', 'A4 세로 1장. 흑백에서도 경로가 번호·선종류로 구분된다.'],
+        ['키보드', 'Tab 으로 도면에 초점을 준 뒤 방향키로 칸을 옮기고 Enter 로 누른다. 마우스 없이도 전 과정이 된다.'],
       ];
   return (
     <div className="k-modal-back" onClick={onClose} role="presentation">

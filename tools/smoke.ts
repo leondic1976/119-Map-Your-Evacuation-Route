@@ -112,6 +112,94 @@ async function kidsSave(page: Page): Promise<{ blocks: number; primary: number; 
   });
 }
 
+/**
+ * 지금 화면에서 누를 수 있는 것들의 크기.
+ * 라벨로 감싼 체크상자는 라벨 전체가 누르는 칸이므로 라벨을 잰다.
+ */
+async function hitTargets(page: Page): Promise<{ name: string; w: number; h: number }[]> {
+  return page.evaluate(() => {
+    const out: { name: string; w: number; h: number }[] = [];
+    const sel = 'button, a[href], select, textarea, input, [role="button"], [tabindex]:not([tabindex="-1"])';
+    for (const el of Array.from(document.querySelectorAll(sel))) {
+      let target: Element = el;
+      const type = (el.getAttribute('type') ?? '').toLowerCase();
+      if (el.tagName === 'INPUT' && (type === 'checkbox' || type === 'radio')) {
+        const lab = el.closest('label');
+        if (lab) target = lab;
+      }
+      const r = target.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const cs = getComputedStyle(target);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || cs.pointerEvents === 'none') continue;
+      const name = ((el.getAttribute('aria-label') || el.textContent || el.getAttribute('class') || '') as string).trim().replace(/\s+/g, ' ').slice(0, 24);
+      out.push({ name: name || el.tagName.toLowerCase(), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+    return out;
+  });
+}
+
+/** 글자와 그 뒤 바탕의 색. 그러데이션·그림이 뒤에 있으면 판정하지 않고 뺀다 */
+async function textOnBackground(page: Page): Promise<{ where: string; txt: string; fg: string; bg: string; fs: number; fw: number }[]> {
+  return page.evaluate(() => {
+    const out: { where: string; txt: string; fg: string; bg: string; fs: number; fw: number }[] = [];
+    for (const el of Array.from(document.querySelectorAll('*'))) {
+      let hasText = false;
+      for (const n of Array.from(el.childNodes)) if (n.nodeType === 3 && (n.textContent ?? '').trim()) hasText = true;
+      if (!hasText) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || Number(cs.opacity) < 0.95) continue;
+      let bg = '';
+      let painted = false;
+      let n2: Element | null = el;
+      while (n2) {
+        const s2 = getComputedStyle(n2);
+        if (s2.backgroundImage && s2.backgroundImage !== 'none') {
+          painted = true;
+          break;
+        }
+        const m = s2.backgroundColor.match(/[\d.]+/g);
+        if (m && (m.length < 4 || Number(m[3]) > 0.9)) {
+          bg = s2.backgroundColor;
+          break;
+        }
+        n2 = n2.parentElement;
+      }
+      if (painted) continue;
+      out.push({
+        where: `${el.tagName.toLowerCase()}.${(el.getAttribute('class') ?? '').slice(0, 24)}`,
+        txt: (el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 20),
+        fg: cs.color,
+        bg: bg || 'rgb(255, 255, 255)',
+        fs: Number.parseFloat(cs.fontSize),
+        fw: Number.parseInt(cs.fontWeight, 10) || 400,
+      });
+    }
+    return out;
+  });
+}
+
+/** WCAG 명도 대비 */
+function contrastRatio(fg: string, bg: string): number {
+  const lum = (s: string): number => {
+    const m = s.match(/[\d.]+/g) ?? ['0', '0', '0'];
+    const f = m.slice(0, 3).map((v) => {
+      const x = Number(v) / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2];
+  };
+  const a = lum(fg) + 0.05;
+  const b = lum(bg) + 0.05;
+  return a > b ? a / b : b / a;
+}
+
+/** 이 글자에 필요한 대비 — 큰 글자는 3:1, 나머지는 4.5:1 */
+function neededContrast(fs: number, fw: number): number {
+  return fs >= 24 || (fw >= 700 && fs >= 18.66) ? 3 : 4.5;
+}
+
 async function kidsDrag(page: Page, path: [number, number][]): Promise<void> {
   const first = await kidsCell(page, path[0][0], path[0][1]);
   await page.mouse.move(first.x, first.y);
@@ -182,7 +270,8 @@ async function main(): Promise<void> {
   process.stdout.write(`\n  ${server.url} 에서 검증\n\n`);
 
   try {
-    browser = await chromium.launch();
+    // 내려받은 크로미움이 없는 곳에서는 SMOKE_CHROMIUM 으로 다른 실행 파일을 준다
+    browser = await chromium.launch({ executablePath: process.env.SMOKE_CHROMIUM || undefined });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
     const page = await context.newPage();
     const errors: string[] = [];
@@ -1506,6 +1595,88 @@ async function main(): Promise<void> {
       await page.waitForSelector('svg.k-stage');
     });
 
+    await check('[어린이] 누르는 것이 모두 48×48 이상이다 (D6 · NFR-10)', async () => {
+      const small: string[] = [];
+      const sweep = async (where: string) => {
+        for (const t of await hitTargets(page)) {
+          if (t.w < 48 || t.h < 48) small.push(`${where} ${t.w}x${t.h} "${t.name}"`);
+        }
+      };
+      await sweep('편집');
+      await page.locator('.k-top .k-tb', { hasText: '사용법' }).click();
+      await page.waitForSelector('.k-modal');
+      await sweep('사용법');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+      await page.locator('[data-coach="kids-start-game"]').click();
+      await page.waitForSelector('.k-game');
+      await page.waitForTimeout(400);
+      await sweep('게임');
+      await page.locator('[data-coach="kids-quit"]').click();
+      await page.waitForSelector('.k-report-view');
+      await sweep('리포트');
+      await page.locator('[data-coach="kids-edit-plan"]').click();
+      await page.waitForSelector('svg.k-stage');
+      assert(small.length === 0, `${small.length}개: ${small.slice(0, 4).join(' | ')}`);
+    });
+
+    await check('[어린이] 본문 대비가 4.5:1 이상이다 (NFR-10)', async () => {
+      const bad: string[] = [];
+      const sweep = async (where: string) => {
+        for (const t of await textOnBackground(page)) {
+          const need = neededContrast(t.fs, t.fw);
+          const got = contrastRatio(t.fg, t.bg);
+          if (got < need) bad.push(`${where} ${got.toFixed(2)}<${need} ${t.where} "${t.txt}"`);
+        }
+      };
+      await sweep('편집');
+      await page.locator('[data-coach="kids-start-game"]').click();
+      await page.waitForSelector('.k-game');
+      await page.waitForTimeout(400);
+      await sweep('게임');
+      await page.locator('[data-coach="kids-quit"]').click();
+      await page.waitForSelector('.k-report-view');
+      await sweep('리포트');
+      await page.locator('[data-coach="kids-edit-plan"]').click();
+      await page.waitForSelector('svg.k-stage');
+      assert(bad.length === 0, `${bad.length}건: ${bad.slice(0, 3).join(' | ')}`);
+    });
+
+    await check('[어린이] 마우스 없이 Tab·방향키·Enter 로 방을 놓는다 (설계서 v1.0 §7.4)', async () => {
+      await page.locator('[data-coach="kids-tool-select"]').click();
+      await page.locator('[data-block-id="bedroom"]').click();
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      // Tab 만으로 도면까지 갈 수 있어야 한다
+      let reached = false;
+      for (let i = 0; i < 60 && !reached; i += 1) {
+        await page.keyboard.press('Tab');
+        reached = await page.evaluate(() => document.activeElement?.classList.contains('k-stage') === true);
+      }
+      assert(reached, 'Tab 으로 도면에 닿지 못한다');
+      const caret = async () => page.locator('svg.k-stage [data-caret]').getAttribute('x');
+      assert((await caret()) !== null, '키보드 커서가 안 보인다');
+      const cellOf = async (): Promise<{ x: number; y: number }> => {
+        const el = page.locator('svg.k-stage [data-caret]');
+        const x = Number(await el.getAttribute('x'));
+        const y = Number(await el.getAttribute('y'));
+        return { x: Math.round((x - 1) / 36), y: Math.round((y - 1) / 36) };
+      };
+      const from = await cellOf();
+      const to = { x: 18, y: 2 }; // 빈 자리
+      for (let i = 0; i < Math.abs(to.x - from.x); i += 1) await page.keyboard.press(to.x > from.x ? 'ArrowRight' : 'ArrowLeft');
+      for (let i = 0; i < Math.abs(to.y - from.y); i += 1) await page.keyboard.press(to.y > from.y ? 'ArrowDown' : 'ArrowUp');
+      const now = await cellOf();
+      assert(now.x === to.x && now.y === to.y, `커서가 ${now.x},${now.y} 에 있다`);
+      const before = (await kidsSave(page)).blocks;
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(800);
+      const after = (await kidsSave(page)).blocks;
+      assert(after === before + 1, `방이 안 놓였다 ${before} → ${after}`);
+      await page.keyboard.press('Control+z');
+      await page.waitForTimeout(700);
+      assert((await kidsSave(page)).blocks === before, '되돌리기가 안 됐다');
+    });
+
     await check('[어린이] 인쇄 미리보기와 인쇄 매체에서 A4 세로 시트만 남는다', async () => {
       await page.locator('[data-coach="kids-print"]').click();
       await page.waitForSelector('.k-preview svg.k-sheet');
@@ -1573,6 +1744,42 @@ async function main(): Promise<void> {
         assert(pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '));
         const font = await page2.evaluate(() => getComputedStyle(document.body).fontFamily);
         assert(!font.includes('Pretendard'), `웹폰트가 남아 있다: ${font}`);
+        await off.close();
+      });
+
+      await check('[어린이] 오프라인 배포본에서 온보딩부터 리포트까지 간다 (NFR-1)', async () => {
+        const off = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR', offline: true });
+        const p3 = await off.newPage();
+        const pageErrors: string[] = [];
+        const outside: string[] = [];
+        p3.on('pageerror', (e) => pageErrors.push(e.message));
+        p3.on('request', (r) => {
+          if (!r.url().startsWith('file:')) outside.push(r.url());
+        });
+        await p3.goto(`file:///${standalone.split(path.sep).join('/')}`);
+        await p3.waitForSelector('.k-gate', { timeout: 20000 });
+        await p3.locator('[data-audience="kids"]').click();
+        await p3.waitForSelector('.k-onboard', { timeout: 20000 });
+        await p3.locator('[data-template="apt_2room"]').click();
+        await p3.waitForSelector('[data-lowfloor="no"]');
+        await p3.locator('[data-lowfloor="no"]').click();
+        await p3.waitForTimeout(400);
+        const box = await p3.locator('svg.k-stage').boundingBox();
+        assert(box !== null, '도면이 없다');
+        const cs = box!.width / 24;
+        await p3.mouse.click(box!.x + 10.5 * cs, box!.y + 4.5 * cs); // 내 방
+        await p3.waitForTimeout(300);
+        await p3.locator('[data-coach="kids-meeting-later"]').click();
+        await p3.waitForTimeout(300);
+        await p3.locator('[data-coach="kids-start-game"]').click();
+        await p3.waitForSelector('.k-game', { timeout: 20000 });
+        await p3.waitForTimeout(600);
+        assert((await p3.locator('.k-stage [data-game-layer]').count()) === 1, '위험장이 안 그려졌다');
+        await p3.locator('[data-coach="kids-quit"]').click();
+        await p3.waitForSelector('.k-report-view');
+        assert((await p3.locator('.k-report-col.good li').count()) >= 1, '잘한 점이 없다');
+        assert(outside.length === 0, `외부 요청 ${outside.length}건: ${outside.slice(0, 2).join(', ')}`);
+        assert(pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '));
         await off.close();
       });
     } else {

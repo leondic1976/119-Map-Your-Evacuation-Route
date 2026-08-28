@@ -58,7 +58,7 @@
 
 .k-seg.dark .k-tab-no {
   border-color: var(--tab, #0f3d68);
-  color: var(--tab, #0f3d68);
+  color: var(--tab-ink, var(--tab, #0f3d68));
   margin-right: 4px;
 }
 
@@ -481,12 +481,6 @@
   grid-row: 3;
 }
 
-/* 도우미 패널이 없어졌다 — 가운데 두 칸 (plan2-1.md §4.6) */
-.k-work,
-.k-app.chat-collapsed .k-work {
-  grid-template-columns: var(--k-pal-w) 1fr;
-}
-
 @media (max-width: 1023px) {
   .k-report-cols {
     grid-template-columns: 1fr;
@@ -494,12 +488,6 @@
 
   .k-report-actions {
     grid-template-columns: 1fr;
-  }
-
-  .k-work,
-  .k-app.chat-collapsed .k-work {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
   }
 
   .k-bubble {

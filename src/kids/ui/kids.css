@@ -1,23 +1,27 @@
 /*
  * 어린이 화면 — 접두사 k- 로 기존 화면과 겹치지 않게 한다.
- * 모든 누르는 것은 44×44 이상 (NFR-10). 한글은 낱말 가운데서 끊지 않는다.
+ * 모든 누르는 것은 48×48 이상 (설계서 v1.1 §2.2 D6 — NFR-10 의 44px 을 아이 손가락에 맞춰 올린 값).
+ * 크기는 --k-hit 하나로 두고 여기서만 고친다. 한글은 낱말 가운데서 끊지 않는다.
  */
+:root {
+  --k-hit: 48px;
+}
+
 .k-app {
   --k-bg: #f4f6f2;
   --k-panel: #ffffff;
   --k-line: #d9dfd6;
   --k-ink: #22303a;
-  --k-dim: #6b7887;
+  --k-dim: #606c7a;
   --k-accent: #0f3d68;
   --k-accent-soft: #e3edf7;
-  --k-warn: #c98a12;
+  --k-warn: #8f620d;
   --k-danger: #c8102e;
   --k-safe: #0e7c4f;
   --k-radius: 12px;
   --k-pal-w: 200px;
-  --k-chat-w: 400px;
   display: grid;
-  grid-template-rows: 56px 1fr 48px;
+  grid-template-rows: 60px 1fr 60px;
   height: 100vh;
   background: var(--k-bg);
   color: var(--k-ink);
@@ -31,8 +35,8 @@
   font: inherit;
   color: inherit;
   cursor: pointer;
-  min-height: 44px;
-  min-width: 44px;
+  min-height: var(--k-hit);
+  min-width: var(--k-hit);
 }
 
 .k-app button:disabled {
@@ -105,7 +109,7 @@
   border-radius: 50%;
   border: 2px solid var(--tab, #fff);
   background: #fff;
-  color: var(--tab, #000);
+  color: var(--tab-ink, var(--tab, #000));
   font-style: normal;
   font-weight: 800;
   font-size: 11px;
@@ -135,7 +139,7 @@
   color: #fff;
   border-radius: 999px;
   padding: 0 12px;
-  min-height: 36px;
+  min-height: var(--k-hit);
   font-weight: 700;
 }
 
@@ -162,9 +166,8 @@
 }
 
 .k-tb.sm {
-  min-height: 36px;
-  min-width: 36px;
   padding: 0 10px;
+  font-size: 13px;
 }
 
 .k-bottom .k-tb,
@@ -188,14 +191,11 @@
 }
 
 /* ------------------------------------------------------------ 가운데 */
+/* 팔레트 | 도면 두 칸. 도우미 패널은 설계서 v1.1 §4.6 에서 없어졌다 */
 .k-work {
   display: grid;
-  grid-template-columns: var(--k-pal-w) 1fr var(--k-chat-w);
+  grid-template-columns: var(--k-pal-w) 1fr;
   min-height: 0;
-}
-
-.k-app.chat-collapsed .k-work {
-  grid-template-columns: var(--k-pal-w) 1fr 64px;
 }
 
 .k-palette {
@@ -243,7 +243,7 @@
 
 .k-cat {
   flex: 1 1 30%;
-  min-height: 36px;
+  min-height: var(--k-hit);
   border: 1.5px solid var(--k-line);
   border-radius: 8px;
   background: #fff;
@@ -314,15 +314,14 @@
   gap: 6px;
 }
 
+/* 글자만 있는 단추. 밑줄은 좁아 보여도 누르는 칸은 48px 을 지킨다 */
 .k-link {
   border: 0;
   background: transparent;
   color: var(--k-accent);
   text-decoration: underline;
   font-weight: 700;
-  padding: 0 6px;
-  min-height: 32px !important;
-  min-width: 0 !important;
+  padding: 0 8px;
 }
 
 /* 도면 */
@@ -343,35 +342,20 @@
   overflow-x: auto;
 }
 
-.k-scene {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
 .k-chk {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 36px;
-  padding: 0 4px;
+  gap: 6px;
+  min-height: var(--k-hit);
+  padding: 0 6px;
   white-space: nowrap;
   cursor: pointer;
   font-weight: 600;
 }
 
 .k-chk input {
-  width: 18px;
-  height: 18px;
-}
-
-.k-zoom {
-  min-width: 42px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  color: var(--k-dim);
+  width: 22px;
+  height: 22px;
 }
 
 .k-canvas-wrap {
@@ -406,6 +390,12 @@
   height: 100%;
 }
 
+/* 도면에 Tab 으로 들어왔다는 표시. 안쪽 노란 칸(data-caret)이 지금 자리다 */
+.k-stage:focus-visible {
+  outline: 3px solid var(--k-accent);
+  outline-offset: -3px;
+}
+
 .k-empty {
   position: absolute;
   inset: 0;
@@ -438,13 +428,6 @@
   white-space: nowrap;
 }
 
-.k-lock-veil {
-  position: absolute;
-  inset: 0;
-  background: rgba(200, 16, 46, 0.08);
-  z-index: 4;
-}
-
 .k-kbd {
   display: inline-block;
   padding: 0 5px;
@@ -464,7 +447,7 @@
   border-top: 1px solid var(--k-line);
   background: #eef6ef;
   font-size: 13px;
-  min-height: 44px;
+  min-height: 56px;
 }
 
 .k-report.warn {
@@ -512,130 +495,6 @@
   }
 }
 
-/* ------------------------------------------------------------ 도우미 */
-.k-chat {
-  display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  border-left: 1px solid var(--k-line);
-  background: var(--k-panel);
-  min-height: 0;
-}
-
-.k-chat.k-lock {
-  background: #fff5f6;
-}
-
-.k-chat-collapsed {
-  grid-template-rows: auto 1fr;
-  align-content: start;
-  justify-items: center;
-  padding-top: 8px;
-  position: relative;
-}
-
-.k-chat-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--k-line);
-}
-
-.k-chat-who {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.k-chat-who b {
-  font-size: 15px;
-}
-
-.k-chat-who small {
-  color: var(--k-dim);
-  font-size: 11px;
-}
-
-.k-tts {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  min-height: 36px;
-  cursor: pointer;
-}
-
-.k-chat-toggle {
-  border: 1.5px solid var(--k-line);
-  background: #fff;
-  border-radius: 12px;
-  padding: 4px;
-}
-
-.k-chat-toggle.sm {
-  min-height: 36px;
-  min-width: 36px;
-}
-
-.k-bubble-float {
-  position: absolute;
-  top: 8px;
-  right: 72px;
-  width: 220px;
-  padding: 10px 12px;
-  background: #fff;
-  border: 1.5px solid var(--k-line);
-  border-radius: 14px;
-  box-shadow: 0 4px 14px rgba(16, 30, 48, 0.12);
-  font-size: 13px;
-  z-index: 5;
-}
-
-.k-turns {
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-}
-
-.k-turn {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.k-turn.kid {
-  justify-content: flex-end;
-}
-
-.k-turn-avatar {
-  flex: 0 0 auto;
-}
-
-.k-msg {
-  max-width: 82%;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #f0f4f8;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.k-turn.kid .k-msg {
-  background: var(--k-accent);
-  color: #fff;
-}
-
-.k-msg.alert {
-  background: #fde8eb;
-  border: 2px solid var(--k-danger);
-  font-weight: 700;
-}
-
 .k-unverified {
   display: inline-block;
   margin-left: 6px;
@@ -646,13 +505,6 @@
   font-size: 10px;
   font-weight: 800;
   vertical-align: middle;
-}
-
-.k-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 12px 10px;
 }
 
 .k-card {
@@ -679,32 +531,6 @@
   color: var(--k-warn);
 }
 
-.k-ask {
-  display: flex;
-  gap: 6px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--k-line);
-}
-
-.k-ask input {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1.5px solid var(--k-line);
-  border-radius: 10px;
-  font: inherit;
-}
-
-.k-ask button {
-  border: 0;
-  border-radius: 10px;
-  background: var(--k-accent);
-  color: #fff;
-  font-weight: 700;
-  padding: 0 12px;
-}
-
 /* ------------------------------------------------------------ 하단바 */
 .k-bottom {
   display: flex;
@@ -717,7 +543,7 @@
 }
 
 .k-bottom .k-tb {
-  min-height: 38px;
+  min-height: var(--k-hit);
 }
 
 .k-save {
@@ -801,13 +627,13 @@
 .k-modal button {
   font: inherit;
   cursor: pointer;
-  min-height: 44px;
+  min-height: var(--k-hit);
+  min-width: var(--k-hit);
 }
 
 .k-x {
   border: 0;
   background: transparent;
-  min-width: 44px;
   border-radius: 10px;
 }
 
@@ -868,6 +694,7 @@
   padding: 6px 18px 12px;
 }
 
+.k-modal .k-big,
 .k-big {
   min-height: 64px;
   padding: 12px 16px;
@@ -931,10 +758,11 @@
 }
 
 /* 알림 */
+/* 알림은 화면 위쪽에 뜬다. 아래에 두면 캐릭터 말풍선의 단추를 덮는다 */
 .k-toast {
   position: fixed;
   left: 50%;
-  bottom: 64px;
+  top: 116px;
   transform: translateX(-50%);
   padding: 10px 16px;
   background: #22303a;
@@ -1057,19 +885,13 @@
 @media (max-width: 1279px) {
   .k-app {
     --k-pal-w: 160px;
-    --k-chat-w: 320px;
   }
 }
 
 @media (max-width: 1023px) {
   .k-work {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr 40vh;
-  }
-
-  .k-app.chat-collapsed .k-work {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr 64px;
+    grid-template-rows: auto 1fr;
   }
 
   .k-palette {
@@ -1102,22 +924,5 @@
 
   .k-armed {
     display: none;
-  }
-
-  .k-chat {
-    border-left: 0;
-    border-top: 1px solid var(--k-line);
-  }
-
-  .k-chat-collapsed {
-    flex-direction: row;
-    grid-template-rows: auto;
-    grid-template-columns: auto 1fr;
-    padding: 8px;
-  }
-
-  .k-bubble-float {
-    position: static;
-    width: auto;
   }
 }

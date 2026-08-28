@@ -25,7 +25,10 @@ import type { Highlight } from '../store/kidsStore';
 export const CS = 36;
 
 export interface RouteStyle {
+  /** 선 색. 굵은 선이므로 3:1 이면 된다 */
   color: string;
+  /** 같은 색 계열의 글자 색. 작은 글자는 4.5:1 이 필요해 선보다 어둡다 (NFR-10) */
+  ink: string;
   dash: string;
   no: string;
   label: string;
@@ -34,8 +37,8 @@ export interface RouteStyle {
 
 /** 주·보조 경로 — 색·선종류·번호를 함께 쓴다 (P4, FR-2.6 개정) */
 export const SLOT_STYLE: Record<RouteSlot, RouteStyle> = {
-  primary: { color: '#c8102e', dash: '', no: '1', label: '주 경로 — 평소 나가는 길', short: '주 경로' },
-  alternate: { color: '#e07b00', dash: '9 6', no: '2', label: '보조 경로 — 현관으로 못 나갈 때', short: '보조 경로' },
+  primary: { color: '#c8102e', ink: '#c8102e', dash: '', no: '1', label: '주 경로 — 평소 나가는 길', short: '주 경로' },
+  alternate: { color: '#e07b00', ink: '#9f5700', dash: '9 6', no: '2', label: '보조 경로 — 현관으로 못 나갈 때', short: '보조 경로' },
 };
 
 const ROOM_FILL: Record<RoomBlock['roomKind'], string> = {
@@ -93,6 +96,12 @@ export interface PlanSvgProps {
   onPointerMove?: React.PointerEventHandler<SVGSVGElement>;
   onPointerUp?: React.PointerEventHandler<SVGSVGElement>;
   onPointerLeave?: React.PointerEventHandler<SVGSVGElement>;
+  /** 키보드로 다룰 때 — 초점을 받고 방향키·Enter 를 처리한다 (설계서 v1.0 §7.4) */
+  onKeyDown?: React.KeyboardEventHandler<SVGSVGElement>;
+  onFocus?: React.FocusEventHandler<SVGSVGElement>;
+  onBlur?: React.FocusEventHandler<SVGSVGElement>;
+  focusable?: boolean;
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -116,6 +125,8 @@ export function PlanSvg(props: PlanSvgProps) {
     children,
     frame,
     svgRef,
+    focusable,
+    ariaLabel,
     className,
   } = props;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
@@ -150,9 +161,13 @@ export function PlanSvg(props: PlanSvgProps) {
       onPointerMove={props.onPointerMove}
       onPointerUp={props.onPointerUp}
       onPointerLeave={props.onPointerLeave}
+      onKeyDown={props.onKeyDown}
+      onFocus={props.onFocus}
+      onBlur={props.onBlur}
+      tabIndex={focusable ? 0 : undefined}
       style={{ touchAction: 'none', userSelect: 'none', display: 'block' }}
-      role="img"
-      aria-label="우리집 평면도"
+      role={focusable ? 'application' : 'img'}
+      aria-label={ariaLabel ?? '우리집 평면도'}
     >
       <defs>
         {/* 인쇄용 해칭 — 색 없이도 방을 구분한다 (P4) */}

@@ -53,6 +53,7 @@ import { otsu, scaleFromArea, scaleFromMeasure, trace } from '../src/lib/autotra
 import { diagnose, eraFor, HAZARDS, PROCEDURE } from '../src/lib/risk';
 import { migrate, parsePlan, serialize } from '../src/lib/storage';
 import { kidsTests } from './kids-tests';
+import { qaTests } from './qa-tests';
 import {
   interpretStroke,
   looksClosed,
@@ -1506,6 +1507,14 @@ check('초등은 짧게 가로질러도 벽으로 받아 준다', () => {
 /* ------------------------------------------------------------------ */
 
 kidsTests(check, assert);
+
+/* ------------------------------------------------------------------ */
+/* 배포 전 점검 — 인터넷 차단 · 크기 · 이모지 · 죽은 CSS · 성능 (M10)     */
+/* ------------------------------------------------------------------ */
+
+section('배포 전 점검');
+
+qaTests(check, assert);
 
 /* ------------------------------------------------------------------ */
 

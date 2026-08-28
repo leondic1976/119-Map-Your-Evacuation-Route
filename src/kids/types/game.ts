@@ -32,6 +32,25 @@ export interface GameConfig {
   gradeMode: 'easy' | 'normal';
 }
 
+/**
+ * 리플레이 한 컷 — 설계서 v1.2 §8.5.
+ * 셀당 1바이트로 줄여 담는다. 저장 파일에는 넣지 않는다 (메모리 전용).
+ */
+export interface ReplayFrame {
+  tick: number;
+  cell: Cell;
+  posture: Posture;
+  facing: 'left' | 'right';
+  /** 주 위험 0~255 */
+  primary: Uint8Array;
+  /** 부 위험(상부) 0~255 */
+  secondary: Uint8Array;
+  /** 다 탄 칸 표시 */
+  spent: Uint8Array;
+  doorState: Record<BlockId, 'open' | 'closed'>;
+  events: string[];
+}
+
 export interface GameState {
   tick: number;
   config: GameConfig;

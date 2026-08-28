@@ -8,9 +8,10 @@
  *   점수·등급·순위는 없다 (FR-10.10).
  */
 import React, { useState } from 'react';
-import { cardById } from '../content';
+import { cardById, presetById } from '../content';
 import { useKids } from '../store/kidsStore';
 import { Avatar } from './Avatar';
+import Replay3D from './replay3d/Replay3D';
 
 interface Props {
   onPrint: () => void;
@@ -24,7 +25,13 @@ export default function ReportView({ onPrint }: Props) {
   const editFromReport = useKids((s) => s.editFromReport);
   const markCardSeen = useKids((s) => s.markCardSeen);
   const [open, setOpen] = useState<string | null>(null);
+  const [show3d, setShow3d] = useState(false);
+  const plan = useKids((s) => s.plan);
+  const game = useKids((s) => s.game);
+  const hazardId = useKids((s) => s.hazardId);
   if (!report) return null;
+  const frames = game?.frames ?? [];
+  const tickSeconds = presetById(hazardId)?.tickSeconds ?? 1;
   const easy = profile.gradeMode === 'easy';
   const master = progress.successes >= 3 || progress.earnedGoodIds.length >= 5;
   const why = (id: string, cardId?: string) => {
@@ -112,10 +119,26 @@ export default function ReportView({ onPrint }: Props) {
         <button type="button" className="k-big" onClick={() => editFromReport(report.fix.some((f) => f.action?.type === 'editRoute') && !report.fix.some((f) => f.action?.type === 'editPlan') ? 'route' : 'plan')} data-coach="kids-edit-plan">
           지도 고치기
         </button>
+        {frames.length > 1 && (
+          <button type="button" className="k-big" onClick={() => setShow3d(true)} data-coach="kids-replay3d-open">
+            {easy ? '3D 로 다시 보기' : '3D 리플레이'}
+          </button>
+        )}
         <button type="button" className="k-big" onClick={onPrint}>
           {easy ? '뽑기' : '인쇄'}
         </button>
       </footer>
+
+      {show3d && frames.length > 1 && (
+        <Replay3D
+          plan={plan}
+          frames={frames}
+          character={profile.playerCharacter}
+          tickSeconds={tickSeconds}
+          outcome={report.outcome === 'success' ? 'success' : 'failed'}
+          onClose={() => setShow3d(false)}
+        />
+      )}
     </section>
   );
 }

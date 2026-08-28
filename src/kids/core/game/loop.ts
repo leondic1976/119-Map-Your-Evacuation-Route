@@ -7,7 +7,7 @@
  */
 import type { Cell, EvacRoute, FloorPlan } from '../../types/plan';
 import type { HazardPreset } from '../../types/hazard';
-import type { GameConfig, GameState } from '../../types/game';
+import type { GameConfig, GameState, ReplayFrame } from '../../types/game';
 import type { PlanGraph } from '../../types/graph';
 import type { UserProfile } from '../../types/save';
 import { goalNodeIds } from '../graph/build';
@@ -34,6 +34,37 @@ export interface Game {
   goalCells: { cell: Cell; goalId: string }[];
   /** 20회 안에 생존 가능한 판을 찾지 못했다 — 리포트가 RULE-F-04 를 앞세운다 */
   unguaranteed: boolean;
+  /**
+   * 리플레이용 기록 (설계서 v1.2 §8.5). 매 틱 한 컷씩 쌓는다.
+   * 셀당 2바이트라 24×16 평면 300틱이면 230KB 다. 저장하지 않고 메모리에만 둔다.
+   */
+  frames: ReplayFrame[];
+}
+
+/** 지금 판을 한 컷으로 담는다 */
+export function snapshotFrame(game: Game): ReplayFrame {
+  const { state } = game;
+  const n = state.field.length;
+  const primary = new Uint8Array(n);
+  const secondary = new Uint8Array(n);
+  const spent = new Uint8Array(n);
+  for (let i = 0; i < n; i += 1) {
+    const c = state.field[i];
+    primary[i] = Math.round(Math.min(1, c.primary) * 255);
+    secondary[i] = Math.round(Math.min(1, Math.max(c.secondaryHigh, c.secondaryLow)) * 255);
+    spent[i] = c.state === 'spent' ? 1 : 0;
+  }
+  return {
+    tick: state.tick,
+    cell: { ...state.player.cell },
+    posture: state.player.posture,
+    facing: state.player.facing,
+    primary,
+    secondary,
+    spent,
+    doorState: { ...state.doorState },
+    events: state.events.slice(),
+  };
 }
 
 /** 학년에 맞춘 프리셋 사본 */
@@ -83,7 +114,15 @@ export function startGame(setup: GameSetup): Game {
     log: emptyLog(setup.config.seed, pick.cell),
   };
   state.log.visited.push(setup.startCell);
-  return { state, ctx, goalCells: gameGoalCells(setup.graph, preset, setup.profile), unguaranteed: !pick.guaranteed };
+  const game: Game = {
+    state,
+    ctx,
+    goalCells: gameGoalCells(setup.graph, preset, setup.profile),
+    unguaranteed: !pick.guaranteed,
+    frames: [],
+  };
+  game.frames.push(snapshotFrame(game));
+  return game;
 }
 
 /** 한 틱 */
@@ -95,6 +134,8 @@ export function tick(game: Game): void {
   updatePlayer(state, ctx);
   state.tick += 1;
   checkStatus(game);
+  /* 리플레이 기록 — 끝난 틱까지 담는다 */
+  game.frames.push(snapshotFrame(game));
 }
 
 /** 갇혔는지는 여덟 틱마다 본다 */

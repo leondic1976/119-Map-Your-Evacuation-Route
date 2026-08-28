@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Cell, FloorPlan, RouteSlot } from '../src/kids/types/plan';
-import { SCENARIO_KEYS, emptyFloorPlan, emptyRoute, routeKey, scenarioKey, splitKey } from '../src/kids/types/plan';
+import { EXIT_KINDS, SCENARIO_KEYS, emptyFloorPlan, emptyRoute, routeKey, scenarioKey, splitKey } from '../src/kids/types/plan';
 import { DEFAULT_PASSABILITY, VN } from '../src/kids/types/graph';
 import { defaultProfile, type UserProfile } from '../src/kids/types/save';
 import type { PlayLog } from '../src/kids/types/report';
@@ -29,13 +29,14 @@ import { doorCandidates } from '../src/kids/core/grid/doors';
 import { buildContext } from '../src/kids/core/hazard/transfer';
 import { createField, ignite, spread } from '../src/kids/core/hazard/field';
 import { aheadTicks, gameGoalCells, hasSurvivablePath, pickIgnition, rng, simulateAhead } from '../src/kids/core/hazard/ignition';
-import { finishGame, startGame, tick } from '../src/kids/core/game/loop';
+import { finishGame, startGame, tick, tick as gameTick } from '../src/kids/core/game/loop';
 import { closeDoorBehind, move, togglePosture } from '../src/kids/core/game/player';
 import { emptyLog } from '../src/kids/core/game/playlog';
 import { buildReport } from '../src/kids/core/report/build';
 import { ALL_FAIL_REASONS } from '../src/kids/core/report/verdicts';
 import { selectGuide } from '../src/kids/core/guide/runner';
-import { GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, PALETTE_BASIC, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, fuelOf, isVerified } from '../src/kids/content';
+import { BLOCKS, GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, PALETTE_BASIC, REPORT_ITEMS, REQUIRED_BLOCKS, RULE_MESSAGES, TEMPLATES, fuelOf, isVerified } from '../src/kids/content';
+import { checklist, missingOf } from '../src/kids/core/checklist';
 import { ALL_STEPS, validateContent, validatePlan } from '../src/kids/content/validate';
 import { SaveIncompatibleError, parseSave } from '../src/kids/store/migrate';
 import { emptySave, serializeSave } from '../src/kids/store/storage';
@@ -511,5 +512,87 @@ export function kidsTests(check: Check, assert: Assert): void {
       threw2 = e;
     }
     assert(threw2 instanceof SaveIncompatibleError, '깨진 JSON');
+  });
+
+  /* ---------------------------------------------------------- 설계서 v1.2 */
+
+  check('[어린이] 닫힌 창은 확산을 늦추고, 열린 창은 돕는다 (설계서 v1.2 §2.2)', () => {
+    const plan = template('apt_2room');
+    const g = buildGraph(plan);
+    const ctx = buildContext(plan, g);
+    const origin = { x: 5, y: 10 }; // 부엌
+    const probe = (windowsClosed: boolean): number => {
+      const field = createField(plan, ctx, fuelOf);
+      ignite(field, ctx, origin);
+      const doorState: Record<string, 'open' | 'closed'> = {};
+      for (const b of plan.blocks) {
+        if (b.kind !== 'opening') continue;
+        const glazed = b.openingKind === 'window' || b.openingKind === 'balcony_window';
+        if (glazed ? windowsClosed : b.closedByDefault) doorState[b.id] = 'closed';
+      }
+      const state = {
+        tick: 0,
+        config: { hazardId: 'fire' as const, seed: 0, timed: false, gradeMode: 'normal' as const },
+        preset: FIRE,
+        field,
+        doorState,
+        doorHeat: {},
+        origin,
+        player: { cell: origin, posture: 'stand' as const, facing: 'right' as const, exposure: 0, visionRadius: 8, stuckUntil: 0 },
+        status: 'ready' as const,
+        events: [],
+        log: emptyLog(0, origin),
+      };
+      for (let i = 0; i < 70; i += 1) spread(state, ctx);
+      /* 발코니(창 너머)로 얼마나 넘어갔나 */
+      let sum = 0;
+      for (let y = 13; y < 15; y += 1) for (let x = 3; x < 13; x += 1) sum += field[y * plan.grid.width + x].secondaryHigh;
+      return sum;
+    };
+    const closed = probe(true);
+    const open = probe(false);
+    assert(closed < open, `닫힘 ${closed.toFixed(2)} 이 열림 ${open.toFixed(2)} 보다 크다`);
+  });
+
+  check('[어린이] 방화문 닫힘이 방문 닫힘보다 더 막는다 (설계서 v1.2 §2.2)', () => {
+    assert((FIRE.sealedClosedFactor ?? 1) < FIRE.doorClosedFactor, '방화문 계수가 방문보다 작지 않다');
+    assert((FIRE.glazedClosedFactor ?? 1) < FIRE.doorClosedFactor, '닫힌 창 계수가 방문보다 작지 않다');
+    assert((FIRE.openGlazedBoost ?? 1) > 1, '열린 창이 확산을 돕지 않는다');
+  });
+
+  check('[어린이] 필수 물건 목록이 blocks.json 과 어긋나지 않는다 (설계서 v1.2 §1.4)', () => {
+    assert(REQUIRED_BLOCKS.length >= 4, `필수 ${REQUIRED_BLOCKS.length}종`);
+    for (const id of REQUIRED_BLOCKS) {
+      const def = BLOCKS.find((b) => b.id === id);
+      assert(Boolean(def), `없는 블록이 필수다 — ${id}`);
+      assert(def!.required === true, `${id} 의 required 가 꺼져 있다`);
+    }
+    /* 시작 평면은 필수를 웬만큼 갖추고 있어야 한다 — 아이가 처음부터 다 놓게 하지 않는다 */
+    for (const t of TEMPLATES) {
+      const gaps = missingOf(checklist(t.plan, REQUIRED_BLOCKS));
+      assert(gaps.length <= 2, `${t.id}: 빠진 필수 ${gaps.join(', ')}`);
+    }
+  });
+
+  check('[어린이] 밖으로 나가는 곳 세 갈래가 규칙으로 갈린다 (설계서 v1.2 §3.1)', () => {
+    assert(RULES.some((r) => r.id === 'RULE-F-08'), '옥상 규칙이 없다');
+    assert(RULES.some((r) => r.id === 'RULE-F-09'), '지하 규칙이 없다');
+    assert(EXIT_KINDS.length === 3, `출구 ${EXIT_KINDS.length}종`);
+    for (const k of EXIT_KINDS) assert(BLOCKS.some((b) => b.id === k), `팔레트에 ${k} 가 없다`);
+  });
+
+  check('[어린이] 리플레이 기록이 매 틱 쌓이고 저장 파일에는 들어가지 않는다 (설계서 v1.2 §8.5)', () => {
+    const plan = template('apt_2room');
+    const g = buildGraph(plan);
+    const game = startGame({ plan, graph: g, profile: P, config: { hazardId: 'fire', seed: 3, timed: false, gradeMode: 'normal' }, preset: FIRE, startCell: myCell(plan), fuelOf });
+    assert(game.frames.length === 1, `시작 컷 ${game.frames.length}`);
+    for (let i = 0; i < 5; i += 1) gameTick(game);
+    assert(game.frames.length === 6, `틱 뒤 ${game.frames.length} 컷`);
+    const f = game.frames[3];
+    assert(f.primary.length === plan.grid.width * plan.grid.height, '컷 크기');
+    assert(f.tick === 3, `틱 번호 ${f.tick}`);
+    /* 저장 파일 타입에 frames 가 없다 — 새로고침하면 리플레이는 사라진다 */
+    const keys = Object.keys(game.state.log);
+    assert(!keys.includes('frames'), '로그에 프레임이 섞였다');
   });
 }

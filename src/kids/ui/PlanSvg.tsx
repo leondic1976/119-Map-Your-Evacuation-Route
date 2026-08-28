@@ -12,7 +12,7 @@ import type { Cell, FloorPlan, OpeningBlock, PointBlock, RoomBlock, RoutePair, R
 import { isOpening, isPoint, isRoom } from '../types/plan';
 import type { HazardField } from '../types/hazard';
 import type { Posture } from '../types/game';
-import type { Speaker } from '../types/guide';
+import type { PlayerCharacter } from '../types/guide';
 import { roomLabel } from '../core/graph/build';
 import { slotCenter } from '../core/grid/geometry';
 import type { DoorCandidate } from '../core/grid/doors';
@@ -59,7 +59,7 @@ const INK = '#2a3038';
 export interface GameLayer {
   field: HazardField;
   origin: Cell;
-  player: { cell: Cell; posture: Posture; facing: 'left' | 'right'; character: Speaker };
+  player: { cell: Cell; posture: Posture; facing: 'left' | 'right'; character: PlayerCharacter };
   doorState: Record<string, 'open' | 'closed'>;
   goalCells: Cell[];
   visionRadius: number;
@@ -430,6 +430,12 @@ function RoutePath({
   );
 }
 
+/** 연기 3단계 — 옅음 → 짙음 → 꽉 참 */
+const SMOKE_BAND = ['#9aa3ad', '#6b7480', '#454c55'];
+
+/** 불 3단계 — 그을린 기 → 붉은 기 → 불꽃 */
+const FIRE_BAND = ['#e8a25f', '#f4762a', '#e23b16'];
+
 /** 위험장·목표·플레이어·시야 — 게임에서만 */
 function HazardLayer({ game, plan, uid }: { game: GameLayer; plan: FloorPlan; uid: string }) {
   const W = plan.grid.width;
@@ -439,16 +445,38 @@ function HazardLayer({ game, plan, uid }: { game: GameLayer; plan: FloorPlan; ui
     if (c.isWall) continue;
     const x = (i % W) * CS;
     const y = Math.floor(i / W) * CS;
+    /*
+     * 번져 나가는 앞머리가 보이게 단계로 나눈다 (설계서 v1.2 §5.1).
+     * 연기 3단계(옅음·짙음·꽉 참) · 불 4단계(그을음·붉은 기·불꽃·다 탐).
+     */
     const smoke = Math.max(c.secondaryHigh * 0.55, c.secondaryLow * 0.8);
     if (smoke > 0.04) {
-      cells.push(<rect key={`s${i}`} x={x} y={y} width={CS} height={CS} fill="#6b7480" opacity={Math.min(0.85, smoke)} />);
+      const band = smoke < 0.25 ? 0 : smoke < 0.55 ? 1 : 2;
+      cells.push(<rect key={`s${i}`} x={x} y={y} width={CS} height={CS} fill={SMOKE_BAND[band]} opacity={Math.min(0.88, 0.22 + smoke * 0.7)} />);
+      if (band >= 1) {
+        cells.push(<rect key={`se${i}`} x={x + 1} y={y + 1} width={CS - 2} height={CS - 2} rx={CS * 0.3} fill={SMOKE_BAND[band]} opacity={0.25} />);
+      }
       if (c.secondaryLow > 0.2) cells.push(<rect key={`sd${i}`} x={x} y={y} width={CS} height={CS} fill={`url(#smoke${uid})`} opacity={Math.min(0.7, c.secondaryLow)} />);
     }
-    if (c.primary > 0.08) {
-      cells.push(<rect key={`f${i}`} x={x} y={y} width={CS} height={CS} fill="#ff7a1a" opacity={Math.min(0.9, c.primary)} />);
+    if (c.primary > 0.06) {
+      const band = c.primary < 0.25 ? 0 : c.primary < 0.55 ? 1 : 2;
+      cells.push(<rect key={`f${i}`} x={x} y={y} width={CS} height={CS} fill={FIRE_BAND[band]} opacity={Math.min(0.92, 0.3 + c.primary * 0.7)} />);
       cells.push(<rect key={`fh${i}`} x={x} y={y} width={CS} height={CS} fill={`url(#flame${uid})`} opacity={Math.min(0.8, c.primary)} />);
+      /* 불꽃 혀 — 세기에 따라 자란다 */
+      if (band >= 1) {
+        const h = CS * (0.24 + c.primary * 0.4);
+        cells.push(
+          <path
+            key={`fl${i}`}
+            className="k-flame"
+            d={`M${x + CS / 2} ${y + CS - 3} c${-h * 0.5} ${-h * 0.5} ${-h * 0.16} ${-h} 0 ${-h} c${h * 0.16} ${h * 0.3} ${h * 0.5} ${h * 0.4} 0 ${h}z`}
+            fill="#ffd166"
+            opacity={0.85}
+          />,
+        );
+      }
     }
-    if (c.state === 'spent') cells.push(<rect key={`b${i}`} x={x} y={y} width={CS} height={CS} fill="#3a3a3a" opacity={0.6} />);
+    if (c.state === 'spent') cells.push(<rect key={`b${i}`} x={x} y={y} width={CS} height={CS} fill="#2f2f2f" opacity={0.66} />);
   }
   const p = game.player;
   return (

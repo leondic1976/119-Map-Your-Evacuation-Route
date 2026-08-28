@@ -17,6 +17,7 @@
   "openGlazedBoost": 1.25,
   "crouchFactor": 0.35,
   "timeLimitTicks": 480,
+  "tickSeconds": 1,
   "ignitionWeights": {
     "gas_range": 40,
     "power_strip": 20,

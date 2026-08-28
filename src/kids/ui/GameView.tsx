@@ -8,11 +8,19 @@
  *   경고음·붉은 점멸 없음 (FR-8.4). 언제든 멈추고 그만둘 수 있다 (FR-8.6)
  *   단추는 56×56 이상 (§3.8)
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
 import { useKids } from '../store/kidsStore';
+import { playDetector, playSuccess, unlockAudio } from './sound';
 
 const TICK_MS = 250;
+
+/** 초를 '분 초'로 — 숫자가 늘어나는 시계다. 줄어드는 제한이 아니다 (설계서 v1.2 §4.1) */
+export function clockText(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}분 ${String(s).padStart(2, '0')}초` : `${s}초`;
+}
 
 export default function GameView() {
   const game = useKids((s) => s.game);
@@ -26,7 +34,23 @@ export default function GameView() {
   const resume = useKids((s) => s.gameResume);
   const quit = useKids((s) => s.gameQuit);
 
+  const soundOn = useKids((s) => s.profile.soundOn);
+  const best = useKids((s) => s.progress.bestTicks);
   const status = game?.state.status;
+  const rang = useRef(false);
+
+  /* 감지기 소리 — 시작 때 한 벌만 (설계서 v1.2 §7.1 C2) */
+  useEffect(() => {
+    if (status !== 'running' || rang.current) return;
+    rang.current = true;
+    unlockAudio();
+    playDetector(soundOn);
+  }, [status, soundOn]);
+
+  /* 성공했을 때만 소리로 알린다. 실패에는 아무 소리도 내지 않는다 (C3) */
+  useEffect(() => {
+    if (status === 'success') playSuccess(soundOn);
+  }, [status, soundOn]);
 
   /* 틱 */
   useEffect(() => {
@@ -67,6 +91,7 @@ export default function GameView() {
   const p = st.player;
   const breath = 1 - p.exposure;
   const timeLeft = st.config.timed ? Math.max(0, 1 - st.tick / st.preset.timeLimitTicks) : 1;
+  const elapsed = Math.round(st.tick * (st.preset.tickSeconds ?? 1));
   const level = (v: number): string => (v > 0.5 ? 'ok' : v > 0.25 ? 'warn' : 'low');
   const doorNear = adjacentDoor(st, game.ctx);
   const canClose = Boolean(p.lastDoorId && st.doorState[p.lastDoorId] !== 'closed');
@@ -93,6 +118,17 @@ export default function GameView() {
             <span>{easy ? '연습 모드 — 천천히 해도 돼' : '연습 모드 (시간제한 없음)'}</span>
           </div>
         )}
+        {/* 우리집 시계 — 늘어나는 시각이다. 넘겨도 지지 않는다 */}
+        <div className="k-clock" data-coach="kids-clock" title="집을 나가기까지 걸린 시간. 넘겨도 지지 않는다">
+          <ClockIcon />
+          <b className="num">{clockText(elapsed)}</b>
+          {best !== undefined && (
+            <small>
+              {easy ? '가장 빨랐을 때 ' : '최고 '}
+              {clockText(Math.round(best * (st.preset.tickSeconds ?? 1)))}
+            </small>
+          )}
+        </div>
         <span className="k-spacer" />
         <span className="k-posture-chip" data-posture={p.posture}>
           {p.posture === 'crouch' ? (easy ? '낮게' : '낮은 자세') : easy ? '서 있음' : '선 자세'}
@@ -150,6 +186,15 @@ export default function GameView() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }
 

@@ -5,7 +5,7 @@
  * 이행에 실패하면 조용히 덮어쓰지 않고 원본을 지킨다.
  */
 import type { FloorPlan, RouteSet } from './plan';
-import type { Speaker } from './guide';
+import type { PlayerCharacter } from './guide';
 
 export interface UserProfile {
   /** 1층·반지하 거주 여부. 침수 규칙 분기의 유일한 입력. 기본판에서도 계속 묻는다 */
@@ -13,12 +13,14 @@ export interface UserProfile {
   gradeMode: 'easy' | 'normal';
   blockStyle: 'kid' | 'blueprint';
   ttsEnabled: boolean;
-  /** 게임 플레이어 캐릭터. 1종 고정이어도 필드는 둔다 — 나중에 선택제로 바꿔도 스키마가 안 바뀐다 */
-  playerCharacter: Speaker;
+  /** 소리(감지기·성공음·음성). 끌 수 있고 상태가 저장된다 (설계서 v1.2 §7.1 C1) */
+  soundOn: boolean;
+  /** 게임에서 내가 되는 캐릭터. 4종 중 고른다 (설계서 v1.2 §6.2) */
+  playerCharacter: PlayerCharacter;
 }
 
 export function defaultProfile(): UserProfile {
-  return { lowFloor: false, gradeMode: 'easy', blockStyle: 'kid', ttsEnabled: false, playerCharacter: 'ilgu' };
+  return { lowFloor: false, gradeMode: 'easy', blockStyle: 'kid', ttsEnabled: false, soundOn: true, playerCharacter: 'ilgu' };
 }
 
 export const SCHEMA_VERSION = 2;
@@ -38,6 +40,8 @@ export interface SaveProgress {
   guardianMissions: GuardianMission[];
   /** 온보딩·펼쳐 본 카드 등 지나온 단계 */
   completedSteps: string[];
+  /** 가장 빠르게 나간 기록(틱). 없으면 아직 성공한 적이 없다 (설계서 v1.2 §4.1) */
+  bestTicks?: number;
 }
 
 export function emptyProgress(): SaveProgress {

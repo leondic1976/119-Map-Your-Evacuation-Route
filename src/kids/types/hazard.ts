@@ -65,6 +65,8 @@ export interface HazardPreset {
   crouchFactor: number;
   /** 제한 시간(틱) */
   timeLimitTicks: number;
+  /** 한 틱이 몇 초인가 — 지난 시간 시계에 쓴다 (설계서 v1.2 §4.1) */
+  tickSeconds?: number;
   /** 발원지 추첨 가중치. 블록 종류 → 가중치 */
   ignitionWeights: Record<string, number>;
   /** 이 재난이 쓰는 ScenarioKey 목록. 목표 집합은 goalNodeIds() 하나만 정한다 */

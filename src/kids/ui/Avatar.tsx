@@ -7,9 +7,12 @@
  * 낮은 자세는 납작하게 — 방향별 스프라이트를 요구하지 않는다.
  */
 import React from 'react';
-import type { Emotion, Speaker } from '../types/guide';
+import type { Emotion, PlayerCharacter, Speaker } from '../types/guide';
 
 export const SPEAKER_NAME: Record<Speaker, string> = { yeongi: '영이', ungi: '웅이', ilgu: '일구' };
+
+/** 게임에서 내가 되는 캐릭터의 이름 (설계서 v1.2 §6.2) */
+export const PLAYER_NAME: Record<PlayerCharacter, string> = { ...SPEAKER_NAME, firefighter: '소방관' };
 
 export function Avatar({ speaker, emotion, size = 48 }: { speaker: Speaker; emotion: Emotion; size?: number }) {
   const mouth = (() => {
@@ -82,7 +85,7 @@ export function PlayerSprite({
   facing,
   size,
 }: {
-  speaker: Speaker;
+  speaker: PlayerCharacter;
   posture: 'stand' | 'crouch';
   facing: 'left' | 'right';
   size: number;
@@ -90,13 +93,20 @@ export function PlayerSprite({
   const sx = facing === 'left' ? -1 : 1;
   const sy = posture === 'crouch' ? 0.62 : 1;
   const body = speaker === 'ilgu' ? '#c48a5f' : '#ffe0b2';
-  const hat = speaker === 'yeongi' ? '#c8102e' : speaker === 'ungi' ? '#0f3d68' : '#8a5a3c';
+  const hat = speaker === 'yeongi' ? '#c8102e' : speaker === 'ungi' ? '#0f3d68' : speaker === 'firefighter' ? '#f0b429' : '#8a5a3c';
   const r = size * 0.36;
   return (
     <g transform={`translate(${size / 2} ${size / 2}) scale(${sx} ${sy})`} className="k-player">
       <ellipse cy={r * 0.9} rx={r * 0.9} ry={r * 0.35} fill="#000" opacity={0.18} />
       <circle r={r} fill={body} stroke="#2a3038" strokeWidth={2} />
-      {speaker === 'ilgu' ? (
+      {speaker === 'firefighter' ? (
+        <>
+          {/* 소방 헬멧 — 챙이 뒤로 길다 */}
+          <path d={`M${-r * 1.1} ${-r * 0.18} a${r * 1.1} ${r * 0.8} 0 0 1 ${r * 2.2} 0z`} fill={hat} stroke="#2a3038" strokeWidth={1.4} />
+          <path d={`M${-r * 1.25} ${-r * 0.18} H${r * 1.25}`} stroke="#2a3038" strokeWidth={2.2} strokeLinecap="round" />
+          <path d={`M0 ${-r * 0.95} v${r * 0.6}`} stroke="#2a3038" strokeWidth={1.6} />
+        </>
+      ) : speaker === 'ilgu' ? (
         <>
           <ellipse cx={-r * 0.8} cy={-r * 0.3} rx={r * 0.3} ry={r * 0.55} fill={hat} />
           <ellipse cx={r * 0.8} cy={-r * 0.3} rx={r * 0.3} ry={r * 0.55} fill={hat} />

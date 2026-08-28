@@ -7,6 +7,14 @@
 import type { Cell } from './plan';
 
 export type Speaker = 'yeongi' | 'ungi' | 'ilgu';
+
+/**
+ * 게임에서 내가 되는 캐릭터 (설계서 v1.2 §6.2).
+ * 말하는 캐릭터(Speaker)와 나누어 둔다 — 소방관은 대사를 갖지 않는다.
+ */
+export type PlayerCharacter = Speaker | 'firefighter';
+
+export const PLAYER_CHARACTERS: PlayerCharacter[] = ['ilgu', 'yeongi', 'ungi', 'firefighter'];
 export type Emotion = 'normal' | 'happy' | 'worried' | 'alert' | 'thinking';
 
 export type GuideTrigger =

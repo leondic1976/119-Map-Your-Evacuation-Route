@@ -11,6 +11,7 @@ import { toTts } from '../core/guide/runner';
 import { useKids } from '../store/kidsStore';
 import { Avatar, SPEAKER_NAME } from './Avatar';
 import { CloseIcon } from './Onboarding';
+import { speak } from './sound';
 
 const AUTO_HIDE_MS = 8000;
 
@@ -33,21 +34,14 @@ export default function GuideBubble() {
     return () => clearTimeout(t);
   }, [bubble, openCard, dismiss]);
 
-  /* 읽어 주기 — 안 되면 조용히 넘어간다 (FR-9.5) */
+  /*
+   * 읽어 주기 — 소리를 켜 두었으면 캐릭터의 말을 어린이 친화적인 높이로 읽는다.
+   * 한국어 음성이 없는 기기에서는 조용히 넘어간다 (FR-9.5 · 설계서 v1.2 §7.2).
+   */
   useEffect(() => {
-    if (!bubble || !profile.ttsEnabled) return;
-    try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(toTts(bubble.text));
-      u.lang = 'ko-KR';
-      u.rate = 0.95;
-      synth.speak(u);
-    } catch {
-      /* 음성 합성이 없는 기기 */
-    }
-  }, [bubble, profile.ttsEnabled]);
+    if (!bubble) return;
+    speak(toTts(bubble.text), profile.soundOn || profile.ttsEnabled);
+  }, [bubble, profile.soundOn, profile.ttsEnabled]);
 
   if (!bubble) return null;
   const card = openCard ? cardById(openCard) : null;

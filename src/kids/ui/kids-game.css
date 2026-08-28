@@ -245,6 +245,62 @@
   color: var(--k-safe);
 }
 
+/* 우리집 시계 — 늘어나는 시각 (설계서 v1.2 §4.1) */
+.k-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--k-accent-soft);
+  color: var(--k-accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.k-clock b {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+.k-clock small {
+  color: var(--k-dim);
+  font-weight: 600;
+}
+
+/* 내 캐릭터 고르기 */
+.k-char-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+}
+
+.k-char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  padding: 6px 18px 12px;
+}
+
+.k-char {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 2px solid var(--k-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--k-ink);
+  font-weight: 700;
+}
+
+.k-char.on {
+  border-color: var(--k-accent);
+  background: var(--k-accent-soft);
+  color: var(--k-accent);
+}
+
 .k-posture-chip {
   padding: 4px 10px;
   border-radius: 999px;
@@ -501,5 +557,27 @@
   .k-dpad {
     grid-template-columns: 52px 52px 52px;
     grid-template-rows: 52px 52px 52px;
+  }
+}
+
+/* 불꽃 혀 — 살짝 흔들린다. 움직임을 줄이라고 하면 멈춘다 (설계서 v1.2 §5.1) */
+.k-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: k-flicker 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes k-flicker {
+  from {
+    transform: scaleY(0.88) scaleX(1.04);
+  }
+  to {
+    transform: scaleY(1.06) scaleX(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-flame {
+    animation: none;
   }
 }

@@ -9,6 +9,7 @@
  * 고른 것은 브라우저에 남겨 다음에는 바로 들어간다. 두 화면 모두 "첫 화면" 단추로 돌아온다.
  */
 import React, { useEffect } from 'react';
+import GateScene from './GateScene';
 
 export type Audience = 'kids' | 'general';
 
@@ -44,9 +45,12 @@ export default function EntryGate({ onPick }: { onPick: (a: Audience) => void })
 
   return (
     <div className="k-gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+      <GateScene />
       <div className="k-gate-box">
-        <h1 id="gate-title">누가 쓰나요?</h1>
-        <p>맞는 쪽을 고르면 그에 맞는 화면이 열린다. 나중에 첫 화면으로 돌아와 바꿀 수 있다.</p>
+        <p className="k-gate-eyebrow">소방청 · 우리 아파트 대피계획 세우기</p>
+        <h1 id="gate-title">우리집 불나면 어디로 나갈까?</h1>
+        <p className="k-gate-lede">우리 집을 그리고, 나가는 길을 정하고, 연습해 본다. 한 장으로 뽑아 냉장고에 붙이면 끝이다.</p>
+        <p className="k-gate-ask">누가 쓰나요?</p>
         <div className="k-gate-grid">
           <button type="button" className="k-gate-pick" data-audience="kids" onClick={() => onPick('kids')} autoFocus>
             <svg className="k-gate-art" viewBox="0 0 200 72" aria-hidden="true">

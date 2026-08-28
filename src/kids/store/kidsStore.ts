@@ -309,12 +309,21 @@ export const useKids = create<KidsStore>()((set, get) => {
       isVerified,
       unguaranteed: g.unguaranteed,
     });
+    /*
+     * 성공했으면 걸린 시간을 남긴다. 등수가 아니라 자기 기록이다 (설계서 v1.2 §4.1).
+     * 리포트는 이 값으로 "지난번보다 몇 초 빨랐어"만 말한다.
+     */
+    const best =
+      log.outcome === 'success'
+        ? Math.min(s.progress.bestTicks ?? Number.POSITIVE_INFINITY, g.state.tick)
+        : s.progress.bestTicks;
     const progress: SaveProgress = {
       ...s.progress,
       attempts: attemptNo,
       successes: s.progress.successes + (log.outcome === 'success' ? 1 : 0),
       earnedGoodIds: Array.from(new Set(s.progress.earnedGoodIds.concat(report.good.map((i) => i.id)))),
       pendingFixIds: report.fix.map((i) => i.id),
+      bestTicks: Number.isFinite(best) ? best : undefined,
     };
     set({ report, progress, mode: 'report', game: { ...g } });
     /* 시도 기록은 바로 남긴다 — 결과 화면에서 창을 닫아도 잃지 않게 */

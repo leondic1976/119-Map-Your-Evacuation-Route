@@ -26,6 +26,9 @@ import Palette from './Palette';
 import Onboarding, { CloseIcon } from './Onboarding';
 import KidsPrint, { SHEET_H, SHEET_W } from './KidsPrint';
 import { SLOT_STYLE } from './PlanSvg';
+import { PLAYER_NAME, PlayerSprite } from './Avatar';
+import { PLAYER_CHARACTERS } from '../types/guide';
+import { playTap, stopSpeaking, unlockAudio } from './sound';
 
 interface Props {
   /** 첫 화면(이용자 고르기)으로 돌아간다 */
@@ -66,6 +69,7 @@ export default function KidsShell({ onLeave }: Props) {
   const [badFile, setBadFile] = useState<{ version: number; raw: string } | null>(null);
   /** 필수가 빠졌을 때 시작 직전에 한 번만 묻는다 (설계서 v1.2 §1.4) */
   const [askMissing, setAskMissing] = useState<string[] | null>(null);
+  const [pickChar, setPickChar] = useState(false);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -78,9 +82,16 @@ export default function KidsShell({ onLeave }: Props) {
     style.textContent = '@page { size: A4 portrait; margin: 10mm; }';
     document.head.appendChild(style);
     setDev(window.location.search.includes('dev'));
+    /* 자동 재생 제한 — 처음 누른 뒤에야 소리를 낼 수 있다 (설계서 v1.2 §7.2) */
+    const once = () => unlockAudio();
+    window.addEventListener('pointerdown', once, { once: true });
+    window.addEventListener('keydown', once, { once: true });
     return () => {
       document.body.classList.remove('kids-mode');
       style.remove();
+      window.removeEventListener('pointerdown', once);
+      window.removeEventListener('keydown', once);
+      stopSpeaking();
     };
   }, []);
 
@@ -277,6 +288,30 @@ export default function KidsShell({ onLeave }: Props) {
           </button>
           <button type="button" className="k-tb" onClick={() => setConfirmReset(true)} disabled={!editing} title="그린 것을 모두 지우고 처음부터">
             처음부터
+          </button>
+          <button type="button" className="k-tb" onClick={() => setPickChar(true)} title="게임에서 내가 될 캐릭터를 고른다" data-coach="kids-character">
+            <span className="k-char-chip" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 22 22">
+                <PlayerSprite speaker={profile.playerCharacter} posture="stand" facing="right" size={22} />
+              </svg>
+            </span>
+            내 캐릭터
+          </button>
+          <button
+            type="button"
+            className="k-tb"
+            aria-pressed={profile.soundOn}
+            data-coach="kids-sound"
+            title={profile.soundOn ? '소리를 끈다' : '소리를 켠다'}
+            onClick={() => {
+              const next = !profile.soundOn;
+              if (next) unlockAudio();
+              else stopSpeaking();
+              useKids.getState().setProfile({ soundOn: next });
+              if (next) playTap(true);
+            }}
+          >
+            <SoundIcon on={profile.soundOn} /> {profile.soundOn ? '소리 켬' : '소리 끔'}
           </button>
           <button type="button" className="k-tb" onClick={() => setHelp(true)} title="사용법 (?)">
             사용법
@@ -494,6 +529,46 @@ export default function KidsShell({ onLeave }: Props) {
         </div>
       )}
 
+      {pickChar && (
+        <div className="k-modal-back" onClick={() => setPickChar(false)} role="presentation">
+          <div className="k-modal" role="dialog" aria-modal="true" aria-labelledby="k-char-title" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
+            <header>
+              <h2 id="k-char-title">{easy ? '누구로 할래?' : '내 캐릭터 고르기'}</h2>
+              <button type="button" className="k-x" onClick={() => setPickChar(false)} aria-label="닫기">
+                <CloseIcon />
+              </button>
+            </header>
+            <p className="k-note">{easy ? '대피 연습에서 네가 될 친구야. 언제든 바꿀 수 있어.' : '게임에서 조작하는 캐릭터다. 인쇄물의 그림도 함께 바뀐다.'}</p>
+            <div className="k-char-grid">
+              {PLAYER_CHARACTERS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`k-char${profile.playerCharacter === c ? ' on' : ''}`}
+                  aria-pressed={profile.playerCharacter === c}
+                  data-character={c}
+                  onClick={() => {
+                    useKids.getState().setProfile({ playerCharacter: c });
+                    playTap(profile.soundOn);
+                    setPickChar(false);
+                  }}
+                >
+                  <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+                    <PlayerSprite speaker={c} posture="stand" facing="right" size={64} />
+                  </svg>
+                  <b>{PLAYER_NAME[c]}</b>
+                </button>
+              ))}
+            </div>
+            <footer>
+              <button type="button" className="k-tb" onClick={() => setPickChar(false)}>
+                닫기
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       {askMissing && (
         <div className="k-modal-back" onClick={() => setAskMissing(null)} role="presentation">
           <div className="k-modal" role="dialog" aria-modal="true" aria-labelledby="k-missing-title" style={{ width: 480 }} onClick={(e) => e.stopPropagation()}>
@@ -660,6 +735,15 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         </footer>
       </div>
     </div>
+  );
+}
+
+function SoundIcon({ on }: { on: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 9v6h4l5 4V5L9 9z" />
+      {on ? <path d="M17 9a4 4 0 0 1 0 6" /> : <path d="M17 10l4 4M21 10l-4 4" />}
+    </svg>
   );
 }
 

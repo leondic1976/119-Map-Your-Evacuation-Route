@@ -32,7 +32,7 @@ const migrations: Record<number, (data: Raw) => Raw> = {
       ...d,
       schemaVersion: 2,
       routes,
-      profile: { ...(d.profile ?? {}), playerCharacter: d.profile?.playerCharacter ?? 'ilgu' },
+      profile: { ...(d.profile ?? {}), soundOn: d.profile?.soundOn ?? true, playerCharacter: d.profile?.playerCharacter ?? 'ilgu' },
       progress: {
         attempts: 0,
         successes: 0,

@@ -4,7 +4,7 @@
  * 시나리오 ①②를 별도 그래프로 만들지 않는다.
  * 하나의 그래프에 다섯 시나리오의 통행 가능성을 함께 담고 조회 키만 바꾼다.
  */
-import type { Cell, LayerId, OpeningKind, BlockId, RoomKind, ScenarioKey } from './plan';
+import type { Cell, ExitKind, LayerId, OpeningKind, BlockId, RoomKind, ScenarioKey } from './plan';
 
 export type NodeKind = 'room' | 'refuge' | 'stair' | 'elevator' | 'virtual';
 
@@ -39,6 +39,8 @@ export interface GraphNode {
   hasWindow: boolean;
   /** 지상으로 바로 이어지는가. stair 노드의 목표 판정에 쓴다 */
   reachesGround?: boolean;
+  /** 이 공간에 놓인 밖으로 나가는 곳의 갈래 (설계서 v1.2 §3.1) */
+  exitKind?: ExitKind;
 }
 
 export type EdgeVia =

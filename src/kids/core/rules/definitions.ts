@@ -348,6 +348,42 @@ const F07: RuleDef = {
   },
 };
 
+/**
+ * 밖으로 나가는 곳 세 갈래 — 설계서 v1.2 §3.1.
+ * 화재는 아래로 나가는 것이 원칙이다. 옥상은 아래가 막혔을 때만 옳고, 지하는 옳지 않다.
+ */
+const F08: RuleDef = {
+  id: 'RULE-F-08',
+  title: '평소에는 아래로 나가기',
+  disasters: ['fire'],
+  scenarios: ['exit_available'],
+  severity: 'important',
+  sourceIds: SRC_FIRE,
+  evaluate: (ctx) => {
+    if (!needsRoute(ctx)) return na('RULE-F-08');
+    const roofs = pointCells(ctx, ['roof_exit']);
+    if (roofs.length === 0) return na('RULE-F-08');
+    const last = lastCell(ctx);
+    if (!last) return na('RULE-F-08');
+    return roofs.some((c) => sameCell(c, last)) ? fail('RULE-F-08', { cells: roofs }) : pass('RULE-F-08');
+  },
+};
+
+const F09: RuleDef = {
+  id: 'RULE-F-09',
+  title: '지하로 내려가지 않기',
+  disasters: ['fire'],
+  severity: 'critical',
+  sourceIds: SRC_FIRE,
+  evaluate: (ctx) => {
+    if (!needsRoute(ctx)) return na('RULE-F-09');
+    const cellar = pointCells(ctx, ['basement_exit']);
+    if (cellar.length === 0) return na('RULE-F-09');
+    const hit = ctx.route!.waypoints.filter((c) => cellar.some((e) => sameCell(c, e)));
+    return hit.length === 0 ? pass('RULE-F-09') : fail('RULE-F-09', { cells: hit });
+  },
+};
+
 /* ------------------------------------------------------------------ */
 /* 지진                                                                */
 /* ------------------------------------------------------------------ */
@@ -513,7 +549,7 @@ const G04: RuleDef = {
 /* ------------------------------------------------------------------ */
 
 /** 기본판 규칙셋 — 공통 + 화재 (plan2-1.md §6.1b) */
-export const RULES: RuleDef[] = [C01, C02, C03, C04, C05, C06, C07, C08, F01, F02, F03, F04, F05, F06, F07];
+export const RULES: RuleDef[] = [C01, C02, C03, C04, C05, C06, C07, C08, F01, F02, F03, F04, F05, F06, F07, F08, F09];
 
 /**
  * 확장판 규칙 — 지진(E3)·침수(E2)·가스(E1)로 이월.

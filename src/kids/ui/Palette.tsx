@@ -6,7 +6,8 @@
  * 캐릭터가 가리키는 항목은 밝게 표시된다 (FR-7.10).
  */
 import React, { useEffect, useState } from 'react';
-import { BLOCKS, PALETTE_BASIC, type BlockCategory, type BlockDef } from '../content';
+import { BLOCKS, PALETTE_BASIC, REQUIRED_BLOCKS, type BlockCategory, type BlockDef } from '../content';
+import { checklist } from '../core/checklist';
 import { useKids, type KidsTool } from '../store/kidsStore';
 import { OpeningArt, PointArt } from './BlockArt';
 
@@ -46,6 +47,7 @@ export default function Palette() {
   const layer = useKids((s) => s.layer);
   const mode = useKids((s) => s.mode);
   const paletteHl = useKids((s) => s.highlight?.paletteItem ?? null);
+  const plan = useKids((s) => s.plan);
   const setTool = useKids((s) => s.setTool);
   const arm = useKids((s) => s.arm);
   const [more, setMore] = useState(false);
@@ -66,6 +68,8 @@ export default function Palette() {
 
   const basics = PALETTE_BASIC.map((id) => BLOCKS.find((b) => b.id === id)).filter((b): b is BlockDef => Boolean(b));
   const moreItems = BLOCKS.filter((b) => b.category === activeCat && !PALETTE_BASIC.includes(b.id));
+  /* 필수 물건이 도면에 있는지 — 팔레트에 채움 표시로 보인다 (설계서 v1.2 §1.4) */
+  const done = new Set(checklist(plan, REQUIRED_BLOCKS).filter((i) => i.present).map((i) => i.id));
 
   const pick = (b: BlockDef) => {
     const on = armed?.id === b.id;
@@ -97,7 +101,7 @@ export default function Palette() {
 
       <div className="k-blocks k-basic" role="group" aria-label="기본 블록">
         {basics.map((b) => (
-          <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} />
+          <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} />
         ))}
         <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
           <span className="k-block-art">
@@ -122,7 +126,7 @@ export default function Palette() {
           </div>
           <div className="k-blocks" role="tabpanel">
             {moreItems.map((b) => (
-              <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} common={b.tags.includes('common') && layer !== 'common'} />
+              <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} common={b.tags.includes('common') && layer !== 'common'} />
             ))}
           </div>
         </div>
@@ -148,6 +152,7 @@ function PaletteButton({
   easy,
   disabled,
   common,
+  placed,
   onPick,
 }: {
   def: BlockDef;
@@ -157,18 +162,35 @@ function PaletteButton({
   easy: boolean;
   disabled: boolean;
   common?: boolean;
+  /** 필수 항목이 이미 도면에 있는가 */
+  placed?: boolean;
   onPick: (b: BlockDef) => void;
 }) {
   return (
     <button
       type="button"
-      className={`k-block${on ? ' on' : ''}${hl ? ' k-hl' : ''}`}
+      className={`k-block${on ? ' on' : ''}${hl ? ' k-hl' : ''}${def.required ? ' k-req' : ''}`}
       aria-pressed={on}
       data-block-id={def.id}
-      title={hintFor(def, easy)}
+      data-required={def.required ? (placed ? 'done' : 'todo') : undefined}
+      title={def.required ? `${hintFor(def, easy)} 꼭 있어야 하는 것이다.${placed ? ' 이미 놓았다.' : ''}` : hintFor(def, easy)}
       disabled={disabled}
       onClick={() => onPick(def)}
     >
+      {def.required && (
+        <span className="k-req-mark" aria-hidden="true">
+          {placed ? (
+            <svg viewBox="0 0 12 12" width="12" height="12">
+              <circle cx={6} cy={6} r={5} fill="#0e7c4f" />
+              <path d="M3.4 6.2l1.9 1.9 3.4-3.8" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 12 12" width="12" height="12">
+              <circle cx={6} cy={6} r={5} fill="#fff" stroke="#8f620d" strokeWidth={1.6} strokeDasharray="2.4 1.8" />
+            </svg>
+          )}
+        </span>
+      )}
       <span className="k-block-art">
         <BlockPreview def={def} style={style} />
       </span>

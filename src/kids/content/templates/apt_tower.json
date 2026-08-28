@@ -1,0 +1,448 @@
+{
+  "id": "apt_tower",
+  "label": "타워형 아파트",
+  "hint": "복도가 짧고 방이 둘러싼 모양이야. 대피공간이 있다.",
+  "plan": {
+    "grid": {
+      "width": 24,
+      "height": 16
+    },
+    "blocks": [
+      {
+        "kind": "room",
+        "id": "r1",
+        "layer": "home",
+        "roomKind": "bedroom",
+        "rect": {
+          "x": 5,
+          "y": 2,
+          "w": 5,
+          "h": 4
+        },
+        "label": "내 방"
+      },
+      {
+        "kind": "room",
+        "id": "r2",
+        "layer": "home",
+        "roomKind": "bedroom",
+        "rect": {
+          "x": 10,
+          "y": 2,
+          "w": 5,
+          "h": 4
+        },
+        "label": "안방"
+      },
+      {
+        "kind": "room",
+        "id": "r3",
+        "layer": "home",
+        "roomKind": "bath",
+        "rect": {
+          "x": 15,
+          "y": 2,
+          "w": 4,
+          "h": 4
+        },
+        "label": ""
+      },
+      {
+        "kind": "room",
+        "id": "r4",
+        "layer": "home",
+        "roomKind": "corridor",
+        "rect": {
+          "x": 7,
+          "y": 6,
+          "w": 10,
+          "h": 2
+        },
+        "label": ""
+      },
+      {
+        "kind": "room",
+        "id": "r5",
+        "layer": "home",
+        "roomKind": "kitchen",
+        "rect": {
+          "x": 3,
+          "y": 6,
+          "w": 4,
+          "h": 6
+        },
+        "label": ""
+      },
+      {
+        "kind": "room",
+        "id": "r6",
+        "layer": "home",
+        "roomKind": "living",
+        "rect": {
+          "x": 7,
+          "y": 8,
+          "w": 7,
+          "h": 4
+        },
+        "label": ""
+      },
+      {
+        "kind": "room",
+        "id": "r7",
+        "layer": "home",
+        "roomKind": "entry",
+        "rect": {
+          "x": 14,
+          "y": 8,
+          "w": 3,
+          "h": 4
+        },
+        "label": ""
+      },
+      {
+        "kind": "room",
+        "id": "r8",
+        "layer": "home",
+        "roomKind": "balcony",
+        "rect": {
+          "x": 3,
+          "y": 12,
+          "w": 11,
+          "h": 2
+        },
+        "label": ""
+      },
+      {
+        "kind": "opening",
+        "id": "o1",
+        "layer": "home",
+        "openingKind": "door",
+        "cell": {
+          "x": 7,
+          "y": 5
+        },
+        "side": "S",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o2",
+        "layer": "home",
+        "openingKind": "door",
+        "cell": {
+          "x": 12,
+          "y": 5
+        },
+        "side": "S",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o3",
+        "layer": "home",
+        "openingKind": "door",
+        "cell": {
+          "x": 16,
+          "y": 5
+        },
+        "side": "S",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o4",
+        "layer": "home",
+        "openingKind": "door",
+        "cell": {
+          "x": 6,
+          "y": 6
+        },
+        "side": "E",
+        "closedByDefault": false
+      },
+      {
+        "kind": "opening",
+        "id": "o5",
+        "layer": "home",
+        "openingKind": "door",
+        "cell": {
+          "x": 9,
+          "y": 8
+        },
+        "side": "N",
+        "closedByDefault": false
+      },
+      {
+        "kind": "opening",
+        "id": "o6",
+        "layer": "home",
+        "openingKind": "inner_door",
+        "cell": {
+          "x": 15,
+          "y": 8
+        },
+        "side": "N",
+        "closedByDefault": false
+      },
+      {
+        "kind": "opening",
+        "id": "o7",
+        "layer": "home",
+        "openingKind": "front_door",
+        "cell": {
+          "x": 16,
+          "y": 9
+        },
+        "side": "E",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o8",
+        "layer": "home",
+        "openingKind": "balcony_window",
+        "cell": {
+          "x": 9,
+          "y": 11
+        },
+        "side": "S",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o9",
+        "layer": "home",
+        "openingKind": "balcony_window",
+        "cell": {
+          "x": 4,
+          "y": 11
+        },
+        "side": "S",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o10",
+        "layer": "home",
+        "openingKind": "window",
+        "cell": {
+          "x": 7,
+          "y": 2
+        },
+        "side": "N",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o11",
+        "layer": "home",
+        "openingKind": "window",
+        "cell": {
+          "x": 12,
+          "y": 2
+        },
+        "side": "N",
+        "closedByDefault": true
+      },
+      {
+        "kind": "opening",
+        "id": "o12",
+        "layer": "home",
+        "openingKind": "window",
+        "cell": {
+          "x": 17,
+          "y": 2
+        },
+        "side": "N",
+        "closedByDefault": true
+      },
+      {
+        "kind": "safety",
+        "id": "s1",
+        "layer": "home",
+        "subKind": "extinguisher",
+        "cell": {
+          "x": 15,
+          "y": 11
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "safety",
+        "id": "s2",
+        "layer": "home",
+        "subKind": "detector",
+        "cell": {
+          "x": 9,
+          "y": 9
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "safety",
+        "id": "s3",
+        "layer": "home",
+        "subKind": "gas_valve",
+        "cell": {
+          "x": 3,
+          "y": 9
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "safety",
+        "id": "s4",
+        "layer": "home",
+        "subKind": "refuge_area",
+        "cell": {
+          "x": 10,
+          "y": 13
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "hazard",
+        "id": "h1",
+        "layer": "home",
+        "subKind": "gas_range",
+        "cell": {
+          "x": 3,
+          "y": 6
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "hazard",
+        "id": "h2",
+        "layer": "home",
+        "subKind": "heater",
+        "cell": {
+          "x": 12,
+          "y": 10
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f1",
+        "layer": "home",
+        "subKind": "sink",
+        "cell": {
+          "x": 4,
+          "y": 6
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f2",
+        "layer": "home",
+        "subKind": "fridge",
+        "cell": {
+          "x": 5,
+          "y": 7
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f3",
+        "layer": "home",
+        "subKind": "dining_table",
+        "cell": {
+          "x": 4,
+          "y": 8
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f4",
+        "layer": "home",
+        "subKind": "bed",
+        "cell": {
+          "x": 6,
+          "y": 3
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f5",
+        "layer": "home",
+        "subKind": "desk",
+        "cell": {
+          "x": 8,
+          "y": 2
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f6",
+        "layer": "home",
+        "subKind": "computer",
+        "cell": {
+          "x": 9,
+          "y": 2
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f7",
+        "layer": "home",
+        "subKind": "bed",
+        "cell": {
+          "x": 11,
+          "y": 3
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f8",
+        "layer": "home",
+        "subKind": "wardrobe",
+        "cell": {
+          "x": 13,
+          "y": 2
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f9",
+        "layer": "home",
+        "subKind": "sofa",
+        "cell": {
+          "x": 8,
+          "y": 10
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "furniture",
+        "id": "f10",
+        "layer": "home",
+        "subKind": "tv",
+        "cell": {
+          "x": 11,
+          "y": 8
+        },
+        "rotation": 0
+      },
+      {
+        "kind": "marker",
+        "id": "m1",
+        "layer": "home",
+        "subKind": "my_spot",
+        "cell": {
+          "x": 6,
+          "y": 4
+        },
+        "rotation": 0
+      }
+    ]
+  }
+}

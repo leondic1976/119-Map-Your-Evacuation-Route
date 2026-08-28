@@ -1,46 +1,639 @@
 [
-  { "id": "bedroom", "category": "room", "label": "방", "easy": "내 방", "size": { "w": 4, "h": 4 }, "fuel": 0.7, "tags": ["combustible"] },
-  { "id": "living", "category": "room", "label": "거실", "easy": "거실", "size": { "w": 6, "h": 5 }, "fuel": 0.8, "tags": ["combustible"] },
-  { "id": "kitchen", "category": "room", "label": "주방", "easy": "부엌", "size": { "w": 4, "h": 4 }, "fuel": 0.9, "tags": ["combustible", "ignition"] },
-  { "id": "bath", "category": "room", "label": "욕실", "easy": "욕실", "size": { "w": 3, "h": 3 }, "fuel": 0.1, "tags": ["water"] },
-  { "id": "entry", "category": "room", "label": "현관", "easy": "현관", "size": { "w": 3, "h": 3 }, "fuel": 0.3, "tags": [] },
-  { "id": "balcony", "category": "room", "label": "발코니", "easy": "베란다", "size": { "w": 6, "h": 2 }, "fuel": 0.3, "tags": ["escape"] },
-  { "id": "utility", "category": "room", "label": "다용도실", "easy": "다용도실", "size": { "w": 3, "h": 2 }, "fuel": 0.5, "tags": [] },
-  { "id": "corridor", "category": "room", "label": "복도", "easy": "복도", "size": { "w": 5, "h": 2 }, "fuel": 0.2, "tags": ["common"] },
-  { "id": "stair", "category": "room", "label": "계단", "easy": "계단", "size": { "w": 3, "h": 4 }, "fuel": 0.1, "tags": ["common", "escape"] },
-  { "id": "elevator_hall", "category": "room", "label": "승강기 앞", "easy": "엘리베이터 앞", "size": { "w": 3, "h": 3 }, "fuel": 0.1, "tags": ["common", "forbidden"] },
-
-  { "id": "door", "category": "opening", "label": "방문", "easy": "방문", "size": { "w": 1, "h": 1 }, "fuel": 0.4, "tags": [] },
-  { "id": "front_door", "category": "opening", "label": "현관문", "easy": "현관문", "size": { "w": 1, "h": 1 }, "fuel": 0.2, "tags": ["exit"] },
-  { "id": "inner_door", "category": "opening", "label": "중문", "easy": "가운데 문", "size": { "w": 1, "h": 1 }, "fuel": 0.3, "tags": [] },
-  { "id": "window", "category": "opening", "label": "창문", "easy": "창문", "size": { "w": 1, "h": 1 }, "fuel": 0.1, "tags": ["glass"] },
-  { "id": "balcony_window", "category": "opening", "label": "발코니 창", "easy": "베란다 창", "size": { "w": 1, "h": 1 }, "fuel": 0.1, "tags": ["glass", "escape"] },
-  { "id": "emergency_exit", "category": "opening", "label": "비상구", "easy": "비상구", "size": { "w": 1, "h": 1 }, "fuel": 0.1, "tags": ["exit"] },
-
-  { "id": "light_partition", "category": "safety", "label": "경량칸막이", "easy": "부수는 벽", "size": { "w": 1, "h": 1 }, "fuel": 0.2, "tags": ["escape"] },
-  { "id": "refuge_area", "category": "safety", "label": "대피공간", "easy": "버티는 방", "size": { "w": 1, "h": 1 }, "fuel": 0.1, "tags": ["escape"] },
-  { "id": "descending_hatch", "category": "safety", "label": "하향식 피난구", "easy": "바닥 사다리", "size": { "w": 1, "h": 1 }, "fuel": 0.1, "tags": ["escape"] },
-  { "id": "descent_device", "category": "safety", "label": "완강기", "easy": "내려가는 줄", "size": { "w": 1, "h": 1 }, "fuel": 0.1, "tags": ["escape", "adult"] },
-  { "id": "extinguisher", "category": "safety", "label": "소화기", "easy": "소화기", "size": { "w": 1, "h": 1 }, "fuel": 0.0, "tags": [] },
-  { "id": "detector", "category": "safety", "label": "화재감지기", "easy": "감지기", "size": { "w": 1, "h": 1 }, "fuel": 0.0, "tags": [] },
-  { "id": "gas_valve", "category": "safety", "label": "가스 중간밸브", "easy": "가스 손잡이", "size": { "w": 1, "h": 1 }, "fuel": 0.0, "tags": [] },
-
-  { "id": "bed", "category": "furniture", "label": "침대", "easy": "침대", "size": { "w": 2, "h": 3 }, "fuel": 0.9, "tags": ["combustible"] },
-  { "id": "sofa", "category": "furniture", "label": "소파", "easy": "소파", "size": { "w": 3, "h": 1 }, "fuel": 0.9, "tags": ["combustible"] },
-  { "id": "desk", "category": "furniture", "label": "책상", "easy": "책상", "size": { "w": 2, "h": 1 }, "fuel": 0.7, "tags": ["combustible", "shelter"] },
-  { "id": "wardrobe", "category": "furniture", "label": "옷장", "easy": "옷장", "size": { "w": 2, "h": 1 }, "fuel": 0.8, "tags": ["combustible", "topple"] },
-  { "id": "bookshelf", "category": "furniture", "label": "책장", "easy": "책장", "size": { "w": 2, "h": 1 }, "fuel": 0.9, "tags": ["combustible", "topple"] },
-  { "id": "dining_table", "category": "furniture", "label": "식탁", "easy": "식탁", "size": { "w": 2, "h": 2 }, "fuel": 0.6, "tags": ["combustible", "shelter"] },
-  { "id": "fridge", "category": "furniture", "label": "냉장고", "easy": "냉장고", "size": { "w": 1, "h": 1 }, "fuel": 0.3, "tags": ["topple"] },
-  { "id": "tv", "category": "furniture", "label": "티브이", "easy": "티브이", "size": { "w": 2, "h": 1 }, "fuel": 0.4, "tags": ["topple"] },
-
-  { "id": "gas_range", "category": "hazard", "label": "가스레인지", "easy": "가스불", "size": { "w": 1, "h": 1 }, "fuel": 1.0, "tags": ["ignition"] },
-  { "id": "boiler", "category": "hazard", "label": "보일러", "easy": "보일러", "size": { "w": 1, "h": 1 }, "fuel": 0.9, "tags": ["ignition"] },
-  { "id": "power_strip", "category": "hazard", "label": "멀티탭", "easy": "문어발 콘센트", "size": { "w": 1, "h": 1 }, "fuel": 0.8, "tags": ["ignition", "electric"] },
-  { "id": "heater", "category": "hazard", "label": "난로", "easy": "난로", "size": { "w": 1, "h": 1 }, "fuel": 0.9, "tags": ["ignition"] },
-  { "id": "candle", "category": "hazard", "label": "초", "easy": "촛불", "size": { "w": 1, "h": 1 }, "fuel": 0.7, "tags": ["ignition"] },
-
-  { "id": "meeting_point", "category": "marker", "label": "만나는 곳", "easy": "만나는 곳", "size": { "w": 1, "h": 1 }, "fuel": 0.0, "tags": ["outdoor"] },
-  { "id": "my_spot", "category": "marker", "label": "내 자리", "easy": "내 자리", "size": { "w": 1, "h": 1 }, "fuel": 0.0, "tags": ["start"] },
-  { "id": "ground_exit", "category": "marker", "label": "지상 출구", "easy": "밖으로 나가는 곳", "size": { "w": 1, "h": 1 }, "fuel": 0.0, "tags": ["exit"] }
+  {
+    "id": "bedroom",
+    "category": "room",
+    "label": "방",
+    "easy": "내 방",
+    "size": {
+      "w": 4,
+      "h": 4
+    },
+    "fuel": 0.7,
+    "tags": [
+      "combustible"
+    ],
+    "required": false
+  },
+  {
+    "id": "living",
+    "category": "room",
+    "label": "거실",
+    "easy": "거실",
+    "size": {
+      "w": 6,
+      "h": 5
+    },
+    "fuel": 0.8,
+    "tags": [
+      "combustible"
+    ],
+    "required": false
+  },
+  {
+    "id": "kitchen",
+    "category": "room",
+    "label": "주방",
+    "easy": "부엌",
+    "size": {
+      "w": 4,
+      "h": 4
+    },
+    "fuel": 0.9,
+    "tags": [
+      "combustible",
+      "ignition"
+    ],
+    "required": false
+  },
+  {
+    "id": "bath",
+    "category": "room",
+    "label": "욕실",
+    "easy": "욕실",
+    "size": {
+      "w": 3,
+      "h": 3
+    },
+    "fuel": 0.1,
+    "tags": [
+      "water"
+    ],
+    "required": false
+  },
+  {
+    "id": "entry",
+    "category": "room",
+    "label": "현관",
+    "easy": "현관",
+    "size": {
+      "w": 3,
+      "h": 3
+    },
+    "fuel": 0.3,
+    "tags": [],
+    "required": false
+  },
+  {
+    "id": "balcony",
+    "category": "room",
+    "label": "발코니",
+    "easy": "베란다",
+    "size": {
+      "w": 6,
+      "h": 2
+    },
+    "fuel": 0.3,
+    "tags": [
+      "escape"
+    ],
+    "required": false
+  },
+  {
+    "id": "utility",
+    "category": "room",
+    "label": "다용도실",
+    "easy": "다용도실",
+    "size": {
+      "w": 3,
+      "h": 2
+    },
+    "fuel": 0.5,
+    "tags": [],
+    "required": false
+  },
+  {
+    "id": "corridor",
+    "category": "room",
+    "label": "복도",
+    "easy": "복도",
+    "size": {
+      "w": 5,
+      "h": 2
+    },
+    "fuel": 0.2,
+    "tags": [
+      "common"
+    ],
+    "required": false
+  },
+  {
+    "id": "stair",
+    "category": "room",
+    "label": "계단",
+    "easy": "계단",
+    "size": {
+      "w": 3,
+      "h": 4
+    },
+    "fuel": 0.1,
+    "tags": [
+      "common",
+      "escape"
+    ],
+    "required": false
+  },
+  {
+    "id": "elevator_hall",
+    "category": "room",
+    "label": "승강기 앞",
+    "easy": "엘리베이터 앞",
+    "size": {
+      "w": 3,
+      "h": 3
+    },
+    "fuel": 0.1,
+    "tags": [
+      "common",
+      "forbidden"
+    ],
+    "required": false
+  },
+  {
+    "id": "door",
+    "category": "opening",
+    "label": "방문",
+    "easy": "방문",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.4,
+    "tags": [],
+    "required": true
+  },
+  {
+    "id": "front_door",
+    "category": "opening",
+    "label": "현관문",
+    "easy": "현관문",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.2,
+    "tags": [
+      "exit"
+    ],
+    "required": true
+  },
+  {
+    "id": "inner_door",
+    "category": "opening",
+    "label": "중문",
+    "easy": "가운데 문",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.3,
+    "tags": [],
+    "required": false
+  },
+  {
+    "id": "window",
+    "category": "opening",
+    "label": "창문",
+    "easy": "창문",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "glass"
+    ],
+    "required": false
+  },
+  {
+    "id": "balcony_window",
+    "category": "opening",
+    "label": "발코니 창",
+    "easy": "베란다 창",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "glass",
+      "escape"
+    ],
+    "required": false
+  },
+  {
+    "id": "emergency_exit",
+    "category": "opening",
+    "label": "비상구",
+    "easy": "비상구",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "exit"
+    ],
+    "required": false
+  },
+  {
+    "id": "light_partition",
+    "category": "safety",
+    "label": "경량칸막이",
+    "easy": "부수는 벽",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.2,
+    "tags": [
+      "escape"
+    ],
+    "required": false
+  },
+  {
+    "id": "refuge_area",
+    "category": "safety",
+    "label": "대피공간",
+    "easy": "버티는 방",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "escape"
+    ],
+    "required": false
+  },
+  {
+    "id": "descending_hatch",
+    "category": "safety",
+    "label": "하향식 피난구",
+    "easy": "바닥 사다리",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "escape"
+    ],
+    "required": false
+  },
+  {
+    "id": "descent_device",
+    "category": "safety",
+    "label": "완강기",
+    "easy": "내려가는 줄",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "escape",
+      "adult"
+    ],
+    "required": false
+  },
+  {
+    "id": "extinguisher",
+    "category": "safety",
+    "label": "소화기",
+    "easy": "소화기",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [],
+    "required": true
+  },
+  {
+    "id": "detector",
+    "category": "safety",
+    "label": "화재감지기",
+    "easy": "감지기",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [],
+    "required": true
+  },
+  {
+    "id": "gas_valve",
+    "category": "safety",
+    "label": "가스 중간밸브",
+    "easy": "가스 손잡이",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [],
+    "required": false
+  },
+  {
+    "id": "bed",
+    "category": "furniture",
+    "label": "침대",
+    "easy": "침대",
+    "size": {
+      "w": 2,
+      "h": 3
+    },
+    "fuel": 0.9,
+    "tags": [
+      "combustible"
+    ],
+    "required": false
+  },
+  {
+    "id": "sofa",
+    "category": "furniture",
+    "label": "소파",
+    "easy": "소파",
+    "size": {
+      "w": 3,
+      "h": 1
+    },
+    "fuel": 0.9,
+    "tags": [
+      "combustible"
+    ],
+    "required": false
+  },
+  {
+    "id": "desk",
+    "category": "furniture",
+    "label": "책상",
+    "easy": "책상",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "fuel": 0.7,
+    "tags": [
+      "combustible",
+      "shelter"
+    ],
+    "required": false
+  },
+  {
+    "id": "wardrobe",
+    "category": "furniture",
+    "label": "옷장",
+    "easy": "옷장",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "fuel": 0.8,
+    "tags": [
+      "combustible",
+      "topple"
+    ],
+    "required": false
+  },
+  {
+    "id": "bookshelf",
+    "category": "furniture",
+    "label": "책장",
+    "easy": "책장",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "fuel": 0.9,
+    "tags": [
+      "combustible",
+      "topple"
+    ],
+    "required": false
+  },
+  {
+    "id": "dining_table",
+    "category": "furniture",
+    "label": "식탁",
+    "easy": "식탁",
+    "size": {
+      "w": 2,
+      "h": 2
+    },
+    "fuel": 0.6,
+    "tags": [
+      "combustible",
+      "shelter"
+    ],
+    "required": false
+  },
+  {
+    "id": "fridge",
+    "category": "furniture",
+    "label": "냉장고",
+    "easy": "냉장고",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.3,
+    "tags": [
+      "topple"
+    ],
+    "required": false
+  },
+  {
+    "id": "tv",
+    "category": "furniture",
+    "label": "티브이",
+    "easy": "티브이",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "fuel": 0.4,
+    "tags": [
+      "topple"
+    ],
+    "required": false
+  },
+  {
+    "id": "sink",
+    "category": "furniture",
+    "label": "싱크대",
+    "easy": "싱크대",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.15,
+    "tags": [],
+    "required": false
+  },
+  {
+    "id": "computer",
+    "category": "furniture",
+    "label": "컴퓨터",
+    "easy": "컴퓨터",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.4,
+    "tags": [],
+    "required": false
+  },
+  {
+    "id": "gas_range",
+    "category": "hazard",
+    "label": "가스레인지",
+    "easy": "가스불",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 1,
+    "tags": [
+      "ignition"
+    ],
+    "required": false
+  },
+  {
+    "id": "boiler",
+    "category": "hazard",
+    "label": "보일러",
+    "easy": "보일러",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.9,
+    "tags": [
+      "ignition"
+    ],
+    "required": false
+  },
+  {
+    "id": "power_strip",
+    "category": "hazard",
+    "label": "멀티탭",
+    "easy": "문어발 콘센트",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.8,
+    "tags": [
+      "ignition",
+      "electric"
+    ],
+    "required": false
+  },
+  {
+    "id": "heater",
+    "category": "hazard",
+    "label": "난로",
+    "easy": "난로",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.9,
+    "tags": [
+      "ignition"
+    ],
+    "required": false
+  },
+  {
+    "id": "candle",
+    "category": "hazard",
+    "label": "초",
+    "easy": "촛불",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.7,
+    "tags": [
+      "ignition"
+    ],
+    "required": false
+  },
+  {
+    "id": "meeting_point",
+    "category": "marker",
+    "label": "만나는 곳",
+    "easy": "만나는 곳",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "outdoor"
+    ],
+    "required": false
+  },
+  {
+    "id": "my_spot",
+    "category": "marker",
+    "label": "내 자리",
+    "easy": "내 자리",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "start"
+    ],
+    "required": true
+  },
+  {
+    "id": "ground_exit",
+    "category": "marker",
+    "label": "지상 출구",
+    "easy": "밖으로 나가는 곳",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "exit"
+    ],
+    "required": false
+  },
+  {
+    "id": "roof_exit",
+    "category": "marker",
+    "label": "옥상 출구",
+    "easy": "옥상으로",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "exit"
+    ],
+    "required": false
+  },
+  {
+    "id": "basement_exit",
+    "category": "marker",
+    "label": "지하 출구",
+    "easy": "지하로",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "exit"
+    ],
+    "required": false
+  }
 ]

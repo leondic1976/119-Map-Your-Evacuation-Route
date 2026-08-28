@@ -1400,7 +1400,7 @@ async function main(): Promise<void> {
       await page.locator('[data-audience="kids"]').click();
       await page.waitForSelector('.k-app');
       await page.waitForSelector('.k-onboard');
-      assert((await page.locator('.k-tmpl').count()) === 4, '시작 평면 3종 + 빈 도면');
+      assert((await page.locator('.k-tmpl').count()) === 9, '시작 평면 8종 + 빈 도면 (설계서 v1.2 §1.2)');
       assert((await page.locator('.k-tabs').count()) === 0, '기본판에 재난 탭이 있다 (FR-2.1 개정)');
       assert((await page.locator('.k-ask input, textarea').count()) === 0, '자유 입력 UI 가 있다 (의견 3)');
     });
@@ -1537,7 +1537,7 @@ async function main(): Promise<void> {
       assert(save.primary >= 12, `주 경로 ${save.primary}칸`);
       assert((await page.locator('.k-stage [data-route="primary"]').count()) === 1, '주 경로가 안 보인다');
       const bar = await page.locator('[data-coach="kids-report-bar"]').innerText();
-      assert(!bar.includes('꼭'), `critical 이 남았다: ${bar}`);
+      assert((await page.locator('[data-coach="kids-report-bar"] .k-sev.critical').count()) === 0, `critical 이 남았다: ${bar}`);
       await page.locator('[data-coach="kids-route-slot"] [data-slot="alternate"]').click();
       await page.waitForTimeout(200);
       await kidsDrag(page, [[10, 4], [10, 5], [10, 6], [10, 7], [10, 8], [10, 9], [10, 10], [10, 11], [10, 12], [10, 13], [11, 13]]);

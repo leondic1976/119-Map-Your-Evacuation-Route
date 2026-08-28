@@ -112,11 +112,22 @@ export type FurnitureKind =
   | 'bookshelf'
   | 'dining_table'
   | 'fridge'
-  | 'tv';
+  | 'tv'
+  | 'sink'
+  | 'computer';
 
 export type HazardKind = 'gas_range' | 'boiler' | 'power_strip' | 'heater' | 'candle';
 
-export type MarkerKind = 'meeting_point' | 'my_spot' | 'ground_exit';
+/** 밖으로 나가는 곳. 화재는 아래로 나가는 것이 원칙이고 옥상은 아래가 막혔을 때다 (설계서 v1.2 §3.1) */
+export type ExitKind = 'ground_exit' | 'roof_exit' | 'basement_exit';
+
+export type MarkerKind = 'meeting_point' | 'my_spot' | ExitKind;
+
+export const EXIT_KINDS: ExitKind[] = ['ground_exit', 'roof_exit', 'basement_exit'];
+
+export function isExitKind(k: string): k is ExitKind {
+  return (EXIT_KINDS as string[]).includes(k);
+}
 
 export type PointKind = SafetyKind | FurnitureKind | HazardKind | MarkerKind;
 

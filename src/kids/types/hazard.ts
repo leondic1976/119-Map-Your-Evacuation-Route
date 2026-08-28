@@ -52,6 +52,15 @@ export interface HazardPreset {
   visionBase: number;
   /** 닫힌 문을 지날 때의 감쇠 계수 */
   doorClosedFactor: number;
+  /**
+   * 닫힌 밀폐 개구부(현관 방화문·비상구)의 감쇠 계수. 일반 문보다 작다.
+   * 없으면 doorClosedFactor 를 쓴다 (설계서 v1.2 §2.2)
+   */
+  sealedClosedFactor?: number;
+  /** 닫힌 유리 개구부(창·발코니창)의 감쇠 계수 */
+  glazedClosedFactor?: number;
+  /** 열린 유리 개구부를 건널 때의 배율. 1 보다 크면 열린 창이 확산을 돕는다 */
+  openGlazedBoost?: number;
   /** 낮은 자세일 때 노출 배율 */
   crouchFactor: number;
   /** 제한 시간(틱) */

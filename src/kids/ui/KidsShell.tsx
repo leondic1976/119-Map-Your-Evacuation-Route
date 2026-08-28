@@ -10,7 +10,9 @@
  * 재난 탭은 프리셋 수만큼 생긴다. 기본판은 화재 1종이므로 탭이 없다 (FR-2.1 개정).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HAZARD_PRESETS } from '../content';
+import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockName } from '../content';
+import { checklist, missingOf } from '../core/checklist';
+import { isOpening } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
 import { firstIssue, ruleReportsFor, useKids } from '../store/kidsStore';
@@ -62,6 +64,8 @@ export default function KidsShell({ onLeave }: Props) {
   const [dev, setDev] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [badFile, setBadFile] = useState<{ version: number; raw: string } | null>(null);
+  /** 필수가 빠졌을 때 시작 직전에 한 번만 묻는다 (설계서 v1.2 §1.4) */
+  const [askMissing, setAskMissing] = useState<string[] | null>(null);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -163,7 +167,21 @@ export default function KidsShell({ onLeave }: Props) {
   const pct = Math.round((drawn / 2) * 0.5 * 100 + completeness * 50);
   const easy = profile.gradeMode === 'easy';
   const editing = mode === 'edit';
+  const selectedBlock = selection ? plan.blocks.find((b) => b.id === selection) : undefined;
+  const selectedOpening = selectedBlock && isOpening(selectedBlock) ? selectedBlock : null;
   const onboardingOnCanvas = step === 'mySpot' || step === 'meeting';
+  const required = useMemo(() => checklist(plan, REQUIRED_BLOCKS), [plan]);
+  const missing = missingOf(required);
+
+  /** 시작 — 필수가 빠졌으면 막지 않고 한 번 물어본다 (D5) */
+  const startGame = useCallback(() => {
+    const gaps = missingOf(checklist(useKids.getState().plan, REQUIRED_BLOCKS));
+    if (gaps.length > 0) {
+      setAskMissing(gaps);
+      return;
+    }
+    useKids.getState().startGameNow();
+  }, []);
 
   const saveFile = useCallback(() => {
     const s = useKids.getState();
@@ -339,6 +357,18 @@ export default function KidsShell({ onLeave }: Props) {
                     <div className="k-selbar" role="status">
                       {easy ? '골랐어. ' : '선택함. '}
                       끌어서 옮기고, <span className="k-kbd">Delete</span> 로 지운다.
+                      {selectedOpening && (
+                        <button
+                          type="button"
+                          className="k-link"
+                          data-coach="kids-opening-toggle"
+                          data-open={selectedOpening.closedByDefault ? 'closed' : 'open'}
+                          title="평소에 열어 두는지 닫아 두는지. 불이 났을 때 연기가 얼마나 넘어오는지가 달라진다"
+                          onClick={() => useKids.getState().toggleOpening(selectedOpening.id)}
+                        >
+                          {selectedOpening.closedByDefault ? (easy ? '평소 닫아 둠 — 바꾸기' : '평소 닫힘 — 열림으로') : easy ? '평소 열어 둠 — 바꾸기' : '평소 열림 — 닫힘으로'}
+                        </button>
+                      )}
                       <button type="button" className="k-link" onClick={() => useKids.getState().removeBlock(selection)}>
                         지우기
                       </button>
@@ -349,8 +379,10 @@ export default function KidsShell({ onLeave }: Props) {
                   )}
                 </>
               )}
-              <GuideBubble />
             </div>
+
+            {/* 말풍선은 도면 아래 칸이다 — 지도를 가리지 않는다 (설계서 v1.2 §6.1) */}
+            <GuideBubble />
 
             {/* 점검 한 줄 — 자세한 것은 리포트와 캐릭터가 한다 */}
             {editing && reports.length > 0 && (
@@ -368,6 +400,10 @@ export default function KidsShell({ onLeave }: Props) {
                 <button type="button" className="k-link" onClick={() => useKids.getState().runChecks(true)}>
                   {easy ? '봐 줘' : '지적 보기'}
                 </button>
+                <span className="k-spacer" />
+                <span className="k-req-count" data-coach="kids-required" title={missing.length ? `아직 없는 것: ${missing.map((m) => blockName(m, easy ? 'easy' : 'normal')).join(', ')}` : '꼭 있어야 하는 것을 다 놓았다'}>
+                  {easy ? '있어야 하는 것' : '필수'} <b className="num">{required.length - missing.length}/{required.length}</b>
+                </span>
               </div>
             )}
           </main>
@@ -383,7 +419,7 @@ export default function KidsShell({ onLeave }: Props) {
               type="button"
               className="k-tb primary"
               disabled={plan.blocks.length === 0 || !preset}
-              onClick={() => useKids.getState().startGameNow()}
+              onClick={startGame}
               data-coach="kids-start-game"
               title="지도가 완벽하지 않아도 시작할 수 있다. 결과가 부족한 곳을 알려 준다"
             >
@@ -452,6 +488,52 @@ export default function KidsShell({ onLeave }: Props) {
               </button>
               <button type="button" className="k-tb primary" onClick={() => window.print()}>
                 <PrintIcon /> {easy ? '뽑기' : '인쇄'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {askMissing && (
+        <div className="k-modal-back" onClick={() => setAskMissing(null)} role="presentation">
+          <div className="k-modal" role="dialog" aria-modal="true" aria-labelledby="k-missing-title" style={{ width: 480 }} onClick={(e) => e.stopPropagation()}>
+            <header>
+              <h2 id="k-missing-title">{easy ? '아직 없는 게 있어' : '필수 항목이 빠졌다'}</h2>
+              <button type="button" className="k-x" onClick={() => setAskMissing(null)} aria-label="닫기">
+                <CloseIcon />
+              </button>
+            </header>
+            <p className="k-note">
+              {askMissing.map((m) => blockName(m, easy ? 'easy' : 'normal')).join(' · ')} 이(가) 아직 도면에 없다.{' '}
+              {easy ? '그냥 해 봐도 되고, 놓고 와도 돼. 결과에서도 알려 줄게.' : '없이 시작해도 된다. 리포트가 다시 짚어 준다.'}
+            </p>
+            <footer>
+              <button
+                type="button"
+                className="k-tb primary"
+                data-coach="kids-start-anyway"
+                autoFocus
+                onClick={() => {
+                  setAskMissing(null);
+                  useKids.getState().startGameNow();
+                }}
+              >
+                {easy ? '그냥 해 볼래' : '그대로 시작'}
+              </button>
+              <button
+                type="button"
+                className="k-tb"
+                onClick={() => {
+                  const first = askMissing[0];
+                  const def = BLOCKS.find((b) => b.id === first);
+                  setAskMissing(null);
+                  if (def) {
+                    useKids.getState().arm({ category: def.category, id: def.id });
+                    useKids.setState({ highlight: { paletteItem: def.id } });
+                  }
+                }}
+              >
+                {easy ? '놓고 올래' : '놓으러 가기'}
               </button>
             </footer>
           </div>

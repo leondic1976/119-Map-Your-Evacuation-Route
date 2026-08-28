@@ -283,7 +283,8 @@ export function PlanSvg(props: PlanSvgProps) {
           const rot = o.side === 'N' ? 0 : o.side === 'S' ? 180 : o.side === 'W' ? -90 : 90;
           const sel = selection === o.id;
           const isHl = matchesHl(o);
-          const open = game ? game.doorState[o.id] !== 'closed' : undefined;
+          /* 게임 중이면 지금 상태, 편집 중이면 평소 상태를 보인다 (설계서 v1.2 §2.3) */
+          const open = game ? game.doorState[o.id] !== 'closed' : !o.closedByDefault;
           return (
             <g key={o.id} data-block={o.id} data-kind="opening" transform={`translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
               <OpeningArt kind={o.openingKind} len={CS * 0.86} style={style} open={open} />
@@ -307,10 +308,11 @@ export function PlanSvg(props: PlanSvgProps) {
             transform={`translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}
             style={{ cursor: 'pointer' }}
           >
-            <rect x={-CS * 0.5} y={-9} width={CS} height={18} rx={4} fill="#ffd166" fillOpacity={0.55} stroke="#e0a100" strokeWidth={1.5} strokeDasharray="3 2" />
+            <rect x={-CS * 0.5} y={-12} width={CS} height={24} rx={5} fill="#ffd166" fillOpacity={0.55} stroke="#e0a100" strokeWidth={1.5} strokeDasharray="3 2" />
             <path d={`M${-CS * 0.4} 0 H${CS * 0.4}`} stroke="#8a5a00" strokeWidth={3} strokeLinecap="round" opacity={0.7} />
-            <text x={0} y={-12} textAnchor="middle" fontSize={8} fontWeight={800} fill="#8a5a00" style={{ paintOrder: 'stroke', stroke: '#fff', strokeWidth: 2 }}>
-              문?
+            {/* 글자가 8px 이라 아이가 못 찾았다. 13px 굵게, 흰 테두리로 도면 위에서 읽히게 한다 (설계서 v1.2 §1.1) */}
+            <text x={0} y={-16} textAnchor="middle" fontSize={13} fontWeight={800} fill="#8a5a00" style={{ paintOrder: 'stroke', stroke: '#fff', strokeWidth: 3.5 }}>
+              {gradeMode === 'easy' ? '여기 문?' : '문?'}
             </text>
           </g>
         );

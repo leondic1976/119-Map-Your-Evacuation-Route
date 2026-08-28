@@ -67,12 +67,29 @@ export function nodeAt(ctx: FieldContext, c: Cell): string | undefined {
   return ctx.cellToNode.get(cellKey(c));
 }
 
+/** 유리로 막힌 개구부 — 닫으면 연기를 막고, 열면 오히려 길을 터 준다 */
+const GLAZED_KINDS: OpeningKind[] = ['window', 'balcony_window'];
+
+/** 밀폐 성능이 높은 개구부 — 현관 방화문·비상구 */
+const SEALED_KINDS: OpeningKind[] = ['front_door', 'emergency_exit'];
+
+/** 확산 감쇠에 쓰는 계수 묶음. 프리셋이 그대로 들어온다 (설계서 v1.2 §2.2) */
+export interface TransferFactors {
+  doorClosedFactor: number;
+  sealedClosedFactor?: number;
+  glazedClosedFactor?: number;
+  openGlazedBoost?: number;
+}
+
 /**
- * a → b 로 위험이 얼마나 건너가는가 (0~1).
- *   벽·도면 밖              → 0
- *   방 경계인데 개구부 없음  → 0
- *   닫힌 문                 → doorClosedFactor
- *   그 밖(열린 문·창·같은 방) → 1
+ * a → b 로 위험이 얼마나 건너가는가.
+ *   벽·도면 밖                  → 0
+ *   방 경계인데 개구부 없음      → 0
+ *   닫힌 방문·중문               → doorClosedFactor
+ *   닫힌 현관 방화문·비상구       → sealedClosedFactor (더 잘 막는다)
+ *   닫힌 창·발코니창             → glazedClosedFactor
+ *   열린 창·발코니창             → openGlazedBoost (1 보다 크면 확산을 돕는다)
+ *   그 밖(열린 문·같은 방)        → 1
  */
 export function transfer(
   a: Cell,
@@ -80,7 +97,7 @@ export function transfer(
   field: HazardField,
   ctx: FieldContext,
   doorState: Record<BlockId, 'open' | 'closed'>,
-  doorClosedFactor: number,
+  factors: TransferFactors,
 ): number {
   if (!inGrid(ctx.grid, b)) return 0;
   if (field[idx(ctx.grid, b)].isWall) return 0;
@@ -89,7 +106,15 @@ export function transfer(
   if (na === nb) return 1;
   const bd = ctx.boundaries.get(boundaryKey(a, b));
   if (!bd) return 0;
-  if (bd.openingId && isDoorKind(bd.openingKind) && doorState[bd.openingId] === 'closed') return doorClosedFactor;
+  const kind = bd.openingKind;
+  const closed = Boolean(bd.openingId && doorState[bd.openingId] === 'closed');
+  if (kind && GLAZED_KINDS.includes(kind)) {
+    if (closed) return factors.glazedClosedFactor ?? factors.doorClosedFactor;
+    return factors.openGlazedBoost ?? 1;
+  }
+  if (!closed) return 1;
+  if (kind && SEALED_KINDS.includes(kind)) return factors.sealedClosedFactor ?? factors.doorClosedFactor;
+  if (isDoorKind(kind)) return factors.doorClosedFactor;
   return 1;
 }
 

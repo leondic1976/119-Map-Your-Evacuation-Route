@@ -25,7 +25,7 @@ import type {
   RouteSlot,
   Side,
 } from '../types/plan';
-import { emptyFloorPlan, emptyRoute, isRoom, routeKey, splitKey } from '../types/plan';
+import { emptyFloorPlan, emptyRoute, isOpening, isRoom, routeKey, splitKey } from '../types/plan';
 import type { GuideBubble, GuideTrigger } from '../types/guide';
 import type { Report } from '../types/report';
 import type { RuleReport, RuleResult } from '../types/rules';
@@ -140,6 +140,8 @@ export interface KidsActions {
   moveRoom: (id: BlockId, dx: number, dy: number) => void;
   resizeRoom: (id: BlockId, rect: { x: number; y: number; w: number; h: number }) => void;
   renameRoom: (id: BlockId, label: string) => void;
+  /** 개구부의 평소 상태를 뒤집는다 — 열어 둠 ↔ 닫아 둠 (설계서 v1.2 §2.4) */
+  toggleOpening: (id: BlockId) => void;
   removeBlock: (id: BlockId) => void;
   /** 온보딩 — 방을 눌러 내 자리를 정한다 */
   pickMyRoom: (cell: Cell) => boolean;
@@ -261,9 +263,17 @@ export const useKids = create<KidsStore>()((set, get) => {
   };
 
   const addBlock = (b: Block): void => {
+    const hadRoom = get().plan.blocks.some(isRoom);
     commit({ plan: { ...get().plan, blocks: get().plan.blocks.concat([b]) } });
     firstPlaced(isRoom(b) ? b.roomKind : b.kind === 'opening' ? b.openingKind : b.subKind);
     get().countOp();
+    /*
+     * 빈 도면에서 시작했으면 온보딩이 mySpot 을 건너뛰고 여기서 기다린다 (설계서 v1.2 §1.3).
+     * 첫 방이 놓이는 순간 "네 방은 어디야?"로 넘어간다.
+     */
+    if (!hadRoom && isRoom(b) && get().step === 'edit' && !get().progress.completedSteps.includes('mySpot')) {
+      get().setStep('mySpot');
+    }
   };
 
   const pairOf = (): RoutePair => get().routes[get().hazardId] ?? {};
@@ -358,6 +368,15 @@ export const useKids = create<KidsStore>()((set, get) => {
       set({ profile: { ...get().profile, lowFloor }, onboarded: true });
       scheduleSave();
       get().countOp();
+      /*
+       * 빈 도면으로 시작했으면 누를 방이 없다. mySpot 으로 보내면 "방 안을 눌러 줘"만
+       * 되풀이되고 팔레트도 먹지 않는다 (설계서 v1.2 §1.3). 먼저 방을 놓게 한다.
+       */
+      if (!get().plan.blocks.some(isRoom)) {
+        get().setStep('edit');
+        get().fire({ on: 'helpRequested', step: 'edit' });
+        return;
+      }
       get().setStep('mySpot');
     },
 
@@ -536,6 +555,20 @@ export const useKids = create<KidsStore>()((set, get) => {
     renameRoom: (id, label) => {
       const plan = get().plan;
       commit({ plan: { ...plan, blocks: plan.blocks.map((b) => (b.id === id && isRoom(b) ? { ...b, label } : b)) } });
+    },
+
+    toggleOpening: (id) => {
+      const plan = get().plan;
+      const target = plan.blocks.find((b) => b.id === id);
+      if (!target || !isOpening(target)) return;
+      commit({
+        plan: {
+          ...plan,
+          blocks: plan.blocks.map((b) => (b.id === id && isOpening(b) ? { ...b, closedByDefault: !b.closedByDefault } : b)),
+        },
+      });
+      get().countOp();
+      get().notify(target.closedByDefault ? '평소 열어 두는 것으로 바꿨다.' : '평소 닫아 두는 것으로 바꿨다.');
     },
 
     removeBlock: (id) => {

@@ -75,23 +75,21 @@
   white-space: nowrap;
 }
 
-/* ---------------------------------------------------- 말풍선 (캔버스 위 덮개) */
+/*
+ * 말풍선 — 도면 아래 칸이다. 도면 위에 띄우면 지도를 가린다 (설계서 v1.2 §6.1).
+ * 할 말이 없으면 이 칸 자체가 사라져 도면이 다시 넓어진다.
+ */
 .k-bubble {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
   display: flex;
   gap: 12px;
   align-items: flex-start;
   padding: 12px 14px;
+  margin: 8px 16px 10px;
   background: #fff;
   border: 2px solid var(--k-accent);
   border-radius: 18px;
-  box-shadow: 0 8px 24px rgba(16, 30, 48, 0.2);
-  z-index: 6;
-  max-width: 720px;
-  margin: 0 auto;
+  box-shadow: 0 4px 14px rgba(16, 30, 48, 0.14);
+  max-width: 860px;
   animation: k-pop 0.25s ease-out;
 }
 
@@ -477,8 +475,12 @@
   grid-row: 2;
 }
 
-.k-center > .k-report {
+.k-center > .k-bubble {
   grid-row: 3;
+}
+
+.k-center > .k-report {
+  grid-row: 4;
 }
 
 @media (max-width: 1023px) {

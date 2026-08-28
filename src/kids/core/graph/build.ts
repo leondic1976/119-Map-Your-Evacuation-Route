@@ -7,6 +7,7 @@
 import type {
   BlockId,
   Cell,
+  ExitKind,
   FloorPlan,
   OpeningBlock,
   PointBlock,
@@ -14,7 +15,7 @@ import type {
   ScenarioKey,
   Side,
 } from '../../types/plan';
-import { isOpening, isRoom } from '../../types/plan';
+import { isExitKind, isOpening, isRoom } from '../../types/plan';
 import type { EdgeVia, GraphEdge, GraphNode, PlanGraph } from '../../types/graph';
 import { CONDITION_KEY, DEFAULT_PASSABILITY, VN } from '../../types/graph';
 import type { UserProfile } from '../../types/save';
@@ -205,13 +206,18 @@ export function buildGraph(plan: FloorPlan): PlanGraph {
     if (adjacency[e.b]) adjacency[e.b].push(e);
   }
 
-  /* 계단이 지상에 닿는가 — 엣지를 다 세운 뒤에야 알 수 있다 */
-  const groundExits = points.filter((p) => p.subKind === 'ground_exit');
+  /*
+   * 계단이 밖에 닿는가 — 엣지를 다 세운 뒤에야 알 수 있다.
+   * 밖으로 나가는 곳은 세 갈래다(1층·옥상·지하). 셋 다 "도달할 수 있는 끝"이고,
+   * 어느 쪽이 옳은지는 규칙(RULE-F-08·F-09)이 판단한다 (설계서 v1.2 §3.1).
+   */
+  const exits = points.filter((p) => isExitKind(p.subKind));
   for (const n of nodes) {
     if (n.kind !== 'stair') continue;
-    const hasMarker = groundExits.some((g) => n.cells?.some((c) => c.x === g.cell.x && c.y === g.cell.y));
+    const marker = exits.find((g) => n.cells?.some((c) => c.x === g.cell.x && c.y === g.cell.y));
+    if (marker) n.exitKind = marker.subKind as ExitKind;
     const toOutdoor = adjacency[n.id].some((e) => e.b === VN.outdoor || e.a === VN.outdoor);
-    n.reachesGround = hasMarker || toOutdoor;
+    n.reachesGround = Boolean(marker) || toOutdoor;
   }
 
   return { nodes, edges, nodeById, adjacency, warnings };

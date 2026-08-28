@@ -121,7 +121,7 @@ export function kidsTests(check: Check, assert: Assert): void {
     assert(PALETTE_BASIC.length === 7, `기본 ${PALETTE_BASIC.length}종 + 더보기`);
     assert(RULES.every((r) => r.id.startsWith('RULE-C') || r.id.startsWith('RULE-F')), '기본판에 확장 규칙이 섞였다');
     assert(EXTENSION_RULES.every((r) => /^RULE-[EWG]/.test(r.id)), '확장 규칙 목록');
-    assert(RULES.length === 15, `기본 규칙 ${RULES.length}개`);
+    assert(RULES.length === 17, `기본 규칙 ${RULES.length}개`);
   });
 
   /* ---------------------------------------------------------- 격자·그래프 */
@@ -149,8 +149,8 @@ export function kidsTests(check: Check, assert: Assert): void {
     assert(doorCandidates(withDoor).length === 0, '문을 놓았는데 후보가 남았다');
   });
 
-  check('[어린이] 시작 평면 3종이 모두 말이 되고 고립된 방이 없다', () => {
-    assert(TEMPLATES.length >= 3, `템플릿 ${TEMPLATES.length}종`);
+  check('[어린이] 시작 평면 8종이 모두 말이 되고 고립된 방이 없다 (설계서 v1.2 §1.2)', () => {
+    assert(TEMPLATES.length === 8, `템플릿 ${TEMPLATES.length}종`);
     for (const t of TEMPLATES) {
       const errs = validatePlan(t.plan);
       assert(errs.length === 0, `${t.id}: ${errs.join(' | ')}`);
@@ -350,7 +350,7 @@ export function kidsTests(check: Check, assert: Assert): void {
     assert(closed < open * 0.5, `닫힘 ${closed.toFixed(2)} vs 열림 ${open.toFixed(2)}`);
   });
 
-  check('[어린이] 랜덤 발화 100회 × 평면 3종 — 시작 즉시 생존 불가 판이 0건 (FR-8.7)', () => {
+  check('[어린이] 랜덤 발화 100회 × 시작 평면 전종 — 시작 즉시 생존 불가 판이 0건 (FR-8.7)', () => {
     for (const t of TEMPLATES) {
       const plan = template(t.id);
       const g = buildGraph(plan);

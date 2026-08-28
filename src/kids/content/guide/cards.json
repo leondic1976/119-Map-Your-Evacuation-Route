@@ -1,51 +1,639 @@
 [
-  { "id": "fire.elevator.forbidden", "title": "왜 엘리베이터를 타면 안 될까?", "body": { "easy": "불이 나면 엘리베이터는 타지 마. 계단으로 내려가자.", "normal": "화재가 발생하면 엘리베이터는 전기가 끊겨 멈출 수 있고, 통로를 따라 연기가 들어옵니다. 반드시 계단을 이용하세요." }, "relatedRuleIds": ["RULE-F-03"], "sourceIds": ["nfa-apt-fire", "safekorea-fire"] },
-  { "id": "fire.stairs.howto", "title": "계단으로 어떻게 내려갈까?", "body": { "easy": "난간을 잡고 한 칸씩 내려가자. 뛰지 않아도 돼.", "normal": "계단에서는 난간을 잡고 침착하게 내려갑니다. 서두르다 넘어지면 더 늦어지므로, 아래쪽에 연기가 차 있으면 위층이나 옥상 쪽도 살펴보세요." }, "sourceIds": ["nfa-apt-fire", "safekorea-fire"] },
-  { "id": "fire.smoke.posture", "title": "연기가 있으면 왜 몸을 낮출까?", "body": { "easy": "몸을 낮추고 코와 입을 막고 가자. 연기는 위쪽에 먼저 찬다.", "normal": "연기는 뜨거워서 위쪽부터 채워집니다. 자세를 낮추면 숨 쉴 수 있는 공기가 남아 있고, 젖은 수건이나 옷으로 코와 입을 막으면 도움이 됩니다." }, "relatedRuleIds": ["RULE-F-02"], "sourceIds": ["safekorea-fire", "nfa-fire-manual"] },
-  { "id": "fire.wet_towel.how", "title": "젖은 수건은 어떻게 쓸까?", "body": { "easy": "수건에 물을 묻혀 코와 입을 막자.", "normal": "수건에 물을 적셔 코와 입을 가리면 연기 속 자극을 조금 줄일 수 있습니다. 다만 오래 버티게 해 주는 것은 아니므로, 가능하면 빨리 안전한 곳으로 이동하세요." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.apt.exit_blocked", "title": "현관으로 못 나가면?", "body": { "easy": "억지로 나가지 마. 대피공간이나 경량칸막이로 가자.", "normal": "현관으로 대피할 수 없을 때는 무리하게 나가지 않습니다. 대피공간, 경량칸막이, 하향식 피난구가 있으면 그곳을 이용하고, 없다면 욕실로 이동해 수도를 틀고 구조를 요청하세요." }, "relatedRuleIds": ["RULE-F-04", "RULE-F-05"], "requiresGuardian": true, "sourceIds": ["nfa-apt-fire", "local-apt-refuge"] },
-  { "id": "fire.light_partition.what", "title": "경량칸막이가 뭘까?", "body": { "easy": "발코니 벽 가운데 얇은 곳이야. 밀면 옆집으로 갈 수 있어.", "normal": "경량칸막이는 발코니 벽면 일부를 얇은 판으로 만든 것으로, 힘을 주면 부수고 옆집으로 넘어갈 수 있습니다. 우리 집에 있는지, 그 앞에 짐을 쌓아 두지는 않았는지 보호자와 함께 확인해 두세요." }, "relatedRuleIds": ["RULE-F-04"], "requiresGuardian": true, "sourceIds": ["local-apt-refuge", "nfa-apt-fire"] },
-  { "id": "fire.refuge_area.what", "title": "대피공간이 뭘까?", "body": { "easy": "불을 잘 견디는 작은 방이야. 문을 닫고 안에서 기다려.", "normal": "대피공간은 발코니 쪽에 만든 작은 방으로, 방화문을 닫으면 일정 시간 동안 열과 연기를 막아 줍니다. 그 안에서 119에 신고하고 구조를 기다립니다." }, "relatedRuleIds": ["RULE-F-04", "RULE-F-05"], "sourceIds": ["local-apt-refuge", "nfa-apt-fire"] },
-  { "id": "fire.descending_hatch.what", "title": "하향식 피난구가 뭘까?", "body": { "easy": "발코니 바닥에 있는 뚜껑이야. 아래층으로 내려가는 사다리가 있어.", "normal": "하향식 피난구는 발코니 바닥에 설치된 뚜껑으로, 열면 아래층으로 내려가는 간이 사다리가 나옵니다. 우리 집에 있는지 보호자와 함께 확인하고, 그 위에 물건을 올려 두지 않도록 하세요." }, "relatedRuleIds": ["RULE-F-04"], "requiresGuardian": true, "sourceIds": ["local-apt-refuge"] },
-  { "id": "fire.descent_device.what", "title": "완강기는 어른과 함께", "body": { "easy": "완강기는 어른과 함께 쓰는 거야. 혼자 쓰지 않는다.", "normal": "완강기는 창밖으로 몸을 내려보내는 기구입니다. 아이 혼자 쓰기에는 맞지 않으므로 반드시 어른과 함께 사용합니다." }, "requiresGuardian": true, "sourceIds": ["local-apt-refuge"] },
-  { "id": "fire.door.heatcheck", "title": "문을 열기 전에 왜 만져 볼까?", "body": { "easy": "손등으로 문을 살짝 대 보자. 뜨거우면 열지 마.", "normal": "문을 열기 전에 손등으로 문과 손잡이를 살짝 대어 봅니다. 뜨겁다면 문 너머에 불이 있다는 뜻이므로 열지 말고 다른 길을 찾으세요." }, "sourceIds": ["safekorea-fire", "nfa-fire-manual"] },
-  { "id": "fire.door.close", "title": "나올 때 문은 왜 닫을까?", "body": { "easy": "나오면서 문을 닫자. 불과 연기가 천천히 번져.", "normal": "방을 나올 때 문을 닫으면 불과 연기가 퍼지는 속도가 크게 느려집니다. 잠그지는 말고 닫기만 하세요." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.neighbor.fire", "title": "다른 집에서 불이 나면?", "body": { "easy": "연기가 안 오면 집 안에서 기다려도 돼.", "normal": "다른 세대에서 불이 났고 우리 집으로 불길이나 연기가 들어오지 않는다면 집 안에서 기다리는 편이 안전할 수 있습니다. 연기가 들어오기 시작하면 대피할 수 있는지 살펴보고, 어려우면 문틈을 막고 구조를 요청하세요." }, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "fire.bathroom.last", "title": "정말 못 나가면 어디로 갈까?", "body": { "easy": "욕실로 가서 물을 틀고 도와달라고 알리자.", "normal": "다른 길이 없다면 욕실로 이동해 수도를 틀고 문틈을 젖은 수건으로 막습니다. 그리고 119에 우리 집 위치를 알리고 구조를 기다립니다." }, "relatedRuleIds": ["RULE-F-05"], "sourceIds": ["nfa-apt-fire", "safekorea-fire"] },
-  { "id": "fire.call.119", "title": "119에 어떻게 알릴까?", "body": { "easy": "119를 누르고 우리 집 주소와 층을 말하자.", "normal": "119에 전화해 아파트 이름, 동, 호수, 층을 또박또박 말합니다. 지금 어디에 있는지도 함께 알리면 구조대가 더 빨리 찾아옵니다." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.extinguisher.where", "title": "소화기는 어디에 있을까?", "body": { "easy": "우리 집 소화기가 어디 있는지 어른께 여쭤보자.", "normal": "소화기는 보통 현관 근처나 주방 가까이에 둡니다. 우리 집 소화기가 어디에 있는지 보호자와 함께 확인하고 지도에 표시해 두세요." }, "relatedRuleIds": ["RULE-C-07"], "requiresGuardian": true, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.route.hazard", "title": "왜 불이 난 곳 옆을 피할까?", "body": { "easy": "가스레인지·보일러 옆은 불이 시작되기 쉬워. 조금 돌아가자.", "normal": "가스레인지, 보일러, 난로처럼 불이 시작되기 쉬운 곳 바로 옆을 지나면 갑자기 길이 막힐 수 있습니다. 조금 돌아가더라도 그 옆을 비켜 가는 길이 낫습니다." }, "relatedRuleIds": ["RULE-F-02"], "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.secondexit", "title": "왜 나가는 길이 두 개 필요할까?", "body": { "easy": "한 길이 막히면 다른 길로 가야 해. 발코니 쪽을 알아 두자.", "normal": "불은 어디서 날지 모릅니다. 현관이 막힐 수 있으므로, 경량칸막이·대피공간·하향식 피난구 가운데 우리 집에 있는 것을 미리 알아 두고 보조 경로를 그려 둡니다." }, "relatedRuleIds": ["RULE-F-04"], "requiresGuardian": true, "sourceIds": ["nfa-apt-fire", "local-apt-refuge"] },
-  { "id": "fire.front_door.what", "title": "현관문은 첫 번째 길", "body": { "easy": "현관으로 나갈 수 있으면 낮은 자세로 계단까지 가자.", "normal": "현관으로 나갈 수 있다면 낮은 자세로 계단을 이용해 지상이나 옥상으로 대피합니다. 이것이 첫 번째 길입니다." }, "relatedRuleIds": ["RULE-F-01"], "sourceIds": ["nfa-apt-fire"] },
-  { "id": "fire.window.escape", "title": "창문으로 나가도 될까?", "body": { "easy": "창문으로 나가는 건 어른과 함께여야 해.", "normal": "창문은 1층이 아니면 매우 위험합니다. 창문을 통한 대피는 어른과 함께, 구조대의 안내에 따라서만 합니다. 창문은 밖에 알리는 데 쓰세요." }, "requiresGuardian": true, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.balcony.what", "title": "발코니는 왜 중요할까?", "body": { "easy": "발코니에는 못 나갈 때 쓰는 길이 숨어 있어.", "normal": "아파트 발코니에는 경량칸막이, 대피공간, 하향식 피난구 같은 대체 피난설비가 있는 경우가 많습니다. 그 앞에 짐을 쌓아 두지 마세요." }, "relatedRuleIds": ["RULE-F-07"], "sourceIds": ["local-apt-refuge"] },
-  { "id": "fire.shout", "title": "불이야! 크게 외치기", "body": { "easy": "불을 보면 “불이야!” 하고 크게 외치자.", "normal": "불을 발견하면 “불이야!”를 크게 외쳐 주변에 알립니다. 어른이 있으면 바로 알리고, 화재경보기 단추가 있으면 누릅니다." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.no_return", "title": "다시 들어가지 않기", "body": { "easy": "밖으로 나왔으면 다시 들어가지 마.", "normal": "한 번 밖으로 나왔다면 물건이나 애완동물을 찾으러 다시 들어가지 않습니다. 구조대에 알리세요." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.close_not_lock", "title": "닫기만 하고 잠그지 않기", "body": { "easy": "문은 닫기만 하고 잠그지는 마.", "normal": "문을 닫으면 확산이 늦어지지만, 잠그면 구조대가 들어오기 어렵습니다. 닫기만 하세요." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "fire.time.smoke", "title": "연기는 불보다 빠르다", "body": { "easy": "불은 저기 있는데 여기가 벌써 안 보일 수 있어. 빨리 움직이자.", "normal": "연기는 불보다 훨씬 빨리 퍼집니다. 불이 멀리 있어도 연기가 먼저 길을 막을 수 있으므로 망설이지 말고 움직입니다." }, "sourceIds": ["nfa-fire-manual"] },
-  { "id": "fire.practice.why", "title": "왜 연습할까?", "body": { "easy": "미리 해 보면 진짜 상황에서 몸이 먼저 움직여.", "normal": "대피는 머리로 아는 것보다 몸이 기억하는 것이 중요합니다. 지도를 그리고 연습해 두면 실제 상황에서 훨씬 빠르게 움직일 수 있습니다." }, "sourceIds": ["app-guide"] },
-  { "id": "fire.wall.follow", "title": "안 보이면 벽을 짚고", "body": { "easy": "연기로 안 보이면 벽을 손으로 짚으면서 가자.", "normal": "연기로 앞이 보이지 않으면 한 손으로 벽을 짚고 낮은 자세로 이동합니다. 벽을 따라가면 문을 찾기 쉽습니다." }, "sourceIds": ["nfa-fire-manual"] },
-  { "id": "fire.my_spot.why", "title": "출발점은 왜 내 방일까?", "body": { "easy": "네가 가장 오래 있는 방에서 시작하자.", "normal": "출발점은 밤에 자는 방처럼 오래 머무는 곳으로 정합니다. 그곳에서 나가는 길이 가장 자주 쓰이기 때문입니다." }, "relatedRuleIds": ["RULE-C-01"], "sourceIds": ["safekorea-fire"] },
-  { "id": "general.what_is_map", "title": "대피지도가 뭘까?", "body": { "easy": "우리 집에서 나가는 길을 그린 지도야.", "normal": "대피지도는 우리 집 모양을 그리고, 위험할 때 어디로 어떻게 나갈지 미리 정해 두는 지도입니다. 미리 정해 두면 실제 상황에서 훨씬 빠르게 움직일 수 있습니다." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "general.meeting_point", "title": "가족이 만나는 곳은 어디로?", "body": { "easy": "집에서 떨어진, 눈에 잘 띄는 곳으로 정하자.", "normal": "건물에서 떨어져 있고 모두가 아는 곳으로 정합니다. 놀이터나 상가 앞처럼 밤에도 찾기 쉬운 자리가 좋습니다. 가족과 함께 정해 지도에 표시해 두세요." }, "relatedRuleIds": ["RULE-C-02"], "requiresGuardian": true, "sourceIds": ["safekorea-fire"] },
-  { "id": "general.detector.what", "title": "화재감지기가 뭘까?", "body": { "easy": "천장에 붙어 연기를 알아채면 소리로 알려 줘.", "normal": "화재감지기는 천장에 붙어 연기나 열을 감지하면 소리로 알려 주는 장치입니다. 우리 집 어디에 붙어 있는지 찾아 지도에 표시해 두세요." }, "relatedRuleIds": ["RULE-C-08"], "requiresGuardian": true, "sourceIds": ["safekorea-fire"] },
-  { "id": "general.isolated.room", "title": "문 없는 방은 갇히는 방", "body": { "easy": "문이 하나도 없는 방은 나갈 수 없어. 문을 놓아 주자.", "normal": "문이 없는 방은 대피 때 고립됩니다. 실제로는 문이 있는데 지도에 빠뜨린 것이라면 문을 그려 넣으세요." }, "relatedRuleIds": ["RULE-C-03"], "sourceIds": ["app-guide"] },
-  { "id": "general.route.wall", "title": "길은 문으로만", "body": { "easy": "길은 벽을 뚫고 갈 수 없어. 문이 있는 쪽으로 돌리자.", "normal": "대피경로는 문이나 창이 있는 곳으로만 방을 넘어갈 수 있습니다. 벽을 가로지르는 길은 실제로 쓸 수 없습니다." }, "relatedRuleIds": ["RULE-C-05", "RULE-C-04"], "sourceIds": ["app-guide"] },
-  { "id": "general.route.end", "title": "길은 안전한 곳에서 끝난다", "body": { "easy": "길의 마지막은 밖으로 나가는 문이나 피난설비여야 해.", "normal": "대피경로의 끝은 집 밖으로 이어지는 문, 지상으로 닿는 계단, 또는 대피공간·경량칸막이·하향식 피난구여야 합니다." }, "relatedRuleIds": ["RULE-C-06"], "sourceIds": ["nfa-apt-fire"] },
-  { "id": "general.route.short", "title": "너무 돌아가지 않기", "body": { "easy": "돌아가면 그만큼 연기를 더 마셔. 곧게 가자.", "normal": "경로가 길수록 연기에 노출되는 시간이 늘어납니다. 위험한 곳만 피하고 되도록 짧게 그립니다." }, "relatedRuleIds": ["RULE-F-06"], "sourceIds": ["safekorea-fire"] },
-  { "id": "general.print", "title": "다 그리면 어떻게 할까?", "body": { "easy": "종이로 뽑아서 잘 보이는 곳에 붙이자.", "normal": "완성한 지도는 A4 한 장으로 인쇄해 현관이나 냉장고처럼 온 가족이 자주 보는 곳에 붙여 둡니다. 가족과 함께 한 번 읽어 보면 더 좋습니다." }, "sourceIds": ["safekorea-fire"] },
-  { "id": "quake.first_shelter", "title": "지진이 나면 먼저 어디로?", "body": { "easy": "튼튼한 탁자 밑으로 들어가 다리를 잡자.", "normal": "흔들리는 동안에는 움직이기 어렵습니다. 먼저 튼튼한 탁자 아래로 들어가 머리를 보호하고 탁자 다리를 잡습니다. 흔들림이 멈추면 그때 밖으로 나갑니다." }, "sourceIds": ["safekorea-quake", "mois-quake-age"] },
-  { "id": "quake.after_shake", "title": "흔들림이 멈추면?", "body": { "easy": "흔들림이 멎으면 계단으로 밖에 나가자.", "normal": "흔들림이 멈추면 문을 열어 나갈 길을 확보하고 계단으로 내려갑니다. 여진이 올 수 있으니 서두르되 뛰지는 마세요." }, "sourceIds": ["safekorea-quake"] },
-  { "id": "quake.elevator", "title": "지진 때 엘리베이터는?", "body": { "easy": "지진에도 엘리베이터는 타지 마. 계단으로 가자.", "normal": "지진으로 전기가 끊기면 엘리베이터 안에 갇힐 수 있습니다. 계단을 이용하고, 만약 타고 있었다면 모든 층 버튼을 눌러 가장 먼저 열리는 층에서 내리세요." }, "sourceIds": ["safekorea-quake"] },
-  { "id": "quake.window", "title": "창문 옆은 왜 조심할까?", "body": { "easy": "흔들리면 유리가 깨질 수 있어. 창가는 빨리 지나가자.", "normal": "지진에는 유리창이나 거울이 깨질 수 있습니다. 대피할 때는 창가와 유리가 많은 곳을 오래 지나지 않도록 길을 잡으세요." }, "sourceIds": ["safekorea-quake", "mois-quake-age"] },
-  { "id": "quake.outside", "title": "밖으로 나가면 어디에 설까?", "body": { "easy": "건물과 떨어진 넓은 곳에 서자.", "normal": "건물, 담장, 전봇대에서 떨어진 넓은 공터로 이동합니다. 가족이 만나기로 한 곳이 그런 자리인지 함께 확인해 두세요." }, "sourceIds": ["safekorea-quake"] },
-  { "id": "flood.early_move", "title": "물이 차기 전에 왜 움직일까?", "body": { "easy": "물이 조금만 차도 문이 안 열려. 미리 나가자.", "normal": "물이 차오르면 수압 때문에 문이 잘 열리지 않습니다. 비가 많이 오고 물이 들어오기 시작하면 기다리지 말고 그때 바로 위층이나 높은 곳으로 이동하세요." }, "sourceIds": ["safekorea-flood"] },
-  { "id": "flood.go_up", "title": "침수되면 위로? 아래로?", "body": { "easy": "물이 차면 계단으로 위층에 올라가자.", "normal": "물이 차오르는 상황에서는 아래로 내려가지 않고 계단으로 위층이나 옥상 쪽으로 올라갑니다. 물이 들어오지 않는 층에 있다면 그대로 머무는 편이 나을 수도 있으니 어른의 안내를 따르세요." }, "sourceIds": ["safekorea-flood"] },
-  { "id": "flood.electric", "title": "물이 찼을 때 전기는?", "body": { "easy": "물이 있는 곳에서 콘센트와 스위치는 만지지 마.", "normal": "물은 전기를 잘 통하게 합니다. 물이 들어온 곳에서는 콘센트, 멀티탭, 스위치를 만지지 않습니다. 차단기를 내리는 일은 어른에게 맡기세요." }, "requiresGuardian": true, "sourceIds": ["safekorea-flood"] },
-  { "id": "flood.basement", "title": "반지하는 왜 더 조심할까?", "body": { "easy": "반지하는 물이 빨리 찬다. 더 일찍 나가자.", "normal": "반지하나 1층은 물이 가장 먼저, 가장 빠르게 들어옵니다. 창문이 물에 잠기면 밖으로 나가기 어려워지므로, 물이 들어오기 전에 위층으로 올라가는 길을 미리 정해 두세요." }, "sourceIds": ["safekorea-flood"] },
-  { "id": "gas.no_switch", "title": "가스 냄새가 나면 스위치는?", "body": { "easy": "가스 냄새가 나면 스위치와 환풍기는 만지지 마.", "normal": "스위치를 켜고 끌 때 아주 작은 불꽃이 생깁니다. 가스가 새는 곳에서는 전등, 환풍기, 콘센트를 건드리지 않고 그대로 두세요." }, "sourceIds": ["safekorea-gas"] },
-  { "id": "gas.valve", "title": "가스 중간밸브는 어디에?", "body": { "easy": "가스레인지 옆 손잡이야. 어른께 여쭤보고 표시하자.", "normal": "중간밸브는 보통 가스레인지 옆 배관에 달린 손잡이입니다. 어디에 있는지 보호자와 함께 확인해 지도에 표시하고, 잠그는 일은 어른과 함께 하세요." }, "requiresGuardian": true, "sourceIds": ["safekorea-gas"] },
-  { "id": "gas.window", "title": "가스 냄새가 나면 창문은?", "body": { "easy": "창문은 손으로 활짝 열자. 환풍기는 켜지 마.", "normal": "창문과 문은 손으로 열어 공기를 통하게 합니다. 다만 환풍기나 선풍기처럼 전기를 쓰는 것은 켜지 않습니다." }, "sourceIds": ["safekorea-gas"] },
-  { "id": "gas.smell", "title": "가스 냄새는 어떤 냄새?", "body": { "easy": "썩은 양파 같은 냄새가 나. 나면 바로 어른께 알리자.", "normal": "도시가스에는 새는 것을 알아채라고 일부러 냄새를 넣어 둡니다. 양파나 마늘이 상한 것 같은 냄새가 나면 바로 어른에게 알리세요." }, "sourceIds": ["safekorea-gas"] },
-  { "id": "gas.after", "title": "밖으로 나온 다음에는?", "body": { "easy": "집에서 떨어진 곳에서 119에 알리자.", "normal": "집에서 충분히 떨어진 곳으로 이동한 뒤 119나 가스 회사에 알립니다. 냄새가 사라졌는지 확인하러 혼자 다시 들어가지 마세요." }, "sourceIds": ["safekorea-gas"] }
+  {
+    "id": "fire.elevator.forbidden",
+    "title": "왜 엘리베이터를 타면 안 될까?",
+    "body": {
+      "easy": "불이 나면 엘리베이터는 타지 마. 계단으로 내려가자.",
+      "normal": "화재가 발생하면 엘리베이터는 전기가 끊겨 멈출 수 있고, 통로를 따라 연기가 들어옵니다. 반드시 계단을 이용하세요."
+    },
+    "relatedRuleIds": [
+      "RULE-F-03"
+    ],
+    "sourceIds": [
+      "nfa-apt-fire",
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.stairs.howto",
+    "title": "계단으로 어떻게 내려갈까?",
+    "body": {
+      "easy": "난간을 잡고 한 칸씩 내려가자. 뛰지 않아도 돼.",
+      "normal": "계단에서는 난간을 잡고 침착하게 내려갑니다. 서두르다 넘어지면 더 늦어지므로, 아래쪽에 연기가 차 있으면 위층이나 옥상 쪽도 살펴보세요."
+    },
+    "sourceIds": [
+      "nfa-apt-fire",
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.smoke.posture",
+    "title": "연기가 있으면 왜 몸을 낮출까?",
+    "body": {
+      "easy": "몸을 낮추고 코와 입을 막고 가자. 연기는 위쪽에 먼저 찬다.",
+      "normal": "연기는 뜨거워서 위쪽부터 채워집니다. 자세를 낮추면 숨 쉴 수 있는 공기가 남아 있고, 젖은 수건이나 옷으로 코와 입을 막으면 도움이 됩니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-02"
+    ],
+    "sourceIds": [
+      "safekorea-fire",
+      "nfa-fire-manual"
+    ]
+  },
+  {
+    "id": "fire.wet_towel.how",
+    "title": "젖은 수건은 어떻게 쓸까?",
+    "body": {
+      "easy": "수건에 물을 묻혀 코와 입을 막자.",
+      "normal": "수건에 물을 적셔 코와 입을 가리면 연기 속 자극을 조금 줄일 수 있습니다. 다만 오래 버티게 해 주는 것은 아니므로, 가능하면 빨리 안전한 곳으로 이동하세요."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.apt.exit_blocked",
+    "title": "현관으로 못 나가면?",
+    "body": {
+      "easy": "억지로 나가지 마. 대피공간이나 경량칸막이로 가자.",
+      "normal": "현관으로 대피할 수 없을 때는 무리하게 나가지 않습니다. 대피공간, 경량칸막이, 하향식 피난구가 있으면 그곳을 이용하고, 없다면 욕실로 이동해 수도를 틀고 구조를 요청하세요."
+    },
+    "relatedRuleIds": [
+      "RULE-F-04",
+      "RULE-F-05"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "nfa-apt-fire",
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "fire.light_partition.what",
+    "title": "경량칸막이가 뭘까?",
+    "body": {
+      "easy": "발코니 벽 가운데 얇은 곳이야. 밀면 옆집으로 갈 수 있어.",
+      "normal": "경량칸막이는 발코니 벽면 일부를 얇은 판으로 만든 것으로, 힘을 주면 부수고 옆집으로 넘어갈 수 있습니다. 우리 집에 있는지, 그 앞에 짐을 쌓아 두지는 않았는지 보호자와 함께 확인해 두세요."
+    },
+    "relatedRuleIds": [
+      "RULE-F-04"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "local-apt-refuge",
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fire.refuge_area.what",
+    "title": "대피공간이 뭘까?",
+    "body": {
+      "easy": "불을 잘 견디는 작은 방이야. 문을 닫고 안에서 기다려.",
+      "normal": "대피공간은 발코니 쪽에 만든 작은 방으로, 방화문을 닫으면 일정 시간 동안 열과 연기를 막아 줍니다. 그 안에서 119에 신고하고 구조를 기다립니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-04",
+      "RULE-F-05"
+    ],
+    "sourceIds": [
+      "local-apt-refuge",
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fire.descending_hatch.what",
+    "title": "하향식 피난구가 뭘까?",
+    "body": {
+      "easy": "발코니 바닥에 있는 뚜껑이야. 아래층으로 내려가는 사다리가 있어.",
+      "normal": "하향식 피난구는 발코니 바닥에 설치된 뚜껑으로, 열면 아래층으로 내려가는 간이 사다리가 나옵니다. 우리 집에 있는지 보호자와 함께 확인하고, 그 위에 물건을 올려 두지 않도록 하세요."
+    },
+    "relatedRuleIds": [
+      "RULE-F-04"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "fire.descent_device.what",
+    "title": "완강기는 어른과 함께",
+    "body": {
+      "easy": "완강기는 어른과 함께 쓰는 거야. 혼자 쓰지 않는다.",
+      "normal": "완강기는 창밖으로 몸을 내려보내는 기구입니다. 아이 혼자 쓰기에는 맞지 않으므로 반드시 어른과 함께 사용합니다."
+    },
+    "requiresGuardian": true,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "fire.door.heatcheck",
+    "title": "문을 열기 전에 왜 만져 볼까?",
+    "body": {
+      "easy": "손등으로 문을 살짝 대 보자. 뜨거우면 열지 마.",
+      "normal": "문을 열기 전에 손등으로 문과 손잡이를 살짝 대어 봅니다. 뜨겁다면 문 너머에 불이 있다는 뜻이므로 열지 말고 다른 길을 찾으세요."
+    },
+    "sourceIds": [
+      "safekorea-fire",
+      "nfa-fire-manual"
+    ]
+  },
+  {
+    "id": "fire.door.close",
+    "title": "나올 때 문은 왜 닫을까?",
+    "body": {
+      "easy": "나오면서 문을 닫자. 불과 연기가 천천히 번져.",
+      "normal": "방을 나올 때 문을 닫으면 불과 연기가 퍼지는 속도가 크게 느려집니다. 잠그지는 말고 닫기만 하세요."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.neighbor.fire",
+    "title": "다른 집에서 불이 나면?",
+    "body": {
+      "easy": "연기가 안 오면 집 안에서 기다려도 돼.",
+      "normal": "다른 세대에서 불이 났고 우리 집으로 불길이나 연기가 들어오지 않는다면 집 안에서 기다리는 편이 안전할 수 있습니다. 연기가 들어오기 시작하면 대피할 수 있는지 살펴보고, 어려우면 문틈을 막고 구조를 요청하세요."
+    },
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fire.bathroom.last",
+    "title": "정말 못 나가면 어디로 갈까?",
+    "body": {
+      "easy": "욕실로 가서 물을 틀고 도와달라고 알리자.",
+      "normal": "다른 길이 없다면 욕실로 이동해 수도를 틀고 문틈을 젖은 수건으로 막습니다. 그리고 119에 우리 집 위치를 알리고 구조를 기다립니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-05"
+    ],
+    "sourceIds": [
+      "nfa-apt-fire",
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.call.119",
+    "title": "119에 어떻게 알릴까?",
+    "body": {
+      "easy": "119를 누르고 우리 집 주소와 층을 말하자.",
+      "normal": "119에 전화해 아파트 이름, 동, 호수, 층을 또박또박 말합니다. 지금 어디에 있는지도 함께 알리면 구조대가 더 빨리 찾아옵니다."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.extinguisher.where",
+    "title": "소화기는 어디에 있을까?",
+    "body": {
+      "easy": "우리 집 소화기가 어디 있는지 어른께 여쭤보자.",
+      "normal": "소화기는 보통 현관 근처나 주방 가까이에 둡니다. 우리 집 소화기가 어디에 있는지 보호자와 함께 확인하고 지도에 표시해 두세요."
+    },
+    "relatedRuleIds": [
+      "RULE-C-07"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.route.hazard",
+    "title": "왜 불이 난 곳 옆을 피할까?",
+    "body": {
+      "easy": "가스레인지·보일러 옆은 불이 시작되기 쉬워. 조금 돌아가자.",
+      "normal": "가스레인지, 보일러, 난로처럼 불이 시작되기 쉬운 곳 바로 옆을 지나면 갑자기 길이 막힐 수 있습니다. 조금 돌아가더라도 그 옆을 비켜 가는 길이 낫습니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-02"
+    ],
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.secondexit",
+    "title": "왜 나가는 길이 두 개 필요할까?",
+    "body": {
+      "easy": "한 길이 막히면 다른 길로 가야 해. 발코니 쪽을 알아 두자.",
+      "normal": "불은 어디서 날지 모릅니다. 현관이 막힐 수 있으므로, 경량칸막이·대피공간·하향식 피난구 가운데 우리 집에 있는 것을 미리 알아 두고 보조 경로를 그려 둡니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-04"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "nfa-apt-fire",
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "fire.front_door.what",
+    "title": "현관문은 첫 번째 길",
+    "body": {
+      "easy": "현관으로 나갈 수 있으면 낮은 자세로 계단까지 가자.",
+      "normal": "현관으로 나갈 수 있다면 낮은 자세로 계단을 이용해 지상이나 옥상으로 대피합니다. 이것이 첫 번째 길입니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-01"
+    ],
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fire.window.escape",
+    "title": "창문으로 나가도 될까?",
+    "body": {
+      "easy": "창문으로 나가는 건 어른과 함께여야 해.",
+      "normal": "창문은 1층이 아니면 매우 위험합니다. 창문을 통한 대피는 어른과 함께, 구조대의 안내에 따라서만 합니다. 창문은 밖에 알리는 데 쓰세요."
+    },
+    "requiresGuardian": true,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.balcony.what",
+    "title": "발코니는 왜 중요할까?",
+    "body": {
+      "easy": "발코니에는 못 나갈 때 쓰는 길이 숨어 있어.",
+      "normal": "아파트 발코니에는 경량칸막이, 대피공간, 하향식 피난구 같은 대체 피난설비가 있는 경우가 많습니다. 그 앞에 짐을 쌓아 두지 마세요."
+    },
+    "relatedRuleIds": [
+      "RULE-F-07"
+    ],
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "fire.shout",
+    "title": "불이야! 크게 외치기",
+    "body": {
+      "easy": "불을 보면 “불이야!” 하고 크게 외치자.",
+      "normal": "불을 발견하면 “불이야!”를 크게 외쳐 주변에 알립니다. 어른이 있으면 바로 알리고, 화재경보기 단추가 있으면 누릅니다."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.no_return",
+    "title": "다시 들어가지 않기",
+    "body": {
+      "easy": "밖으로 나왔으면 다시 들어가지 마.",
+      "normal": "한 번 밖으로 나왔다면 물건이나 애완동물을 찾으러 다시 들어가지 않습니다. 구조대에 알리세요."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.close_not_lock",
+    "title": "닫기만 하고 잠그지 않기",
+    "body": {
+      "easy": "문은 닫기만 하고 잠그지는 마.",
+      "normal": "문을 닫으면 확산이 늦어지지만, 잠그면 구조대가 들어오기 어렵습니다. 닫기만 하세요."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fire.time.smoke",
+    "title": "연기는 불보다 빠르다",
+    "body": {
+      "easy": "불은 저기 있는데 여기가 벌써 안 보일 수 있어. 빨리 움직이자.",
+      "normal": "연기는 불보다 훨씬 빨리 퍼집니다. 불이 멀리 있어도 연기가 먼저 길을 막을 수 있으므로 망설이지 말고 움직입니다."
+    },
+    "sourceIds": [
+      "nfa-fire-manual"
+    ]
+  },
+  {
+    "id": "fire.practice.why",
+    "title": "왜 연습할까?",
+    "body": {
+      "easy": "미리 해 보면 진짜 상황에서 몸이 먼저 움직여.",
+      "normal": "대피는 머리로 아는 것보다 몸이 기억하는 것이 중요합니다. 지도를 그리고 연습해 두면 실제 상황에서 훨씬 빠르게 움직일 수 있습니다."
+    },
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "fire.wall.follow",
+    "title": "안 보이면 벽을 짚고",
+    "body": {
+      "easy": "연기로 안 보이면 벽을 손으로 짚으면서 가자.",
+      "normal": "연기로 앞이 보이지 않으면 한 손으로 벽을 짚고 낮은 자세로 이동합니다. 벽을 따라가면 문을 찾기 쉽습니다."
+    },
+    "sourceIds": [
+      "nfa-fire-manual"
+    ]
+  },
+  {
+    "id": "fire.my_spot.why",
+    "title": "출발점은 왜 내 방일까?",
+    "body": {
+      "easy": "네가 가장 오래 있는 방에서 시작하자.",
+      "normal": "출발점은 밤에 자는 방처럼 오래 머무는 곳으로 정합니다. 그곳에서 나가는 길이 가장 자주 쓰이기 때문입니다."
+    },
+    "relatedRuleIds": [
+      "RULE-C-01"
+    ],
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "general.what_is_map",
+    "title": "대피지도가 뭘까?",
+    "body": {
+      "easy": "우리 집에서 나가는 길을 그린 지도야.",
+      "normal": "대피지도는 우리 집 모양을 그리고, 위험할 때 어디로 어떻게 나갈지 미리 정해 두는 지도입니다. 미리 정해 두면 실제 상황에서 훨씬 빠르게 움직일 수 있습니다."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "general.meeting_point",
+    "title": "가족이 만나는 곳은 어디로?",
+    "body": {
+      "easy": "집에서 떨어진, 눈에 잘 띄는 곳으로 정하자.",
+      "normal": "건물에서 떨어져 있고 모두가 아는 곳으로 정합니다. 놀이터나 상가 앞처럼 밤에도 찾기 쉬운 자리가 좋습니다. 가족과 함께 정해 지도에 표시해 두세요."
+    },
+    "relatedRuleIds": [
+      "RULE-C-02"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "general.detector.what",
+    "title": "화재감지기가 뭘까?",
+    "body": {
+      "easy": "천장에 붙어 연기를 알아채면 소리로 알려 줘.",
+      "normal": "화재감지기는 천장에 붙어 연기나 열을 감지하면 소리로 알려 주는 장치입니다. 우리 집 어디에 붙어 있는지 찾아 지도에 표시해 두세요."
+    },
+    "relatedRuleIds": [
+      "RULE-C-08"
+    ],
+    "requiresGuardian": true,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "general.isolated.room",
+    "title": "문 없는 방은 갇히는 방",
+    "body": {
+      "easy": "문이 하나도 없는 방은 나갈 수 없어. 문을 놓아 주자.",
+      "normal": "문이 없는 방은 대피 때 고립됩니다. 실제로는 문이 있는데 지도에 빠뜨린 것이라면 문을 그려 넣으세요."
+    },
+    "relatedRuleIds": [
+      "RULE-C-03"
+    ],
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "general.route.wall",
+    "title": "길은 문으로만",
+    "body": {
+      "easy": "길은 벽을 뚫고 갈 수 없어. 문이 있는 쪽으로 돌리자.",
+      "normal": "대피경로는 문이나 창이 있는 곳으로만 방을 넘어갈 수 있습니다. 벽을 가로지르는 길은 실제로 쓸 수 없습니다."
+    },
+    "relatedRuleIds": [
+      "RULE-C-05",
+      "RULE-C-04"
+    ],
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "general.route.end",
+    "title": "길은 안전한 곳에서 끝난다",
+    "body": {
+      "easy": "길의 마지막은 밖으로 나가는 문이나 피난설비여야 해.",
+      "normal": "대피경로의 끝은 집 밖으로 이어지는 문, 지상으로 닿는 계단, 또는 대피공간·경량칸막이·하향식 피난구여야 합니다."
+    },
+    "relatedRuleIds": [
+      "RULE-C-06"
+    ],
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "general.route.short",
+    "title": "너무 돌아가지 않기",
+    "body": {
+      "easy": "돌아가면 그만큼 연기를 더 마셔. 곧게 가자.",
+      "normal": "경로가 길수록 연기에 노출되는 시간이 늘어납니다. 위험한 곳만 피하고 되도록 짧게 그립니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-06"
+    ],
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "general.print",
+    "title": "다 그리면 어떻게 할까?",
+    "body": {
+      "easy": "종이로 뽑아서 잘 보이는 곳에 붙이자.",
+      "normal": "완성한 지도는 A4 한 장으로 인쇄해 현관이나 냉장고처럼 온 가족이 자주 보는 곳에 붙여 둡니다. 가족과 함께 한 번 읽어 보면 더 좋습니다."
+    },
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "quake.first_shelter",
+    "title": "지진이 나면 먼저 어디로?",
+    "body": {
+      "easy": "튼튼한 탁자 밑으로 들어가 다리를 잡자.",
+      "normal": "흔들리는 동안에는 움직이기 어렵습니다. 먼저 튼튼한 탁자 아래로 들어가 머리를 보호하고 탁자 다리를 잡습니다. 흔들림이 멈추면 그때 밖으로 나갑니다."
+    },
+    "sourceIds": [
+      "safekorea-quake",
+      "mois-quake-age"
+    ]
+  },
+  {
+    "id": "quake.after_shake",
+    "title": "흔들림이 멈추면?",
+    "body": {
+      "easy": "흔들림이 멎으면 계단으로 밖에 나가자.",
+      "normal": "흔들림이 멈추면 문을 열어 나갈 길을 확보하고 계단으로 내려갑니다. 여진이 올 수 있으니 서두르되 뛰지는 마세요."
+    },
+    "sourceIds": [
+      "safekorea-quake"
+    ]
+  },
+  {
+    "id": "quake.elevator",
+    "title": "지진 때 엘리베이터는?",
+    "body": {
+      "easy": "지진에도 엘리베이터는 타지 마. 계단으로 가자.",
+      "normal": "지진으로 전기가 끊기면 엘리베이터 안에 갇힐 수 있습니다. 계단을 이용하고, 만약 타고 있었다면 모든 층 버튼을 눌러 가장 먼저 열리는 층에서 내리세요."
+    },
+    "sourceIds": [
+      "safekorea-quake"
+    ]
+  },
+  {
+    "id": "quake.window",
+    "title": "창문 옆은 왜 조심할까?",
+    "body": {
+      "easy": "흔들리면 유리가 깨질 수 있어. 창가는 빨리 지나가자.",
+      "normal": "지진에는 유리창이나 거울이 깨질 수 있습니다. 대피할 때는 창가와 유리가 많은 곳을 오래 지나지 않도록 길을 잡으세요."
+    },
+    "sourceIds": [
+      "safekorea-quake",
+      "mois-quake-age"
+    ]
+  },
+  {
+    "id": "quake.outside",
+    "title": "밖으로 나가면 어디에 설까?",
+    "body": {
+      "easy": "건물과 떨어진 넓은 곳에 서자.",
+      "normal": "건물, 담장, 전봇대에서 떨어진 넓은 공터로 이동합니다. 가족이 만나기로 한 곳이 그런 자리인지 함께 확인해 두세요."
+    },
+    "sourceIds": [
+      "safekorea-quake"
+    ]
+  },
+  {
+    "id": "flood.early_move",
+    "title": "물이 차기 전에 왜 움직일까?",
+    "body": {
+      "easy": "물이 조금만 차도 문이 안 열려. 미리 나가자.",
+      "normal": "물이 차오르면 수압 때문에 문이 잘 열리지 않습니다. 비가 많이 오고 물이 들어오기 시작하면 기다리지 말고 그때 바로 위층이나 높은 곳으로 이동하세요."
+    },
+    "sourceIds": [
+      "safekorea-flood"
+    ]
+  },
+  {
+    "id": "flood.go_up",
+    "title": "침수되면 위로? 아래로?",
+    "body": {
+      "easy": "물이 차면 계단으로 위층에 올라가자.",
+      "normal": "물이 차오르는 상황에서는 아래로 내려가지 않고 계단으로 위층이나 옥상 쪽으로 올라갑니다. 물이 들어오지 않는 층에 있다면 그대로 머무는 편이 나을 수도 있으니 어른의 안내를 따르세요."
+    },
+    "sourceIds": [
+      "safekorea-flood"
+    ]
+  },
+  {
+    "id": "flood.electric",
+    "title": "물이 찼을 때 전기는?",
+    "body": {
+      "easy": "물이 있는 곳에서 콘센트와 스위치는 만지지 마.",
+      "normal": "물은 전기를 잘 통하게 합니다. 물이 들어온 곳에서는 콘센트, 멀티탭, 스위치를 만지지 않습니다. 차단기를 내리는 일은 어른에게 맡기세요."
+    },
+    "requiresGuardian": true,
+    "sourceIds": [
+      "safekorea-flood"
+    ]
+  },
+  {
+    "id": "flood.basement",
+    "title": "반지하는 왜 더 조심할까?",
+    "body": {
+      "easy": "반지하는 물이 빨리 찬다. 더 일찍 나가자.",
+      "normal": "반지하나 1층은 물이 가장 먼저, 가장 빠르게 들어옵니다. 창문이 물에 잠기면 밖으로 나가기 어려워지므로, 물이 들어오기 전에 위층으로 올라가는 길을 미리 정해 두세요."
+    },
+    "sourceIds": [
+      "safekorea-flood"
+    ]
+  },
+  {
+    "id": "gas.no_switch",
+    "title": "가스 냄새가 나면 스위치는?",
+    "body": {
+      "easy": "가스 냄새가 나면 스위치와 환풍기는 만지지 마.",
+      "normal": "스위치를 켜고 끌 때 아주 작은 불꽃이 생깁니다. 가스가 새는 곳에서는 전등, 환풍기, 콘센트를 건드리지 않고 그대로 두세요."
+    },
+    "sourceIds": [
+      "safekorea-gas"
+    ]
+  },
+  {
+    "id": "gas.valve",
+    "title": "가스 중간밸브는 어디에?",
+    "body": {
+      "easy": "가스레인지 옆 손잡이야. 어른께 여쭤보고 표시하자.",
+      "normal": "중간밸브는 보통 가스레인지 옆 배관에 달린 손잡이입니다. 어디에 있는지 보호자와 함께 확인해 지도에 표시하고, 잠그는 일은 어른과 함께 하세요."
+    },
+    "requiresGuardian": true,
+    "sourceIds": [
+      "safekorea-gas"
+    ]
+  },
+  {
+    "id": "gas.window",
+    "title": "가스 냄새가 나면 창문은?",
+    "body": {
+      "easy": "창문은 손으로 활짝 열자. 환풍기는 켜지 마.",
+      "normal": "창문과 문은 손으로 열어 공기를 통하게 합니다. 다만 환풍기나 선풍기처럼 전기를 쓰는 것은 켜지 않습니다."
+    },
+    "sourceIds": [
+      "safekorea-gas"
+    ]
+  },
+  {
+    "id": "gas.smell",
+    "title": "가스 냄새는 어떤 냄새?",
+    "body": {
+      "easy": "썩은 양파 같은 냄새가 나. 나면 바로 어른께 알리자.",
+      "normal": "도시가스에는 새는 것을 알아채라고 일부러 냄새를 넣어 둡니다. 양파나 마늘이 상한 것 같은 냄새가 나면 바로 어른에게 알리세요."
+    },
+    "sourceIds": [
+      "safekorea-gas"
+    ]
+  },
+  {
+    "id": "gas.after",
+    "title": "밖으로 나온 다음에는?",
+    "body": {
+      "easy": "집에서 떨어진 곳에서 119에 알리자.",
+      "normal": "집에서 충분히 떨어진 곳으로 이동한 뒤 119나 가스 회사에 알립니다. 냄새가 사라졌는지 확인하러 혼자 다시 들어가지 마세요."
+    },
+    "sourceIds": [
+      "safekorea-gas"
+    ]
+  },
+  {
+    "id": "fire.exit.down",
+    "title": "왜 아래로 나가야 할까?",
+    "body": {
+      "easy": "연기는 위로 올라가. 그래서 불이 나면 계단으로 아래로 내려가는 게 먼저야. 아래가 막혔을 때만 옥상으로 가자. 지하로는 내려가지 않아.",
+      "normal": "연기는 뜨거워서 위로 오르고 계단은 굴뚝처럼 연기를 끌어올립니다. 그래서 화재 시 원칙은 지상으로 내려가는 것입니다. 아래층이 이미 화염·연기로 막힌 경우에만 옥상으로 대피하고, 지하는 연기가 고이며 빠져나갈 길이 적어 피합니다."
+    },
+    "relatedRuleIds": [
+      "RULE-F-08",
+      "RULE-F-09"
+    ],
+    "sourceIds": [
+      "nfa-apt-fire",
+      "safekorea-fire"
+    ]
+  }
 ]

@@ -12,6 +12,9 @@
   "exposureRate": 0.01,
   "visionBase": 8,
   "doorClosedFactor": 0.08,
+  "sealedClosedFactor": 0.02,
+  "glazedClosedFactor": 0.03,
+  "openGlazedBoost": 1.25,
   "crouchFactor": 0.35,
   "timeLimitTicks": 480,
   "ignitionWeights": {

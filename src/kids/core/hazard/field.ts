@@ -83,7 +83,7 @@ export function spread(state: GameState, ctx: FieldContext): void {
     const cc = cellOf(ctx.grid, i);
     for (const nb of neighbors4(ctx, cc)) {
       const j = idx(ctx.grid, nb);
-      const t = transfer(cc, nb, field, ctx, doorState, preset.doorClosedFactor);
+      const t = transfer(cc, nb, field, ctx, doorState, preset);
       if (t === 0) continue;
       primaryDelta[j] += preset.primarySpread * c.primary * t * field[j].fuel;
     }
@@ -131,7 +131,7 @@ export function diffuse(
       const j = idx(ctx.grid, nb);
       const diff = c[key] - field[j][key];
       if (diff <= 0) continue;
-      const t = transfer(cc, nb, field, ctx, doorState, preset.doorClosedFactor);
+      const t = transfer(cc, nb, field, ctx, doorState, preset);
       if (t === 0) continue;
       const flow = (rate * t * diff) / 4;
       delta[j] += flow;

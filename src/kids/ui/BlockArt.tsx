@@ -305,12 +305,50 @@ function MySpot({ w, h }: ArtProps) {
 }
 
 /** 지상 출구 */
-function GroundExit({ w, h }: ArtProps) {
+/**
+ * 밖으로 나가는 곳 세 갈래 (설계서 v1.2 §3.1).
+ * 화살표 방향으로 어디로 나가는지를 구분한다 — 색만으로 나누지 않는다 (P4).
+ *   1층 밖 → 옆으로 · 옥상 → 위로 · 지하 → 아래로
+ */
+function GroundExit({ w, h, dir = 'side' }: ArtProps & { dir?: 'side' | 'up' | 'down' }) {
   const s = Math.min(w, h);
+  const fill = dir === 'down' ? '#7a6a2f' : '#0e7c4f';
+  const arrow =
+    dir === 'up'
+      ? `M0 ${s * 0.16} V${-s * 0.16} M${-s * 0.12} ${-s * 0.04} l${s * 0.12} ${-s * 0.12} l${s * 0.12} ${s * 0.12}`
+      : dir === 'down'
+        ? `M0 ${-s * 0.16} V${s * 0.16} M${-s * 0.12} ${s * 0.04} l${s * 0.12} ${s * 0.12} l${s * 0.12} ${-s * 0.12}`
+        : `M${-s * 0.16} 0 H${s * 0.18} M${s * 0.06} ${-s * 0.12} l${s * 0.12} ${s * 0.12} l${-s * 0.12} ${s * 0.12}`;
   return (
     <g transform={`translate(${w / 2} ${h / 2})`}>
-      <rect x={-s * 0.38} y={-s * 0.3} width={s * 0.76} height={s * 0.6} rx={3} fill="#0e7c4f" />
-      <path d={`M${-s * 0.16} 0 H${s * 0.18} M${s * 0.06} ${-s * 0.12} l${s * 0.12} ${s * 0.12} l${-s * 0.12} ${s * 0.12}`} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <rect x={-s * 0.38} y={-s * 0.3} width={s * 0.76} height={s * 0.6} rx={3} fill={fill} />
+      <path d={arrow} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
+
+/** 싱크대 — 부엌의 표준 배치 */
+function Sink({ w, h, style }: ArtProps) {
+  const b = box(style);
+  return (
+    <g>
+      <rect x={1} y={1} width={w - 2} height={h - 2} rx={b.rx} fill={style === 'kid' ? '#dfe6ea' : b.fill} stroke={b.stroke} strokeWidth={b.sw} />
+      <rect x={w * 0.18} y={h * 0.28} width={w * 0.44} height={h * 0.44} rx={3} fill="none" stroke={b.stroke} strokeWidth={b.sw} />
+      <circle cx={w * 0.4} cy={h * 0.5} r={Math.max(1.2, w * 0.05)} fill={b.stroke} />
+      <path d={`M${w * 0.76} ${h * 0.7} V${h * 0.32} h${-w * 0.12}`} fill="none" stroke={b.stroke} strokeWidth={b.sw} strokeLinecap="round" />
+    </g>
+  );
+}
+
+/** 컴퓨터 — 본체와 화면 */
+function Computer({ w, h, style }: ArtProps) {
+  const b = box(style);
+  return (
+    <g>
+      <rect x={1} y={h * 0.18} width={w * 0.62} height={h * 0.46} rx={2} fill={style === 'kid' ? '#2f3a45' : b.fill} stroke={b.stroke} strokeWidth={b.sw} />
+      <path d={`M${w * 0.14} ${h * 0.64} h${w * 0.36} l${-w * 0.06} ${h * 0.14} h${-w * 0.24} z`} fill={style === 'kid' ? '#8b98a6' : b.fill} stroke={b.stroke} strokeWidth={b.sw} />
+      <rect x={w * 0.68} y={h * 0.2} width={w * 0.28} height={h * 0.62} rx={2} fill={style === 'kid' ? '#4a5561' : b.fill} stroke={b.stroke} strokeWidth={b.sw} />
+      <circle cx={w * 0.82} cy={h * 0.32} r={Math.max(1, w * 0.035)} fill="#7ee2b8" />
     </g>
   );
 }
@@ -366,7 +404,11 @@ export function PointArt({ subKind, w, h, style }: ArtProps & { subKind: string 
     case 'my_spot':
       return <MySpot w={w} h={h} style={style} />;
     case 'ground_exit':
-      return <GroundExit w={w} h={h} style={style} />;
+      return <GroundExit w={w} h={h} style={style} dir="side" />;
+    case 'roof_exit':
+      return <GroundExit w={w} h={h} style={style} dir="up" />;
+    case 'basement_exit':
+      return <GroundExit w={w} h={h} style={style} dir="down" />;
 
     case 'bed':
       return <Bed w={w} h={h} style={style} />;
@@ -384,6 +426,10 @@ export function PointArt({ subKind, w, h, style }: ArtProps & { subKind: string 
       return <Fridge w={w} h={h} style={style} />;
     case 'tv':
       return <Tv w={w} h={h} style={style} />;
+    case 'sink':
+      return <Sink w={w} h={h} style={style} />;
+    case 'computer':
+      return <Computer w={w} h={h} style={style} />;
 
     case 'gas_range':
       return <GasRange w={w} h={h} style={style} />;
@@ -417,10 +463,23 @@ export function OpeningArt({
   const t = 7;
   const stroke = style === 'kid' ? KID.ink : BP.line;
   if (kind === 'window' || kind === 'balcony_window') {
+    const glass = style === 'kid' ? '#4c9ad4' : stroke;
+    /* 닫힘 = 유리선 두 줄이 창틀을 메운다 · 열림 = 한 짝이 옆으로 밀려 틈이 난다 (설계서 v1.2 §2.3) */
     return (
       <g>
         <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" stroke={stroke} strokeWidth={1.6} />
-        <path d={`M${-len / 2} 0 H${len / 2}`} stroke={style === 'kid' ? '#4c9ad4' : stroke} strokeWidth={2} />
+        {open === true ? (
+          <>
+            <path d={`M${-len / 2 + 1} -1.6 H${len * 0.06}`} stroke={glass} strokeWidth={2.2} />
+            <path d={`M${-len * 0.06} 1.6 H${len / 2 - 1}`} stroke={glass} strokeWidth={2.2} />
+            <path d={`M${len * 0.16} -3.4 V3.4`} stroke={glass} strokeWidth={1.4} opacity={0.7} />
+          </>
+        ) : (
+          <>
+            <path d={`M${-len / 2 + 1} -1.6 H${len / 2 - 1}`} stroke={glass} strokeWidth={2.2} />
+            <path d={`M${-len / 2 + 1} 1.6 H${len / 2 - 1}`} stroke={glass} strokeWidth={2.2} />
+          </>
+        )}
       </g>
     );
   }
@@ -449,6 +508,8 @@ export function OpeningArt({
         />
       )}
       {open === true && <path d={`M${-len / 2} 0 H${len / 2}`} stroke="#fff" strokeWidth={5} />}
+      {/* 방화문은 닫혀 있을 때 바깥쪽에 이중선을 하나 더 그어 "막고 있다"를 보인다 */}
+      {isFront && open !== true && <path d={`M${-len / 2} -3.4 H${len / 2}`} stroke="#0e7c4f" strokeWidth={1.8} opacity={0.85} />}
     </g>
   );
 }

@@ -20,7 +20,12 @@ import guideCardsJson from './guide/cards.json';
 import fireJson from './hazards/fire.json';
 import apt2Json from './templates/apt_2room.json';
 import apt3Json from './templates/apt_3room.json';
+import apt4Json from './templates/apt_4room.json';
+import towerJson from './templates/apt_tower.json';
 import houseJson from './templates/house_1f.json';
+import villaJson from './templates/villa.json';
+import studioJson from './templates/studio.json';
+import duplexJson from './templates/duplex.json';
 
 export type BlockCategory = 'room' | 'opening' | 'safety' | 'furniture' | 'hazard' | 'marker';
 
@@ -35,7 +40,12 @@ export interface BlockDef {
   /** 연소하중 0~1 */
   fuel: number;
   tags: string[];
+  /** 대피계획에 없으면 안 되는 것 (설계서 v1.2 §1.4) */
+  required: boolean;
 }
+
+/** 필수 항목 — 시작 전에 빠진 것을 한 번 알려 준다 */
+export const REQUIRED_BLOCKS: string[] = (blocksJson as unknown as BlockDef[]).filter((b) => b.required).map((b) => b.id);
 
 export interface TemplateDef {
   id: string;
@@ -63,10 +73,16 @@ export const GUIDE_CARDS = guideCardsJson as unknown as GuideCard[];
 /** 기본판은 화재 하나. 확장판은 여기에 더한다 — 재난 탭은 이 수만큼 생긴다 (FR-2.1 개정) */
 export const HAZARD_PRESETS: HazardPreset[] = [fireJson as unknown as HazardPreset];
 
+/** 시작 평면 8종 (설계서 v1.2 §1.2). 흔한 것부터 늘어놓는다 */
 export const TEMPLATES = [
   apt2Json as unknown as TemplateDef,
   apt3Json as unknown as TemplateDef,
+  apt4Json as unknown as TemplateDef,
+  towerJson as unknown as TemplateDef,
+  studioJson as unknown as TemplateDef,
+  villaJson as unknown as TemplateDef,
   houseJson as unknown as TemplateDef,
+  duplexJson as unknown as TemplateDef,
 ];
 
 /** 팔레트 기본 8종 (FR-7.8). 나머지는 "더보기" */

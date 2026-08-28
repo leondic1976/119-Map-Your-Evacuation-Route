@@ -1,92 +1,1634 @@
 [
-  { "id": "step.template", "trigger": { "on": "stepEnter", "step": "template" }, "priority": 10, "speaker": "yeongi", "emotion": "happy", "text": { "easy": "안녕! 너희 집이랑 제일 비슷한 걸 골라볼래?", "normal": "안녕하세요. 우리 집과 가장 비슷한 평면을 고르세요." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "step.lowFloor", "trigger": { "on": "stepEnter", "step": "lowFloor" }, "priority": 10, "speaker": "ungi", "emotion": "normal", "text": { "easy": "너희 집은 1층이나 반지하야? 물이 찰 때 갈 곳이 달라져.", "normal": "1층이나 반지하에 사나요? 침수 때 대피 방향이 달라집니다." }, "cardId": "flood.basement", "cooldown": 0, "sourceIds": ["safekorea-flood"] },
-  { "id": "step.mySpot", "trigger": { "on": "stepEnter", "step": "mySpot" }, "priority": 10, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "킁킁, 네 방은 어디야? 눌러서 알려 줘!", "normal": "네가 자는 방을 눌러 주세요. 그곳이 출발점이 됩니다." }, "highlight": { "paletteItem": "my_spot" }, "cardId": "fire.my_spot.why", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "step.meeting", "trigger": { "on": "stepEnter", "step": "meeting" }, "priority": 10, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "가족들이 만나는 곳은 어디야? 모르면 나중에 정해도 돼.", "normal": "밖으로 나온 뒤 가족이 만날 곳을 고르세요. 모르면 나중에 정해도 됩니다." }, "highlight": { "paletteItem": "meeting_point" }, "cardId": "general.meeting_point", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "step.ready", "trigger": { "on": "stepEnter", "step": "ready" }, "priority": 10, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "다 됐어! 이제 대피 연습을 시작해 보자. 완벽하지 않아도 괜찮아.", "normal": "준비가 됐습니다. 지도가 완벽하지 않아도 연습을 시작할 수 있습니다. 부족한 점은 결과에서 알려 줍니다." }, "cardId": "fire.practice.why", "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "step.edit", "trigger": { "on": "stepEnter", "step": "edit" }, "priority": 5, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "왼쪽에서 고르고 도면을 누르면 놓여. 방을 끌면 옮겨져.", "normal": "왼쪽 팔레트에서 고른 뒤 도면을 누르면 표준 크기로 놓입니다. 방은 끌어서 옮기고 모서리로 크기를 바꿉니다." }, "cooldown": 120, "sourceIds": ["app-guide"] },
-  { "id": "step.route", "trigger": { "on": "stepEnter", "step": "route" }, "priority": 10, "speaker": "ungi", "emotion": "normal", "text": { "easy": "내 방에서 밖으로 나가는 길을 끌어서 그려 보자. 현관으로!", "normal": "출발점에서 밖으로 나가는 주 경로를 끌어서 그리세요. 보통 현관으로 나갑니다." }, "cardId": "fire.front_door.what", "cooldown": 60, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "step.routeAlt", "trigger": { "on": "stepEnter", "step": "routeAlt" }, "priority": 10, "speaker": "ungi", "emotion": "thinking", "text": { "easy": "현관이 막히면? 발코니 쪽으로 가는 두 번째 길도 그려 두자.", "normal": "현관이 막혔을 때의 보조 경로입니다. 대피공간·경량칸막이·하향식 피난구로 향하게 그리세요." }, "cardId": "fire.secondexit", "cooldown": 60, "sourceIds": ["nfa-apt-fire", "local-apt-refuge"] },
-  { "id": "step.game", "trigger": { "on": "stepEnter", "step": "game" }, "priority": 5, "speaker": "ilgu", "emotion": "normal", "text": { "easy": "화살표로 움직이고, 연기가 오면 몸을 낮춰. 문은 닫고 가자!", "normal": "방향키로 움직입니다. 연기가 오면 자세를 낮추고, 지나온 문은 닫으세요." }, "cooldown": 30, "sourceIds": ["safekorea-fire"] },
-  { "id": "step.report", "trigger": { "on": "stepEnter", "step": "report" }, "priority": 5, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "이번엔 어땠는지 같이 볼까?", "normal": "이번 연습 결과를 함께 살펴봅시다." }, "cooldown": 5, "sourceIds": ["app-guide"] },
-
-  { "id": "block.bedroom", "trigger": { "on": "blockPlaced", "blockKind": "bedroom" }, "priority": 3, "speaker": "yeongi", "emotion": "happy", "text": { "easy": "방이 생겼네! 끌어서 옮기고, 모서리를 끌면 크기가 바뀌어.", "normal": "방을 놓았습니다. 끌어서 옮기고 모서리로 크기를 바꾸세요." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.living", "trigger": { "on": "blockPlaced", "blockKind": "living" }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "거실이야. 방이랑 맞대면 문 자리가 저절로 보여.", "normal": "거실입니다. 다른 방과 변을 맞대면 문 후보가 반투명으로 표시됩니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.kitchen", "trigger": { "on": "blockPlaced", "blockKind": "kitchen" }, "priority": 3, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "킁킁, 부엌은 불이 시작되기 쉬운 곳이야. 가스레인지 자리도 놓아 줘.", "normal": "주방은 발화 위험이 높은 곳입니다. 가스레인지 위치도 표시해 두세요." }, "highlight": { "paletteItem": "gas_range" }, "cardId": "fire.route.hazard", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.bath", "trigger": { "on": "blockPlaced", "blockKind": "bath" }, "priority": 3, "speaker": "ungi", "emotion": "normal", "text": { "easy": "욕실은 정말 못 나갈 때 물을 틀고 기다리는 곳이야.", "normal": "욕실은 다른 길이 모두 막혔을 때 수도를 틀고 구조를 기다리는 곳입니다." }, "cardId": "fire.bathroom.last", "cooldown": 0, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "block.entry", "trigger": { "on": "blockPlaced", "blockKind": "entry" }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "현관이야. 현관문을 바깥쪽 벽에 놓아 주자.", "normal": "현관입니다. 바깥쪽 벽에 현관문을 놓으세요." }, "highlight": { "paletteItem": "front_door" }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.balcony", "trigger": { "on": "blockPlaced", "blockKind": "balcony" }, "priority": 3, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "발코니! 여기엔 못 나갈 때 쓰는 길이 숨어 있을지도 몰라. 어른께 여쭤보자.", "normal": "발코니에는 경량칸막이·대피공간·하향식 피난구가 있는 경우가 많습니다. 보호자와 확인해 보세요." }, "cardId": "fire.balcony.what", "cooldown": 0, "sourceIds": ["local-apt-refuge"] },
-  { "id": "block.corridor", "trigger": { "on": "blockPlaced", "blockKind": "corridor" }, "priority": 2, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "복도야. 방들을 이어 주는 길이지.", "normal": "복도입니다. 방과 방을 잇는 통로입니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.stair", "trigger": { "on": "blockPlaced", "blockKind": "stair" }, "priority": 3, "speaker": "ungi", "emotion": "happy", "text": { "easy": "계단! 불이 나면 계단으로 내려가는 거야. 밖으로 나가는 곳 표시도 놓자.", "normal": "계단입니다. 화재 때는 계단으로 대피합니다. 지상 출구 표시를 계단에 놓으면 목표가 됩니다." }, "highlight": { "paletteItem": "ground_exit" }, "cardId": "fire.stairs.howto", "cooldown": 0, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "block.elevator_hall", "trigger": { "on": "blockPlaced", "blockKind": "elevator_hall" }, "priority": 3, "speaker": "ilgu", "emotion": "worried", "text": { "easy": "승강기 앞이구나. 불이 나면 타면 안 되는 거 알지?", "normal": "승강기 앞입니다. 화재 때 엘리베이터는 이용하지 않습니다." }, "cardId": "fire.elevator.forbidden", "cooldown": 0, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "block.door", "trigger": { "on": "blockPlaced", "blockKind": "door" }, "priority": 3, "speaker": "yeongi", "emotion": "happy", "text": { "easy": "문을 놓았어! 나올 때 닫고 나오면 불이 천천히 번져.", "normal": "문을 놓았습니다. 대피할 때 문을 닫고 나오면 확산이 크게 늦어집니다." }, "cardId": "fire.door.close", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.front_door", "trigger": { "on": "blockPlaced", "blockKind": "front_door" }, "priority": 4, "speaker": "ungi", "emotion": "happy", "text": { "easy": "현관문! 첫 번째 길은 여기로 나가는 거야.", "normal": "현관문입니다. 주 경로는 보통 이 문으로 나갑니다." }, "cardId": "fire.front_door.what", "cooldown": 0, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "block.window", "trigger": { "on": "blockPlaced", "blockKind": "window" }, "priority": 2, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "창문은 밖에 알리는 데 써. 나가는 건 어른과 함께여야 해.", "normal": "창문은 구조를 요청하는 데 씁니다. 창문으로 나가는 것은 어른과 함께여야 합니다." }, "cardId": "fire.window.escape", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.balcony_window", "trigger": { "on": "blockPlaced", "blockKind": "balcony_window" }, "priority": 2, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "발코니 창이야. 발코니로 나가는 길이 생겼어.", "normal": "발코니 창입니다. 발코니로 이어지는 통로가 됩니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.extinguisher", "trigger": { "on": "blockPlaced", "blockKind": "extinguisher" }, "priority": 3, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "소화기 자리를 알고 있구나! 잘했어.", "normal": "소화기 위치를 표시했습니다." }, "cardId": "fire.extinguisher.where", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.detector", "trigger": { "on": "blockPlaced", "blockKind": "detector" }, "priority": 3, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "감지기까지! 연기를 알아채면 소리로 알려 주는 거야.", "normal": "화재감지기를 표시했습니다. 연기를 감지하면 경보음으로 알립니다." }, "cardId": "general.detector.what", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.gas_valve", "trigger": { "on": "blockPlaced", "blockKind": "gas_valve" }, "priority": 3, "speaker": "ungi", "emotion": "normal", "text": { "easy": "가스 밸브 자리야. 잠그는 건 어른과 함께 하자.", "normal": "가스 중간밸브입니다. 잠그는 일은 어른과 함께 합니다." }, "cardId": "gas.valve", "cooldown": 0, "sourceIds": ["safekorea-gas"] },
-  { "id": "block.light_partition", "trigger": { "on": "blockPlaced", "blockKind": "light_partition" }, "priority": 4, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "경량칸막이! 현관이 막히면 여기로 옆집에 갈 수 있어.", "normal": "경량칸막이입니다. 현관이 막혔을 때 부수고 옆집으로 넘어갈 수 있습니다." }, "cardId": "fire.light_partition.what", "cooldown": 0, "sourceIds": ["local-apt-refuge"] },
-  { "id": "block.refuge_area", "trigger": { "on": "blockPlaced", "blockKind": "refuge_area" }, "priority": 4, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "대피공간! 문을 닫고 안에서 구조를 기다리는 곳이야.", "normal": "대피공간입니다. 방화문을 닫고 구조를 기다리는 곳입니다." }, "cardId": "fire.refuge_area.what", "cooldown": 0, "sourceIds": ["local-apt-refuge"] },
-  { "id": "block.descending_hatch", "trigger": { "on": "blockPlaced", "blockKind": "descending_hatch" }, "priority": 4, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "하향식 피난구! 바닥 뚜껑을 열면 아래층으로 가는 사다리가 나와.", "normal": "하향식 피난구입니다. 발코니 바닥의 뚜껑을 열면 아래층으로 내려가는 사다리가 나옵니다." }, "cardId": "fire.descending_hatch.what", "cooldown": 0, "sourceIds": ["local-apt-refuge"] },
-  { "id": "block.descent_device", "trigger": { "on": "blockPlaced", "blockKind": "descent_device" }, "priority": 4, "speaker": "ungi", "emotion": "worried", "text": { "easy": "완강기는 어른과 함께 쓰는 거야. 혼자 쓰지 않는다!", "normal": "완강기는 반드시 어른과 함께 사용합니다." }, "cardId": "fire.descent_device.what", "cooldown": 0, "sourceIds": ["local-apt-refuge"] },
-  { "id": "block.meeting_point", "trigger": { "on": "blockPlaced", "blockKind": "meeting_point" }, "priority": 4, "speaker": "yeongi", "emotion": "happy", "text": { "easy": "만나는 곳까지 정했구나. 이제 흩어져도 다시 모일 수 있어.", "normal": "가족이 만날 곳을 정했습니다. 흩어져도 다시 모일 수 있습니다." }, "cardId": "general.meeting_point", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.my_spot", "trigger": { "on": "blockPlaced", "blockKind": "my_spot" }, "priority": 4, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "좋아, 여기서 출발이야!", "normal": "출발점을 정했습니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.gas_range", "trigger": { "on": "blockPlaced", "blockKind": "gas_range" }, "priority": 3, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "가스레인지는 불이 시작되기 쉬워. 길을 그릴 때 옆을 비켜 가자.", "normal": "가스레인지는 발화 위험이 큽니다. 경로를 그릴 때 그 옆을 비켜 가세요." }, "cardId": "fire.route.hazard", "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.power_strip", "trigger": { "on": "blockPlaced", "blockKind": "power_strip" }, "priority": 2, "speaker": "ungi", "emotion": "normal", "text": { "easy": "문어발 콘센트도 불이 나기 쉬운 곳이야.", "normal": "멀티탭에 여러 기기를 꽂으면 과열로 불이 날 수 있습니다." }, "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.heater", "trigger": { "on": "blockPlaced", "blockKind": "heater" }, "priority": 2, "speaker": "ungi", "emotion": "normal", "text": { "easy": "난로 옆에는 옷이나 이불을 두지 않는 거야.", "normal": "난로 가까이에는 옷이나 이불 같은 타기 쉬운 것을 두지 않습니다." }, "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.candle", "trigger": { "on": "blockPlaced", "blockKind": "candle" }, "priority": 2, "speaker": "ungi", "emotion": "normal", "text": { "easy": "촛불은 어른이 있을 때만 켜는 거야.", "normal": "초는 어른이 있을 때만 켜고 자리를 비우지 않습니다." }, "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-  { "id": "block.bed", "trigger": { "on": "blockPlaced", "blockKind": "bed" }, "priority": 1, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "침대야. 자는 곳에서 나가는 길이 제일 중요해.", "normal": "침대입니다. 잠자는 곳에서 나가는 길이 가장 자주 쓰입니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "block.sofa", "trigger": { "on": "blockPlaced", "blockKind": "sofa" }, "priority": 1, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "소파야. 천은 잘 타니까 불 옆에 두지 말자.", "normal": "소파입니다. 천 가구는 잘 타므로 발화원 옆에 두지 않습니다." }, "cooldown": 0, "sourceIds": ["safekorea-fire"] },
-
-  { "id": "fail.RULE-C-01", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-01" }, "priority": 9, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "길이 방 밖에서 시작했어. 네 방 안에서 시작하자.", "normal": "출발점이 방 안에 있지 않습니다. 방 안 칸에서 시작하세요." }, "cardId": "fire.my_spot.why", "cooldown": 20, "sourceIds": ["safekorea-fire"] },
-  { "id": "fail.RULE-C-02", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-02" }, "priority": 6, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "가족이 만나는 곳을 아직 안 정했어. 어른께 여쭤보고 놓아 두자.", "normal": "가족이 만날 곳이 아직 없습니다. 보호자와 정해 표시해 두세요." }, "highlight": { "paletteItem": "meeting_point" }, "cardId": "general.meeting_point", "cooldown": 60, "sourceIds": ["safekorea-fire"] },
-  { "id": "fail.RULE-C-03", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-03" }, "priority": 9, "speaker": "ilgu", "emotion": "worried", "text": { "easy": "킁킁, {roomName}에서 나갈 길이 없어! 문을 하나 놓아 주자.", "normal": "{roomName}에서 나갈 문이 없습니다. 벽에 문을 놓으세요." }, "highlight": { "paletteItem": "door" }, "cardId": "general.isolated.room", "cooldown": 20, "sourceIds": ["app-guide"] },
-  { "id": "fail.RULE-C-04", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-04" }, "priority": 9, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "길이 중간에 끊겼어. 한 칸씩 이어서 다시 그려 보자.", "normal": "경로가 중간에 끊겼습니다. 옆 칸으로 이어지게 다시 그리세요." }, "cardId": "general.route.wall", "cooldown": 20, "sourceIds": ["app-guide"] },
-  { "id": "fail.RULE-C-05", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-05" }, "priority": 9, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "여기는 벽이야! 문이 있는 쪽으로 길을 돌리자.", "normal": "벽을 가로질렀습니다. 문이 있는 쪽으로 경로를 바꾸거나 문을 놓으세요." }, "cardId": "general.route.wall", "cooldown": 20, "sourceIds": ["app-guide"] },
-  { "id": "fail.RULE-C-06", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-06" }, "priority": 9, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "길이 안전한 곳에서 안 끝났어. 밝게 표시한 곳까지 이어 보자.", "normal": "경로가 안전한 곳에서 끝나지 않았습니다. 강조된 칸까지 이어 그리세요." }, "cardId": "general.route.end", "cooldown": 20, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "fail.RULE-C-07", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-07" }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "우리 집 소화기는 어디 있을까? 어른께 여쭤보자.", "normal": "소화기 위치를 보호자와 확인해 표시하세요." }, "highlight": { "paletteItem": "extinguisher" }, "cardId": "fire.extinguisher.where", "cooldown": 120, "sourceIds": ["safekorea-fire"] },
-  { "id": "fail.RULE-C-08", "trigger": { "on": "ruleFail", "ruleId": "RULE-C-08" }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "천장에 동그란 감지기가 있어? 찾아서 표시하자.", "normal": "화재감지기 위치를 찾아 표시하세요." }, "highlight": { "paletteItem": "detector" }, "cardId": "general.detector.what", "cooldown": 120, "sourceIds": ["safekorea-fire"] },
-  { "id": "fail.RULE-F-01", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-01" }, "priority": 7, "speaker": "ungi", "emotion": "normal", "text": { "easy": "첫 번째 길은 현관문으로 나가야 해.", "normal": "주 경로는 현관문을 지나야 합니다." }, "cardId": "fire.front_door.what", "cooldown": 30, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "fail.RULE-F-02", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-02" }, "priority": 7, "speaker": "ilgu", "emotion": "worried", "text": { "easy": "길이 불 나기 쉬운 곳 바로 옆을 지나. 조금 돌아가자.", "normal": "경로가 가스레인지·보일러 바로 옆을 지납니다. 비켜 가는 길로 바꾸세요." }, "cardId": "fire.route.hazard", "cooldown": 30, "sourceIds": ["safekorea-fire"] },
-  { "id": "fail.RULE-F-03", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-03" }, "priority": 9, "speaker": "ilgu", "emotion": "alert", "text": { "easy": "승강기 앞을 지나는 길이야. 불이 나면 승강기는 멈춰! 계단으로.", "normal": "경로가 승강기를 지납니다. 화재 때 엘리베이터는 멈출 수 있으니 계단으로 바꾸세요." }, "cardId": "fire.elevator.forbidden", "cooldown": 30, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "fail.RULE-F-04", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-04" }, "priority": 7, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "현관이 막히면 갈 곳이 없어. 발코니에 뭐가 있는지 어른께 여쭤보자.", "normal": "대체 피난수단이 없습니다. 경량칸막이·대피공간·하향식 피난구 가운데 우리 집에 있는 것을 표시하세요." }, "highlight": { "paletteItem": "refuge_area" }, "cardId": "fire.secondexit", "cooldown": 60, "sourceIds": ["nfa-apt-fire", "local-apt-refuge"] },
-  { "id": "fail.RULE-F-05", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-05" }, "priority": 7, "speaker": "ungi", "emotion": "normal", "text": { "easy": "두 번째 길은 대피공간이나 경량칸막이에서 끝나야 해.", "normal": "보조 경로는 대피공간·경량칸막이·하향식 피난구에서 끝나야 합니다." }, "cardId": "fire.apt.exit_blocked", "cooldown": 30, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "fail.RULE-F-06", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-06" }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "길이 너무 돌아가. 곧게 펴 보자.", "normal": "경로가 최단경로보다 많이 깁니다. 조금 더 곧게 그리세요." }, "cardId": "general.route.short", "cooldown": 60, "sourceIds": ["safekorea-fire"] },
-  { "id": "fail.RULE-F-07", "trigger": { "on": "ruleFail", "ruleId": "RULE-F-07" }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "발코니도 그려 두자. 거기에 못 나갈 때 쓰는 길이 있을 수 있어.", "normal": "발코니를 그리고 그곳의 피난설비도 표시하세요." }, "highlight": { "paletteItem": "balcony" }, "cardId": "fire.balcony.what", "cooldown": 120, "sourceIds": ["local-apt-refuge"] },
-
-  { "id": "pass.RULE-C-02", "trigger": { "on": "rulePass", "ruleId": "RULE-C-02" }, "priority": 2, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "만나는 곳까지 정했구나. 잘했어!", "normal": "가족이 만날 곳을 정했습니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "pass.RULE-C-03", "trigger": { "on": "rulePass", "ruleId": "RULE-C-03" }, "priority": 2, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "모든 방에서 나갈 수 있어. 갇히는 곳이 없구나!", "normal": "모든 방에서 나갈 수 있습니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "pass.RULE-C-06", "trigger": { "on": "rulePass", "ruleId": "RULE-C-06" }, "priority": 4, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "안전한 곳까지 이어졌어. 아주 좋아!", "normal": "경로가 안전한 곳에서 끝났습니다." }, "cooldown": 30, "sourceIds": ["app-guide"] },
-  { "id": "pass.RULE-F-01", "trigger": { "on": "rulePass", "ruleId": "RULE-F-01" }, "priority": 2, "speaker": "ungi", "emotion": "happy", "text": { "easy": "현관문으로 나가는 길이구나.", "normal": "주 경로가 현관문을 지납니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "pass.RULE-F-04", "trigger": { "on": "rulePass", "ruleId": "RULE-F-04" }, "priority": 2, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "다른 피난 길까지 갖췄어. 준비된 사람이야!", "normal": "대체 피난수단을 갖췄습니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "pass.RULE-F-05", "trigger": { "on": "rulePass", "ruleId": "RULE-F-05" }, "priority": 4, "speaker": "ungi", "emotion": "happy", "text": { "easy": "{facility}(으)로 가는 길이구나. 잘 골랐어.", "normal": "보조 경로가 {facility}에서 끝납니다." }, "cooldown": 30, "sourceIds": ["nfa-apt-fire"] },
-
-  { "id": "game.start", "trigger": { "on": "gameStart" }, "priority": 10, "speaker": "ilgu", "emotion": "alert", "text": { "easy": "불이 났어! 침착하게 밖으로 나가자. 연기가 오면 몸을 낮춰!", "normal": "화재 발생. 침착하게 대피하세요. 연기가 오면 자세를 낮추고, 문은 닫고 지나갑니다." }, "cooldown": 1, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.inHazard", "trigger": { "on": "gameEvent", "event": "inHazard" }, "priority": 8, "speaker": "ilgu", "emotion": "worried", "text": { "easy": "연기야! 몸을 낮춰!", "normal": "연기 속입니다. 자세를 낮추세요." }, "cardId": "fire.smoke.posture", "cooldown": 15, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.usedElevator", "trigger": { "on": "gameEvent", "event": "usedElevator" }, "priority": 9, "speaker": "ilgu", "emotion": "alert", "text": { "easy": "승강기가 안 움직여! 계단으로 가야 해.", "normal": "엘리베이터가 멈췄습니다. 계단으로 가세요." }, "cardId": "fire.elevator.forbidden", "cooldown": 0, "sourceIds": ["nfa-apt-fire"] },
-  { "id": "game.closedDoor", "trigger": { "on": "gameEvent", "event": "closedDoor" }, "priority": 6, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "문을 닫았어! 불이 천천히 번질 거야.", "normal": "문을 닫았습니다. 확산이 늦어집니다." }, "cooldown": 20, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.openedHotDoor", "trigger": { "on": "gameEvent", "event": "openedHotDoor" }, "priority": 9, "speaker": "ilgu", "emotion": "alert", "text": { "easy": "앗, 뜨거운 문이었어! 다음엔 먼저 만져 보자.", "normal": "뜨거운 문을 열었습니다. 열기 전에 온도를 확인하세요." }, "cardId": "fire.door.heatcheck", "cooldown": 10, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.doorHot", "trigger": { "on": "gameEvent", "event": "doorHot" }, "priority": 8, "speaker": "ilgu", "emotion": "worried", "text": { "easy": "이 문은 뜨거워! 열지 말고 다른 길로.", "normal": "문이 뜨겁습니다. 열지 말고 다른 길을 찾으세요." }, "cardId": "fire.door.heatcheck", "cooldown": 5, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.doorCool", "trigger": { "on": "gameEvent", "event": "doorCool" }, "priority": 6, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "이 문은 괜찮아. 열어도 돼.", "normal": "문이 뜨겁지 않습니다. 열어도 됩니다." }, "cooldown": 5, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.crouched", "trigger": { "on": "gameEvent", "event": "crouched" }, "priority": 5, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "그렇지, 낮게!", "normal": "낮은 자세, 좋습니다." }, "cooldown": 30, "sourceIds": ["app-guide"] },
-  { "id": "game.passedDoor", "trigger": { "on": "gameEvent", "event": "passedDoor" }, "priority": 4, "speaker": "ilgu", "emotion": "normal", "text": { "easy": "문을 지났어. 닫고 갈까?", "normal": "문을 지났습니다. 닫고 가세요." }, "cardId": "fire.door.close", "cooldown": 25, "sourceIds": ["safekorea-fire"] },
-  { "id": "game.reachedGoal", "trigger": { "on": "gameEvent", "event": "reachedGoal" }, "priority": 10, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "나왔다! 정말 잘했어!", "normal": "안전한 곳에 도착했습니다." }, "cooldown": 0, "sourceIds": ["app-guide"] },
-  { "id": "game.end.success", "trigger": { "on": "gameEnd", "outcome": "success" }, "priority": 10, "speaker": "yeongi", "emotion": "happy", "text": { "easy": "무사히 나왔어! 너는 이미 준비된 사람이야.", "normal": "무사히 대피했습니다. 이미 준비된 사람입니다." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "game.end.fail", "trigger": { "on": "gameEnd", "outcome": "fail" }, "priority": 10, "speaker": "ilgu", "emotion": "normal", "text": { "easy": "괜찮아, 다시 해 보자! 무엇이 어려웠는지 같이 보자.", "normal": "괜찮습니다. 무엇이 어려웠는지 함께 살펴보고 다시 해 봅시다." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-
-  { "id": "idle.20", "trigger": { "on": "idle", "seconds": 20 }, "priority": 2, "speaker": "ilgu", "emotion": "thinking", "text": { "easy": "뭘 해야 할지 모르겠으면 아래 “이제 뭘 해야 해?”를 눌러 봐.", "normal": "다음에 무엇을 할지 모르면 아래 “이제 뭘 해야 해?”를 누르세요." }, "cooldown": 90, "sourceIds": ["app-guide"] },
-  { "id": "idle.60", "trigger": { "on": "idle", "seconds": 60 }, "priority": 3, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "쉬어도 괜찮아. 그린 건 저절로 저장돼.", "normal": "쉬어도 됩니다. 그린 내용은 자동으로 저장됩니다." }, "cooldown": 300, "sourceIds": ["app-guide"] },
-
-  { "id": "help.template", "trigger": { "on": "helpRequested", "step": "template" }, "priority": 10, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "우리 집과 비슷한 모양을 하나 누르면 돼.", "normal": "우리 집과 비슷한 평면을 하나 고르세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.lowFloor", "trigger": { "on": "helpRequested", "step": "lowFloor" }, "priority": 10, "speaker": "ungi", "emotion": "normal", "text": { "easy": "우리 집이 1층이나 반지하면 “응”, 아니면 “아니야”를 누르자. 모르면 어른께 여쭤봐.", "normal": "1층·반지하면 “예”, 아니면 “아니오”를 누르세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.mySpot", "trigger": { "on": "helpRequested", "step": "mySpot" }, "priority": 10, "speaker": "ilgu", "emotion": "normal", "text": { "easy": "네가 자는 방을 도면에서 눌러 줘.", "normal": "잠자는 방을 도면에서 누르세요." }, "highlight": { "paletteItem": "my_spot" }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.meeting", "trigger": { "on": "helpRequested", "step": "meeting" }, "priority": 10, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "집 밖 빈 곳을 눌러 만나는 곳을 놓거나, “나중에 정할래”를 누르자.", "normal": "도면 밖 빈 곳을 눌러 만나는 곳을 놓거나 “나중에”를 누르세요." }, "highlight": { "paletteItem": "meeting_point" }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.ready", "trigger": { "on": "helpRequested", "step": "ready" }, "priority": 10, "speaker": "ilgu", "emotion": "happy", "text": { "easy": "“대피 연습 시작!”을 누르면 돼.", "normal": "“대피 연습 시작”을 누르세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.edit", "trigger": { "on": "helpRequested", "step": "edit" }, "priority": 10, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "왼쪽에서 하나 고르고 도면을 누르면 놓여. 다 됐으면 아래 “대피 연습 시작!”", "normal": "왼쪽 팔레트에서 고르고 도면을 누르면 놓입니다. 다 되었으면 “대피 연습 시작”을 누르세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.route", "trigger": { "on": "helpRequested", "step": "route" }, "priority": 10, "speaker": "ungi", "emotion": "normal", "text": { "easy": "출발 칸을 누른 채 끌어서 현관문까지 이어 봐.", "normal": "출발 칸부터 끌어서 현관문 칸까지 이으세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.routeAlt", "trigger": { "on": "helpRequested", "step": "routeAlt" }, "priority": 10, "speaker": "ungi", "emotion": "normal", "text": { "easy": "출발 칸에서 대피공간이나 경량칸막이 칸까지 끌어서 이어 봐. 없으면 건너뛰어도 돼.", "normal": "출발 칸부터 대피공간·경량칸막이·하향식 피난구 칸까지 이으세요. 없으면 건너뛰어도 됩니다." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.game", "trigger": { "on": "helpRequested", "step": "game" }, "priority": 10, "speaker": "ilgu", "emotion": "normal", "text": { "easy": "화살표로 움직여서 밝게 표시한 곳까지 가. 연기가 오면 “낮게” 단추!", "normal": "방향키로 목표 칸까지 이동합니다. 연기가 오면 자세를 낮추세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.report", "trigger": { "on": "helpRequested", "step": "report" }, "priority": 10, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "“다시 해보기”로 한 번 더 하거나, “지도 고치기”로 고칠 곳을 고치자.", "normal": "“다시 해보기”로 재도전하거나 “지도 고치기”로 지적된 곳을 고치세요." }, "cooldown": 1, "sourceIds": ["app-guide"] },
-  { "id": "help.any", "trigger": { "on": "helpRequested" }, "priority": 1, "speaker": "yeongi", "emotion": "normal", "text": { "easy": "지금 화면에서 큰 단추를 눌러 보자. 막히면 아래 “첫 화면”으로 돌아갈 수도 있어.", "normal": "화면의 큰 단추를 누르세요. 막히면 “첫 화면”으로 돌아갈 수 있습니다." }, "cooldown": 1, "sourceIds": ["app-guide"] }
+  {
+    "id": "step.template",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "template"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "happy",
+    "text": {
+      "easy": "안녕! 너희 집이랑 제일 비슷한 걸 골라볼래?",
+      "normal": "안녕하세요. 우리 집과 가장 비슷한 평면을 고르세요."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "step.lowFloor",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "lowFloor"
+    },
+    "priority": 10,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "너희 집은 1층이나 반지하야? 물이 찰 때 갈 곳이 달라져.",
+      "normal": "1층이나 반지하에 사나요? 침수 때 대피 방향이 달라집니다."
+    },
+    "cardId": "flood.basement",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-flood"
+    ]
+  },
+  {
+    "id": "step.mySpot",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "mySpot"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "킁킁, 네 방은 어디야? 눌러서 알려 줘!",
+      "normal": "네가 자는 방을 눌러 주세요. 그곳이 출발점이 됩니다."
+    },
+    "highlight": {
+      "paletteItem": "my_spot"
+    },
+    "cardId": "fire.my_spot.why",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "step.meeting",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "meeting"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "가족들이 만나는 곳은 어디야? 모르면 나중에 정해도 돼.",
+      "normal": "밖으로 나온 뒤 가족이 만날 곳을 고르세요. 모르면 나중에 정해도 됩니다."
+    },
+    "highlight": {
+      "paletteItem": "meeting_point"
+    },
+    "cardId": "general.meeting_point",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "step.ready",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "ready"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "다 됐어! 이제 대피 연습을 시작해 보자. 완벽하지 않아도 괜찮아.",
+      "normal": "준비가 됐습니다. 지도가 완벽하지 않아도 연습을 시작할 수 있습니다. 부족한 점은 결과에서 알려 줍니다."
+    },
+    "cardId": "fire.practice.why",
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "step.edit",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "edit"
+    },
+    "priority": 5,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "왼쪽에서 고르고 도면을 누르면 놓여. 방을 끌면 옮겨져.",
+      "normal": "왼쪽 팔레트에서 고른 뒤 도면을 누르면 표준 크기로 놓입니다. 방은 끌어서 옮기고 모서리로 크기를 바꿉니다."
+    },
+    "cooldown": 120,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "step.route",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "route"
+    },
+    "priority": 10,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "내 방에서 밖으로 나가는 길을 끌어서 그려 보자. 현관으로!",
+      "normal": "출발점에서 밖으로 나가는 주 경로를 끌어서 그리세요. 보통 현관으로 나갑니다."
+    },
+    "cardId": "fire.front_door.what",
+    "cooldown": 60,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "step.routeAlt",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "routeAlt"
+    },
+    "priority": 10,
+    "speaker": "ungi",
+    "emotion": "thinking",
+    "text": {
+      "easy": "현관이 막히면? 발코니 쪽으로 가는 두 번째 길도 그려 두자.",
+      "normal": "현관이 막혔을 때의 보조 경로입니다. 대피공간·경량칸막이·하향식 피난구로 향하게 그리세요."
+    },
+    "cardId": "fire.secondexit",
+    "cooldown": 60,
+    "sourceIds": [
+      "nfa-apt-fire",
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "step.game",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "game"
+    },
+    "priority": 5,
+    "speaker": "ilgu",
+    "emotion": "normal",
+    "text": {
+      "easy": "화살표로 움직이고, 연기가 오면 몸을 낮춰. 문은 닫고 가자!",
+      "normal": "방향키로 움직입니다. 연기가 오면 자세를 낮추고, 지나온 문은 닫으세요."
+    },
+    "cooldown": 30,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "step.report",
+    "trigger": {
+      "on": "stepEnter",
+      "step": "report"
+    },
+    "priority": 5,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "이번엔 어땠는지 같이 볼까?",
+      "normal": "이번 연습 결과를 함께 살펴봅시다."
+    },
+    "cooldown": 5,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.bedroom",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "bedroom"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "happy",
+    "text": {
+      "easy": "방이 생겼네! 끌어서 옮기고, 모서리를 끌면 크기가 바뀌어.",
+      "normal": "방을 놓았습니다. 끌어서 옮기고 모서리로 크기를 바꾸세요."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.living",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "living"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "거실이야. 방이랑 맞대면 문 자리가 저절로 보여.",
+      "normal": "거실입니다. 다른 방과 변을 맞대면 문 후보가 반투명으로 표시됩니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.kitchen",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "kitchen"
+    },
+    "priority": 3,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "킁킁, 부엌은 불이 시작되기 쉬운 곳이야. 가스레인지 자리도 놓아 줘.",
+      "normal": "주방은 발화 위험이 높은 곳입니다. 가스레인지 위치도 표시해 두세요."
+    },
+    "highlight": {
+      "paletteItem": "gas_range"
+    },
+    "cardId": "fire.route.hazard",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.bath",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "bath"
+    },
+    "priority": 3,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "욕실은 정말 못 나갈 때 물을 틀고 기다리는 곳이야.",
+      "normal": "욕실은 다른 길이 모두 막혔을 때 수도를 틀고 구조를 기다리는 곳입니다."
+    },
+    "cardId": "fire.bathroom.last",
+    "cooldown": 0,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "block.entry",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "entry"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "현관이야. 현관문을 바깥쪽 벽에 놓아 주자.",
+      "normal": "현관입니다. 바깥쪽 벽에 현관문을 놓으세요."
+    },
+    "highlight": {
+      "paletteItem": "front_door"
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.balcony",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "balcony"
+    },
+    "priority": 3,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "발코니! 여기엔 못 나갈 때 쓰는 길이 숨어 있을지도 몰라. 어른께 여쭤보자.",
+      "normal": "발코니에는 경량칸막이·대피공간·하향식 피난구가 있는 경우가 많습니다. 보호자와 확인해 보세요."
+    },
+    "cardId": "fire.balcony.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "block.corridor",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "corridor"
+    },
+    "priority": 2,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "복도야. 방들을 이어 주는 길이지.",
+      "normal": "복도입니다. 방과 방을 잇는 통로입니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.stair",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "stair"
+    },
+    "priority": 3,
+    "speaker": "ungi",
+    "emotion": "happy",
+    "text": {
+      "easy": "계단! 불이 나면 계단으로 내려가는 거야. 밖으로 나가는 곳 표시도 놓자.",
+      "normal": "계단입니다. 화재 때는 계단으로 대피합니다. 지상 출구 표시를 계단에 놓으면 목표가 됩니다."
+    },
+    "highlight": {
+      "paletteItem": "ground_exit"
+    },
+    "cardId": "fire.stairs.howto",
+    "cooldown": 0,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "block.elevator_hall",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "elevator_hall"
+    },
+    "priority": 3,
+    "speaker": "ilgu",
+    "emotion": "worried",
+    "text": {
+      "easy": "승강기 앞이구나. 불이 나면 타면 안 되는 거 알지?",
+      "normal": "승강기 앞입니다. 화재 때 엘리베이터는 이용하지 않습니다."
+    },
+    "cardId": "fire.elevator.forbidden",
+    "cooldown": 0,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "block.door",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "door"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "happy",
+    "text": {
+      "easy": "문을 놓았어! 나올 때 닫고 나오면 불이 천천히 번져.",
+      "normal": "문을 놓았습니다. 대피할 때 문을 닫고 나오면 확산이 크게 늦어집니다."
+    },
+    "cardId": "fire.door.close",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.front_door",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "front_door"
+    },
+    "priority": 4,
+    "speaker": "ungi",
+    "emotion": "happy",
+    "text": {
+      "easy": "현관문! 첫 번째 길은 여기로 나가는 거야.",
+      "normal": "현관문입니다. 주 경로는 보통 이 문으로 나갑니다."
+    },
+    "cardId": "fire.front_door.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "block.window",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "window"
+    },
+    "priority": 2,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "창문은 밖에 알리는 데 써. 나가는 건 어른과 함께여야 해.",
+      "normal": "창문은 구조를 요청하는 데 씁니다. 창문으로 나가는 것은 어른과 함께여야 합니다."
+    },
+    "cardId": "fire.window.escape",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.balcony_window",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "balcony_window"
+    },
+    "priority": 2,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "발코니 창이야. 발코니로 나가는 길이 생겼어.",
+      "normal": "발코니 창입니다. 발코니로 이어지는 통로가 됩니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.extinguisher",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "extinguisher"
+    },
+    "priority": 3,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "소화기 자리를 알고 있구나! 잘했어.",
+      "normal": "소화기 위치를 표시했습니다."
+    },
+    "cardId": "fire.extinguisher.where",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.detector",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "detector"
+    },
+    "priority": 3,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "감지기까지! 연기를 알아채면 소리로 알려 주는 거야.",
+      "normal": "화재감지기를 표시했습니다. 연기를 감지하면 경보음으로 알립니다."
+    },
+    "cardId": "general.detector.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.gas_valve",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "gas_valve"
+    },
+    "priority": 3,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "가스 밸브 자리야. 잠그는 건 어른과 함께 하자.",
+      "normal": "가스 중간밸브입니다. 잠그는 일은 어른과 함께 합니다."
+    },
+    "cardId": "gas.valve",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-gas"
+    ]
+  },
+  {
+    "id": "block.light_partition",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "light_partition"
+    },
+    "priority": 4,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "경량칸막이! 현관이 막히면 여기로 옆집에 갈 수 있어.",
+      "normal": "경량칸막이입니다. 현관이 막혔을 때 부수고 옆집으로 넘어갈 수 있습니다."
+    },
+    "cardId": "fire.light_partition.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "block.refuge_area",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "refuge_area"
+    },
+    "priority": 4,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "대피공간! 문을 닫고 안에서 구조를 기다리는 곳이야.",
+      "normal": "대피공간입니다. 방화문을 닫고 구조를 기다리는 곳입니다."
+    },
+    "cardId": "fire.refuge_area.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "block.descending_hatch",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "descending_hatch"
+    },
+    "priority": 4,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "하향식 피난구! 바닥 뚜껑을 열면 아래층으로 가는 사다리가 나와.",
+      "normal": "하향식 피난구입니다. 발코니 바닥의 뚜껑을 열면 아래층으로 내려가는 사다리가 나옵니다."
+    },
+    "cardId": "fire.descending_hatch.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "block.descent_device",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "descent_device"
+    },
+    "priority": 4,
+    "speaker": "ungi",
+    "emotion": "worried",
+    "text": {
+      "easy": "완강기는 어른과 함께 쓰는 거야. 혼자 쓰지 않는다!",
+      "normal": "완강기는 반드시 어른과 함께 사용합니다."
+    },
+    "cardId": "fire.descent_device.what",
+    "cooldown": 0,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "block.meeting_point",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "meeting_point"
+    },
+    "priority": 4,
+    "speaker": "yeongi",
+    "emotion": "happy",
+    "text": {
+      "easy": "만나는 곳까지 정했구나. 이제 흩어져도 다시 모일 수 있어.",
+      "normal": "가족이 만날 곳을 정했습니다. 흩어져도 다시 모일 수 있습니다."
+    },
+    "cardId": "general.meeting_point",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.my_spot",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "my_spot"
+    },
+    "priority": 4,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "좋아, 여기서 출발이야!",
+      "normal": "출발점을 정했습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.gas_range",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "gas_range"
+    },
+    "priority": 3,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "가스레인지는 불이 시작되기 쉬워. 길을 그릴 때 옆을 비켜 가자.",
+      "normal": "가스레인지는 발화 위험이 큽니다. 경로를 그릴 때 그 옆을 비켜 가세요."
+    },
+    "cardId": "fire.route.hazard",
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.power_strip",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "power_strip"
+    },
+    "priority": 2,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "문어발 콘센트도 불이 나기 쉬운 곳이야.",
+      "normal": "멀티탭에 여러 기기를 꽂으면 과열로 불이 날 수 있습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.heater",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "heater"
+    },
+    "priority": 2,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "난로 옆에는 옷이나 이불을 두지 않는 거야.",
+      "normal": "난로 가까이에는 옷이나 이불 같은 타기 쉬운 것을 두지 않습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.candle",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "candle"
+    },
+    "priority": 2,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "촛불은 어른이 있을 때만 켜는 거야.",
+      "normal": "초는 어른이 있을 때만 켜고 자리를 비우지 않습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "block.bed",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "bed"
+    },
+    "priority": 1,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "침대야. 자는 곳에서 나가는 길이 제일 중요해.",
+      "normal": "침대입니다. 잠자는 곳에서 나가는 길이 가장 자주 쓰입니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "block.sofa",
+    "trigger": {
+      "on": "blockPlaced",
+      "blockKind": "sofa"
+    },
+    "priority": 1,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "소파야. 천은 잘 타니까 불 옆에 두지 말자.",
+      "normal": "소파입니다. 천 가구는 잘 타므로 발화원 옆에 두지 않습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-01",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-01"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "길이 방 밖에서 시작했어. 네 방 안에서 시작하자.",
+      "normal": "출발점이 방 안에 있지 않습니다. 방 안 칸에서 시작하세요."
+    },
+    "cardId": "fire.my_spot.why",
+    "cooldown": 20,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-02",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-02"
+    },
+    "priority": 6,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "가족이 만나는 곳을 아직 안 정했어. 어른께 여쭤보고 놓아 두자.",
+      "normal": "가족이 만날 곳이 아직 없습니다. 보호자와 정해 표시해 두세요."
+    },
+    "highlight": {
+      "paletteItem": "meeting_point"
+    },
+    "cardId": "general.meeting_point",
+    "cooldown": 60,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-03",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-03"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "worried",
+    "text": {
+      "easy": "킁킁, {roomName}에서 나갈 길이 없어! 문을 하나 놓아 주자.",
+      "normal": "{roomName}에서 나갈 문이 없습니다. 벽에 문을 놓으세요."
+    },
+    "highlight": {
+      "paletteItem": "door"
+    },
+    "cardId": "general.isolated.room",
+    "cooldown": 20,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-04",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-04"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "길이 중간에 끊겼어. 한 칸씩 이어서 다시 그려 보자.",
+      "normal": "경로가 중간에 끊겼습니다. 옆 칸으로 이어지게 다시 그리세요."
+    },
+    "cardId": "general.route.wall",
+    "cooldown": 20,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-05",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-05"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "여기는 벽이야! 문이 있는 쪽으로 길을 돌리자.",
+      "normal": "벽을 가로질렀습니다. 문이 있는 쪽으로 경로를 바꾸거나 문을 놓으세요."
+    },
+    "cardId": "general.route.wall",
+    "cooldown": 20,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-06",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-06"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "길이 안전한 곳에서 안 끝났어. 밝게 표시한 곳까지 이어 보자.",
+      "normal": "경로가 안전한 곳에서 끝나지 않았습니다. 강조된 칸까지 이어 그리세요."
+    },
+    "cardId": "general.route.end",
+    "cooldown": 20,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-07",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-07"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "우리 집 소화기는 어디 있을까? 어른께 여쭤보자.",
+      "normal": "소화기 위치를 보호자와 확인해 표시하세요."
+    },
+    "highlight": {
+      "paletteItem": "extinguisher"
+    },
+    "cardId": "fire.extinguisher.where",
+    "cooldown": 120,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-C-08",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-C-08"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "천장에 동그란 감지기가 있어? 찾아서 표시하자.",
+      "normal": "화재감지기 위치를 찾아 표시하세요."
+    },
+    "highlight": {
+      "paletteItem": "detector"
+    },
+    "cardId": "general.detector.what",
+    "cooldown": 120,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-01",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-01"
+    },
+    "priority": 7,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "첫 번째 길은 현관문으로 나가야 해.",
+      "normal": "주 경로는 현관문을 지나야 합니다."
+    },
+    "cardId": "fire.front_door.what",
+    "cooldown": 30,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-02",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-02"
+    },
+    "priority": 7,
+    "speaker": "ilgu",
+    "emotion": "worried",
+    "text": {
+      "easy": "길이 불 나기 쉬운 곳 바로 옆을 지나. 조금 돌아가자.",
+      "normal": "경로가 가스레인지·보일러 바로 옆을 지납니다. 비켜 가는 길로 바꾸세요."
+    },
+    "cardId": "fire.route.hazard",
+    "cooldown": 30,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-03",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-03"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "alert",
+    "text": {
+      "easy": "승강기 앞을 지나는 길이야. 불이 나면 승강기는 멈춰! 계단으로.",
+      "normal": "경로가 승강기를 지납니다. 화재 때 엘리베이터는 멈출 수 있으니 계단으로 바꾸세요."
+    },
+    "cardId": "fire.elevator.forbidden",
+    "cooldown": 30,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-04",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-04"
+    },
+    "priority": 7,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "현관이 막히면 갈 곳이 없어. 발코니에 뭐가 있는지 어른께 여쭤보자.",
+      "normal": "대체 피난수단이 없습니다. 경량칸막이·대피공간·하향식 피난구 가운데 우리 집에 있는 것을 표시하세요."
+    },
+    "highlight": {
+      "paletteItem": "refuge_area"
+    },
+    "cardId": "fire.secondexit",
+    "cooldown": 60,
+    "sourceIds": [
+      "nfa-apt-fire",
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-05",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-05"
+    },
+    "priority": 7,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "두 번째 길은 대피공간이나 경량칸막이에서 끝나야 해.",
+      "normal": "보조 경로는 대피공간·경량칸막이·하향식 피난구에서 끝나야 합니다."
+    },
+    "cardId": "fire.apt.exit_blocked",
+    "cooldown": 30,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-06",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-06"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "길이 너무 돌아가. 곧게 펴 보자.",
+      "normal": "경로가 최단경로보다 많이 깁니다. 조금 더 곧게 그리세요."
+    },
+    "cardId": "general.route.short",
+    "cooldown": 60,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-07",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-07"
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "발코니도 그려 두자. 거기에 못 나갈 때 쓰는 길이 있을 수 있어.",
+      "normal": "발코니를 그리고 그곳의 피난설비도 표시하세요."
+    },
+    "highlight": {
+      "paletteItem": "balcony"
+    },
+    "cardId": "fire.balcony.what",
+    "cooldown": 120,
+    "sourceIds": [
+      "local-apt-refuge"
+    ]
+  },
+  {
+    "id": "pass.RULE-C-02",
+    "trigger": {
+      "on": "rulePass",
+      "ruleId": "RULE-C-02"
+    },
+    "priority": 2,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "만나는 곳까지 정했구나. 잘했어!",
+      "normal": "가족이 만날 곳을 정했습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "pass.RULE-C-03",
+    "trigger": {
+      "on": "rulePass",
+      "ruleId": "RULE-C-03"
+    },
+    "priority": 2,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "모든 방에서 나갈 수 있어. 갇히는 곳이 없구나!",
+      "normal": "모든 방에서 나갈 수 있습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "pass.RULE-C-06",
+    "trigger": {
+      "on": "rulePass",
+      "ruleId": "RULE-C-06"
+    },
+    "priority": 4,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "안전한 곳까지 이어졌어. 아주 좋아!",
+      "normal": "경로가 안전한 곳에서 끝났습니다."
+    },
+    "cooldown": 30,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "pass.RULE-F-01",
+    "trigger": {
+      "on": "rulePass",
+      "ruleId": "RULE-F-01"
+    },
+    "priority": 2,
+    "speaker": "ungi",
+    "emotion": "happy",
+    "text": {
+      "easy": "현관문으로 나가는 길이구나.",
+      "normal": "주 경로가 현관문을 지납니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "pass.RULE-F-04",
+    "trigger": {
+      "on": "rulePass",
+      "ruleId": "RULE-F-04"
+    },
+    "priority": 2,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "다른 피난 길까지 갖췄어. 준비된 사람이야!",
+      "normal": "대체 피난수단을 갖췄습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "pass.RULE-F-05",
+    "trigger": {
+      "on": "rulePass",
+      "ruleId": "RULE-F-05"
+    },
+    "priority": 4,
+    "speaker": "ungi",
+    "emotion": "happy",
+    "text": {
+      "easy": "{facility}(으)로 가는 길이구나. 잘 골랐어.",
+      "normal": "보조 경로가 {facility}에서 끝납니다."
+    },
+    "cooldown": 30,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "game.start",
+    "trigger": {
+      "on": "gameStart"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "alert",
+    "text": {
+      "easy": "불이 났어! 침착하게 밖으로 나가자. 연기가 오면 몸을 낮춰!",
+      "normal": "화재 발생. 침착하게 대피하세요. 연기가 오면 자세를 낮추고, 문은 닫고 지나갑니다."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.inHazard",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "inHazard"
+    },
+    "priority": 8,
+    "speaker": "ilgu",
+    "emotion": "worried",
+    "text": {
+      "easy": "연기야! 몸을 낮춰!",
+      "normal": "연기 속입니다. 자세를 낮추세요."
+    },
+    "cardId": "fire.smoke.posture",
+    "cooldown": 15,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.usedElevator",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "usedElevator"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "alert",
+    "text": {
+      "easy": "승강기가 안 움직여! 계단으로 가야 해.",
+      "normal": "엘리베이터가 멈췄습니다. 계단으로 가세요."
+    },
+    "cardId": "fire.elevator.forbidden",
+    "cooldown": 0,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "game.closedDoor",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "closedDoor"
+    },
+    "priority": 6,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "문을 닫았어! 불이 천천히 번질 거야.",
+      "normal": "문을 닫았습니다. 확산이 늦어집니다."
+    },
+    "cooldown": 20,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.openedHotDoor",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "openedHotDoor"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "alert",
+    "text": {
+      "easy": "앗, 뜨거운 문이었어! 다음엔 먼저 만져 보자.",
+      "normal": "뜨거운 문을 열었습니다. 열기 전에 온도를 확인하세요."
+    },
+    "cardId": "fire.door.heatcheck",
+    "cooldown": 10,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.doorHot",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "doorHot"
+    },
+    "priority": 8,
+    "speaker": "ilgu",
+    "emotion": "worried",
+    "text": {
+      "easy": "이 문은 뜨거워! 열지 말고 다른 길로.",
+      "normal": "문이 뜨겁습니다. 열지 말고 다른 길을 찾으세요."
+    },
+    "cardId": "fire.door.heatcheck",
+    "cooldown": 5,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.doorCool",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "doorCool"
+    },
+    "priority": 6,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "이 문은 괜찮아. 열어도 돼.",
+      "normal": "문이 뜨겁지 않습니다. 열어도 됩니다."
+    },
+    "cooldown": 5,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.crouched",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "crouched"
+    },
+    "priority": 5,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "그렇지, 낮게!",
+      "normal": "낮은 자세, 좋습니다."
+    },
+    "cooldown": 30,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "game.passedDoor",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "passedDoor"
+    },
+    "priority": 4,
+    "speaker": "ilgu",
+    "emotion": "normal",
+    "text": {
+      "easy": "문을 지났어. 닫고 갈까?",
+      "normal": "문을 지났습니다. 닫고 가세요."
+    },
+    "cardId": "fire.door.close",
+    "cooldown": 25,
+    "sourceIds": [
+      "safekorea-fire"
+    ]
+  },
+  {
+    "id": "game.reachedGoal",
+    "trigger": {
+      "on": "gameEvent",
+      "event": "reachedGoal"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "나왔다! 정말 잘했어!",
+      "normal": "안전한 곳에 도착했습니다."
+    },
+    "cooldown": 0,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "game.end.success",
+    "trigger": {
+      "on": "gameEnd",
+      "outcome": "success"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "happy",
+    "text": {
+      "easy": "무사히 나왔어! 너는 이미 준비된 사람이야.",
+      "normal": "무사히 대피했습니다. 이미 준비된 사람입니다."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "game.end.fail",
+    "trigger": {
+      "on": "gameEnd",
+      "outcome": "fail"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "normal",
+    "text": {
+      "easy": "괜찮아, 다시 해 보자! 무엇이 어려웠는지 같이 보자.",
+      "normal": "괜찮습니다. 무엇이 어려웠는지 함께 살펴보고 다시 해 봅시다."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "idle.20",
+    "trigger": {
+      "on": "idle",
+      "seconds": 20
+    },
+    "priority": 2,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "뭘 해야 할지 모르겠으면 아래 “이제 뭘 해야 해?”를 눌러 봐.",
+      "normal": "다음에 무엇을 할지 모르면 아래 “이제 뭘 해야 해?”를 누르세요."
+    },
+    "cooldown": 90,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "idle.60",
+    "trigger": {
+      "on": "idle",
+      "seconds": 60
+    },
+    "priority": 3,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "쉬어도 괜찮아. 그린 건 저절로 저장돼.",
+      "normal": "쉬어도 됩니다. 그린 내용은 자동으로 저장됩니다."
+    },
+    "cooldown": 300,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.template",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "template"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "우리 집과 비슷한 모양을 하나 누르면 돼.",
+      "normal": "우리 집과 비슷한 평면을 하나 고르세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.lowFloor",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "lowFloor"
+    },
+    "priority": 10,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "우리 집이 1층이나 반지하면 “응”, 아니면 “아니야”를 누르자. 모르면 어른께 여쭤봐.",
+      "normal": "1층·반지하면 “예”, 아니면 “아니오”를 누르세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.mySpot",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "mySpot"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "normal",
+    "text": {
+      "easy": "네가 자는 방을 도면에서 눌러 줘.",
+      "normal": "잠자는 방을 도면에서 누르세요."
+    },
+    "highlight": {
+      "paletteItem": "my_spot"
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.meeting",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "meeting"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "집 밖 빈 곳을 눌러 만나는 곳을 놓거나, “나중에 정할래”를 누르자.",
+      "normal": "도면 밖 빈 곳을 눌러 만나는 곳을 놓거나 “나중에”를 누르세요."
+    },
+    "highlight": {
+      "paletteItem": "meeting_point"
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.ready",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "ready"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "happy",
+    "text": {
+      "easy": "“대피 연습 시작!”을 누르면 돼.",
+      "normal": "“대피 연습 시작”을 누르세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.edit",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "edit"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "왼쪽에서 하나 고르고 도면을 누르면 놓여. 다 됐으면 아래 “대피 연습 시작!”",
+      "normal": "왼쪽 팔레트에서 고르고 도면을 누르면 놓입니다. 다 되었으면 “대피 연습 시작”을 누르세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.route",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "route"
+    },
+    "priority": 10,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "출발 칸을 누른 채 끌어서 현관문까지 이어 봐.",
+      "normal": "출발 칸부터 끌어서 현관문 칸까지 이으세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.routeAlt",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "routeAlt"
+    },
+    "priority": 10,
+    "speaker": "ungi",
+    "emotion": "normal",
+    "text": {
+      "easy": "출발 칸에서 대피공간이나 경량칸막이 칸까지 끌어서 이어 봐. 없으면 건너뛰어도 돼.",
+      "normal": "출발 칸부터 대피공간·경량칸막이·하향식 피난구 칸까지 이으세요. 없으면 건너뛰어도 됩니다."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.game",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "game"
+    },
+    "priority": 10,
+    "speaker": "ilgu",
+    "emotion": "normal",
+    "text": {
+      "easy": "화살표로 움직여서 밝게 표시한 곳까지 가. 연기가 오면 “낮게” 단추!",
+      "normal": "방향키로 목표 칸까지 이동합니다. 연기가 오면 자세를 낮추세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.report",
+    "trigger": {
+      "on": "helpRequested",
+      "step": "report"
+    },
+    "priority": 10,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "“다시 해보기”로 한 번 더 하거나, “지도 고치기”로 고칠 곳을 고치자.",
+      "normal": "“다시 해보기”로 재도전하거나 “지도 고치기”로 지적된 곳을 고치세요."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "help.any",
+    "trigger": {
+      "on": "helpRequested"
+    },
+    "priority": 1,
+    "speaker": "yeongi",
+    "emotion": "normal",
+    "text": {
+      "easy": "지금 화면에서 큰 단추를 눌러 보자. 막히면 아래 “첫 화면”으로 돌아갈 수도 있어.",
+      "normal": "화면의 큰 단추를 누르세요. 막히면 “첫 화면”으로 돌아갈 수 있습니다."
+    },
+    "cooldown": 1,
+    "sourceIds": [
+      "app-guide"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-08",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-08"
+    },
+    "priority": 8,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "평소 길은 아래로 내려가는 쪽이야. 옥상은 아래가 막혔을 때 가자.",
+      "normal": "주 경로는 지상으로 내려가는 방향으로 잡습니다. 옥상은 아래가 막혔을 때입니다."
+    },
+    "cardId": "fire.exit.down",
+    "cooldown": 25,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  },
+  {
+    "id": "fail.RULE-F-09",
+    "trigger": {
+      "on": "ruleFail",
+      "ruleId": "RULE-F-09"
+    },
+    "priority": 9,
+    "speaker": "ilgu",
+    "emotion": "thinking",
+    "text": {
+      "easy": "지하에는 연기가 모여. 그쪽으로는 가지 말자.",
+      "normal": "지하는 연기가 고입니다. 화재 시 경로에서 제외합니다."
+    },
+    "cardId": "fire.exit.down",
+    "cooldown": 25,
+    "sourceIds": [
+      "nfa-apt-fire"
+    ]
+  }
 ]

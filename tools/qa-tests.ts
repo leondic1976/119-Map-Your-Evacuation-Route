@@ -151,6 +151,58 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(bad.length === 0, `이모지 ${bad.slice(0, 3).join(' | ')}`);
   });
 
+  /* -------------------------------------------------- 설계서와 코드 */
+
+  /**
+   * 코드 주석이 가리키는 설계서의 절이 실제로 있어야 한다.
+   * `설계서 v1.2 §11`·`§12`·`§13` 을 가리키면서 문서에는 그 절이 없던 적이 있다.
+   * 코드보다 설계서를 먼저 고친다는 원칙(작업지침 §9)이 지켜졌는지를 기계로 본다.
+   */
+  check('[점검] 코드가 가리키는 설계서 절이 실제로 있다 (작업지침 §9)', () => {
+    const docs: Record<string, string> = {
+      'v1.0': read(path.join(root, 'docs/DESIGN-v1.0.md')),
+      'v1.1': read(path.join(root, 'docs/DESIGN-v1.1-changes.md')),
+      'v1.2': read(path.join(root, 'docs/DESIGN-v1.2-changes.md')),
+    };
+    /* 문서마다 있는 절 번호를 모은다 — 제목 줄의 "## 8.2" 같은 것 */
+    const heads: Record<string, Set<string>> = {};
+    for (const [v, src] of Object.entries(docs)) {
+      const set = new Set<string>();
+      for (const m of src.matchAll(/^#{2,4}\s+(\d+(?:\.\d+)*)/gm)) set.add(m[1]);
+      heads[v] = set;
+    }
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css'])) {
+      const src = read(f);
+      for (const m of src.matchAll(/설계서\s+(v1\.[012])\s+§(\d+(?:\.\d+)*)/g)) {
+        const [, ver, sec] = m;
+        if (heads[ver]?.has(sec)) continue;
+        bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${ver} §${sec}`);
+      }
+    }
+    assert(bad.length === 0, `없는 절을 가리킨다: ${bad.slice(0, 4).join(' | ')}`);
+  });
+
+  /**
+   * 설계서가 적어 둔 규칙 id 가 실제로 구현돼 있어야 한다.
+   * 설계서는 RULE-F-06·07 로 적었는데 그 번호가 이미 쓰이고 있어 F-08·09 로 나간 적이 있다.
+   */
+  check('[점검] 설계서가 적은 규칙 id 가 코드에 있다 (작업지침 §9)', () => {
+    const defs = read(path.join(root, 'src/kids/core/rules/definitions.ts'));
+    const known = new Set<string>();
+    for (const m of defs.matchAll(/id:\s*'(RULE-[A-Z]-\d+)'/g)) known.add(m[1]);
+    assert(known.size > 0, '규칙 id 를 하나도 못 찾았다');
+    const bad: string[] = [];
+    for (const d of ['docs/DESIGN-v1.1-changes.md', 'docs/DESIGN-v1.2-changes.md']) {
+      const src = read(path.join(root, d));
+      for (const m of src.matchAll(/RULE-[A-Z]-\d+/g)) {
+        if (known.has(m[0])) continue;
+        bad.push(`${d}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[0]}`);
+      }
+    }
+    assert(bad.length === 0, `설계서에만 있는 규칙: ${bad.slice(0, 4).join(' | ')}`);
+  });
+
   /* -------------------------------------------------- 괄호 조사 */
 
   check('[점검] 화면 문구에 "을(를)" 같은 괄호 조사가 없다 (작업지침 §8)', () => {

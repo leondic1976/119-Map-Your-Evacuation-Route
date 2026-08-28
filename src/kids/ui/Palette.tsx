@@ -30,12 +30,17 @@ const ROOM_SWATCH: Record<string, string> = {
   utility: '#f0f0f0',
   corridor: '#f6f6ee',
   stair: '#e0e7ef',
+  refuge_lobby: '#dfe9e0',
   elevator_hall: '#f3e2e2',
 };
 
 const TOOLS: { key: KidsTool; easy: string; normal: string; hint: string }[] = [
   { key: 'select', easy: '고르기', normal: '선택', hint: '눌러서 고르고, 끌어서 옮긴다.' },
-  { key: 'route', easy: '길 그리기', normal: '경로 작도', hint: '출발할 칸부터 끌어서 잇는다.' },
+  /*
+   * "길 그리기"는 무슨 길인지가 빠져 있었다. 이 앱이 그리는 것은 불이 났을 때
+   * 밖으로 나가는 길이다. 쉬움은 아이가 쓰는 말로, 보통은 소방 용어로 적는다.
+   */
+  { key: 'route', easy: '나가는 길', normal: '피난경로', hint: '불났을 때 나갈 길이다. 출발할 칸부터 끌어서 잇는다.' },
   { key: 'erase', easy: '지우개', normal: '삭제', hint: '눌러서 지운다.' },
 ];
 
@@ -105,7 +110,7 @@ export default function Palette() {
         ))}
         <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
           <span className="k-block-art">
-            <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
               <circle cx={12} cy={20} r={3.2} fill="#2a3038" />
               <circle cx={20} cy={20} r={3.2} fill="#2a3038" />
               <circle cx={28} cy={20} r={3.2} fill="#2a3038" />
@@ -124,10 +129,21 @@ export default function Palette() {
               </button>
             ))}
           </div>
-          <div className="k-blocks" role="tabpanel">
-            {moreItems.map((b) => (
-              <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} common={b.tags.includes('common') && layer !== 'common'} />
-            ))}
+          <div className="k-more-scroll" role="tabpanel">
+            {[true, false].map((req) => {
+              const items = moreItems.filter((b) => b.required === req);
+              if (items.length === 0) return null;
+              return (
+                <section key={String(req)} className="k-block-group">
+                  <h3>{req ? (easy ? '꼭 있어야 하는 것' : '필수') : easy ? '있을 수 있는 것' : '선택'}</h3>
+                  <div className="k-blocks">
+                    {items.map((b) => (
+                      <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} common={b.tags.includes('common') && layer !== 'common'} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </div>
       )}
@@ -212,14 +228,14 @@ function hintFor(b: BlockDef, easy: boolean): string {
 function BlockPreview({ def, style }: { def: BlockDef; style: 'kid' | 'blueprint' }) {
   if (def.category === 'room') {
     return (
-      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
         <rect x={4} y={6} width={32} height={28} fill={style === 'kid' ? (ROOM_SWATCH[def.id] ?? '#fff') : '#fff'} stroke="#2a3038" strokeWidth={3} />
       </svg>
     );
   }
   if (def.category === 'opening') {
     return (
-      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
         <path d="M2 14 H38" stroke="#2a3038" strokeWidth={3} />
         <g transform="translate(20 14)">
           <OpeningArt kind={def.id} len={26} style={style} />
@@ -228,7 +244,7 @@ function BlockPreview({ def, style }: { def: BlockDef; style: 'kid' | 'blueprint
     );
   }
   return (
-    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+    <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
       <PointArt subKind={def.id} w={40} h={40} style={style} />
     </svg>
   );

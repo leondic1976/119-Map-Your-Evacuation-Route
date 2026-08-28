@@ -133,6 +133,21 @@
     "required": false
   },
   {
+    "id": "refuge_lobby",
+    "category": "room",
+    "label": "피난전실",
+    "easy": "계단 앞 방",
+    "size": {
+      "w": 3,
+      "h": 3
+    },
+    "fuel": 0.05,
+    "tags": [
+      "common"
+    ],
+    "required": false
+  },
+  {
     "id": "elevator_hall",
     "category": "room",
     "label": "승강기 앞",

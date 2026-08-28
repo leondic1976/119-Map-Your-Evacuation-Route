@@ -51,6 +51,7 @@ const ROOM_FILL: Record<RoomBlock['roomKind'], string> = {
   utility: '#f0f0f0',
   corridor: '#f6f6ee',
   stair: '#e0e7ef',
+  refuge_lobby: '#dfe9e0',
   elevator_hall: '#f3e2e2',
 };
 

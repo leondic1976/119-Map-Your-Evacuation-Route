@@ -38,6 +38,7 @@ const ROOM_TINT: Record<RoomBlock['roomKind'], number[]> = {
   utility: [0.93, 0.93, 0.93],
   corridor: [0.96, 0.96, 0.9],
   stair: [0.87, 0.9, 0.94],
+  refuge_lobby: [0.87, 0.93, 0.88],
   elevator_hall: [0.95, 0.88, 0.88],
 };
 

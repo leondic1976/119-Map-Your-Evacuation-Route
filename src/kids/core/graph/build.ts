@@ -33,6 +33,7 @@ export const ROOM_LABEL: Record<RoomBlock['roomKind'], string> = {
   utility: '다용도실',
   corridor: '복도',
   stair: '계단',
+  refuge_lobby: '피난전실',
   elevator_hall: '승강기 앞',
 };
 

@@ -23,13 +23,14 @@ import GuideBubble from './GuideBubble';
 import GameView from './GameView';
 import ReportView from './ReportView';
 import Palette from './Palette';
+import HowTo from './HowTo';
 import Onboarding, { CloseIcon } from './Onboarding';
 import KidsPrint, { SHEET_H, SHEET_W } from './KidsPrint';
 import { SLOT_STYLE } from './PlanSvg';
 import { PLAYER_NAME } from './Avatar';
 import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
-import { playTap, stopSpeaking, unlockAudio } from './sound';
+import { playDoor, playTap, stopSpeaking, unlockAudio } from './sound';
 
 interface Props {
   /** 첫 화면(이용자 고르기)으로 돌아간다 */
@@ -343,7 +344,7 @@ export default function KidsShell({ onLeave }: Props) {
                 </div>
                 {pair[routeSlot] && (
                   <button type="button" className="k-tb sm" onClick={() => useKids.getState().clearRoute()} title="이 경로만 지운다" data-coach="kids-clear-route">
-                    길 지우기
+                    {easy ? '이 길 지우기' : '이 경로 지우기'}
                   </button>
                 )}
                 <span className="k-spacer" />
@@ -387,30 +388,6 @@ export default function KidsShell({ onLeave }: Props) {
                       )}
                     </div>
                   )}
-                  {editing && selection && !onboardingOnCanvas && (
-                    <div className="k-selbar" role="status">
-                      {easy ? '골랐어. ' : '선택함. '}
-                      끌어서 옮기고, <span className="k-kbd">Delete</span> 로 지운다.
-                      {selectedOpening && (
-                        <button
-                          type="button"
-                          className="k-link"
-                          data-coach="kids-opening-toggle"
-                          data-open={selectedOpening.closedByDefault ? 'closed' : 'open'}
-                          title="평소에 열어 두는지 닫아 두는지. 불이 났을 때 연기가 얼마나 넘어오는지가 달라진다"
-                          onClick={() => useKids.getState().toggleOpening(selectedOpening.id)}
-                        >
-                          {selectedOpening.closedByDefault ? (easy ? '평소 닫아 둠 — 바꾸기' : '평소 닫힘 — 열림으로') : easy ? '평소 열어 둠 — 바꾸기' : '평소 열림 — 닫힘으로'}
-                        </button>
-                      )}
-                      <button type="button" className="k-link" onClick={() => useKids.getState().removeBlock(selection)}>
-                        지우기
-                      </button>
-                      <button type="button" className="k-link" onClick={() => useKids.getState().select(null)}>
-                        그만
-                      </button>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -441,6 +418,7 @@ export default function KidsShell({ onLeave }: Props) {
               </div>
             )}
           </main>
+          <HowTo />
         </div>
 
         {/* 하단바 */}
@@ -686,7 +664,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['1. 집 모양', '우리 집과 비슷한 것을 고른다. 백지에서 시작하지 않아도 된다.'],
         ['2. 내 방', '캐릭터가 물으면 네가 자는 방을 누른다.'],
         ['3. 방 고치기', '방을 끌어 옮기고, 모서리를 끌어 크기를 바꾼다. 맞댄 벽에 “문?”이 보이면 한 번 눌러 문을 놓는다.'],
-        ['4. 길 그리기', '“길 그리기”를 누르고 내 방부터 현관까지 끌어서 잇는다. 못 나갈 때 길도 그려 두면 좋다.'],
+        ['4. 나가는 길', '“나가는 길”을 누르고 내 방부터 현관까지 끌어서 잇는다. 못 나갈 때 갈 길도 그려 두면 좋다.'],
         ['5. 대피 연습', '“대피 연습 시작!”을 누르면 불이 난다. 화살표로 움직이고, 연기가 오면 “낮게!”'],
         ['6. 결과', '잘한 점과 고칠 점을 본다. “다시 해보기”나 “지도 고치기”를 누른다.'],
         ['7. 뽑기', '한 장으로 뽑아 잘 보이는 곳에 붙인다.'],
@@ -695,7 +673,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
     : [
         ['평면', '집 모양(템플릿)에서 시작해 방을 옮기고 크기를 바꾼다. 방은 직사각형만 된다. 팔레트 클릭 → 도면 클릭이면 표준 크기로 놓인다.'],
         ['문', '두 방이 맞닿으면 문 후보가 반투명으로 보인다. 한 번 누르면 문이 놓인다.'],
-        ['경로', '주 경로(현관)와 보조 경로(못 나갈 때)를 각각 끌어서 잇는다. 뒤로 되짚으면 지워진다.'],
+        ['피난경로', '주 경로(현관)와 보조 경로(못 나갈 때)를 각각 끌어서 잇는다. 뒤로 되짚으면 지워진다.'],
         ['게임', '발화점은 매번 다르다. 방향키로 이동, 스페이스로 자세, T 문 만져보기, C 문 닫기, P 멈춤. 연습 모드가 기본이다.'],
         ['리포트', '규칙 엔진(정적)과 플레이 로그(동적)를 합쳐 잘한 점·고칠 점으로 정리한다. [왜?]를 누르면 학습 카드가 펼쳐진다.'],
         ['인쇄', 'A4 세로 1장. 흑백에서도 경로가 번호·선종류로 구분된다.'],

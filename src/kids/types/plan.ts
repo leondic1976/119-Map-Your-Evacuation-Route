@@ -84,6 +84,8 @@ export type RoomKind =
   | 'utility'
   | 'corridor'
   | 'stair'
+  /** 특별피난계단 부속실(피난전실). 계단 앞을 방화문으로 구획한 칸 */
+  | 'refuge_lobby'
   | 'elevator_hall';
 
 export type OpeningKind =

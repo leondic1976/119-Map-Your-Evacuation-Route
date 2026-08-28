@@ -189,7 +189,9 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       s.select(id);
       if (id) {
         const b = plan.blocks.find((x) => x.id === id);
-        if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: c };
+        /* 문·창은 누를 때마다 열리고 닫힌다. 두 번 걸치는 조작을 만들지 않는다 (FR-7 우선) */
+        if (b && isOpening(b)) s.toggleOpening(b.id);
+        else if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: c };
         else if (b && isRoom(b)) dragRef.current = { kind: 'roomMove', id, start: c };
       }
     } else if (tool === 'route') {
@@ -241,7 +243,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         else s.notify('먼저 방을 만들어야 문·창을 놓을 수 있다.', 'warn');
       } else s.placePoint(armed.category, armed.id as never, c);
     } else if (tool === 'select') {
-      s.select(hitTest(mid));
+      const id = hitTest(mid);
+      s.select(id);
+      const b = id ? plan.blocks.find((x) => x.id === id) : undefined;
+      if (b && isOpening(b)) s.toggleOpening(b.id);
     } else if (tool === 'route') {
       if (drafting) s.extendRoute(c);
       else s.startRoute(c);
@@ -355,11 +360,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   };
 
   const selectedRoom = selection ? plan.blocks.find((b) => b.id === selection && isRoom(b)) : undefined;
-  const selectedOpening = useMemo(() => {
-    if (!selection) return null;
-    const b = plan.blocks.find((x) => x.id === selection);
-    return b && isOpening(b) ? b : null;
-  }, [plan.blocks, selection]);
   const cursor = inGame
     ? 'pointer'
     : step === 'mySpot' || step === 'meeting'
@@ -479,18 +479,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
             />
           )}
           {!inGame && tool === 'select' && selectedRoom && isRoom(selectedRoom) && !roomShift && <ResizeHandles rect={selectedRoom.rect} />}
-          {/*
-            개구부를 고르면 문 바로 위에 열고 닫는 단추가 뜬다.
-            선택 막대의 글자 단추만으로는 어디를 바꾸는지 알기 어렵다는 지적을 받아
-            도면 위에서 바로 누르게 했다 (설계서 v1.2 §2.4).
-          */}
-          {!inGame && selectedOpening && (
-            <OpeningToggle
-              opening={selectedOpening}
-              easy={profile.gradeMode === 'easy'}
-              onToggle={() => useKids.getState().toggleOpening(selectedOpening.id)}
-            />
-          )}
           {caret && (
             <rect
               data-caret
@@ -509,57 +497,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         </PlanSvg>
       </div>
     </div>
-  );
-}
-
-/** 고른 문·창 위에 뜨는 열고 닫기 단추. 48px 짜리 원이라 아이가 누르기 쉽다 */
-function OpeningToggle({
-  opening,
-  easy,
-  onToggle,
-}: {
-  opening: { id: string; cell: Cell; side: Side; closedByDefault: boolean; openingKind: string };
-  easy: boolean;
-  onToggle: () => void;
-}) {
-  const c = slotCenter(opening.cell, opening.side);
-  const x = c.x * CS;
-  const y = c.y * CS;
-  const closed = opening.closedByDefault;
-  /* 문 위쪽이 도면 밖으로 나가지 않게 아래로 내려 붙인다 */
-  const up = y > CS * 1.6;
-  const by = up ? y - CS * 0.95 : y + CS * 0.95;
-  const label = closed ? (easy ? '닫아 둠' : '평소 닫힘') : easy ? '열어 둠' : '평소 열림';
-  return (
-    <g
-      data-coach="kids-opening-badge"
-      data-open={closed ? 'closed' : 'open'}
-      transform={`translate(${x} ${by})`}
-      style={{ cursor: 'pointer' }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-    >
-      <path d={`M0 ${up ? CS * 0.62 : -CS * 0.62} V0`} stroke="#0f3d68" strokeWidth={2} strokeDasharray="3 3" opacity={0.6} />
-      <rect x={-46} y={-17} width={92} height={34} rx={17} fill="#ffffff" stroke="#0f3d68" strokeWidth={2.4} />
-      <g transform="translate(-30 0)">
-        {closed ? (
-          <>
-            <rect x={-9} y={-9} width={18} height={18} rx={3} fill="#8a5a3c" />
-            <circle cx={5} cy={0} r={2} fill="#ffffff" />
-          </>
-        ) : (
-          <>
-            <path d="M-9 9 V-9 H2" fill="none" stroke="#0e7c4f" strokeWidth={2.6} strokeLinecap="round" />
-            <path d="M2 -9 A 18 18 0 0 1 9 6" fill="none" stroke="#0e7c4f" strokeWidth={2.6} strokeDasharray="3 3" />
-          </>
-        )}
-      </g>
-      <text x={8} y={5} textAnchor="middle" fontSize={12.5} fontWeight={800} fill="#0f3d68">
-        {label}
-      </text>
-    </g>
   );
 }
 

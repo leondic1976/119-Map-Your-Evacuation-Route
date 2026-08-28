@@ -1595,26 +1595,6 @@ async function main(): Promise<void> {
       await page.waitForSelector('svg.k-stage');
     });
 
-    await check('[어린이] 개구부를 골라 평소 열림·닫힘을 바꾼다 (설계서 v1.2 §2.4)', async () => {
-      await page.locator('[data-coach="kids-tool-select"]').click();
-      /* SVG 의 <g> 는 직접 누르기 어렵다. 그린 자리의 한가운데를 마우스로 짚는다 */
-      const door = page.locator('.k-stage [data-kind="opening"]').first();
-      const bb = await door.boundingBox();
-      assert(bb !== null, '개구부가 화면에 없다');
-      await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
-      await page.waitForTimeout(400);
-      const toggle = page.locator('[data-coach="kids-opening-toggle"]');
-      assert((await toggle.count()) === 1, '개폐 토글이 없다');
-      const before = await toggle.getAttribute('data-open');
-      await toggle.click();
-      await page.waitForTimeout(500);
-      const after = await page.locator('[data-coach="kids-opening-toggle"]').getAttribute('data-open');
-      assert(before !== after, `상태가 안 바뀐다 ${before} → ${after}`);
-      await page.keyboard.press('Control+z');
-      await page.waitForTimeout(500);
-      await page.keyboard.press('Escape');
-    });
-
     await check('[어린이] 말풍선이 도면을 가리지 않는다 (설계서 v1.2 §6.1)', async () => {
       await page.locator('[data-coach="kids-help"]').click();
       await page.waitForSelector('.k-bubble');
@@ -1655,23 +1635,28 @@ async function main(): Promise<void> {
       await page.waitForTimeout(500);
     });
 
-    await check('[어린이] 문·창 위의 단추로 평소 열림·닫힘을 바꾼다 (설계서 v1.2 §2.4)', async () => {
+    await check('[어린이] 문을 한 번 누르면 열리고 다시 누르면 닫힌다 (설계서 v1.2 §2.4)', async () => {
       await page.locator('[data-coach="kids-tool-select"]').click();
       const door = page.locator('.k-stage [data-kind="opening"]').first();
+      const id = await door.getAttribute('data-block');
+      const state = async (): Promise<boolean> =>
+        page.evaluate((blockId) => {
+          const raw = window.localStorage.getItem('evac-kids-v1');
+          if (!raw) return false;
+          const f = JSON.parse(raw);
+          const b = (f.plan?.blocks ?? []).find((x: { id: string }) => x.id === blockId);
+          return Boolean(b?.closedByDefault);
+        }, id);
+      const before = await state();
       const bb = await door.boundingBox();
       assert(bb !== null, '개구부가 화면에 없다');
       await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
-      await page.waitForTimeout(400);
-      const badge = page.locator('[data-coach="kids-opening-badge"]');
-      assert((await badge.count()) === 1, '도면 위 단추가 없다');
-      const before = await badge.getAttribute('data-open');
-      const bbox = await badge.boundingBox();
-      await page.mouse.click(bbox!.x + bbox!.width / 2, bbox!.y + bbox!.height / 2);
-      await page.waitForTimeout(600);
-      const after = await page.locator('[data-coach="kids-opening-badge"]').getAttribute('data-open');
-      assert(before !== after, `상태가 안 바뀐다 ${before} → ${after}`);
-      await page.keyboard.press('Control+z');
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(800);
+      const mid = await state();
+      assert(mid !== before, '한 번 눌렀는데 안 바뀐다');
+      await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
+      await page.waitForTimeout(800);
+      assert((await state()) === before, '다시 눌렀는데 안 돌아온다');
       await page.keyboard.press('Escape');
     });
 

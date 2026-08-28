@@ -425,23 +425,27 @@
 }
 
 /* ---------------------------------------------------- 리포트 */
+/*
+ * 리포트는 최소 해상도(1280×800)에서 스크롤 없이 한 화면에 들어가야 한다.
+ * 잘한 점·고칠 점 칸이 남은 높이를 나눠 갖고, 그 안에서만 넘치면 스크롤한다.
+ */
 .k-report-view {
   position: absolute;
   inset: 0;
-  overflow: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  overflow: hidden;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
   background: var(--k-bg);
 }
 
 .k-report-banner {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  border-radius: 16px;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 14px;
   background: #fff;
   border: 2px solid var(--k-line);
 }
@@ -453,7 +457,7 @@
 
 .k-report-banner h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .k-report-banner small {
@@ -472,14 +476,17 @@
 .k-report-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 12px;
+  min-height: 0;
 }
 
 .k-report-col {
   background: #fff;
-  border-radius: 16px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 10px 14px 12px;
   border: 2px solid var(--k-line);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .k-report-col.good {
@@ -491,8 +498,8 @@
 }
 
 .k-report-col h3 {
-  margin: 0 0 8px;
-  font-size: 16px;
+  margin: 0 0 6px;
+  font-size: 15px;
 }
 
 .k-report-col.good h3 {
@@ -509,30 +516,37 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .k-report-col li {
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 10px;
   background: #f7f9f7;
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 14.5px;
+  line-height: 1.4;
 }
 
 .k-report-col.fix li {
   background: #fff8e8;
 }
 
+/* 단추 넷 — 다시 해보기 · 지도 고치기 · 3D · 뽑기 */
 .k-report-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 
-@media (min-width: 1280px) {
+.k-report-actions .k-big {
+  min-height: 52px;
+  font-size: 15px;
+  padding: 8px 10px;
+}
+
+@media (min-width: 1400px) {
   .k-report-view {
-    padding: 20px 8%;
+    padding: 14px 6%;
   }
 }
 
@@ -560,7 +574,99 @@
   grid-row: 4;
 }
 
+/*
+ * 팔레트 | 도면 | 사용법 세 칸 (설계서 v1.2 §12).
+ * 사용법 칸은 편집할 때만 있다 — 게임·리포트에서는 두 칸으로 돌아가 도면이 넓어진다.
+ */
+.k-work {
+  grid-template-columns: var(--k-pal-w) 1fr;
+}
+
+.k-app.mode-edit .k-work {
+  grid-template-columns: var(--k-pal-w) 1fr var(--k-howto-w);
+}
+
+.k-app.mode-edit:has(.k-howto.collapsed) .k-work {
+  grid-template-columns: var(--k-pal-w) 1fr 92px;
+}
+
+.k-howto {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-left: 1px solid var(--k-line);
+  background: var(--k-panel);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.k-howto > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--k-line);
+}
+
+.k-howto > header b {
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.k-howto.collapsed > header {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.k-howto.collapsed > header b {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.1em;
+}
+
+.k-howto ul {
+  margin: 0;
+  padding: 10px;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.k-howto li {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f5f8fb;
+  border: 1px solid #e3eaf1;
+}
+
+.k-howto li b {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--k-accent);
+}
+
+.k-howto li span {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--k-ink);
+  word-break: keep-all;
+}
+
+@media (max-width: 1279px) {
+  .k-app {
+    --k-howto-w: 220px;
+  }
+}
+
 @media (max-width: 1023px) {
+  .k-howto {
+    display: none;
+  }
+
   .k-report-cols {
     grid-template-columns: 1fr;
   }
@@ -711,4 +817,25 @@
   min-width: 160px;
   height: 48px;
   accent-color: #2f6ea3;
+}
+
+/* 더보기 — 꼭 있어야 하는 것과 있을 수 있는 것을 나눠 보인다 (설계서 v1.2 §1.4) */
+.k-more-scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.k-block-group h3 {
+  margin: 0;
+  padding: 8px 10px 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--k-dim);
+}
+
+.k-block-group + .k-block-group h3 {
+  border-top: 1px solid var(--k-line);
+  margin-top: 4px;
+  padding-top: 10px;
 }

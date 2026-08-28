@@ -78,7 +78,7 @@ void main(){
   outColor = vec4(vColor, vAlpha);
 }`;
 
-export type ViewMode = 'follow' | 'top';
+export type ViewMode = 'first' | 'follow' | 'top';
 
 interface Props {
   plan: FloorPlan;
@@ -100,7 +100,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
-  const [view, setView] = useState<ViewMode>('follow');
+  /* 기본은 1인칭 — 지나온 길을 그때 그 눈높이로 다시 본다 */
+  const [view, setView] = useState<ViewMode>('first');
   const [gone, setGone] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<Ctx | null>(null);
@@ -142,8 +143,10 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   useEffect(() => {
     const ctx = glRef.current;
     if (!ctx || !frame) return;
-    draw(ctx, plan, frame, view, toneOf(character));
-  }, [frame, view, plan, character]);
+    /* 앞으로 몇 컷을 모아 진행 방향을 잡는다. 한 컷만 보면 벽을 마주 보게 된다 */
+    const ahead = frames.slice(i + 1, i + 6);
+    draw(ctx, plan, frame, view, toneOf(character), ahead);
+  }, [frame, view, plan, character, frames, i]);
 
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);
   const caption = useMemo(() => captionOf(frame, outcome, i === frames.length - 1), [frame, outcome, i, frames.length]);
@@ -210,8 +213,11 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
           ))}
         </div>
         <div className="k-seg dark" role="group" aria-label="시점">
+          <button type="button" aria-pressed={view === 'first'} data-view="first" onClick={() => setView('first')}>
+            내 눈으로
+          </button>
           <button type="button" aria-pressed={view === 'follow'} data-view="follow" onClick={() => setView('follow')}>
-            따라가기
+            뒤에서
           </button>
           <button type="button" aria-pressed={view === 'top'} data-view="top" onClick={() => setView('top')}>
             위에서
@@ -308,7 +314,7 @@ function dispose(ctx: Ctx): void {
   gl.deleteProgram(ctx.quad);
 }
 
-function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, tone: number[]): void {
+function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, tone: number[], ahead: ReplayFrame[] = []): void {
   const { gl, canvas } = ctx;
   /* 해상도 — 리플레이는 실시간 입력이 없으므로 화질을 택한다 (설계서 v1.2 §8.4) */
   const dpr = Math.min(2, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
@@ -331,13 +337,34 @@ function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, ton
 
   const px = frame.cell.x + 0.5;
   const pz = frame.cell.y + 0.5;
-  /* 위에서 보기는 집 전체가 들어와야 하고, 따라가기는 벽 위로 넘겨다본다 */
+  /*
+   * 세 시점.
+   *   내 눈으로 — 그때 그 자리에서 가던 방향을 본다. 낮은 자세면 눈이 내려간다
+   *   뒤에서   — 벽 위로 넘겨다보며 따라간다
+   *   위에서   — 집 전체가 들어온다
+   */
+  let dir = frame.facing === 'left' ? [-1, 0, 0] : [1, 0, 0];
+  const last = ahead.length ? ahead[ahead.length - 1] : undefined;
+  if (last) {
+    const dx = last.cell.x - frame.cell.x;
+    const dz = last.cell.y - frame.cell.y;
+    const len = Math.hypot(dx, dz);
+    if (len > 0.001) dir = [dx / len, 0, dz / len];
+  }
+  const eyeH = frame.posture === 'crouch' ? 1.1 : 2.05;
   const eye =
     view === 'top'
       ? [cx, span * 1.55, cz + span * 0.82]
-      : [px - 3.6, 13.5, pz + 7.4];
-  const at = view === 'top' ? [cx, 0, cz] : [px, 0.8, pz];
-  const proj = perspective(view === 'top' ? 40 : 46, w / h, 0.3, 200);
+      : view === 'follow'
+        ? [px - 3.6, 13.5, pz + 7.4]
+        : [px, eyeH, pz];
+  const at =
+    view === 'top'
+      ? [cx, 0, cz]
+      : view === 'follow'
+        ? [px, 0.8, pz]
+        : [px + dir[0] * 4, eyeH - 0.35, pz + dir[2] * 4];
+  const proj = perspective(view === 'top' ? 40 : view === 'follow' ? 46 : 68, w / h, 0.12, 200);
   const viewM = lookAt(eye, at, [0, 1, 0]);
   const vp = multiply(proj, viewM);
 
@@ -362,8 +389,11 @@ function draw(ctx: Ctx, plan: FloorPlan, frame: ReplayFrame, view: ViewMode, ton
   drawMesh(gl, ctx.house);
   updateMesh(gl, ctx.doors, buildDoors(plan, frame.doorState));
   drawMesh(gl, ctx.doors);
-  updateMesh(gl, ctx.person, buildPerson(frame.cell, frame.posture === 'crouch', tone));
-  drawMesh(gl, ctx.person);
+  /* 1인칭에서는 내 몸이 카메라를 가린다 — 그리지 않는다 */
+  if (view !== 'first') {
+    updateMesh(gl, ctx.person, buildPerson(frame.cell, frame.posture === 'crouch', tone));
+    drawMesh(gl, ctx.person);
+  }
 
   /* 2) 반투명 — 연기·불. 뒤에서 앞으로 그리지 않고 깊이 쓰기를 끈다 */
   const right = [viewM[0], viewM[4], viewM[8]];

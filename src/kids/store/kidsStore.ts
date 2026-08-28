@@ -45,6 +45,7 @@ import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, 
 import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { loadKids, saveKids } from './storage';
+import { playDoor, playTap } from '../ui/sound';
 
 const HISTORY = 30;
 const AUTOSAVE_MS = 600;
@@ -111,6 +112,9 @@ export interface KidsState {
   onboarded: boolean;
   createdAt: string;
 
+  /** 오른쪽 사용법 상자를 펴 두었는가 */
+  howTo: boolean;
+
   /** 조작 횟수·시작 시각 — 개발 모드 측정 (FR-7.11) */
   ops: number;
   startedAt: number;
@@ -130,6 +134,7 @@ export interface KidsActions {
   setHighlight: (h: Highlight | null) => void;
   setRouteSlot: (slot: RouteSlot) => void;
   setTimed: (on: boolean) => void;
+  setHowTo: (on: boolean) => void;
 
   loadTemplate: (id: string) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
@@ -219,6 +224,7 @@ function initialState(): KidsState {
     saveError: false,
     toast: null,
     onboarded: false,
+    howTo: true,
     createdAt: now,
     ops: 0,
     startedAt: 0,
@@ -267,6 +273,7 @@ export const useKids = create<KidsStore>()((set, get) => {
     commit({ plan: { ...get().plan, blocks: get().plan.blocks.concat([b]) } });
     firstPlaced(isRoom(b) ? b.roomKind : b.kind === 'opening' ? b.openingKind : b.subKind);
     get().countOp();
+    playTap(get().profile.soundOn);
     /*
      * 빈 도면에서 시작했으면 온보딩이 mySpot 을 건너뛰고 여기서 기다린다 (설계서 v1.2 §1.3).
      * 첫 방이 놓이는 순간 "네 방은 어디야?"로 넘어간다.
@@ -401,6 +408,8 @@ export const useKids = create<KidsStore>()((set, get) => {
     },
 
     setMode: (mode) => set({ mode }),
+
+    setHowTo: (on) => set({ howTo: on }),
 
     /* -------------------------------------------------- 화면 */
 
@@ -577,6 +586,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         },
       });
       get().countOp();
+      playDoor(get().profile.soundOn, !target.closedByDefault);
       get().notify(target.closedByDefault ? '평소 열어 두는 것으로 바꿨다.' : '평소 닫아 두는 것으로 바꿨다.');
     },
 

@@ -33,16 +33,29 @@ export function unlockAudio(): void {
   }
 }
 
-function audio(): AudioContext | null {
-  if (!ctx) return null;
-  if (ctx.state === 'suspended') void ctx.resume();
-  return ctx;
+/**
+ * 소리를 낼 준비가 되면 시킨 일을 한다.
+ * AudioContext 를 만들자마자 예약하면 아직 suspended 라 소리가 통째로 사라진다 —
+ * 실제로 "소리가 전혀 안 난다"는 지적의 원인이었다. resume 이 끝난 뒤에 예약한다.
+ */
+function withAudio(job: (a: AudioContext) => void): void {
+  if (!ctx) unlockAudio();
+  const a = ctx;
+  if (!a) return;
+  if (a.state === 'running') {
+    job(a);
+    return;
+  }
+  void a
+    .resume()
+    .then(() => job(a))
+    .catch(() => {
+      /* 브라우저가 막으면 조용히 넘어간다 */
+    });
 }
 
 /** 짧은 음 하나. gain 은 -18dBFS 언저리로 낮춰 둔다 */
-function beep(at: number, freq: number, dur: number, gain = 0.12, type: OscillatorType = 'square'): void {
-  const a = audio();
-  if (!a) return;
+function beep(a: AudioContext, at: number, freq: number, dur: number, gain = 0.12, type: OscillatorType = 'square'): void {
   const osc = a.createOscillator();
   const amp = a.createGain();
   osc.type = type;
@@ -64,32 +77,70 @@ function beep(at: number, freq: number, dur: number, gain = 0.12, type: Oscillat
  */
 export function playDetector(on: boolean): void {
   if (!on) return;
-  const a = audio();
-  if (!a) return;
-  const t0 = a.currentTime + 0.05;
-  for (let i = 0; i < 3; i += 1) {
-    const at = t0 + i * 0.55;
-    beep(at, 3100, 0.3, 0.1);
-    beep(at + 0.005, 3150, 0.3, 0.05, 'triangle');
-  }
+  withAudio((a) => {
+    const t0 = a.currentTime + 0.08;
+    for (let i = 0; i < 3; i += 1) {
+      const at = t0 + i * 0.55;
+      beep(a, at, 3100, 0.3, 0.16);
+      beep(a, at + 0.005, 3150, 0.3, 0.08, 'triangle');
+    }
+  });
+}
+
+/** 게임이 열릴 때의 짧은 신호음 세 마디 — 겁주지 않게 낮고 부드럽게 */
+export function playIntro(on: boolean): void {
+  if (!on) return;
+  withAudio((a) => {
+    const t0 = a.currentTime + 0.02;
+    [392, 523.25, 659.25].forEach((f, i) => beep(a, t0 + i * 0.13, f, 0.26, 0.07, 'sine'));
+  });
+}
+
+/** 문을 여닫는 소리 — 아주 짧은 나무 소리 */
+export function playDoor(on: boolean, closing: boolean): void {
+  if (!on) return;
+  withAudio((a) => {
+    const t = a.currentTime + 0.01;
+    beep(a, t, closing ? 190 : 260, 0.09, 0.09, 'triangle');
+    beep(a, t + 0.05, closing ? 130 : 320, 0.07, 0.05, 'sine');
+  });
+}
+
+/** 한 칸 걸음 — 아주 작게. 연달아 나도 시끄럽지 않다 */
+export function playStep(on: boolean): void {
+  if (!on) return;
+  withAudio((a) => {
+    beep(a, a.currentTime + 0.005, 150 + Math.random() * 40, 0.05, 0.035, 'triangle');
+  });
+}
+
+/** 자세를 낮출 때 */
+export function playCrouch(on: boolean, down: boolean): void {
+  if (!on) return;
+  withAudio((a) => {
+    const t = a.currentTime + 0.01;
+    beep(a, t, down ? 330 : 440, 0.1, 0.05, 'sine');
+    beep(a, t + 0.06, down ? 247 : 587, 0.1, 0.04, 'sine');
+  });
 }
 
 /** 성공했을 때의 짧은 화음. 지는 순간에는 아무 소리도 내지 않는다 (C3) */
 export function playSuccess(on: boolean): void {
   if (!on) return;
-  const a = audio();
-  if (!a) return;
-  const t0 = a.currentTime + 0.03;
-  const notes = [523.25, 659.25, 783.99];
-  notes.forEach((f, i) => beep(t0 + i * 0.11, f, 0.22, 0.08, 'sine'));
+  withAudio((a) => {
+    const t0 = a.currentTime + 0.03;
+    /* 도-미-솔-도 — 짧은 팡파르 */
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      beep(a, t0 + i * 0.1, f, 0.24, 0.09, 'sine');
+      beep(a, t0 + i * 0.1, f * 2, 0.18, 0.03, 'triangle');
+    });
+  });
 }
 
 /** 놓았을 때·눌렀을 때의 아주 짧은 확인음 */
 export function playTap(on: boolean): void {
   if (!on) return;
-  const a = audio();
-  if (!a) return;
-  beep(a.currentTime + 0.01, 880, 0.06, 0.05, 'sine');
+  withAudio((a) => beep(a, a.currentTime + 0.01, 880, 0.06, 0.06, 'sine'));
 }
 
 /* ------------------------------------------------------------------ */
@@ -104,7 +155,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
   if (voiceChecked) return voice;
   if (typeof window === 'undefined' || !window.speechSynthesis) return null;
   const list = window.speechSynthesis.getVoices();
-  if (list.length === 0) return null; // 아직 안 왔다. 다음에 다시 본다
+  if (list.length === 0) return null; // 아직 안 왔다. onvoiceschanged 뒤에 다시 본다
   voiceChecked = true;
   voice = list.find((v) => v.lang.startsWith('ko')) ?? null;
   return voice;
@@ -131,6 +182,14 @@ export function speak(text: string, on: boolean): void {
   } catch {
     /* 브라우저가 막으면 그냥 넘어간다 */
   }
+}
+
+/** 음성 목록은 늦게 오는 브라우저가 있다. 오면 다시 찾아본다 */
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    voiceChecked = false;
+    pickVoice();
+  };
 }
 
 export function stopSpeaking(): void {

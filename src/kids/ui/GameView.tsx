@@ -8,10 +8,10 @@
  *   경고음·붉은 점멸 없음 (FR-8.4). 언제든 멈추고 그만둘 수 있다 (FR-8.6)
  *   단추는 56×56 이상 (§3.8)
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
 import { useKids } from '../store/kidsStore';
-import { playDetector, playSuccess, unlockAudio } from './sound';
+import { playCrouch, playDetector, playDoor, playIntro, playStep, playSuccess, unlockAudio } from './sound';
 
 const TICK_MS = 250;
 
@@ -26,10 +26,10 @@ export default function GameView() {
   const game = useKids((s) => s.game);
   const easy = useKids((s) => s.profile.gradeMode === 'easy');
   const tick = useKids((s) => s.gameTickNow);
-  const moveTo = useKids((s) => s.gameMove);
-  const toggle = useKids((s) => s.gameToggle);
+  const moveRaw = useKids((s) => s.gameMove);
+  const toggleRaw = useKids((s) => s.gameToggle);
   const touch = useKids((s) => s.gameTouch);
-  const closeDoor = useKids((s) => s.gameCloseDoor);
+  const closeDoorRaw = useKids((s) => s.gameCloseDoor);
   const pause = useKids((s) => s.gamePause);
   const resume = useKids((s) => s.gameResume);
   const quit = useKids((s) => s.gameQuit);
@@ -37,14 +37,37 @@ export default function GameView() {
   const soundOn = useKids((s) => s.profile.soundOn);
   const best = useKids((s) => s.progress.bestTicks);
   const status = game?.state.status;
+  /* 조작마다 아주 짧은 소리를 붙인다. 실패에는 아무 소리도 내지 않는다 (설계서 v1.2 §7.1 C3) */
+  const soundRef = useRef(true);
+  const moveTo = useCallback(
+    (d: Parameters<typeof moveRaw>[0]) => {
+      moveRaw(d);
+      playStep(soundRef.current);
+    },
+    [moveRaw],
+  );
+  const toggle = useCallback(() => {
+    const was = useKids.getState().game?.state.player.posture;
+    toggleRaw();
+    playCrouch(soundRef.current, was !== 'crouch');
+  }, [toggleRaw]);
+  const closeDoor = useCallback(() => {
+    closeDoorRaw();
+    playDoor(soundRef.current, true);
+  }, [closeDoorRaw]);
   const rang = useRef(false);
+
+  useEffect(() => {
+    soundRef.current = soundOn;
+  }, [soundOn]);
 
   /* 감지기 소리 — 시작 때 한 벌만 (설계서 v1.2 §7.1 C2) */
   useEffect(() => {
     if (status !== 'running' || rang.current) return;
     rang.current = true;
     unlockAudio();
-    playDetector(soundOn);
+    playIntro(soundOn);
+    window.setTimeout(() => playDetector(soundOn), 480);
   }, [status, soundOn]);
 
   /* 성공했을 때만 소리로 알린다. 실패에는 아무 소리도 내지 않는다 (C3) */

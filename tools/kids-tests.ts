@@ -492,7 +492,7 @@ export function kidsTests(check: Check, assert: Assert): void {
     assert(f.routes.fire?.primary?.key === 'fire_exit_available', '주 경로 키');
     assert(f.routes.fire?.alternate?.key === 'fire_exit_blocked', '보조 경로 키');
     assert(f.routes.gas?.primary?.key === 'gas', '확장 경로');
-    assert(f.profile.playerCharacter === 'ilgu' && f.profile.lowFloor === true, '프로필');
+    assert(f.profile.playerCharacter === 'boy_cap' && f.profile.lowFloor === true, '프로필');
     assert(f.progress.attempts === 0 && f.progress.guardianMissions.length === 1, '진행');
 
     const s = emptySave();

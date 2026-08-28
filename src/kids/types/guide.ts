@@ -9,12 +9,37 @@ import type { Cell } from './plan';
 export type Speaker = 'yeongi' | 'ungi' | 'ilgu';
 
 /**
- * 게임에서 내가 되는 캐릭터 (설계서 v1.2 §6.2).
- * 말하는 캐릭터(Speaker)와 나누어 둔다 — 소방관은 대사를 갖지 않는다.
+ * 게임에서 내가 되는 캐릭터 — 남학생 5 · 여학생 5 (설계서 v1.2 §6.2 개정).
+ * 말하는 캐릭터(Speaker)와 나누어 둔다. 아이는 게임에서 '자기'를 고른다.
  */
-export type PlayerCharacter = Speaker | 'firefighter';
+export type PlayerCharacter =
+  | 'boy_cap'
+  | 'boy_glasses'
+  | 'boy_curly'
+  | 'boy_sport'
+  | 'boy_beanie'
+  | 'girl_twin'
+  | 'girl_bob'
+  | 'girl_braid'
+  | 'girl_pony'
+  | 'girl_band';
 
-export const PLAYER_CHARACTERS: PlayerCharacter[] = ['ilgu', 'yeongi', 'ungi', 'firefighter'];
+export const PLAYER_CHARACTERS: PlayerCharacter[] = [
+  'boy_cap', 'boy_glasses', 'boy_curly', 'boy_sport', 'boy_beanie',
+  'girl_twin', 'girl_bob', 'girl_braid', 'girl_pony', 'girl_band',
+];
+
+/** 예전 저장 파일의 값(일구·영이·웅이·소방관)을 새 캐릭터로 옮긴다 */
+export function migratePlayerCharacter(v: unknown): PlayerCharacter {
+  if (typeof v === 'string' && (PLAYER_CHARACTERS as string[]).includes(v)) return v as PlayerCharacter;
+  const old: Record<string, PlayerCharacter> = {
+    ilgu: 'boy_cap',
+    yeongi: 'girl_twin',
+    ungi: 'boy_sport',
+    firefighter: 'boy_beanie',
+  };
+  return old[String(v)] ?? 'boy_cap';
+}
 export type Emotion = 'normal' | 'happy' | 'worried' | 'alert' | 'thinking';
 
 export type GuideTrigger =

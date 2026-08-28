@@ -26,7 +26,8 @@ import Palette from './Palette';
 import Onboarding, { CloseIcon } from './Onboarding';
 import KidsPrint, { SHEET_H, SHEET_W } from './KidsPrint';
 import { SLOT_STYLE } from './PlanSvg';
-import { PLAYER_NAME, PlayerSprite } from './Avatar';
+import { PLAYER_NAME } from './Avatar';
+import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
 import { playTap, stopSpeaking, unlockAudio } from './sound';
 
@@ -291,9 +292,7 @@ export default function KidsShell({ onLeave }: Props) {
           </button>
           <button type="button" className="k-tb" onClick={() => setPickChar(true)} title="게임에서 내가 될 캐릭터를 고른다" data-coach="kids-character">
             <span className="k-char-chip" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 22 22">
-                <PlayerSprite speaker={profile.playerCharacter} posture="stand" facing="right" size={22} />
-              </svg>
+              <KidPortrait id={profile.playerCharacter} size={26} />
             </span>
             내 캐릭터
           </button>
@@ -531,32 +530,32 @@ export default function KidsShell({ onLeave }: Props) {
 
       {pickChar && (
         <div className="k-modal-back" onClick={() => setPickChar(false)} role="presentation">
-          <div className="k-modal" role="dialog" aria-modal="true" aria-labelledby="k-char-title" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
+          <div className="k-modal" role="dialog" aria-modal="true" aria-labelledby="k-char-title" style={{ width: 760 }} onClick={(e) => e.stopPropagation()}>
             <header>
               <h2 id="k-char-title">{easy ? '누구로 할래?' : '내 캐릭터 고르기'}</h2>
               <button type="button" className="k-x" onClick={() => setPickChar(false)} aria-label="닫기">
                 <CloseIcon />
               </button>
             </header>
-            <p className="k-note">{easy ? '대피 연습에서 네가 될 친구야. 언제든 바꿀 수 있어.' : '게임에서 조작하는 캐릭터다. 인쇄물의 그림도 함께 바뀐다.'}</p>
+            <p className="k-note">{easy ? '대피 연습에서 네가 될 친구야. 언제든 바꿀 수 있어.' : '게임에서 조작하는 캐릭터다. 3D 리플레이의 옷 색도 함께 바뀐다.'}</p>
             <div className="k-char-grid">
-              {PLAYER_CHARACTERS.map((c) => (
+              {KIDS.map((c) => (
                 <button
-                  key={c}
+                  key={c.id}
                   type="button"
-                  className={`k-char${profile.playerCharacter === c ? ' on' : ''}`}
-                  aria-pressed={profile.playerCharacter === c}
-                  data-character={c}
+                  className={`k-char${profile.playerCharacter === c.id ? ' on' : ''}`}
+                  aria-pressed={profile.playerCharacter === c.id}
+                  data-character={c.id}
+                  title={c.note}
                   onClick={() => {
-                    useKids.getState().setProfile({ playerCharacter: c });
+                    useKids.getState().setProfile({ playerCharacter: c.id });
                     playTap(profile.soundOn);
                     setPickChar(false);
                   }}
                 >
-                  <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
-                    <PlayerSprite speaker={c} posture="stand" facing="right" size={64} />
-                  </svg>
-                  <b>{PLAYER_NAME[c]}</b>
+                  <KidPortrait id={c.id} size={86} />
+                  <b>{c.name}</b>
+                  <small>{c.note}</small>
                 </button>
               ))}
             </div>

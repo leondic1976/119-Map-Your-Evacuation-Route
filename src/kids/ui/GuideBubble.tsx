@@ -50,7 +50,7 @@ export default function GuideBubble() {
   return (
     <div className={`k-bubble k-bubble-${bubble.speaker}`} role="status" aria-live="polite" data-coach="kids-bubble">
       <div className="k-bubble-avatar">
-        <Avatar speaker={bubble.speaker} emotion={bubble.emotion} size={64} />
+        <Avatar speaker={bubble.speaker} emotion={bubble.emotion} size={52} />
         <small>{SPEAKER_NAME[bubble.speaker]}</small>
       </div>
       <div className="k-bubble-body">

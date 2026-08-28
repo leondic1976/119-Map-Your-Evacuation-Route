@@ -1641,17 +1641,54 @@ async function main(): Promise<void> {
       await page.waitForTimeout(500);
     });
 
-    await check('[어린이] 내 캐릭터를 소방관으로 바꾼다 (설계서 v1.2 §6.2)', async () => {
+    await check('[어린이] 내 캐릭터 10종에서 고른다 — 남학생 5 · 여학생 5 (설계서 v1.2 §6.2)', async () => {
       await page.locator('[data-coach="kids-character"]').click();
       await page.waitForSelector('.k-char-grid');
-      assert((await page.locator('.k-char').count()) === 4, '캐릭터가 4종이 아니다');
-      await page.locator('[data-character="firefighter"]').click();
-      await page.waitForTimeout(600);
+      const n = await page.locator('.k-char').count();
+      assert(n === 10, `캐릭터가 ${n}종이다`);
+      await page.locator('[data-character="girl_braid"]').click();
+      await page.waitForTimeout(700);
       const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.playerCharacter);
-      assert(saved === 'firefighter', `저장 안 됨: ${String(saved)}`);
+      assert(saved === 'girl_braid', `저장 안 됨: ${String(saved)}`);
       await page.locator('[data-coach="kids-character"]').click();
-      await page.locator('[data-character="ilgu"]').click();
+      await page.locator('[data-character="boy_cap"]').click();
+      await page.waitForTimeout(500);
+    });
+
+    await check('[어린이] 문·창 위의 단추로 평소 열림·닫힘을 바꾼다 (설계서 v1.2 §2.4)', async () => {
+      await page.locator('[data-coach="kids-tool-select"]').click();
+      const door = page.locator('.k-stage [data-kind="opening"]').first();
+      const bb = await door.boundingBox();
+      assert(bb !== null, '개구부가 화면에 없다');
+      await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
       await page.waitForTimeout(400);
+      const badge = page.locator('[data-coach="kids-opening-badge"]');
+      assert((await badge.count()) === 1, '도면 위 단추가 없다');
+      const before = await badge.getAttribute('data-open');
+      const bbox = await badge.boundingBox();
+      await page.mouse.click(bbox!.x + bbox!.width / 2, bbox!.y + bbox!.height / 2);
+      await page.waitForTimeout(600);
+      const after = await page.locator('[data-coach="kids-opening-badge"]').getAttribute('data-open');
+      assert(before !== after, `상태가 안 바뀐다 ${before} → ${after}`);
+      await page.keyboard.press('Control+z');
+      await page.waitForTimeout(500);
+      await page.keyboard.press('Escape');
+    });
+
+    await check('[어린이] 도면 글자가 뒤집히지 않는다', async () => {
+      const bad = await page.evaluate(() => {
+        const out: string[] = [];
+        for (const t of Array.from(document.querySelectorAll('svg.k-stage text'))) {
+          const m = (t as SVGGraphicsElement).getScreenCTM();
+          if (!m) continue;
+          /* 뒤집히거나 세워진 글자 — 회전 성분이 남아 있으면 안 된다 */
+          if (Math.abs(m.b) > 0.01 || Math.abs(m.c) > 0.01 || m.a <= 0 || m.d <= 0) {
+            out.push((t.textContent ?? '').trim().slice(0, 12));
+          }
+        }
+        return out;
+      });
+      assert(bad.length === 0, `돌아간 글자 ${bad.length}개: ${bad.slice(0, 4).join(', ')}`);
     });
 
     await check('[어린이] 누르는 것이 모두 48×48 이상이다 (D6 · NFR-10)', async () => {

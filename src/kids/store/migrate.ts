@@ -7,6 +7,7 @@
 import type { SaveFile } from '../types/save';
 import { SCHEMA_VERSION, defaultProfile, emptyProgress } from '../types/save';
 import { emptyFloorPlan } from '../types/plan';
+import { migratePlayerCharacter } from '../types/guide';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Raw = Record<string, any>;
@@ -32,7 +33,7 @@ const migrations: Record<number, (data: Raw) => Raw> = {
       ...d,
       schemaVersion: 2,
       routes,
-      profile: { ...(d.profile ?? {}), soundOn: d.profile?.soundOn ?? true, playerCharacter: d.profile?.playerCharacter ?? 'ilgu' },
+      profile: { ...(d.profile ?? {}), soundOn: d.profile?.soundOn ?? true, playerCharacter: migratePlayerCharacter(d.profile?.playerCharacter) },
       progress: {
         attempts: 0,
         successes: 0,
@@ -77,7 +78,7 @@ function fillDefaults(d: Raw): SaveFile {
     schemaVersion: SCHEMA_VERSION,
     createdAt: typeof d.createdAt === 'string' ? d.createdAt : now,
     updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : now,
-    profile: { ...defaultProfile(), ...(d.profile ?? {}) },
+    profile: { ...defaultProfile(), ...(d.profile ?? {}), playerCharacter: migratePlayerCharacter(d.profile?.playerCharacter) },
     plan: d.plan && Array.isArray(d.plan.blocks) ? d.plan : emptyFloorPlan(),
     routes: d.routes && typeof d.routes === 'object' ? d.routes : {},
     progress: {

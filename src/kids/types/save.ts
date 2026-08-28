@@ -20,7 +20,7 @@ export interface UserProfile {
 }
 
 export function defaultProfile(): UserProfile {
-  return { lowFloor: false, gradeMode: 'easy', blockStyle: 'kid', ttsEnabled: false, soundOn: true, playerCharacter: 'ilgu' };
+  return { lowFloor: false, gradeMode: 'easy', blockStyle: 'kid', ttsEnabled: false, soundOn: true, playerCharacter: 'boy_cap' };
 }
 
 export const SCHEMA_VERSION = 2;

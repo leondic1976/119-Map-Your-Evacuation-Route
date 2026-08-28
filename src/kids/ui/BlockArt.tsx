@@ -457,59 +457,79 @@ export function OpeningArt({
   kind: string;
   len: number;
   style: ArtStyle;
-  /** 게임 중 문 상태. undefined 면 편집 화면(둘 다 그린다) */
+  /** 지금 열려 있는가. 편집 화면에서는 '평소 상태'를 그린다 */
   open?: boolean;
 }) {
-  const t = 7;
+  const t = 8;
   const stroke = style === 'kid' ? KID.ink : BP.line;
+  const isOpen = open !== false;
+
   if (kind === 'window' || kind === 'balcony_window') {
     const glass = style === 'kid' ? '#4c9ad4' : stroke;
-    /* 닫힘 = 유리선 두 줄이 창틀을 메운다 · 열림 = 한 짝이 옆으로 밀려 틈이 난다 (설계서 v1.2 §2.3) */
+    /*
+     * 창은 벽을 끊고 흰 틀을 남긴다. 닫힘은 유리 두 줄이 틀을 메우고,
+     * 열림은 한 짝이 옆으로 밀려 가운데가 비어 보인다 (설계서 v1.2 §2.3).
+     */
     return (
       <g>
-        <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" stroke={stroke} strokeWidth={1.6} />
-        {open === true ? (
+        <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" stroke={stroke} strokeWidth={1.8} />
+        {/* 창틀 양끝 */}
+        <path d={`M${-len / 2} ${-t / 2 - 2} V${t / 2 + 2} M${len / 2} ${-t / 2 - 2} V${t / 2 + 2}`} stroke={stroke} strokeWidth={2.4} strokeLinecap="round" />
+        {isOpen ? (
           <>
-            <path d={`M${-len / 2 + 1} -1.6 H${len * 0.06}`} stroke={glass} strokeWidth={2.2} />
-            <path d={`M${-len * 0.06} 1.6 H${len / 2 - 1}`} stroke={glass} strokeWidth={2.2} />
-            <path d={`M${len * 0.16} -3.4 V3.4`} stroke={glass} strokeWidth={1.4} opacity={0.7} />
+            <rect x={-len / 2 + 1} y={-2.6} width={len * 0.46} height={5.2} fill={glass} opacity={0.85} />
+            <path d={`M${len * 0.06} ${-t / 2} V${t / 2}`} stroke={glass} strokeWidth={1.6} opacity={0.6} />
+            <path d={`M${len * 0.14} 0 h${len * 0.2}`} stroke={glass} strokeWidth={1.6} strokeDasharray="2 2" opacity={0.7} />
           </>
         ) : (
           <>
-            <path d={`M${-len / 2 + 1} -1.6 H${len / 2 - 1}`} stroke={glass} strokeWidth={2.2} />
-            <path d={`M${-len / 2 + 1} 1.6 H${len / 2 - 1}`} stroke={glass} strokeWidth={2.2} />
+            <path d={`M${-len / 2 + 2} -2 H${len / 2 - 2}`} stroke={glass} strokeWidth={2.4} />
+            <path d={`M${-len / 2 + 2} 2 H${len / 2 - 2}`} stroke={glass} strokeWidth={2.4} />
           </>
         )}
       </g>
     );
   }
+
+  /*
+   * 문은 "벽이 끊긴 자리"로 읽혀야 한다. 닫힘을 벽처럼 그렸더니 문이 보이지 않는다는
+   * 지적을 받아, 어떤 상태든 흰 문틀과 문설주를 먼저 그리고 문짝을 그 위에 얹는다.
+   *   닫힘 — 문짝이 틀을 가로막고 손잡이가 보인다
+   *   열림 — 문짝이 안쪽으로 돌아가 있고 회전 자국이 남는다
+   */
   const isFront = kind === 'front_door' || kind === 'emergency_exit';
-  const swing = len * 0.82;
+  const leaf = len * 0.84;
   const hinge = -len / 2;
-  /* 문짝은 방 안쪽(+y)으로 열린다. 놓는 쪽이 벽면에 맞춰 회전시킨다 */
+  const doorColor = isFront ? '#0e7c4f' : style === 'kid' ? '#8a5a3c' : stroke;
+
   return (
     <g>
-      <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" stroke="none" />
+      {/* 벽을 끊은 자리 */}
+      <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" />
+      {/* 문설주 — 양끝의 짧은 기둥 */}
       <path
-        d={`M${hinge + swing} 0 A ${swing} ${swing} 0 0 1 ${hinge} ${swing}`}
-        fill="none"
+        d={`M${-len / 2} ${-t / 2 - 2.5} V${t / 2 + 2.5} M${len / 2} ${-t / 2 - 2.5} V${t / 2 + 2.5}`}
         stroke={stroke}
-        strokeWidth={1.2}
-        strokeDasharray="3 3"
-        opacity={0.7}
+        strokeWidth={2.8}
+        strokeLinecap="round"
       />
-      {open !== false && <path d={`M${hinge} 0 V${swing}`} stroke={stroke} strokeWidth={open ? 3.2 : 1.6} />}
-      {open !== true && (
-        <path
-          d={`M${-len / 2} 0 H${len / 2}`}
-          stroke={isFront ? '#0e7c4f' : stroke}
-          strokeWidth={isFront ? 5 : 3.6}
-          strokeLinecap="round"
-        />
+      {/* 회전 자국 */}
+      <path d={`M${hinge + leaf} 0 A ${leaf} ${leaf} 0 0 1 ${hinge} ${leaf}`} fill="none" stroke={doorColor} strokeWidth={1.3} strokeDasharray="3 3" opacity={0.55} />
+      {isOpen ? (
+        <>
+          {/* 열린 문짝 — 안쪽으로 돌아가 있다 */}
+          <path d={`M${hinge} 0 V${leaf}`} stroke={doorColor} strokeWidth={4.6} strokeLinecap="round" />
+          <circle cx={hinge} cy={0} r={2.6} fill={doorColor} />
+        </>
+      ) : (
+        <>
+          {/* 닫힌 문짝 — 틀을 가로막는다 */}
+          <rect x={-len / 2 + 1} y={-3.2} width={len - 2} height={6.4} rx={2} fill={doorColor} />
+          {isFront && <path d={`M${-len / 2 + 1} -5.4 H${len / 2 - 1}`} stroke={doorColor} strokeWidth={1.8} opacity={0.85} />}
+          {/* 손잡이 */}
+          <circle cx={len / 2 - 5} cy={0} r={1.9} fill="#ffffff" stroke={doorColor} strokeWidth={1.2} />
+        </>
       )}
-      {open === true && <path d={`M${-len / 2} 0 H${len / 2}`} stroke="#fff" strokeWidth={5} />}
-      {/* 방화문은 닫혀 있을 때 바깥쪽에 이중선을 하나 더 그어 "막고 있다"를 보인다 */}
-      {isFront && open !== true && <path d={`M${-len / 2} -3.4 H${len / 2}`} stroke="#0e7c4f" strokeWidth={1.8} opacity={0.85} />}
     </g>
   );
 }

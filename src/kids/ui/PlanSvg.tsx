@@ -296,28 +296,6 @@ export function PlanSvg(props: PlanSvgProps) {
         })}
       </g>
 
-      {/* 문 후보 — 맞댄 벽 가운데, 반투명 (FR-7.3) */}
-      {doorCandidates?.map((d, i) => {
-        const c = slotCenter(d.cell, d.side);
-        const rot = d.side === 'N' ? 0 : d.side === 'S' ? 180 : d.side === 'W' ? -90 : 90;
-        return (
-          <g
-            key={`dc${i}`}
-            className="k-door-candidate"
-            data-door-candidate={`${d.cell.x},${d.cell.y},${d.side}`}
-            transform={`translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}
-            style={{ cursor: 'pointer' }}
-          >
-            <rect x={-CS * 0.5} y={-12} width={CS} height={24} rx={5} fill="#ffd166" fillOpacity={0.55} stroke="#e0a100" strokeWidth={1.5} strokeDasharray="3 2" />
-            <path d={`M${-CS * 0.4} 0 H${CS * 0.4}`} stroke="#8a5a00" strokeWidth={3} strokeLinecap="round" opacity={0.7} />
-            {/* 글자가 8px 이라 아이가 못 찾았다. 13px 굵게, 흰 테두리로 도면 위에서 읽히게 한다 (설계서 v1.2 §1.1) */}
-            <text x={0} y={-16} textAnchor="middle" fontSize={13} fontWeight={800} fill="#8a5a00" style={{ paintOrder: 'stroke', stroke: '#fff', strokeWidth: 3.5 }}>
-              {gradeMode === 'easy' ? '여기 문?' : '문?'}
-            </text>
-          </g>
-        );
-      })}
-
       {/* 물건·설비·표시 */}
       <g>
         {points.map((p) => {
@@ -332,8 +310,17 @@ export function PlanSvg(props: PlanSvgProps) {
               <g transform={`rotate(${p.rotation} ${CS / 2} ${CS / 2})`}>
                 <PointArt subKind={p.subKind} w={CS} h={CS} style={style} />
               </g>
+              {/* 이름표는 절대 돌리지 않는다. 8px 이라 안 보인다는 지적을 받아 11.5px 굵게 올렸다 */}
               {caption && (
-                <text x={CS / 2} y={CS + 8} textAnchor="middle" fontSize={8} fill={INK} style={{ pointerEvents: 'none', paintOrder: 'stroke', stroke: '#fff', strokeWidth: 2.5 }}>
+                <text
+                  x={CS / 2}
+                  y={CS + 10}
+                  textAnchor="middle"
+                  fontSize={11.5}
+                  fontWeight={700}
+                  fill={INK}
+                  style={{ pointerEvents: 'none', paintOrder: 'stroke', stroke: '#fff', strokeWidth: 3.5 }}
+                >
                   {caption}
                 </text>
               )}
@@ -344,6 +331,36 @@ export function PlanSvg(props: PlanSvgProps) {
           );
         })}
       </g>
+
+      {/* 문 후보 — 맞댄 벽 가운데, 반투명 (FR-7.3).
+          가구보다 뒤에 그리면 "여기 문?" 글자가 가려진다. 물건 다음에 그린다 */}
+      {doorCandidates?.map((d, i) => {
+        const c = slotCenter(d.cell, d.side);
+        const rot = d.side === 'N' ? 0 : d.side === 'S' ? 180 : d.side === 'W' ? -90 : 90;
+        return (
+          <g key={`dc${i}`} className="k-door-candidate" data-door-candidate={`${d.cell.x},${d.cell.y},${d.side}`} style={{ cursor: 'pointer' }}>
+            <g transform={`translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+              <rect x={-CS * 0.5} y={-12} width={CS} height={24} rx={5} fill="#ffd166" fillOpacity={0.55} stroke="#e0a100" strokeWidth={1.5} strokeDasharray="3 2" />
+              <path d={`M${-CS * 0.4} 0 H${CS * 0.4}`} stroke="#8a5a00" strokeWidth={3} strokeLinecap="round" opacity={0.7} />
+            </g>
+            {/*
+              글자는 벽 방향을 따라 돌리지 않는다. 돌리면 남쪽 벽에서 뒤집히고
+              좌우 벽에서는 세로로 선다. 늘 가로로 눕혀 읽히게 한다.
+            */}
+            <text
+              x={c.x * CS}
+              y={c.y * CS - 17}
+              textAnchor="middle"
+              fontSize={13}
+              fontWeight={800}
+              fill="#8a5a00"
+              style={{ paintOrder: 'stroke', stroke: '#fff', strokeWidth: 3.5, pointerEvents: 'none' }}
+            >
+              {gradeMode === 'easy' ? '여기 문?' : '문?'}
+            </text>
+          </g>
+        );
+      })}
 
       {/* 강조 셀 */}
       {hl?.cells?.map((c, i) => (

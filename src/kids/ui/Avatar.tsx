@@ -8,11 +8,17 @@
  */
 import React from 'react';
 import type { Emotion, PlayerCharacter, Speaker } from '../types/guide';
+import { KIDS, KidToken, kidOf } from './KidCharacters';
 
 export const SPEAKER_NAME: Record<Speaker, string> = { yeongi: '영이', ungi: '웅이', ilgu: '일구' };
 
-/** 게임에서 내가 되는 캐릭터의 이름 (설계서 v1.2 §6.2) */
-export const PLAYER_NAME: Record<PlayerCharacter, string> = { ...SPEAKER_NAME, firefighter: '소방관' };
+/** 게임에서 내가 되는 캐릭터의 이름 (설계서 v1.2 §6.2 개정) */
+export const PLAYER_NAME: Record<string, string> = Object.fromEntries(KIDS.map((k) => [k.id, k.name]));
+
+/** 그 캐릭터의 대표 색 — 3D 리플레이의 옷 색으로도 쓴다 */
+export function playerTone(id: string): string {
+  return kidOf(id).top;
+}
 
 export function Avatar({ speaker, emotion, size = 48 }: { speaker: Speaker; emotion: Emotion; size?: number }) {
   const mouth = (() => {
@@ -90,34 +96,6 @@ export function PlayerSprite({
   facing: 'left' | 'right';
   size: number;
 }) {
-  const sx = facing === 'left' ? -1 : 1;
-  const sy = posture === 'crouch' ? 0.62 : 1;
-  const body = speaker === 'ilgu' ? '#c48a5f' : '#ffe0b2';
-  const hat = speaker === 'yeongi' ? '#c8102e' : speaker === 'ungi' ? '#0f3d68' : speaker === 'firefighter' ? '#f0b429' : '#8a5a3c';
-  const r = size * 0.36;
-  return (
-    <g transform={`translate(${size / 2} ${size / 2}) scale(${sx} ${sy})`} className="k-player">
-      <ellipse cy={r * 0.9} rx={r * 0.9} ry={r * 0.35} fill="#000" opacity={0.18} />
-      <circle r={r} fill={body} stroke="#2a3038" strokeWidth={2} />
-      {speaker === 'firefighter' ? (
-        <>
-          {/* 소방 헬멧 — 챙이 뒤로 길다 */}
-          <path d={`M${-r * 1.1} ${-r * 0.18} a${r * 1.1} ${r * 0.8} 0 0 1 ${r * 2.2} 0z`} fill={hat} stroke="#2a3038" strokeWidth={1.4} />
-          <path d={`M${-r * 1.25} ${-r * 0.18} H${r * 1.25}`} stroke="#2a3038" strokeWidth={2.2} strokeLinecap="round" />
-          <path d={`M0 ${-r * 0.95} v${r * 0.6}`} stroke="#2a3038" strokeWidth={1.6} />
-        </>
-      ) : speaker === 'ilgu' ? (
-        <>
-          <ellipse cx={-r * 0.8} cy={-r * 0.3} rx={r * 0.3} ry={r * 0.55} fill={hat} />
-          <ellipse cx={r * 0.8} cy={-r * 0.3} rx={r * 0.3} ry={r * 0.55} fill={hat} />
-          <ellipse cy={r * 0.15} rx={r * 0.18} ry={r * 0.13} fill="#2a3038" />
-        </>
-      ) : (
-        <path d={`M${-r * 1.05} ${-r * 0.25} a${r * 1.05} ${r * 0.7} 0 0 1 ${r * 2.1} 0z`} fill={hat} />
-      )}
-      <circle cx={-r * 0.35} cy={-r * 0.15} r={r * 0.11} fill="#2a3038" />
-      <circle cx={r * 0.35} cy={-r * 0.15} r={r * 0.11} fill="#2a3038" />
-      <path d={`M${-r * 0.25} ${r * 0.35} q${r * 0.25} ${r * 0.25} ${r * 0.5} 0`} fill="none" stroke="#2a3038" strokeWidth={1.6} strokeLinecap="round" />
-    </g>
-  );
+  /* 게임 말은 어린이 10종을 그리는 KidToken 이 맡는다 (설계서 v1.2 §6.2 개정) */
+  return <KidToken id={speaker} size={size} posture={posture} facing={facing} />;
 }

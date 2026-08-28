@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReplayFrame } from '../../types/game';
 import type { FloorPlan } from '../../types/plan';
 import type { PlayerCharacter } from '../../types/guide';
-import { PLAYER_NAME } from '../Avatar';
+import { playerTone } from '../Avatar';
 import { CS, PlanSvg } from '../PlanSvg';
 import { CloseIcon } from '../Onboarding';
 import { WALL_H, buildDoors, buildHouse, buildPerson, planExtent } from './geometry';
@@ -90,12 +90,11 @@ interface Props {
 }
 
 const SPEEDS = [0.5, 1, 2];
-const TONE: Record<PlayerCharacter, number[]> = {
-  ilgu: [0.77, 0.54, 0.37],
-  yeongi: [0.78, 0.06, 0.18],
-  ungi: [0.06, 0.24, 0.41],
-  firefighter: [0.94, 0.71, 0.16],
-};
+/** '#rrggbb' → 0~1 세 값. 캐릭터의 옷 색을 3D 에도 그대로 쓴다 */
+function toneOf(id: string): number[] {
+  const hex = playerTone(id).replace('#', '');
+  return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+}
 
 export default function Replay3D({ plan, frames, character, tickSeconds, outcome, onClose }: Props) {
   const [i, setI] = useState(0);
@@ -143,7 +142,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   useEffect(() => {
     const ctx = glRef.current;
     if (!ctx || !frame) return;
-    draw(ctx, plan, frame, view, TONE[character] ?? TONE.ilgu);
+    draw(ctx, plan, frame, view, toneOf(character));
   }, [frame, view, plan, character]);
 
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);

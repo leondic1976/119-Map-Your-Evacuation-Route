@@ -758,16 +758,20 @@
 }
 
 /* 알림 */
-/* 알림은 화면 위쪽에 뜬다. 아래에 두면 캐릭터 말풍선의 단추를 덮는다 */
+/*
+ * 알림은 오른쪽 위 구석에 뜬다.
+ * 아래 가운데에 두면 캐릭터 말풍선의 단추를, 위 가운데에 두면 리포트 제목을 덮는다.
+ */
 .k-toast {
   position: fixed;
-  left: 50%;
+  right: 24px;
   top: 116px;
-  transform: translateX(-50%);
+  max-width: 340px;
   padding: 10px 16px;
   background: #22303a;
   color: #fff;
-  border-radius: 999px;
+  border-radius: 14px;
+  line-height: 1.45;
   font-weight: 700;
   font-size: 13px;
   box-shadow: 0 6px 20px rgba(16, 30, 48, 0.3);

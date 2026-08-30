@@ -11,7 +11,7 @@ import { toTts } from '../core/guide/runner';
 import { useKids } from '../store/kidsStore';
 import { Avatar, SPEAKER_NAME } from './Avatar';
 import { CloseIcon } from './Onboarding';
-import { speak } from './sound';
+import { playGuideVoice } from './sound';
 
 const AUTO_HIDE_MS = 8000;
 
@@ -44,8 +44,8 @@ export default function GuideBubble() {
      * 소리를 끄면 말도 멎어야 한다. 예전에는 `||` 라서 ttsEnabled 가 켜져 있으면
      * 소리를 꺼도 계속 읽었다 (설계서 v1.2 §7.1 C1).
      */
-    speak(toTts(bubble.text));
-  }, [bubble, profile.soundOn]);
+    playGuideVoice(bubble.ruleId, profile.gradeMode, toTts(bubble.text));
+  }, [bubble, profile.soundOn, profile.gradeMode]);
 
   if (!bubble) return null;
   const card = openCard ? cardById(openCard) : null;

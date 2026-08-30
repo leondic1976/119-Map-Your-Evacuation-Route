@@ -379,33 +379,21 @@ export function buildDoors(plan: FloorPlan, doorState: Record<string, 'open' | '
     if (!isOpening(o)) continue;
     if (o.openingKind === 'window' || o.openingKind === 'balcony_window' || o.openingKind === 'open_passage') continue;
     const closed = doorState[o.id] === 'closed';
-    if (!closed) continue; // 열린 문은 벽에 붙어 보이지 않게 둔다
+    /* 여닫이문은 열린 뒤 시야를 가리지 않게 숨기되, 미닫이문은 벽 옆에 포개진 문짝을 남긴다. */
+    if (!closed && o.openingKind !== 'sliding_door') continue;
     const horizontal = o.side === 'N' || o.side === 'S';
     const at = o.side === 'N' ? o.cell.y : o.side === 'S' ? o.cell.y + 1 : o.side === 'W' ? o.cell.x : o.cell.x + 1;
     const lo = (horizontal ? o.cell.x : o.cell.y) + 0.06;
     const hi = lo + 0.88;
     const col = o.openingKind === 'front_door' || o.openingKind === 'emergency_exit' ? [0.16, 0.48, 0.31] : COLOR.door;
-    if (horizontal) b.box(lo, 0.02, at - 0.05, hi, 3.05, at + 0.05, col, col);
+    if (!closed) {
+      const foldedHi = lo + 0.38;
+      /* 벽보다 조금 앞으로 빼서 같은 면에서 깜빡이지 않게 한다. */
+      if (horizontal) b.box(lo - 0.32, 0.02, at + 0.09, foldedHi, 3.05, at + 0.15, col, col);
+      else b.box(at + 0.09, 0.02, lo - 0.32, at + 0.15, 3.05, foldedHi, col, col);
+    } else if (horizontal) b.box(lo, 0.02, at - 0.05, hi, 3.05, at + 0.05, col, col);
     else b.box(at - 0.05, 0.02, lo, at + 0.05, 3.05, hi, col, col);
   }
-  return b.toArray();
-}
-
-/** 사람 — 세 개의 상자로 만든 아주 단순한 형상. 낮은 자세면 납작해진다 */
-export function buildPerson(cell: Cell, crouch: boolean, tone: number[]): Float32Array {
-  const b = new Builder();
-  const cx = cell.x + 0.5;
-  const cz = cell.y + 0.5;
-  /* 발밑 고리와 머리 위 기둥 — 어디 있는지 한눈에 찾게 한다 */
-  b.box(cx - 0.46, 0.03, cz - 0.46, cx + 0.46, 0.07, cz + 0.46, [0.1, 0.55, 0.36], [0.15, 0.8, 0.52]);
-  b.box(cx - 0.07, 2.6, cz - 0.07, cx + 0.07, WALL_H + 1.1, cz + 0.07, [0.15, 0.8, 0.52], [0.3, 0.95, 0.65]);
-  const scale = crouch ? 0.55 : 1;
-  const bodyH = 1.7 * scale;
-  const headR = 0.24;
-  b.box(cx - 0.2, 0.02, cz - 0.15, cx + 0.2, bodyH, cz + 0.15, tone, tone);
-  b.box(cx - headR, bodyH, cz - headR, cx + headR, bodyH + headR * 2, cz + headR, [0.98, 0.86, 0.7], [0.98, 0.86, 0.7]);
-  /* 모자 — 캐릭터 색 */
-  b.box(cx - headR - 0.03, bodyH + headR * 2 - 0.06, cz - headR - 0.03, cx + headR + 0.03, bodyH + headR * 2 + 0.14, cz + headR + 0.03, tone, tone);
   return b.toArray();
 }
 

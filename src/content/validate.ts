@@ -36,7 +36,7 @@ const ROOM_KINDS: RoomKind[] = [
   'balcony', 'utility', 'corridor', 'stair', 'elevator_hall',
 ];
 const OPENING_KINDS: OpeningKind[] = [
-  'door', 'front_door', 'inner_door', 'open_passage', 'window', 'balcony_window', 'emergency_exit',
+  'door', 'sliding_door', 'front_door', 'inner_door', 'open_passage', 'window', 'balcony_window', 'emergency_exit',
 ];
 
 /** CT-3 — 초등용 문장 하나의 길이 상한 */

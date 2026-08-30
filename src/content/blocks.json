@@ -166,8 +166,8 @@
   {
     "id": "door",
     "category": "opening",
-    "label": "방문",
-    "easy": "방문",
+    "label": "여닫이문",
+    "easy": "여닫이문",
     "size": {
       "w": 1,
       "h": 1
@@ -175,6 +175,19 @@
     "fuel": 0.4,
     "tags": [],
     "required": true
+  },
+  {
+    "id": "sliding_door",
+    "category": "opening",
+    "label": "미닫이문",
+    "easy": "미닫이문",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.4,
+    "tags": [],
+    "required": false
   },
   {
     "id": "front_door",

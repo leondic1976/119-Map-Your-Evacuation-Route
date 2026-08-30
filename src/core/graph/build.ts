@@ -232,7 +232,8 @@ function touching(a: RoomBlock, b: RoomBlock): boolean {
 
 function openingName(o: OpeningBlock): string {
   const n: Record<string, string> = {
-    door: '방문',
+    door: '여닫이문',
+    sliding_door: '미닫이문',
     front_door: '현관문',
     inner_door: '중문',
     open_passage: '트인 통로',

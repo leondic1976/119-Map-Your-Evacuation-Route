@@ -111,6 +111,7 @@ function row(
  */
 export const DEFAULT_PASSABILITY: Record<EdgeVia, Record<ScenarioKey, Passability>> = {
   door: row(O, O, O, O, O),
+  sliding_door: row(O, O, O, O, O),
   inner_door: row(O, O, O, O, O),
   open_passage: row(O, O, O, O, O),
   front_door: row(O, X, O, O, O),

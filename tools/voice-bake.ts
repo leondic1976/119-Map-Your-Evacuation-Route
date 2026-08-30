@@ -1,5 +1,5 @@
 /**
- * 음원 굽기 — `content/voice/*.mp3` 를 `src/content/voice.ts` 안에 data URI 로 박는다.
+ * 음원 굽기 — `public/voice/v-*.mp3` 를 `src/content/voice.ts` 안에 data URI 로 박는다.
  *
  *   npm run voice
  *
@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const dir = path.join(root, 'content', 'voice');
+const dir = path.join(root, 'public', 'voice');
 const target = path.join(root, 'src', 'content', 'voice.ts');
 
 const IDS = ['v-start', 'v-crouch', 'v-door', 'v-close', 'v-elevator', 'v-success', 'v-retry', 'v-meeting'];
@@ -48,7 +48,7 @@ function main(): void {
   const src = fs.readFileSync(target, 'utf8');
   const body = found.map((x) => `  '${x.id}': 'data:audio/mpeg;base64,${x.b64}',`).join('\n');
   const next = src.replace(
-    /export const VOICE_CLIPS: Partial<Record<VoiceId, string>> = \{[\s\S]*?\n\};/,
+    /export const VOICE_CLIPS: Partial<Record<VoiceId, string>> = \{[\s\S]*?\};/,
     `export const VOICE_CLIPS: Partial<Record<VoiceId, string>> = {\n${body}\n};`,
   );
   if (next === src) {

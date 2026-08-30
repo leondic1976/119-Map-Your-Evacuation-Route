@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FloorPlan } from '../src/types/plan';
 import { GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, fuelOf } from '../src/content';
-import { VOICE_LINES } from '../src/content/voice';
+import { guideVoiceFilename, VOICE_LINES } from '../src/content/voice';
 import { buildGraph } from '../src/core/graph/build';
 import { buildContext } from '../src/core/hazard/transfer';
 import { simulateAhead } from '../src/core/hazard/ignition';
@@ -102,7 +102,7 @@ export function qaTests(check: Check, assert: Assert): void {
     const elevenLabs = section('## 4. ElevenLabs 전달용 최종 지시문', '## 5. 소리 효과');
     assert(elevenLabs.includes('https://elevenlabs.io/app/speech-synthesis/text-to-speech'), `실제 Text to Speech 작업 주소가 없다`);
     assert(elevenLabs.includes('이 절 전체를 Text to Speech 입력창에 붙여 넣지 않는다'), `작업 설명을 음성으로 읽지 않게 하는 경고가 없다`);
-    for (const preset of ['Eleven Multilingual v2', 'Stability', '50%', 'Similarity', '75%', 'Style Exaggeration', '0%', 'Speaker Boost', 'Speed', '0.95']) {
+    for (const preset of ['Eleven Multilingual v2', 'Stability', '50%', 'Similarity', '75%', 'Style Exaggeration', '0%', 'Speaker Boost', 'Speed', '1.0']) {
       assert(elevenLabs.includes(preset), `ElevenLabs 공통 설정이 빠졌다: ${preset}`);
     }
     assert(elevenLabs.includes('`Enhance`는 누르지 않는다'), `대사를 자동 수정하지 말라는 지시가 없다`);
@@ -117,13 +117,89 @@ export function qaTests(check: Check, assert: Assert): void {
       assert(elevenLabs.includes(`#### ${Object.keys(VOICE_LINES).indexOf(id) + 1}. \`${id}.mp3\``), `ElevenLabs 파일 순서 불일치: ${id}`);
       assert(elevenLabs.includes(`\`\`\`text\n${line}\n\`\`\``), `ElevenLabs 입력 대사 불일치: ${id}`);
     }
-    assert(elevenLabs.includes('content/voice/') && elevenLabs.includes('npm run voice') && elevenLabs.includes('npm run verify'), `납품·굽기·검증 절차가 없다`);
+    assert(elevenLabs.includes('public/voice/') && elevenLabs.includes('npm run voice') && elevenLabs.includes('npm run verify'), `납품·굽기·검증 절차가 없다`);
 
     const baker = read(path.join(root, 'tools', 'voice-bake.ts'));
     const idsSource = baker.match(/const IDS = \[([^\]]+)\]/)?.[1] ?? '';
     const bakedIds = [...idsSource.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
     const voiceIds = Object.keys(VOICE_LINES).sort();
     assert(JSON.stringify(bakedIds) === JSON.stringify(voiceIds), `MP3 굽기 목록이 음성 정본과 다르다`);
+  });
+
+  check('[점검] Juwonmom 전체 음성 176개와 웹·오프라인 재생 경로가 맞다', () => {
+    const voiceDir = path.join(root, 'public', 'voice');
+    const manifestPath = path.join(voiceDir, 'manifest.json');
+    assert(fs.existsSync(manifestPath), 'public/voice/manifest.json 이 없다');
+    const manifest = JSON.parse(read(manifestPath)) as {
+      voice: string;
+      speed: number;
+      summary: Record<string, number>;
+      items: Array<{
+        id: string;
+        filename: string;
+        ruleId?: string;
+        gradeMode?: 'easy' | 'normal';
+        text: string;
+        generate: boolean;
+      }>;
+    };
+    assert(manifest.voice === 'Juwonmom', `음성 이름이 다르다: ${manifest.voice}`);
+    assert(manifest.speed === 1, `음성 속도가 중간값 1.0이 아니다: ${manifest.speed}`);
+    assert(manifest.summary.guideRules === GUIDE_RULES.length, `가이드 규칙 수 ${manifest.summary.guideRules}`);
+    assert(manifest.summary.guideVariants === GUIDE_RULES.length * 2, `가이드 변형 수 ${manifest.summary.guideVariants}`);
+    assert(manifest.summary.criticalClips === Object.keys(VOICE_LINES).length, `핵심 음성 수 ${manifest.summary.criticalClips}`);
+    assert(manifest.summary.logicalItems === 176 && manifest.summary.generatedItems === 176, `전체 음성 수가 176이 아니다`);
+    assert(manifest.summary.generalizedDynamicItems === 4, `일반화한 동적 문장 수 ${manifest.summary.generalizedDynamicItems}`);
+    assert(manifest.summary.totalDisplayCharacters === 5307, `화면 대사 글자 수 ${manifest.summary.totalDisplayCharacters}`);
+    assert(manifest.summary.generationCharacters === 5277, `생성 대사 글자 수 ${manifest.summary.generationCharacters}`);
+    assert(manifest.items.length === 176, `매니페스트 항목 ${manifest.items.length}개`);
+
+    const byId = new Map(manifest.items.map((item) => [item.id, item]));
+    for (const rule of GUIDE_RULES) {
+      for (const gradeMode of ['easy', 'normal'] as const) {
+        const item = byId.get(`guide:${rule.id}:${gradeMode}`);
+        assert(item !== undefined, `가이드 음성 누락: ${rule.id}.${gradeMode}`);
+        assert(item?.filename === guideVoiceFilename(rule.id, gradeMode), `가이드 파일명 불일치: ${rule.id}.${gradeMode}`);
+        assert(item?.generate === true, `생성 제외된 가이드: ${rule.id}.${gradeMode}`);
+        if (!/[{}]/.test(rule.text[gradeMode])) assert(item?.text === rule.text[gradeMode], `가이드 대사 불일치: ${rule.id}.${gradeMode}`);
+      }
+    }
+    for (const [voiceId, text] of Object.entries(VOICE_LINES)) {
+      const item = byId.get(`critical:${voiceId}`);
+      assert(item?.filename === `${voiceId}.mp3`, `핵심 파일명 불일치: ${voiceId}`);
+      assert(item?.text === text, `핵심 대사 불일치: ${voiceId}`);
+    }
+
+    const expectedFiles = manifest.items.map((item) => item.filename).sort();
+    assert(new Set(expectedFiles).size === expectedFiles.length, '매니페스트 파일명이 중복됐다');
+    const actualFiles = fs
+      .readdirSync(voiceDir)
+      .filter((name) => name.toLowerCase().endsWith('.mp3'))
+      .sort();
+    assert(JSON.stringify(actualFiles) === JSON.stringify(expectedFiles), `MP3 ${actualFiles.length}/176 — 누락·초과 파일이 있다`);
+    for (const filename of actualFiles) {
+      const data = fs.readFileSync(path.join(voiceDir, filename));
+      const frameLimit = Math.min(data.length - 1, 8192);
+      let hasFrame = false;
+      for (let i = 0; i < frameLimit; i += 1) {
+        if (data[i] === 0xff && (data[i + 1] & 0xe0) === 0xe0) {
+          hasFrame = true;
+          break;
+        }
+      }
+      assert(data.length > 1024, `MP3가 너무 작다: ${filename} ${data.length}바이트`);
+      assert(data.subarray(0, 3).toString('ascii') === 'ID3' || hasFrame, `MP3 헤더가 없다: ${filename}`);
+      assert(!data.subarray(0, 32).toString('utf8').toLowerCase().includes('<html'), `HTML이 MP3로 저장됐다: ${filename}`);
+    }
+
+    const sound = read(path.join(root, 'src', 'ui', 'sound.ts'));
+    const bubble = read(path.join(root, 'src', 'ui', 'GuideBubble.tsx'));
+    const baker = read(path.join(root, 'tools', 'voice-bake.ts'));
+    assert(sound.includes('NEXT_PUBLIC_BASE_PATH') && sound.includes('/voice/'), '웹 음성 BASE_PATH 경로가 없다');
+    assert(sound.includes("NEXT_PUBLIC_OFFLINE === '1'") && sound.includes('speak(fallbackText)'), '오프라인 TTS 대체가 없다');
+    assert(sound.includes('audio.onerror = fallback') && sound.includes('stopVoice()'), 'MP3 실패·음소거 중단 처리가 없다');
+    assert(bubble.includes('playGuideVoice(bubble.ruleId, profile.gradeMode'), '말풍선이 규칙·수준별 MP3를 쓰지 않는다');
+    assert(/path\.join\(root, 'public', 'voice'\)/.test(baker), '핵심 음원 굽기가 public/voice를 읽지 않는다');
   });
 
   /* -------------------------------------------------- 인터넷에 보내지 않는다 */

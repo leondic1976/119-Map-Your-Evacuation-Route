@@ -89,7 +89,10 @@ export type RoomKind =
   | 'elevator_hall';
 
 export type OpeningKind =
+  /** 경첩을 축으로 안팎으로 여는 일반 방문 */
   | 'door'
+  /** 벽을 따라 옆으로 밀어 여는 방문 */
+  | 'sliding_door'
   | 'front_door'
   | 'inner_door'
   /** 문짝 없이 벽이 완전히 트인 곳 — 개방형 주방 등에 쓴다 */
@@ -147,6 +150,8 @@ export interface RoomBlock {
   rect: Rect;
   /** 이용자가 붙인 이름. 비면 roomKind 의 기본 이름을 쓴다 */
   label: string;
+  /** 잔여공간을 호환 직사각형으로 나눌 때 같은 이름이 반복되지 않도록 숨긴다. 기본은 true다. */
+  showLabel?: boolean;
 }
 
 export interface OpeningBlock {

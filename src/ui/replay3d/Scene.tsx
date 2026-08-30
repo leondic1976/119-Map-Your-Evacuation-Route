@@ -14,8 +14,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Cell, FloorPlan } from '../../types/plan';
 import type { ReplayFrame } from '../../types/game';
-import { WALL_H, buildDoors, buildHouse, buildPerson, planExtent } from './geometry';
+import { WALL_H, buildDoors, buildHouse, planExtent } from './geometry';
 import { interleavedGeometry } from './bridge';
+import Avatar3D, { FirstPersonHands3D } from './Avatar3D';
 import RoutePath, { TrailPath } from './RoutePath';
 import Markers from './Markers';
 import Outside, { Sky } from './Outside';
@@ -39,7 +40,8 @@ interface Props {
   /** 여기까지 지나온 칸 */
   trail: Cell[];
   view: ViewMode;
-  tone: string;
+  character: string;
+  playing: boolean;
   primaryRoute: Cell[];
   alternateRoute: Cell[];
   exitCells: Cell[];
@@ -111,20 +113,6 @@ function House({
   );
 }
 
-function Person({ cell, crouch, tone, shadows }: { cell: Cell; crouch: boolean; tone: string; shadows: boolean }) {
-  const rgb = useMemo(() => {
-    const c = new THREE.Color(tone);
-    return [c.r, c.g, c.b];
-  }, [tone]);
-  const geo = useMemo(() => interleavedGeometry(buildPerson(cell, crouch, rgb)), [cell, crouch, rgb]);
-  useEffect(() => () => geo.dispose(), [geo]);
-  return (
-    <mesh geometry={geo} castShadow={shadows}>
-      <meshStandardMaterial vertexColors roughness={0.6} side={THREE.DoubleSide} />
-    </mesh>
-  );
-}
-
 /**
  * 카메라 — 시점마다 다른 자리에서 집을 본다.
  * 갑자기 튀지 않게 늘 지금 자리에서 목표 자리로 부드럽게 따라간다.
@@ -153,9 +141,10 @@ function Rig({ plan, frame, ahead, view, orbit }: { plan: FloorPlan; frame: Repl
       want.current.set(me.x, eye, me.z);
       target.current.copy(me).add(heading.clone().multiplyScalar(3)).setY(eye * 0.82);
     } else if (view === 'follow') {
-      const back = heading.clone().multiplyScalar(-4.2);
-      want.current.set(me.x + back.x, 4.4, me.z + back.z);
-      target.current.copy(me).setY(1.2);
+      /* 지나온 길 안쪽에 카메라를 둔다. 멀리 빼면 벽 밖으로 나가 화면이 벽으로 가득 찬다. */
+      const back = heading.clone().multiplyScalar(-1.15);
+      want.current.set(me.x + back.x, 2.2, me.z + back.z);
+      target.current.copy(me).setY(0.9);
     } else {
       /*
        * 집 전체 — 45° 비스듬히 내려다본다 (설계서 v1.4 §2.1).
@@ -177,6 +166,14 @@ function Rig({ plan, frame, ahead, view, orbit }: { plan: FloorPlan; frame: Repl
     const t = 1 - Math.exp(-k * delta);
     camera.position.lerp(want.current, t);
     camera.lookAt(target.current);
+    if (camera instanceof THREE.PerspectiveCamera) {
+      const nextFov = view === 'first' ? 62 : view === 'follow' ? 65 : 34;
+      const fov = THREE.MathUtils.lerp(camera.fov, nextFov, t);
+      if (Math.abs(fov - camera.fov) > 0.01) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+    }
   });
 
   return null;
@@ -188,7 +185,8 @@ export default function Scene({
   ahead,
   trail,
   view,
-  tone,
+  character,
+  playing,
   primaryRoute,
   alternateRoute,
   exitCells,
@@ -199,6 +197,12 @@ export default function Scene({
   const extent = useMemo(() => planExtent(plan), [plan]);
   const cx = (extent.minX + extent.maxX) / 2;
   const cz = (extent.minZ + extent.maxZ) / 2;
+  const heading = useMemo(() => {
+    const next = ahead.find((f) => f.cell.x !== frame.cell.x || f.cell.y !== frame.cell.y);
+    if (next) return { x: next.cell.x - frame.cell.x, y: next.cell.y - frame.cell.y };
+    return frame.facing === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 };
+  }, [ahead, frame.cell.x, frame.cell.y, frame.facing]);
+  const moving = playing && ahead.some((f) => f.cell.x !== frame.cell.x || f.cell.y !== frame.cell.y);
 
   /* 불이 붙은 칸 — 표지의 자리를 잡는 데 쓴다 */
   const fireCells = useMemo(() => {
@@ -252,7 +256,22 @@ export default function Scene({
       <Markers plan={plan} fireCells={fireCells} exitCells={exitCells} />
       {layers.hazard && <Hazard grid={plan.grid} frame={frame} />}
 
-      <Person cell={frame.cell} crouch={frame.posture === 'crouch'} tone={tone} shadows={quality.shadows} />
+      <Avatar3D
+        cell={frame.cell}
+        character={character}
+        crouch={frame.posture === 'crouch'}
+        heading={heading}
+        moving={moving}
+        shadows={quality.shadows}
+        visible={view !== 'first'}
+      />
+      {view === 'first' && (
+        <FirstPersonHands3D
+          character={character}
+          crouch={frame.posture === 'crouch'}
+          moving={moving}
+        />
+      )}
     </>
   );
 }

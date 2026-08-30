@@ -22,7 +22,11 @@ export function kindOf(b: Block): string {
 /** 필수 목록을 도면과 맞춰 본다. 순서는 준 그대로 지킨다 */
 export function checklist(plan: FloorPlan, requiredIds: string[]): ChecklistItem[] {
   const have = new Set(plan.blocks.map(kindOf));
-  return requiredIds.map((id) => ({ id, present: have.has(id) }));
+  return requiredIds.map((id) => ({
+    id,
+    /* 필수 방문은 여닫이와 미닫이 가운데 집에 맞는 하나만 있으면 된다. */
+    present: have.has(id) || (id === 'door' && have.has('sliding_door')),
+  }));
 }
 
 export function missingOf(items: ChecklistItem[]): string[] {

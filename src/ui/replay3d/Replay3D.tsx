@@ -15,9 +15,9 @@ import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
 import type { ReplayFrame } from '../../types/game';
 import type { Cell, FloorPlan, RoutePair } from '../../types/plan';
 import type { PlayerCharacter } from '../../types/guide';
-import { playerTone } from '../Avatar';
 import { PlanSvg } from '../PlanSvg';
 import Scene, { type Layers, type ViewMode } from './Scene';
+import { avatar3dIdentity } from './Avatar3D';
 import Hud from './Hud';
 import EndingScene from './EndingScene';
 import { FrameWatch, guessQuality, settingsFor, type Quality } from './quality';
@@ -68,8 +68,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
-  /* 기본은 집 전체 — 처음 보는 아이가 방향을 잃지 않는다 (설계서 v1.4 §2.1) */
-  const [view, setView] = useState<ViewMode>('dollhouse');
+  /* 대피하는 느낌을 먼저 주되, 길을 잃으면 집 전체 시점으로 곧바로 바꿀 수 있다. */
+  const [view, setView] = useState<ViewMode>('first');
   const [gone, setGone] = useState(false);
   const [ending, setEnding] = useState(false);
   const [quality, setQuality] = useState<Quality>('high');
@@ -78,6 +78,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   /** 멈춘 뒤 끌어서 둘러보기 — 좌우(yaw)·상하(pitch)와 거리(zoom) */
   const [orbit, setOrbit] = useState({ yaw: 0, pitch: 0, zoom: 1 });
   const frame = frames[Math.min(i, frames.length - 1)];
+  const avatar = useMemo(() => avatar3dIdentity(character), [character]);
 
   /* 기기를 보고 첫 화질을 고른다 */
   useEffect(() => {
@@ -120,8 +121,6 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);
   const ahead = useMemo(() => frames.slice(i + 1, i + 6), [frames, i]);
   const trail = useMemo(() => frames.slice(0, i + 1).map((f) => f.cell), [frames, i]);
-  const tone = useMemo(() => playerTone(character), [character]);
-
   const primaryRoute = routes?.primary?.waypoints ?? [];
   const alternateRoute = routes?.alternate?.waypoints ?? [];
 
@@ -197,7 +196,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   }
 
   return (
-    <div className="k-replay" role="dialog" aria-modal="true" aria-label="3D 로 다시 보기" data-coach="kids-replay3d">
+    <div className="k-replay" role="dialog" aria-modal="true" aria-label={`${avatar.name} 캐릭터의 3D 다시 보기`} data-coach="kids-replay3d">
       <div className="k-replay-stage">
         {gone ? (
           <div className="k-replay-2d" data-fallback="2d">
@@ -221,6 +220,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
           <div
             className="k-replay-canvas"
             data-render-quality={quality}
+            data-character={character}
+            data-character-style={avatar.style}
             onPointerDown={startDrag}
             onWheel={(e) => {
               setOrbit((o) => ({ ...o, zoom: Math.max(0.45, Math.min(2.6, o.zoom * (e.deltaY > 0 ? 0.89 : 1.12))) }));
@@ -245,7 +246,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
                 ahead={ahead}
                 trail={trail}
                 view={view}
-                tone={tone}
+                character={character}
+                playing={playing}
                 primaryRoute={primaryRoute}
                 alternateRoute={alternateRoute}
                 exitCells={exitCells}

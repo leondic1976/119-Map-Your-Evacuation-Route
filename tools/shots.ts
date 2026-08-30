@@ -80,6 +80,10 @@ async function main(): Promise<void> {
   await page.locator('[data-coach="kids-meeting-later"]').click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(dest, '3-ready.png') });
+  /* 기본값과 다른 머리 모양이 3D에서도 보이게 하윤을 고른다. */
+  await page.locator('[data-coach="kids-character"]').click();
+  await page.locator('[data-character="girl_braid"]').click();
+  await page.waitForTimeout(300);
   await page.locator('[data-coach="kids-start-game"]').click();
   await page.waitForSelector('.k-game');
   await page.waitForTimeout(3000);
@@ -91,6 +95,20 @@ async function main(): Promise<void> {
   await page.waitForSelector('.k-report-view');
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(dest, '5-report.png') });
+  await page.locator('[data-coach="kids-replay3d-open"]').click();
+  await page.waitForSelector('.k-replay-canvas[data-character="girl_braid"][data-character-style="braid"]');
+  await page.waitForTimeout(1400);
+  await page.screenshot({ path: path.join(dest, '5a-replay3d-character.png') });
+  await page.locator('[data-view="follow"]').click();
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: path.join(dest, '5b-replay3d-character-close.png') });
+  /* 짧은 기록은 캡처 중 끝 장면으로 넘어갈 수 있다. 현재 보이는 닫기 길을 직접 누른다. */
+  const replayClose = page
+    .getByRole('button', { name: '닫기', exact: true })
+    .or(page.getByRole('button', { name: '결과로 돌아가기', exact: true }));
+  await replayClose.last().click();
+  await page.waitForSelector('[data-coach="kids-replay3d"]', { state: 'detached' });
+  await page.waitForSelector('.k-report-view');
   await page.locator('[data-coach="kids-edit-plan"]').click();
   await page.waitForSelector('svg.k-stage');
   await page.waitForTimeout(500);
@@ -102,6 +120,19 @@ async function main(): Promise<void> {
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(dest, '7-print.png') });
   const footer = await page.locator('.k-preview footer button').allInnerTexts();
+  await page.locator('.k-preview footer button', { hasText: '닫기' }).click();
+  await page.waitForSelector('.k-preview', { state: 'detached' });
+  await page.locator('[data-coach="kids-template"]').click();
+  await page.locator('[data-start-path="starter"]').click();
+  await page.screenshot({ path: path.join(dest, '8-box-bedroom-count.png') });
+  await page.locator('[data-bedroom-count="3"]').click();
+  await page.screenshot({ path: path.join(dest, '8a-box-shells.png') });
+  await page.locator('[data-shell="bend-left"]').click();
+  await page.screenshot({ path: path.join(dest, '8b-box-room-sides.png') });
+  await page.locator('[data-bedroom-side="E"]').click();
+  await page.locator('[data-box-sides-next]').click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(dest, '8c-box-residual-preview.png') });
   process.stdout.write(`preview footer: ${footer.join(' | ')}
 `);
   process.stdout.write(`errors: ${errors.length}\n${errors.slice(0, 5).join('\n')}\n`);

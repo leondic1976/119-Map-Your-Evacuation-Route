@@ -27,7 +27,7 @@ import { canPlaceRoom } from '../src/core/grid/occupancy';
 import { isAdjacent, step } from '../src/core/grid/geometry';
 import { doorlessRooms } from '../src/core/grid/doors';
 import { bedroomCount, preparePlan, rotatePlan } from '../src/core/plan/prepare';
-import { buildContext, transfer, walkable } from '../src/core/hazard/transfer';
+import { buildContext, isDoorKind, transfer, walkable } from '../src/core/hazard/transfer';
 import { createField, ignite, spread } from '../src/core/hazard/field';
 import { aheadTicks, gameGoalCells, hasSurvivablePath, pickIgnition, rng, simulateAhead } from '../src/core/hazard/ignition';
 import { finishGame, startGame, tick, tick as gameTick } from '../src/core/game/loop';
@@ -43,6 +43,9 @@ import { ALL_STEPS, validateContent, validatePlan } from '../src/content/validat
 import { SaveIncompatibleError, parseSave } from '../src/store/migrate';
 import { emptySave, serializeSave } from '../src/store/storage';
 import { ruleReportsFor } from '../src/store/kidsStore';
+import { KIDS } from '../src/ui/KidCharacters';
+import { avatar3dIdentity } from '../src/ui/replay3d/Avatar3D';
+import { buildDoors } from '../src/ui/replay3d/geometry';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (cond: boolean, msg: string) => void;
@@ -170,6 +173,54 @@ export function logicTests(check: Check, assert: Assert): void {
       ]),
     };
     assert(doorlessRooms(complete).length === 0, '통로인 발코니 창을 놓았는데 문 없는 방으로 남았다');
+  });
+
+  check('여닫이문·미닫이문을 고르고, 미닫이문도 배치·그래프·위험장·게임·3D에서 같은 문으로 쓴다', () => {
+    const hinged = BLOCKS.find((block) => block.id === 'door');
+    const sliding = BLOCKS.find((block) => block.id === 'sliding_door');
+    assert(hinged?.easy === '여닫이문', `여닫이문 이름: ${hinged?.easy ?? '없음'}`);
+    assert(sliding?.category === 'opening' && sliding.easy === '미닫이문', '미닫이문 콘텐츠가 없다');
+    assert(PALETTE_BASIC.indexOf('sliding_door') === PALETTE_BASIC.indexOf('door') + 1, '두 방문이 기본 팔레트에서 나란하지 않다');
+    assert(isDoorKind('sliding_door'), '위험장 엔진이 미닫이문을 문으로 보지 않는다');
+    assert(Object.values(DEFAULT_PASSABILITY.sliding_door).every((value) => value === 'open'), '미닫이문 그래프 통행표가 열려 있지 않다');
+
+    const plan: FloorPlan = {
+      ...emptyFloorPlan(),
+      blocks: [
+        { kind: 'room', id: 'left', layer: 'home', roomKind: 'bedroom', rect: { x: 2, y: 2, w: 4, h: 4 }, label: '' },
+        { kind: 'room', id: 'right', layer: 'home', roomKind: 'living', rect: { x: 6, y: 2, w: 4, h: 4 }, label: '' },
+        { kind: 'opening', id: 'slide', layer: 'home', openingKind: 'sliding_door', cell: { x: 5, y: 3 }, side: 'E', closedByDefault: true },
+      ],
+    };
+    assert(doorlessRooms(plan).length === 0, '미닫이문을 놓아도 문 없는 방으로 남는다');
+    assert(checklist(plan, ['door'])[0].present, '필수 방문을 미닫이문으로 대신하지 못한다');
+    const graph = buildGraph(plan);
+    assert(graph.edges.some((edge) => edge.via === 'sliding_door'), '미닫이문 그래프 엣지가 없다');
+    assert(graph.warnings.length === 0, `미닫이문 그래프 경고: ${graph.warnings.join(' | ')}`);
+    const context = buildContext(plan, graph);
+    const field = createField(plan, context, fuelOf);
+    const a = { x: 5, y: 3 };
+    const b = { x: 6, y: 3 };
+    const closedTransfer = transfer(a, b, field, context, { slide: 'closed' }, FIRE);
+    const openTransfer = transfer(a, b, field, context, { slide: 'open' }, FIRE);
+    assert(closedTransfer === FIRE.doorClosedFactor && openTransfer === 1, `위험 전달 닫힘 ${closedTransfer}, 열림 ${openTransfer}`);
+
+    const closedGeometry = buildDoors(plan, { slide: 'closed' });
+    const openGeometry = buildDoors(plan, { slide: 'open' });
+    assert(closedGeometry.length > 0 && openGeometry.length > 0, '3D 미닫이문 문짝이 열림 또는 닫힘에서 사라진다');
+    assert(closedGeometry.some((value, index) => Math.abs(value - openGeometry[index]) > 0.001), '3D 미닫이문이 옆으로 움직이지 않는다');
+
+    const gamePlan = template('apt_2room');
+    const gameDoor = gamePlan.blocks.find((block) => block.kind === 'opening' && block.openingKind === 'door');
+    if (!gameDoor || gameDoor.kind !== 'opening') throw new Error('게임용 방문이 없다');
+    gameDoor.openingKind = 'sliding_door';
+    const gameGraph = buildGraph(gamePlan);
+    const game = startGame({ plan: gamePlan, graph: gameGraph, profile: P, config: { hazardId: 'fire', seed: 3, timed: false, gradeMode: 'normal' }, preset: FIRE, startCell: gameDoor.cell, fuelOf });
+    const direction = ({ N: 'up', S: 'down', W: 'left', E: 'right' } as const)[gameDoor.side];
+    assert(game.state.doorState[gameDoor.id] === 'closed', '미닫이문 게임 시작 상태가 닫힘이 아니다');
+    assert(move(game.state, game.ctx, direction), '게임에서 닫힌 미닫이문을 지나지 못한다');
+    assert(game.state.doorState[gameDoor.id] === 'open', '게임에서 지나간 미닫이문이 열리지 않는다');
+    assert(closeDoorBehind(game.state), '지나온 미닫이문을 닫지 못한다');
   });
 
   check('개방형 주방은 거실·복도 쪽 벽 전체가 트인 통로가 된다 (설계서 v1.6 §11.3)', () => {
@@ -588,6 +639,17 @@ export function logicTests(check: Check, assert: Assert): void {
   });
 
   /* ---------------------------------------------------------- 설계서 v1.2 */
+
+  check('3D 주인공 열 명이 2D 캐릭터의 피부·머리·옷·소품을 그대로 쓴다 (설계서 v1.7 §1)', () => {
+    assert(KIDS.length === 10, `캐릭터가 ${KIDS.length}명이다`);
+    for (const k of KIDS) {
+      const a = avatar3dIdentity(k.id);
+      assert(a.id === k.id && a.style === k.style, `${k.id}: 머리 모양이 다르다`);
+      assert(a.skin === k.skin && a.hair === k.hair, `${k.id}: 피부·머리 색이 다르다`);
+      assert(a.top === k.top && a.bottom === k.bottom, `${k.id}: 옷 색이 다르다`);
+      assert(Boolean(a.glasses) === Boolean(k.glasses) && a.accent === k.accent, `${k.id}: 소품이 다르다`);
+    }
+  });
 
   check('닫힌 창은 확산을 늦추고, 열린 창은 돕는다 (설계서 v1.2 §2.2)', () => {
     const plan = template('apt_2room');

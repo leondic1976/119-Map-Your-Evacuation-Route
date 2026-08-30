@@ -25,7 +25,7 @@ export interface FieldContext {
   graph: PlanGraph;
 }
 
-const DOOR_KINDS: OpeningKind[] = ['door', 'front_door', 'inner_door', 'emergency_exit'];
+const DOOR_KINDS: OpeningKind[] = ['door', 'sliding_door', 'front_door', 'inner_door', 'emergency_exit'];
 
 export function isDoorKind(kind: OpeningKind | undefined): boolean {
   return Boolean(kind && DOOR_KINDS.includes(kind));
@@ -85,7 +85,7 @@ export interface TransferFactors {
  * a → b 로 위험이 얼마나 건너가는가.
  *   벽·도면 밖                  → 0
  *   방 경계인데 개구부 없음      → 0
- *   닫힌 방문·중문               → doorClosedFactor
+ *   닫힌 여닫이문·미닫이문·중문   → doorClosedFactor
  *   닫힌 현관 방화문·비상구       → sealedClosedFactor (더 잘 막는다)
  *   닫힌 창·발코니창             → glazedClosedFactor
  *   열린 창·발코니창             → openGlazedBoost (1 보다 크면 확산을 돕는다)

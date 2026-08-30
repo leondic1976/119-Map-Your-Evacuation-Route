@@ -10,6 +10,7 @@
  */
 import React, { useCallback, useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
+import { safetyMissions } from '../core/game/missions';
 import { useKids } from '../store/kidsStore';
 import { playCrouch, playDetector, playDoor, playIntro, playStep, playVoice, unlockAudio } from './sound';
 
@@ -133,6 +134,7 @@ export default function GameView() {
   const doorNear = adjacentDoor(st, game.ctx);
   const canClose = Boolean(p.lastDoorId && st.doorState[p.lastDoorId] !== 'closed');
   const stuck = st.tick < p.stuckUntil;
+  const missions = safetyMissions(game, easy);
 
   return (
     <div className="k-game" data-coach="kids-game" data-status={st.status}>
@@ -166,6 +168,14 @@ export default function GameView() {
             </small>
           )}
         </div>
+        <ol className="k-game-missions" aria-label={easy ? '이번 대피 연습에서 해 볼 것' : '안전 행동 미션'}>
+          {missions.map((mission) => (
+            <li key={mission.id} className={mission.done ? 'done' : mission.available ? '' : 'not-needed'} data-mission={mission.id} data-done={mission.done}>
+              <MissionMark done={mission.done} available={mission.available} />
+              <span>{mission.label}</span>
+            </li>
+          ))}
+        </ol>
         <span className="k-spacer" />
         <span className="k-posture-chip" data-posture={p.posture}>
           {p.posture === 'crouch' ? (easy ? '낮게' : '낮은 자세') : easy ? '서 있음' : '선 자세'}
@@ -231,6 +241,15 @@ function ClockIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function MissionMark({ done, available }: { done: boolean; available: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      {done ? <path d="M7.8 12.2l2.7 2.8 5.8-6" /> : available ? <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /> : <path d="M8 12h8" />}
     </svg>
   );
 }

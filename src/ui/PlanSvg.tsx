@@ -266,18 +266,20 @@ export function PlanSvg(props: PlanSvgProps) {
               {r.layer === 'common' && (
                 <rect x={x * CS + 3} y={y * CS + 3} width={w * CS - 6} height={h * CS - 6} fill="none" stroke={INK} strokeWidth={1} strokeDasharray="4 4" opacity={0.6} />
               )}
-              <text
-                x={(x + w / 2) * CS}
-                y={(y + h / 2) * CS}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={printMode ? 12 : 13}
-                fontWeight={700}
-                fill={INK}
-                style={{ pointerEvents: 'none' }}
-              >
-                {name}
-              </text>
+              {r.showLabel !== false ? (
+                <text
+                  x={(x + w / 2) * CS}
+                  y={(y + h / 2) * CS}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={printMode ? 12 : 13}
+                  fontWeight={700}
+                  fill={INK}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {name}
+                </text>
+              ) : null}
               {(sel || isHl) && (
                 <rect
                   x={x * CS + 2}
@@ -308,7 +310,7 @@ export function PlanSvg(props: PlanSvgProps) {
           /* 게임 중이면 지금 상태, 편집 중이면 평소 상태를 보인다 (설계서 v1.2 §2.3) */
           const open = o.openingKind === 'open_passage' || (game ? game.doorState[o.id] !== 'closed' : !o.closedByDefault);
           return (
-            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-state={open ? 'open' : 'closed'} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
               {/* 트인 통로가 이어질 때 칸 사이에 짧은 벽 조각이 남지 않도록 서로 조금 겹쳐 지운다. */}
               <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS + 4 : CS * 0.86} style={style} open={open} />
               {(sel || isHl) && (

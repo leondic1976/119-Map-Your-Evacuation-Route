@@ -1288,6 +1288,176 @@
   padding-top: 14px;
 }
 
+/* 상자 + 잔여공간 시작 방식 — 설계서 v1.8 §2. */
+.k-shell-page,
+.k-box-side-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.k-shell-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px 26px 32px;
+}
+
+.k-shell-grid button {
+  display: flex;
+  min-height: 270px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 12px;
+  border: 3px solid #dbe5ee;
+  border-radius: 22px;
+  background: #fff;
+  color: var(--k-ink);
+}
+
+.k-shell-grid button:hover,
+.k-shell-grid button:focus-visible,
+.k-shell-grid button.on {
+  border-color: var(--k-accent);
+  background: var(--k-accent-soft);
+  box-shadow: 0 0 0 1px var(--k-accent);
+}
+
+.k-shell-grid svg,
+.k-side-shell svg {
+  width: 120px;
+  height: 120px;
+  fill: #f8fbfd;
+  stroke: var(--k-accent);
+  stroke-width: 3.2;
+  stroke-linejoin: round;
+}
+
+.k-shell-grid svg .rooms,
+.k-side-shell svg .rooms {
+  fill: #bde4ff;
+  stroke: #3977a8;
+  stroke-width: 2.2;
+}
+
+.k-shell-grid b {
+  font-size: 17px;
+}
+
+.k-shell-grid small {
+  color: var(--k-dim);
+  font-size: 13px;
+}
+
+.k-side-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 142px);
+  grid-template-rows: repeat(3, 112px);
+  gap: 9px;
+  align-self: center;
+  padding: 12px;
+  border: 2px solid #dbe5ee;
+  border-radius: 25px;
+  background: #f8fbfd;
+}
+
+.k-side-picker > button {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  border: 3px solid #bfd3e3;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--k-dim);
+}
+
+.k-side-picker > button:hover,
+.k-side-picker > button:focus-visible,
+.k-side-picker > button.on {
+  border-color: var(--k-accent);
+  background: #dff1ff;
+  color: var(--k-accent);
+}
+
+.k-side-picker > button span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--k-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.k-side-picker > button:not(.on) span {
+  background: #e6edf2;
+}
+
+.k-side-picker > button b {
+  font-size: 13px;
+}
+
+.k-side-center {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border: 2px dashed #7fbd96;
+  border-radius: 17px;
+  background: #e8f7ed;
+  color: #23613a;
+  line-height: 1.25;
+}
+
+.k-side-center span {
+  font-size: 12px;
+}
+
+.k-side-center b {
+  font-size: 18px;
+}
+
+.k-side-shell {
+  position: absolute;
+  z-index: 1;
+  inset: 50% auto auto 50%;
+  opacity: 0.13;
+  transform: translate(-50%, -50%) scale(2.6);
+  pointer-events: none;
+}
+
+.k-side-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 18px 24px 28px;
+}
+
+.k-side-actions > span {
+  color: var(--k-accent);
+  font-weight: 900;
+}
+
+.k-side-actions .k-start-plan {
+  width: auto;
+  min-width: 280px;
+}
+
+.k-box-preview-page .k-customize-preview svg {
+  max-height: 360px;
+}
+
 .k-customize-page {
   display: grid;
   grid-template-columns: minmax(330px, 0.9fr) minmax(440px, 1.1fr);

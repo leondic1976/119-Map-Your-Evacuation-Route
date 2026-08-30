@@ -10,6 +10,7 @@
  *   npm test
  */
 import { logicTests } from './logic-tests';
+import { layoutTests } from './layout-tests';
 import { qaTests } from './qa-tests';
 
 /* ------------------------------------------------------------------ */
@@ -45,6 +46,9 @@ function assert(cond: boolean, msg: string): void {
 
 section('연산 로직');
 logicTests(check, assert);
+
+section('상자와 남은 자리');
+layoutTests(check, assert);
 
 section('배포 전 점검');
 qaTests(check, assert);

@@ -45,7 +45,8 @@ import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, 
 import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
-import { preparePlan, type PreparePlanOptions } from '../core/plan/prepare';
+import { preparePlan, rotatePlan, type PlanRotation, type PreparePlanOptions } from '../core/plan/prepare';
+import { generateResidualPlan, type ResidualPlanRequest } from '../core/plan/residual';
 import { loadKids, saveKids } from './storage';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
 
@@ -151,6 +152,8 @@ export interface KidsActions {
   setHowTo: (on: boolean) => void;
 
   loadTemplate: (id: string, options?: PreparePlanOptions) => void;
+  /** 상자와 남은 자리 방식으로 만든 시작 평면을 불러온다 (설계서 v1.8 §2). */
+  loadResidualPlan: (request: ResidualPlanRequest, rotation?: PlanRotation) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
   placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;
   placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
@@ -558,6 +561,17 @@ export const useKids = create<KidsStore>()((set, get) => {
       if (!get().onboarded) get().finishOnboarding(false);
     },
 
+    loadResidualPlan: (request, rotation = 0) => {
+      const generated = generateResidualPlan(request);
+      const plan = rotatePlan(generated.plan, rotation);
+      bumpBlockIdSeq(plan);
+      commit({ plan, routes: {} });
+      set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
+      get().countOp();
+      get().notify('방 상자를 놓고 남은 자리에 거실과 주방을 만들었다. 우리 집처럼 옮기고 늘려 보자.');
+      if (!get().onboarded) get().finishOnboarding(false);
+    },
+
     placeRoom: (roomKind, at, rect) => {
       const plan = get().plan;
       const def = blockDef(roomKind);
@@ -586,7 +600,8 @@ export const useKids = create<KidsStore>()((set, get) => {
         closedByDefault: kind !== 'inner_door' && kind !== 'open_passage',
       };
       commit({ plan: { ...plan, blocks: blocks.concat([b]) } });
-      firstPlaced(kind);
+      /* 미닫이문도 기존 문 안내와 같은 뜻이다. 별도 음성 자산을 늘리지 않고 검증된 문 대사를 재사용한다. */
+      firstPlaced(kind === 'sliding_door' ? 'door' : kind);
       get().countOp();
       return true;
     },

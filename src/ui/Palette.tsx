@@ -222,6 +222,8 @@ function PaletteButton({
 
 function hintFor(b: BlockDef, easy: boolean): string {
   if (b.category === 'room') return easy ? '도면을 누르면 방이 놓인다.' : '클릭하면 표준 크기로 놓이고, 드래그하면 그 크기로 놓인다.';
+  if (b.id === 'door') return easy ? '앞뒤로 여는 문이다. 방의 벽을 누르자.' : '경첩으로 여는 방문이다. 방 경계선에 놓는다.';
+  if (b.id === 'sliding_door') return easy ? '옆으로 미는 문이다. 방의 벽을 누르자.' : '옆으로 미는 방문이다. 방 경계선에 놓는다.';
   if (b.category === 'opening') return easy ? '방의 벽을 눌러 놓는다.' : '방 경계선(벽면)에만 놓인다.';
   if (b.tags.includes('adult')) return '어른과 함께 쓰는 설비다.';
   return easy ? '놓을 칸을 누른다.' : '셀 중심에 놓인다.';

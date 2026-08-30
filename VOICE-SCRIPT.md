@@ -1,22 +1,31 @@
 # 음성 멘트 대본
 
-화면의 안내 문장과 사람 목소리로 만들 문장을 한곳에 모았다. 동적 안내의 정본은
-`src/content/guide/*.json`, MP3 여덟 문장의 정본은 `src/content/voice.ts`다. 이 문서는 두 정본을
-사람이 검수하고 녹음을 맡기기 좋게 펼쳐 놓은 것이다.
+화면의 안내 문장과 사람 목소리로 만들 문장을 한곳에 모았다. 캐릭터 가이드 168개 문장의
+내용 정본은 `src/content/guide/rules.json`, 핵심 게임 8개 문장의 내용 정본은
+`src/content/voice.ts`다. 생성할 176개 MP3의 파일명·문장·순서는
+`public/voice/manifest.json`이 정본이며, 이 문서는 사람이 검수하고 녹음을 맡기기 좋게 펼쳐 놓은
+대본이다.
 
-- 지금은 브라우저 음성합성(`speechSynthesis`)이 읽는다. 한국어 음성이 없는 기기에서는 조용히 넘어간다.
-- ElevenLabs 웹 TTS에서는 **§4의 공통 설정을 먼저 맞춘 뒤, 회색 코드 블록의 대사만 한 줄씩** 붙여 넣는다.
-  §4 전체를 입력창에 붙이면 작업 설명까지 음성으로 읽으므로 그렇게 하지 않는다.
-- 사람 목소리를 넣으려면 §4의 파일명 그대로 MP3를 만들어 `content/voice/`에 넣는다.
-- 동적 안내를 고치면 JSON을, MP3 문장을 고치면 `src/content/voice.ts`와 §4를 함께 고친 뒤
-  `npm test`를 돌린다.
+- 웹 배포판은 `public/voice/`의 Juwonmom MP3 176개를 우선 재생하고, 파일을 읽지 못하면
+  브라우저 음성합성(`speechSynthesis`)으로 이어서 안내한다.
+- 단일 HTML 오프라인판은 4MB 제한을 지키기 위해 핵심 게임 음성 8개만 `src/content/voice.ts`에
+  data URI로 내장한다. 캐릭터 가이드 168개는 브라우저 음성합성으로 안내한다.
+- ElevenLabs 웹 TTS에서는 **§4의 공통 설정을 먼저 맞춘 뒤, 자동화 도구와 manifest를 사용한다.**
+  문서를 통째로 입력창에 붙이면 작업 설명까지 음성으로 읽으므로 그렇게 하지 않는다.
+- 가이드 문장을 고치면 `rules.json`을, 핵심 문장을 고치면 `voice.ts`와 §4를 함께 고친 뒤
+  manifest를 다시 내보내고 `npm run voice`, `npm test`를 차례로 실행한다.
 
-| 항목 | 수 |
-|---|---|
-| 캐릭터 대사 | 84 |
-| 학습 카드 | 37 |
-| 규칙 문장(지적·칭찬) | 34 |
-| 플레이 판정 문장 | 13 |
+| 항목 | 수 | 실제 자동 음성 대상 |
+|---|---:|---:|
+| 캐릭터 가이드 규칙 | 84 | 쉬움·보통 2종씩 168 |
+| 핵심 게임 MP3 | 8 | 8 |
+| 학습 카드 | 37 | 화면 참고 글, 0 |
+| 규칙 문장(지적·칭찬) | 34 | 결과 화면 글, 0 |
+| 플레이 판정 문장 | 13 | 결과 화면 글, 0 |
+
+실제 음성 대상은 176개다. `{roomName}`·`{facility}`가 들어간 네 변형은 화면에서는 실제 이름을
+보여 주고 음성에서는 뜻이 같은 일반 문장으로 읽는다. 전체 파일명과 4MB 호환 전략은
+[`docs/VOICE-MANIFEST.md`](docs/VOICE-MANIFEST.md)와 `public/voice/manifest.json`을 정본으로 삼는다.
 
 ---
 
@@ -430,7 +439,12 @@
 ## 4. ElevenLabs 전달용 최종 지시문
 
 이 절은 [ElevenLabs Text to Speech](https://elevenlabs.io/app/speech-synthesis/text-to-speech)에서
-앱에 필요한 MP3 여덟 개를 **빠짐없이 직접 만드는 작업서**다.
+오프라인 단일 HTML에 먼저 넣을 핵심 MP3 여덟 개를 **빠짐없이 직접 만드는 작업서**다. 전체
+가이드 음성은 `public/voice/manifest.json`을 자동화 도구에 입력해 별도 묶음으로 만든다.
+
+Playwright로 입력을 보조하려면 [`docs/ELEVENLABS-AUTOMATION.md`](docs/ELEVENLABS-AUTOMATION.md)의
+설치·최초 로그인·실행 절차를 따른다. 자동화 도구는 기본적으로 대사만 입력하며, 크레딧을 쓰는
+생성은 `--generate`와 명시 확인이 모두 있을 때만 실행한다.
 
 > 중요: 이 절 전체를 Text to Speech 입력창에 붙여 넣지 않는다. 해당 화면은 작업 지시를 수행하는
 > 대화형 도구가 아니라 입력한 글을 읽는 도구다. 아래 각 파일의 `입력창에 붙여넣을 내용` 코드
@@ -452,7 +466,7 @@
 | Similarity | `75%` | 고른 화자의 음색을 일정하게 유지한다 |
 | Style Exaggeration | `0%` | 과장된 연기와 결과 불안정을 막는다 |
 | Speaker Boost | `켜기` | 같은 화자의 음색을 조금 더 분명하게 유지한다 |
-| Speed | `0.95` | 초등학생이 안전 문장을 또렷하게 들을 속도다 |
+| Speed | `1.0` | 빠르거나 느리지 않은 화면의 중간·기본 속도다 |
 
 4. `Enhance`는 누르지 않는다. 대사나 말투 표시가 자동으로 추가되면 앱의 정본과 달라진다.
 5. 배경음악·화재경보음·효과음·다른 목소리는 넣지 않는다.
@@ -561,10 +575,10 @@
 
 ### 4.4 납품 폴더와 최종 확인
 
-완성한 파일은 프로젝트의 `content/voice/` 폴더에 아래처럼 둔다.
+완성한 파일은 프로젝트의 `public/voice/` 폴더에 아래처럼 둔다.
 
 ```text
-content/voice/
+public/voice/
   v-start.mp3
   v-crouch.mp3
   v-door.mp3

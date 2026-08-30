@@ -11,18 +11,13 @@
  */
 import React from 'react';
 import type { Emotion, PlayerCharacter, Speaker } from '../types/guide';
-import { KIDS, KidToken, kidOf } from './KidCharacters';
+import { KIDS, KidToken } from './KidCharacters';
 import { SPEAKER_ART } from '../content/artwork';
 
 export const SPEAKER_NAME: Record<Speaker, string> = { yeongi: '영이', ungi: '웅이', ilgu: '일구' };
 
 /** 게임에서 내가 되는 캐릭터의 이름 (설계서 v1.2 §6.2 개정) */
 export const PLAYER_NAME: Record<string, string> = Object.fromEntries(KIDS.map((k) => [k.id, k.name]));
-
-/** 그 캐릭터의 대표 색 — 3D 리플레이의 옷 색으로도 쓴다 */
-export function playerTone(id: string): string {
-  return kidOf(id).top;
-}
 
 export function Avatar({ speaker, emotion, size = 48 }: { speaker: Speaker; emotion: Emotion; size?: number }) {
   const set = SPEAKER_ART[speaker];

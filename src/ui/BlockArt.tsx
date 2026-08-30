@@ -505,6 +505,39 @@ export function OpeningArt({
     );
   }
 
+  if (kind === 'sliding_door') {
+    const doorColor = style === 'kid' ? '#3275a8' : stroke;
+    const panel = len * 0.46;
+    return (
+      <g>
+        {/* 벽을 끊고 위·아래 레일을 남겨, 회전하는 여닫이문과 한눈에 구별한다. */}
+        <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" />
+        <path
+          d={`M${-len / 2} ${-t / 2 - 3} V${t / 2 + 3} M${len / 2} ${-t / 2 - 3} V${t / 2 + 3}`}
+          stroke={stroke}
+          strokeWidth={3.2}
+          strokeLinecap="round"
+        />
+        <path d={`M${-len / 2 + 1} -3 H${len / 2 - 1} M${-len / 2 + 1} 3 H${len / 2 - 1}`} stroke={doorColor} strokeWidth={1.3} opacity={0.6} />
+        {isOpen ? (
+          <>
+            {/* 열린 짝은 왼쪽으로 포개져 통로가 넓게 비어 보인다. */}
+            <rect x={-len / 2 + 1} y={-2.7} width={panel} height={5.4} rx={1.2} fill={doorColor} />
+            <rect x={-len / 2 + 3.5} y={-1.2} width={panel - 2.5} height={2.4} rx={0.8} fill="#ffffff" opacity={0.35} />
+            <path d={`M${len * 0.28} 0 H${len * 0.04} m0 0 4 -3 m-4 3 4 3`} fill="none" stroke={doorColor} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ) : (
+          <>
+            {/* 닫힌 두 짝은 가운데에서 만나 통로를 막는다. */}
+            <rect x={-len / 2 + 1} y={-2.8} width={len / 2 - 1} height={5.6} rx={1} fill={doorColor} />
+            <rect x={0} y={-2.8} width={len / 2 - 1} height={5.6} rx={1} fill={doorColor} opacity={0.82} />
+            <path d="M0 -3 V3" stroke="#ffffff" strokeWidth={1.3} opacity={0.8} />
+          </>
+        )}
+      </g>
+    );
+  }
+
   /*
    * 문은 위에서 본 모습이다. 건축 도면 관례를 따르되 아이도 알아보게 굵게 그린다.
    *   닫힘 — 문짝이 문틀을 완전히 막는다. 손잡이가 보인다

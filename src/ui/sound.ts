@@ -10,12 +10,12 @@
  *   C4 붉은 점멸은 여전히 금지 (화면 쪽 규칙)
  *   C5 소리는 부가 기능이다. 나지 않아도 모든 기능이 완결된다
  *
- * 음원 파일을 싣지 않는다. 오프라인 배포본이 4MB 를 넘을 수 없기 때문이다(NFR-3).
- * 감지기 소리는 Web Audio 로 합성하고, 말은 브라우저 음성합성에 맡긴다.
+ * 감지기·조작 효과는 Web Audio 로 합성한다. 캐릭터 말은 웹 배포본에서 Juwonmom MP3를
+ * 우선 쓰고, 파일이 없거나 단일 HTML이면 브라우저 음성합성으로 대체한다.
  * 둘 다 없으면 조용히 아무 일도 하지 않는다.
  */
 
-import { VOICE_CLIPS, VOICE_LINES, type VoiceId } from '../content/voice';
+import { guideVoiceFilename, VOICE_CLIPS, VOICE_LINES, type VoiceGradeMode, type VoiceId } from '../content/voice';
 
 let ctx: AudioContext | null = null;
 let soundEpoch = 0;
@@ -312,25 +312,57 @@ export function playVoice(id: VoiceId): void {
     speak(VOICE_LINES[id]);
     return;
   }
-  try {
-    stopSpeaking();
-    stopVoice();
-    current = new Audio(clip);
-    current.volume = 0.9;
-    void current.play().catch(() => {
-      /* 자동 재생이 막히면 음성합성으로 */
-      speak(VOICE_LINES[id]);
-    });
-  } catch {
-    speak(VOICE_LINES[id]);
+  playAudioClip(clip, VOICE_LINES[id]);
+}
+
+/**
+ * 캐릭터 말풍선의 웹 MP3를 우선 재생한다. 단일 HTML은 외부 파일을 가질 수 없으므로
+ * 브라우저 TTS를 쓰고, 웹에서도 파일 누락·재생 실패 시 같은 문장 TTS로 되돌아간다.
+ */
+export function playGuideVoice(ruleId: string, gradeMode: VoiceGradeMode, fallbackText: string): void {
+  if (!enabled || !fallbackText) return;
+  if (process.env.NEXT_PUBLIC_OFFLINE === '1') {
+    speak(fallbackText);
+    return;
   }
+  const basePath = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/$/, '');
+  playAudioClip(`${basePath}/voice/${guideVoiceFilename(ruleId, gradeMode)}`, fallbackText);
 }
 
 let current: HTMLAudioElement | null = null;
 
+function playAudioClip(source: string, fallbackText: string): void {
+  if (!enabled) return;
+  try {
+    stopSpeaking();
+    stopVoice();
+    const audio = new Audio(source);
+    let fellBack = false;
+    const fallback = (): void => {
+      if (fellBack || !enabled) return;
+      fellBack = true;
+      if (current === audio) current = null;
+      speak(fallbackText);
+    };
+    audio.volume = 0.9;
+    audio.onerror = fallback;
+    audio.onended = () => {
+      if (current === audio) current = null;
+    };
+    current = audio;
+    void audio.play().catch(fallback);
+  } catch {
+    speak(fallbackText);
+  }
+}
+
 export function stopVoice(): void {
   try {
-    current?.pause();
+    if (current) {
+      current.onerror = null;
+      current.onended = null;
+      current.pause();
+    }
   } catch {
     /* 무시 */
   }

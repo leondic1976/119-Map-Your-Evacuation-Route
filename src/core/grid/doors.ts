@@ -8,7 +8,7 @@ import type { Cell, FloorPlan, OpeningKind, Rect, RoomBlock } from '../../types/
 import { isOpening, isRoom } from '../../types/plan';
 import { step } from './geometry';
 
-const DOOR_KINDS = new Set<OpeningKind>(['door', 'front_door', 'inner_door', 'open_passage', 'balcony_window', 'emergency_exit']);
+const DOOR_KINDS = new Set<OpeningKind>(['door', 'sliding_door', 'front_door', 'inner_door', 'open_passage', 'balcony_window', 'emergency_exit']);
 
 function contains(rect: Rect, cell: Cell): boolean {
   return cell.x >= rect.x && cell.x < rect.x + rect.w && cell.y >= rect.y && cell.y < rect.y + rect.h;

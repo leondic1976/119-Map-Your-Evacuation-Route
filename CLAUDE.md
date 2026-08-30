@@ -129,8 +129,8 @@ app   →  ui
 ## 10. 절대 규칙
 
 설계서는 `docs/DESIGN-v1.0.md` 와 변경 명세 `docs/DESIGN-v1.1-changes.md`,
-`docs/DESIGN-v1.2-changes.md` 부터 `docs/DESIGN-v1.5-changes.md` 까지다.
-어긋나면 **뒤 문서가 이긴다**(v1.5 > v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
+`docs/DESIGN-v1.2-changes.md` 부터 `docs/DESIGN-v1.8-changes.md` 까지다.
+어긋나면 **뒤 문서가 이긴다**(v1.8 > v1.7 > v1.6 > v1.5 > v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
 구현과 어긋나는 결정을 하면 코드보다 설계서를 먼저 고친다.
 
 1. 런타임에 생성형 AI 를 부르지 않는다. 캐릭터의 말은 전부 `content/guide/*.json` 의 고정 문장이다.

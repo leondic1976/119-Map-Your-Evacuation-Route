@@ -2,7 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { TEMPLATES, templateName, type TemplateDef } from '../content';
-import { bedroomCount, preparePlan, type PlanRotation } from '../core/plan/prepare';
+import { bedroomCount, preparePlan, rotatePlan, type PlanRotation } from '../core/plan/prepare';
+import {
+  generateResidualPlan,
+  normalizeBedroomSides,
+  type ShellShape,
+  type Side8,
+} from '../core/plan/residual';
 import { useKids } from '../store/kidsStore';
 import { PlanSvg } from './PlanSvg';
 
@@ -11,17 +17,10 @@ interface Props {
   onClose: () => void;
 }
 
-type Page = 'paths' | 'rooms' | 'layout' | 'gallery' | 'starterRooms' | 'customize';
+type Page = 'paths' | 'rooms' | 'layout' | 'gallery' | 'starterRooms' | 'shell' | 'boxSides' | 'boxPreview' | 'customize';
 type Flow = 'guided' | 'gallery' | 'starter';
 type BedroomChoice = 1 | 2 | 3 | 4;
 type KitchenChoice = 'open' | 'closed' | 'unsure';
-
-const STARTER_TEMPLATE: Record<BedroomChoice, string> = {
-  1: 'studio',
-  2: 'apt_2room',
-  3: 'apt_3room',
-  4: 'apt_4room',
-};
 
 const GUIDED_ORDER: Record<BedroomChoice, string[]> = {
   1: ['studio'],
@@ -46,9 +45,28 @@ const ROTATIONS: { value: PlanRotation; label: string }[] = [
   { value: 270, label: '왼쪽으로' },
 ];
 
+const SHELLS: { value: ShellShape; label: string; note: string }[] = [
+  { value: 'wide', label: '넓은 네모', note: '가로로 넓은 집' },
+  { value: 'long', label: '길쭉한 네모', note: '세로로 긴 집' },
+  { value: 'bend-left', label: '왼쪽이 꺾인 집', note: '왼쪽 아래가 이어진 집' },
+  { value: 'bend-right', label: '오른쪽이 꺾인 집', note: '오른쪽 아래가 이어진 집' },
+];
+
+const SIDE_CELLS: { value: Side8; label: string; row: number; col: number }[] = [
+  { value: 'NW', label: '왼쪽 위', row: 1, col: 1 },
+  { value: 'N', label: '위 가운데', row: 1, col: 2 },
+  { value: 'NE', label: '오른쪽 위', row: 1, col: 3 },
+  { value: 'W', label: '왼쪽', row: 2, col: 1 },
+  { value: 'E', label: '오른쪽', row: 2, col: 3 },
+  { value: 'SW', label: '왼쪽 아래', row: 3, col: 1 },
+  { value: 'S', label: '아래 가운데', row: 3, col: 2 },
+  { value: 'SE', label: '오른쪽 아래', row: 3, col: 3 },
+];
+
 export default function Onboarding({ open, onClose }: Props) {
   const profile = useKids((s) => s.profile);
   const loadTemplate = useKids((s) => s.loadTemplate);
+  const loadResidualPlan = useKids((s) => s.loadResidualPlan);
   const [page, setPage] = useState<Page>('paths');
   const [flow, setFlow] = useState<Flow>('guided');
   const [bedrooms, setBedrooms] = useState<BedroomChoice>(2);
@@ -56,6 +74,8 @@ export default function Onboarding({ open, onClose }: Props) {
   const [selected, setSelected] = useState<TemplateDef | null>(null);
   const [kitchen, setKitchen] = useState<KitchenChoice>('open');
   const [rotation, setRotation] = useState<PlanRotation>(0);
+  const [shell, setShell] = useState<ShellShape>('wide');
+  const [bedroomSides, setBedroomSides] = useState<Side8[]>(normalizeBedroomSides(2, []));
   const easy = profile.gradeMode === 'easy';
 
   useEffect(() => {
@@ -67,6 +87,8 @@ export default function Onboarding({ open, onClose }: Props) {
     setSelected(null);
     setKitchen('open');
     setRotation(0);
+    setShell('wide');
+    setBedroomSides(normalizeBedroomSides(2, []));
   }, [open]);
 
   useEffect(() => {
@@ -99,6 +121,14 @@ export default function Onboarding({ open, onClose }: Props) {
         : null,
     [selected, roomsOnly, hasKitchen, kitchen, rotation],
   );
+  const residualRequest = useMemo(
+    () => ({ bedrooms, shell, bedroomSides: normalizeBedroomSides(bedrooms, bedroomSides), kitchenClosed: kitchen === 'closed' } as const),
+    [bedrooms, shell, bedroomSides, kitchen],
+  );
+  const residualPreview = useMemo(
+    () => rotatePlan(generateResidualPlan(residualRequest).plan, rotation),
+    [residualRequest, rotation],
+  );
 
   if (!open) return null;
 
@@ -114,14 +144,21 @@ export default function Onboarding({ open, onClose }: Props) {
     setBedrooms(count);
     setFlow(nextFlow);
     if (nextFlow === 'starter') {
-      const template = TEMPLATES.find((item) => item.id === STARTER_TEMPLATE[count]);
-      if (template) chooseTemplate(template, 'starter');
+      setBedroomSides(normalizeBedroomSides(count, []));
+      setKitchen('open');
+      setRotation(0);
+      setPage('shell');
       return;
     }
     setPage('layout');
   };
 
   const start = () => {
+    if (flow === 'starter') {
+      loadResidualPlan(residualRequest, rotation);
+      onClose();
+      return;
+    }
     if (!selected) return;
     loadTemplate(selected.id, {
       roomsOnly,
@@ -134,6 +171,9 @@ export default function Onboarding({ open, onClose }: Props) {
   const goBack = () => {
     if (page === 'rooms' || page === 'gallery' || page === 'starterRooms') setPage('paths');
     else if (page === 'layout') setPage('rooms');
+    else if (page === 'shell') setPage('starterRooms');
+    else if (page === 'boxSides') setPage('shell');
+    else if (page === 'boxPreview') setPage('boxSides');
     else if (page === 'customize') {
       if (flow === 'guided') setPage('layout');
       else if (flow === 'gallery') setPage('gallery');
@@ -141,26 +181,24 @@ export default function Onboarding({ open, onClose }: Props) {
     }
   };
 
-  const title =
-    page === 'paths'
-      ? easy
-        ? '너희 집을 쉽게 만들어 볼까?'
-        : '우리 집과 비슷한 평면 만들기'
-      : page === 'rooms' || page === 'starterRooms'
-        ? easy
-          ? '잠자는 방은 몇 개야?'
-          : '침실은 몇 개인가요?'
-        : page === 'layout'
-          ? easy
-            ? '어느 모양이 더 비슷해?'
-            : '가까운 방 배치를 고르세요'
-          : page === 'gallery'
-            ? easy
-              ? '눈으로 보고 골라 볼까?'
-              : '전체 집 모양 보기'
-            : easy
-              ? '우리 집처럼 바꿔 보자!'
-              : '방향과 주방 모양 정하기';
+  const toggleBedroomSide = (side: Side8) => {
+    setBedroomSides((current) => {
+      if (current.includes(side)) return current;
+      if (current.length >= bedrooms) return current.slice(1).concat(side);
+      return current.concat(side);
+    });
+  };
+
+  const title = (() => {
+    if (page === 'paths') return easy ? '너희 집을 쉽게 만들어 볼까?' : '우리 집과 비슷한 평면 만들기';
+    if (page === 'rooms' || page === 'starterRooms') return easy ? '잠자는 방은 몇 개야?' : '침실은 몇 개인가요?';
+    if (page === 'layout') return easy ? '어느 모양이 더 비슷해?' : '가까운 방 배치를 고르세요';
+    if (page === 'gallery') return easy ? '눈으로 보고 골라 볼까?' : '전체 집 모양 보기';
+    if (page === 'shell') return easy ? '집 바깥 모양은 어느 쪽이 비슷해?' : '집 테두리와 가까운 모양을 고르세요';
+    if (page === 'boxSides') return easy ? '방이 있는 쪽을 눌러 봐!' : '침실이 놓인 쪽을 선택하세요';
+    if (page === 'boxPreview') return easy ? '남은 자리에 거실을 만들었어!' : '상자와 잔여공간으로 만든 평면';
+    return easy ? '우리 집처럼 바꿔 보자!' : '방향과 주방 모양 정하기';
+  })();
 
   return (
     <div className="k-modal-back" onClick={onClose} role="presentation">
@@ -196,8 +234,8 @@ export default function Onboarding({ open, onClose }: Props) {
               </button>
               <button type="button" className="k-start-path" data-start-path="starter" onClick={() => { setFlow('starter'); setPage('starterRooms'); }}>
                 <span className="k-start-path-icon"><PathIcon kind="starter" /></span>
-                <b>{easy ? '방부터 놓고 시작하기' : '방만 놓고 시작하기'}</b>
-                <small>{easy ? '방은 미리 놓아 줄게. 문과 물건만 더하면 돼.' : '방 배치만 불러온 뒤 문과 물건을 직접 놓습니다.'}</small>
+                <b>{easy ? '방 상자로 쉽게 만들기' : '상자와 남은 자리로 만들기'}</b>
+                <small>{easy ? '방이 있는 쪽만 고르면 남은 자리에 거실을 만들어 줄게.' : '닫힌 방을 배치하고 잔여공간을 거실과 복도로 자동 구성합니다.'}</small>
               </button>
             </div>
           </div>
@@ -208,8 +246,8 @@ export default function Onboarding({ open, onClose }: Props) {
             <p className="k-start-note">
               {page === 'starterRooms'
                 ? easy
-                  ? '방은 내가 먼저 놓아 줄게. 너는 문과 가구를 붙이면 돼.'
-                  : '선택한 개수에 맞춰 방만 먼저 배치합니다.'
+                  ? '방 개수만 알려 줘. 거실 모양은 네가 그리지 않아도 돼.'
+                  : '침실 상자를 놓고 남은 자리는 공용공간으로 자동 구성합니다.'
                 : easy
                   ? '정확하지 않아도 괜찮아. 잠을 자는 방 개수만 골라 줘.'
                   : '침실 개수를 기준으로 가까운 구조를 추천합니다.'}
@@ -223,6 +261,114 @@ export default function Onboarding({ open, onClose }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+        ) : null}
+
+        {page === 'shell' ? (
+          <div className="k-onboard-body k-shell-page">
+            <p className="k-start-note">
+              {easy ? '똑같지 않아도 괜찮아. 바깥 테두리만 가까운 것을 골라 보자.' : '세부 벽은 다음 단계에서 자동으로 만들고 나중에 고칠 수 있습니다.'}
+            </p>
+            <div className="k-shell-grid">
+              {SHELLS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={shell === item.value ? 'on' : ''}
+                  data-shell={item.value}
+                  aria-pressed={shell === item.value}
+                  onClick={() => {
+                    setShell(item.value);
+                    setPage('boxSides');
+                  }}
+                >
+                  <ShellIcon shape={item.value} />
+                  <b>{item.label}</b>
+                  <small>{item.note}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {page === 'boxSides' ? (
+          <div className="k-onboard-body k-box-side-page">
+            <p className="k-start-note">
+              {easy
+                ? `파란 방 ${bedrooms}개가 있는 쪽을 눌러 봐. 다른 쪽을 누르면 먼저 고른 자리가 바뀌어.`
+                : `침실 ${bedrooms}개의 대략적인 위치를 선택하세요. 새 위치를 누르면 오래된 선택을 교체합니다.`}
+            </p>
+            <div className="k-side-picker" aria-label="방이 있는 쪽 선택">
+              <div className={`k-side-shell shell-${shell}`} aria-hidden="true"><ShellIcon shape={shell} /></div>
+              {SIDE_CELLS.map((item) => {
+                const order = bedroomSides.indexOf(item.value);
+                const on = order >= 0;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={on ? 'on' : ''}
+                    style={{ gridRow: item.row, gridColumn: item.col }}
+                    data-bedroom-side={item.value}
+                    aria-pressed={on}
+                    onClick={() => toggleBedroomSide(item.value)}
+                  >
+                    <span aria-hidden="true">{on ? order + 1 : ''}</span>
+                    <b>{item.label}</b>
+                  </button>
+                );
+              })}
+              <div className="k-side-center" style={{ gridRow: 2, gridColumn: 2 }} aria-hidden="true">
+                <span>남은 자리</span>
+                <b>거실</b>
+              </div>
+            </div>
+            <div className="k-side-actions">
+              <span>방 자리 {bedroomSides.length}/{bedrooms}</span>
+              <button type="button" className="k-start-plan" data-box-sides-next onClick={() => setPage('boxPreview')}>
+                남은 자리에 거실 만들기
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {page === 'boxPreview' ? (
+          <div className="k-onboard-body k-customize-page k-box-preview-page">
+            <section className="k-customize-preview" aria-label="상자와 남은 자리로 만든 집 미리보기">
+              <PlanSvg plan={residualPreview} routePair={undefined} showSlots={[]} style="kid" gradeMode={profile.gradeMode} showGrid={false} />
+              <b>{bedrooms}개 방 상자와 남은 자리</b>
+              <small>{easy ? '남은 자리는 거실과 복도가 되고, 닫힌 방에는 문이 생겨.' : '닫힌 상자에는 자동 문을, 잔여공간 사이에는 트인 경계를 만들었습니다.'}</small>
+            </section>
+            <section className="k-customize-options">
+              <fieldset className="k-choice-field">
+                <legend>{easy ? '주방에 문이 있어?' : '주방이 닫혀 있나요?'}</legend>
+                <p>{easy ? '문이 없으면 거실과 이어진 트인 주방으로 만들게.' : '문이 없으면 잔여공간 안에 개방형 주방으로 배치합니다.'}</p>
+                <div className="k-segmented k-kitchen-choices">
+                  {([
+                    ['open', '문이 없어'],
+                    ['closed', '문이 있어'],
+                    ['unsure', '잘 모르겠어'],
+                  ] as [KitchenChoice, string][]).map(([value, label]) => (
+                    <button key={value} type="button" className={kitchen === value ? 'on' : ''} data-box-kitchen={value} aria-pressed={kitchen === value} onClick={() => setKitchen(value)}>{label}</button>
+                  ))}
+                </div>
+                {kitchen === 'unsure' ? <small className="k-choice-help">괜찮아. 문 없는 트인 주방으로 시작할게.</small> : null}
+              </fieldset>
+              <fieldset className="k-choice-field">
+                <legend>{easy ? '현관 방향이 비슷하게 돌려 볼까?' : '평면 방향'}</legend>
+                <div className="k-segmented k-rotation-choices">
+                  {ROTATIONS.map((item) => (
+                    <button key={item.value} type="button" className={rotation === item.value ? 'on' : ''} data-box-rotation={item.value} aria-pressed={rotation === item.value} onClick={() => setRotation(item.value)}>
+                      <RotateIcon rotation={item.value} />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <button type="button" className="k-start-plan" data-residual-plan-start onClick={start}>
+                {easy ? '이 집으로 대피지도 만들기' : '이 평면으로 시작하기'}
+              </button>
+            </section>
           </div>
         ) : null}
 
@@ -323,6 +469,23 @@ function PathIcon({ kind }: { kind: Flow }) {
     return <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="13" width="44" height="38" rx="5" /><path d="M16 42l11-11 8 8 6-6 7 9M21 24h.1" /></svg>;
   }
   return <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M11 30l21-17 21 17v21H11z" /><path d="M22 51V35h20v16M32 13v38" /></svg>;
+}
+
+function ShellIcon({ shape }: { shape: ShellShape }) {
+  const path =
+    shape === 'wide'
+      ? 'M8 17h48v30H8z'
+      : shape === 'long'
+        ? 'M17 6h30v52H17z'
+        : shape === 'bend-left'
+          ? 'M7 9h50v27H34v20H7z'
+          : 'M7 9h50v47H30V36H7z';
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <path d={path} />
+      <path d="M18 26h10v10H18zM36 17h11v11H36z" className="rooms" />
+    </svg>
+  );
 }
 
 function RotateIcon({ rotation }: { rotation: PlanRotation }) {

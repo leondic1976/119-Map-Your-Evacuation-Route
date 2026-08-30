@@ -222,9 +222,42 @@ async function main(): Promise<void> {
     await check('열면 바로 집 모양 고르기가 뜬다 — 고를 화면이 하나뿐이다', async () => {
       await page.waitForSelector('.k-app');
       await page.waitForSelector('.k-onboard');
-      assert((await page.locator('.k-tmpl').count()) === 9, '시작 평면 8종 + 빈 도면 (설계서 v1.2 §1.2)');
+      assert((await page.locator('.k-tmpl').count()) === 10, '시작 평면 8종 + 빈 도면 + 잘 모르겠어 (설계서 v1.3 §2.2)');
       assert((await page.locator('.k-tabs').count()) === 0, '기본판에 재난 탭이 있다 (FR-2.1 개정)');
       assert((await page.locator('.k-ask input, textarea').count()) === 0, '자유 입력 UI 가 있다 (의견 3)');
+    });
+
+    /*
+     * 아이가 처음 만나는 화면이라 여기가 제일 쉬워야 한다.
+     * 어른 말("타워형"·"복층"·"다세대")이 그대로 나오면 실패다.
+     */
+    await check('쉬움에서 집 모양 이름이 아이 말로 나온다 (FR-7.17)', async () => {
+      const names = await page.locator('.k-tmpl b').allInnerTexts();
+      const adult = ['타워형', '복층', '다세대', '원룸', '단독주택'];
+      const found = adult.filter((w) => names.some((n) => n.includes(w)));
+      assert(found.length === 0, `어른 말이 남았다: ${found.join(', ')}`);
+      for (const want of ['방이 빙 둘러싼 아파트', '위아래 두 층인 집', '마당 있는 집', '방 하나인 집', '빌라']) {
+        assert(names.includes(want), `"${want}" 카드가 없다 — ${names.join(' | ')}`);
+      }
+      /* 가운뎃점 든 짧은 말은 줄 끝에서 갈라진다 (작업지침 §5) */
+      assert(!names.some((n) => n.includes('·')), `가운뎃점이 남았다: ${names.filter((n) => n.includes('·')).join(', ')}`);
+    });
+
+    await check('「잘 모르겠어」를 한 번 누르면 방 두 개 아파트로 시작한다 (FR-7.18)', async () => {
+      const card = page.locator('[data-template="unsure"]');
+      const blurb = await card.locator('small').innerText();
+      assert(blurb.includes('어른') && blurb.includes('바꿀 수 있어'), `안심 문구가 없다: ${blurb}`);
+      await card.click();
+      /* 되묻지 않는다 — 바로 다음 물음(1층·반지하)으로 간다 */
+      await page.waitForSelector('[data-lowfloor="no"]');
+      await page.locator('[data-lowfloor="no"]').click();
+      await page.waitForTimeout(700);
+      const rooms = await page.locator('.k-stage [data-kind="room"]').count();
+      assert(rooms === 8, `방 두 개 아파트가 안 실렸다 — 방 ${rooms}개`);
+      /* 다음 시나리오가 처음부터 시작하도록 되돌린다 */
+      await page.evaluate(() => window.localStorage.clear());
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.k-onboard');
     });
 
     await check('온보딩 5회 조작으로 게임 시작 — 집 모양·1층·내 방·나중에·시작 (§2.5)', async () => {

@@ -6,7 +6,7 @@
  * 어느 화면에서도 나가는 길이 있어야 한다 (P3). 닫기와 Esc 를 둔다.
  */
 import React, { useEffect, useState } from 'react';
-import { TEMPLATES } from '../content';
+import { FALLBACK_TEMPLATE_ID, TEMPLATES, templateName } from '../content';
 import { useKids } from '../store/kidsStore';
 import { PlanSvg } from './PlanSvg';
 
@@ -63,14 +63,19 @@ export default function Onboarding({ open, onClose }: Props) {
                 <CloseIcon />
               </button>
             </header>
-            <p className="k-note">{easy ? '고른 다음에 방을 옮기고 늘리면서 우리 집처럼 바꾸면 돼. 백지에서 시작하지 않아도 돼.' : '고른 뒤 방을 옮기고 크기를 바꿔 우리 집에 맞춘다.'}</p>
+            {/* 「잘 모르겠어」는 맨 뒤라 스크롤해야 보인다. 여기서 한 번 짚어 준다 (설계서 v1.3 §2.2) */}
+            <p className="k-note">
+              {easy
+                ? '고른 다음에 방을 옮기고 늘리면서 우리 집처럼 바꾸면 돼. 잘 모르겠으면 맨 아래 「잘 모르겠어」를 눌러.'
+                : '고른 뒤 방을 옮기고 크기를 바꿔 우리 집에 맞춘다. 모르겠으면 맨 아래 「모르겠다」를 고른다.'}
+            </p>
             <div className="k-tmpl-grid">
               {TEMPLATES.map((t) => (
                 <button key={t.id} type="button" className="k-tmpl" data-template={t.id} onClick={() => pick(t.id)}>
                   <span className="k-tmpl-art">
                     <PlanSvg plan={t.plan} routePair={undefined} showSlots={[]} style="kid" gradeMode={profile.gradeMode} showGrid={false} />
                   </span>
-                  <b>{t.label}</b>
+                  <b>{templateName(t, profile.gradeMode)}</b>
                   <small>{t.hint}</small>
                 </button>
               ))}
@@ -83,6 +88,33 @@ export default function Onboarding({ open, onClose }: Props) {
                 </span>
                 <b>{easy ? '직접 그릴래요' : '빈 도면'}</b>
                 <small>{easy ? '처음부터 내가 그릴래.' : '방부터 직접 그린다.'}</small>
+              </button>
+              {/*
+               * 모르는 아이를 백지로 보내지 않는다 (설계서 v1.3 §2.2).
+               * 되묻지 않고 가장 흔한 모양을 실어 준다 — 한 번 누르면 끝난다.
+               * 맨 뒤에 두는 것도 규칙이다. 앞에 두면 맞는 것을 찾아보지도 않고 누른다.
+               */}
+              <button type="button" className="k-tmpl empty" data-template="unsure" onClick={() => pick(FALLBACK_TEMPLATE_ID)}>
+                <span className="k-tmpl-art">
+                  <svg viewBox="0 0 120 80" width="100%" height="100%" aria-hidden="true">
+                    <rect x={4} y={4} width={112} height={72} rx={6} fill="#fbfbf7" stroke="#c8d0da" strokeDasharray="6 4" strokeWidth={2} />
+                    <path
+                      d="M52 34a8 8 0 1 1 11 7.5c-2 1-3 2.5-3 4.5v2"
+                      fill="none"
+                      stroke="#98a4b3"
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx={60} cy={55} r={2.6} fill="#98a4b3" />
+                  </svg>
+                </span>
+                <b>{easy ? '잘 모르겠어' : '모르겠다'}</b>
+                <small>
+                  {easy
+                    ? '제일 흔한 모양으로 시작할게. 나중에 바꿀 수 있어. 집에 가서 어른께 여쭤봐도 돼.'
+                    : '가장 흔한 방 두 개 아파트로 시작한다. 나중에 바꿀 수 있다.'}
+                </small>
               </button>
             </div>
           </>

@@ -41,7 +41,7 @@ import { selectGuide, toBubble } from '../core/guide/runner';
 import { buildReport, highlightOf } from '../core/report/build';
 import { type Game, finishGame, pauseGame, quitGame, resumeGame, startGame, tick as gameTick } from '../core/game/loop';
 import { closeDoorBehind, move, togglePosture, touchDoor } from '../core/game/player';
-import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, isVerified, presetById } from '../content';
+import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, isVerified, presetById, templateName } from '../content';
 import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
@@ -443,7 +443,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       commit({ plan, routes: {} });
       set({ selection: null, drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
       get().countOp();
-      get().notify(`${eul(t.label)} 불러왔다. 우리 집에 맞게 고쳐 보자.`);
+      get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. 우리 집에 맞게 고쳐 보자.`);
       if (!get().onboarded) get().setStep('lowFloor');
     },
 

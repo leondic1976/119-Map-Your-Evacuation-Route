@@ -50,6 +50,8 @@ export const REQUIRED_BLOCKS: string[] = (blocksJson as unknown as BlockDef[]).f
 export interface TemplateDef {
   id: string;
   label: string;
+  /** 쉬움에서 쓰는 이름 — "타워형 아파트" 가 아니라 "방이 빙 둘러싼 아파트" (설계서 v1.3 §2.1) */
+  easy: string;
   hint: string;
   plan: FloorPlan;
 }
@@ -98,6 +100,14 @@ export function blockName(id: string, gradeMode: 'easy' | 'normal'): string {
   if (!d) return id;
   return gradeMode === 'easy' ? d.easy : d.label;
 }
+
+/** 시작 평면도 같은 방식으로 고른다 (설계서 v1.3 §2.1) */
+export function templateName(t: TemplateDef, gradeMode: 'easy' | 'normal'): string {
+  return gradeMode === 'easy' ? t.easy : t.label;
+}
+
+/** 「잘 모르겠어」를 눌렀을 때 실어 주는 평면 — 가장 흔한 모양 (설계서 v1.3 §2.2) */
+export const FALLBACK_TEMPLATE_ID = 'apt_2room';
 
 /** 위험장 엔진에 넘기는 연소하중 조회 */
 export function fuelOf(kind: string): number {

@@ -15,6 +15,7 @@ import {
   BLOCKS,
   GUIDE_CARDS,
   GUIDE_RULES,
+  FALLBACK_TEMPLATE_ID,
   HAZARD_PRESETS,
   PALETTE_BASIC,
   REPORT_ITEMS,
@@ -207,7 +208,12 @@ export function validateContent(strict = false): ValidationReport {
   for (const t of TEMPLATES) {
     errors.push(...validatePlan(t.plan).map((e) => `템플릿 ${t.id}: ${e}`));
     if (!t.label?.trim()) errors.push(`템플릿 ${t.id}: 이름이 없다`);
+    /* 쉬움에서 쓸 이름이 없으면 아이가 어른 말을 그대로 본다 (설계서 v1.3 §2.1) */
+    if (!t.easy?.trim()) errors.push(`템플릿 ${t.id}: 쉬운 이름(easy)이 없다`);
     if (!t.hint?.trim()) errors.push(`템플릿 ${t.id}: 안내 문구가 없다`);
+  }
+  if (!TEMPLATES.some((t) => t.id === FALLBACK_TEMPLATE_ID)) {
+    errors.push(`「잘 모르겠어」가 실어 줄 평면이 없다 — ${FALLBACK_TEMPLATE_ID} (FR-7.18)`);
   }
 
   return { errors, warnings };

@@ -16,7 +16,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FloorPlan } from '../src/types/plan';
-import { HAZARD_PRESETS, TEMPLATES, fuelOf } from '../src/content';
+import { GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, fuelOf } from '../src/content';
+import { VOICE_LINES } from '../src/content/voice';
 import { buildGraph } from '../src/core/graph/build';
 import { buildContext } from '../src/core/hazard/transfer';
 import { simulateAhead } from '../src/core/hazard/ignition';
@@ -53,6 +54,64 @@ const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F1E6}-\u{1F1FF}]
 
 export function qaTests(check: Check, assert: Assert): void {
   const srcFiles = sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css', '.json']);
+
+  /* -------------------------------------------------- 음성 대본 정본 */
+
+  check('[점검] VOICE-SCRIPT.md가 실제 콘텐츠와 ElevenLabs 제작본에 맞는다', () => {
+    const script = read(path.join(root, 'VOICE-SCRIPT.md'));
+    const section = (from: string, to: string): string => {
+      const start = script.indexOf(from);
+      const end = script.indexOf(to, start + from.length);
+      assert(start >= 0 && end > start, `${from} 또는 ${to} 절을 찾을 수 없다`);
+      return script.slice(start, end);
+    };
+
+    const guide = section('## 1. 캐릭터 대사', '## 2. 학습 카드');
+    const speakers = { ilgu: '일구', yeongi: '영이', ungi: '웅이' } as const;
+    const guideRows = guide.split('\n').filter((line) => /^\| `[^`]+` \|/.test(line));
+    assert(guideRows.length === GUIDE_RULES.length, `캐릭터 대사 문서 ${guideRows.length}건 · 앱 ${GUIDE_RULES.length}건`);
+    for (const rule of GUIDE_RULES) {
+      const row = `| \`${rule.id}\` | ${speakers[rule.speaker]} | ${rule.text.easy} | ${rule.text.normal} |`;
+      assert(guide.includes(row), `캐릭터 대사 불일치: ${rule.id}`);
+    }
+
+    const cards = section('## 2. 학습 카드', '## 3. 결과 리포트 문장');
+    const cardHeadings = cards.match(/^### /gm) ?? [];
+    assert(cardHeadings.length === GUIDE_CARDS.length, `학습 카드 문서 ${cardHeadings.length}장 · 앱 ${GUIDE_CARDS.length}장`);
+    for (const card of GUIDE_CARDS) {
+      const block = `### ${card.title}\n\n- **쉬움** — ${card.body.easy}\n- **보통** — ${card.body.normal}`;
+      assert(cards.includes(block), `학습 카드 불일치: ${card.id}`);
+    }
+
+    const reportRules = section('### 3.1 규칙별 지적·칭찬', '### 3.2 플레이 판정 문장');
+    const reportRuleRows = reportRules.split('\n').filter((line) => /^\| `RULE-/.test(line));
+    assert(reportRuleRows.length === Object.keys(RULE_MESSAGES.rules).length, `규칙별 문장 수 불일치`);
+    for (const [id, messages] of Object.entries(RULE_MESSAGES.rules)) {
+      const row = `| \`${id}\` | ${messages.reportHeadline.easy} | ${messages.praise.easy} |`;
+      assert(reportRules.includes(row), `규칙별 문장 불일치: ${id}`);
+    }
+
+    const reportItems = section('### 3.2 플레이 판정 문장', '## 4. ElevenLabs 최종 제작본');
+    const reportItemRows = reportItems.split('\n').filter((line) => /^\| `dyn\./.test(line));
+    assert(reportItemRows.length === REPORT_ITEMS.length, `플레이 판정 문서 ${reportItemRows.length}건 · 앱 ${REPORT_ITEMS.length}건`);
+    for (const item of REPORT_ITEMS) {
+      const row = `| \`${item.id}\` |  | ${item.headline.easy} |`;
+      assert(reportItems.includes(row), `플레이 판정 문장 불일치: ${item.id}`);
+    }
+
+    const elevenLabs = section('## 4. ElevenLabs 최종 제작본', '## 5. 소리 효과');
+    const voiceRows = elevenLabs.split('\n').filter((line) => /^\| `v-[^`]+\.mp3` \|/.test(line));
+    assert(voiceRows.length === Object.keys(VOICE_LINES).length, `ElevenLabs 문서 ${voiceRows.length}개 · 앱 ${Object.keys(VOICE_LINES).length}개`);
+    for (const [id, line] of Object.entries(VOICE_LINES)) {
+      assert(voiceRows.some((row) => row.startsWith(`| \`${id}.mp3\` | ${line} |`)), `ElevenLabs 문장 불일치: ${id}`);
+    }
+
+    const baker = read(path.join(root, 'tools', 'voice-bake.ts'));
+    const idsSource = baker.match(/const IDS = \[([^\]]+)\]/)?.[1] ?? '';
+    const bakedIds = [...idsSource.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
+    const voiceIds = Object.keys(VOICE_LINES).sort();
+    assert(JSON.stringify(bakedIds) === JSON.stringify(voiceIds), `MP3 굽기 목록이 음성 정본과 다르다`);
+  });
 
   /* -------------------------------------------------- 인터넷에 보내지 않는다 */
 

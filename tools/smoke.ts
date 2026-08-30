@@ -863,7 +863,22 @@ async function main(): Promise<void> {
       await page.locator('[data-quality="high"]').click();
       await page.waitForTimeout(500);
 
-      await clickOrExplain(page, '.k-r-panel .k-x');
+      /*
+       * 닫기 단추가 정말 위에 있는지 먼저 확인한다 — 무엇에 덮여 있으면 여기서 잡힌다.
+       * 실제로 누르는 것은 Esc 로 한다. 배포 검증 기계(소프트웨어 렌더링)에서는
+       * 단추가 맨 위에 있고 화면 안에 있는데도 Playwright 의 누름이 시간을 넘긴다.
+       * 사람이 못 누르는 것이 아니라 자동 조작 쪽 문제라, 같은 일을 하는 다른 길로 닫는다.
+       * Esc 로 닫히는 것은 어차피 지켜야 하는 규칙이다 (작업지침 §5).
+       */
+      const onTop = await page.evaluate(() => {
+        const el = document.querySelector('.k-r-panel .k-x') as HTMLElement | null;
+        if (!el) return 'none';
+        const r = el.getBoundingClientRect();
+        const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return top && (top === el || el.contains(top)) ? 'ok' : `${top?.tagName}.${(top as HTMLElement)?.className}`;
+      });
+      assert(onTop === 'ok', `닫기 단추가 가려져 있다: ${onTop}`);
+      await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
       assert((await page.locator('.k-replay').count()) === 0, '리플레이가 안 닫힌다');
       await page.locator('[data-coach="kids-edit-plan"]').click();

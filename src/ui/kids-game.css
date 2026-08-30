@@ -773,7 +773,7 @@
    * WebGL 이 없는 기기에서 도면 SVG 가 패널을 덮어 닫기 단추가 눌리지 않았다.
    */
   position: relative;
-  z-index: 5;
+  z-index: 20;
   margin: 14px;
   width: 288px;
   max-height: calc(100% - 28px);
@@ -786,7 +786,11 @@
   background: rgba(11, 19, 28, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(10px);
+  /*
+   * backdrop-filter 를 쓰지 않는다. 바탕이 이미 94% 라 흐림이 거의 보이지 않는데,
+   * 소프트웨어 렌더링(배포 검증 기계)에서는 이 속성이 합성 층을 따로 만들어
+   * 패널 위의 누름이 먹지 않는 일이 있었다. 보이는 값은 없고 위험만 있다.
+   */
   word-break: keep-all;
 }
 

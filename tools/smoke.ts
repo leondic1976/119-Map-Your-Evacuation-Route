@@ -202,6 +202,32 @@ async function planPrint(page: Page): Promise<string> {
   });
 }
 
+/**
+ * 눌러 보고, 안 눌리면 **무엇이 가리고 있는지** 말해 준다.
+ * 배포 검증 기계에서만 나는 실패는 화면을 볼 수 없어 원인을 못 짚는다.
+ */
+async function clickOrExplain(page: Page, selector: string, timeout = 8000): Promise<void> {
+  try {
+    await page.locator(selector).click({ timeout });
+  } catch (e) {
+    const info = await page.evaluate((sel) => {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      if (!el) return { missing: true };
+      const r = el.getBoundingClientRect();
+      const cx = r.x + r.width / 2;
+      const cy = r.y + r.height / 2;
+      const name = (n: Element): string => `${n.tagName.toLowerCase()}.${typeof n.className === 'string' ? n.className : 'svg'}`;
+      return {
+        missing: false,
+        rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+        inView: r.x >= 0 && r.y >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight,
+        stack: (document.elementsFromPoint(cx, cy) as Element[]).slice(0, 5).map(name),
+      };
+    }, selector);
+    throw new Error(`${selector} 를 못 눌렀다 — ${JSON.stringify(info)} :: ${String(e).slice(0, 80)}`);
+  }
+}
+
 async function kidsDrag(page: Page, path: [number, number][]): Promise<void> {
   const first = await kidsCell(page, path[0][0], path[0][1]);
   await page.mouse.move(first.x, first.y);
@@ -835,7 +861,7 @@ async function main(): Promise<void> {
       await page.locator('[data-quality="high"]').click();
       await page.waitForTimeout(500);
 
-      await page.locator('.k-r-panel .k-x').click();
+      await clickOrExplain(page, '.k-r-panel .k-x');
       await page.waitForTimeout(300);
       assert((await page.locator('.k-replay').count()) === 0, '리플레이가 안 닫힌다');
       await page.locator('[data-coach="kids-edit-plan"]').click();

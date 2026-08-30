@@ -59,7 +59,7 @@ export interface Armed {
 
 export type KidsTool = 'place' | 'select' | 'route' | 'erase';
 export type Mode = 'edit' | 'game' | 'report';
-export type Step = 'template' | 'lowFloor' | 'mySpot' | 'meeting' | 'ready' | 'edit' | 'route' | 'routeAlt' | 'game' | 'report';
+export type Step = 'template' | 'mySpot' | 'meeting' | 'ready' | 'edit' | 'route' | 'routeAlt' | 'game' | 'report';
 
 export interface Highlight {
   cells?: Cell[];
@@ -130,6 +130,7 @@ export interface KidsState {
 export interface KidsActions {
   boot: () => void;
   setProfile: (patch: Partial<UserProfile>) => void;
+  /** lowFloor 는 침수 확장판에서만 쓴다. 기본판은 묻지 않고 false 로 둔다 (설계서 v1.6 §2) */
   finishOnboarding: (lowFloor: boolean) => void;
   setStep: (step: Step) => void;
   setMode: (mode: Mode) => void;
@@ -532,7 +533,8 @@ export const useKids = create<KidsStore>()((set, get) => {
       set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
       get().countOp();
       get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. 우리 집에 맞게 고쳐 보자.`);
-      if (!get().onboarded) get().setStep('lowFloor');
+      /* 화재 한 종만 다루므로 1층·반지하를 묻지 않는다 (설계서 v1.6 §2) */
+      if (!get().onboarded) get().finishOnboarding(false);
     },
 
     placeRoom: (roomKind, at, rect) => {

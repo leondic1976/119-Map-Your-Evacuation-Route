@@ -43,7 +43,7 @@ const OPENING_KINDS: OpeningKind[] = [
 const EASY_MAX = 30;
 
 /** 화면 단계 이름 — helpRequested 가 이 모두에 답해야 한다 (FR-9.7 · P3) */
-export const ALL_STEPS = ['template', 'lowFloor', 'mySpot', 'meeting', 'ready', 'edit', 'route', 'routeAlt', 'game', 'report'];
+export const ALL_STEPS = ['template', 'mySpot', 'meeting', 'ready', 'edit', 'route', 'routeAlt', 'game', 'report'];
 
 export function validateContent(strict = false): ValidationReport {
   const errors: string[] = [];
@@ -79,7 +79,7 @@ export function validateContent(strict = false): ValidationReport {
   if (!strict && unverified) warnings.push(`출처 ${unverified}건이 1차 대조 전이다 (배포 전 확인 필요)`);
 
   /* 1. 학습 카드 */
-  if (GUIDE_CARDS.length < 40) warnings.push(`학습 카드가 ${GUIDE_CARDS.length}장이다 (40장 이상 권장)`);
+  if (GUIDE_CARDS.length < 30) warnings.push(`학습 카드가 ${GUIDE_CARDS.length}장이다 (30장 이상 권장)`);
   const seenCard = new Set<string>();
   for (const c of GUIDE_CARDS) {
     if (seenCard.has(c.id)) errors.push(`카드 id 가 겹친다 — ${c.id}`);

@@ -15,8 +15,44 @@
  * 둘 다 없으면 조용히 아무 일도 하지 않는다.
  */
 
+import { VOICE_CLIPS, VOICE_LINES, type VoiceId } from '../content/voice';
+
 let ctx: AudioContext | null = null;
 let unlocked = false;
+
+/**
+ * 소리 켬/끔의 **단 하나의 기준**.
+ *
+ * 예전에는 부르는 쪽이 저마다 `profile.soundOn` 을 들고 다녔다. 그러다 보니
+ *   - 말풍선은 `soundOn || ttsEnabled` 로 봐서 소리를 꺼도 계속 읽었고
+ *   - 이미 예약해 둔 감지기 경보는 끄는 순간에도 끝까지 울렸다.
+ * 이제 여기 한 곳에서 잠근다. 끄면 예약된 것까지 즉시 멎는다 (설계서 v1.2 §7.1 C1).
+ */
+let enabled = true;
+
+export function setSoundEnabled(on: boolean): void {
+  enabled = on;
+  if (!on) {
+    stopSpeaking();
+    stopVoice();
+    /* 이미 예약된 소리를 끊는다 — 멈추지 않으면 끈 뒤에도 경보가 이어진다 */
+    try {
+      if (ctx && ctx.state === 'running') void ctx.suspend();
+    } catch {
+      /* 무시 */
+    }
+    return;
+  }
+  try {
+    if (ctx && ctx.state === 'suspended') void ctx.resume();
+  } catch {
+    /* 무시 */
+  }
+}
+
+export function soundEnabled(): boolean {
+  return enabled;
+}
 
 /** 자동 재생 제한 — 이용자가 한 번 누른 뒤에야 소리를 낼 수 있다 */
 export function unlockAudio(): void {
@@ -39,6 +75,7 @@ export function unlockAudio(): void {
  * 실제로 "소리가 전혀 안 난다"는 지적의 원인이었다. resume 이 끝난 뒤에 예약한다.
  */
 function withAudio(job: (a: AudioContext) => void): void {
+  if (!enabled) return;
   if (!ctx) unlockAudio();
   const a = ctx;
   if (!a) return;
@@ -166,7 +203,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
  * 한국어 음성이 없으면 조용히 그만둔다 — 소리가 없어도 화면에 글이 그대로 있다.
  */
 export function speak(text: string, on: boolean): void {
-  if (!on || !text) return;
+  if (!enabled || !on || !text) return;
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   const v = pickVoice();
   if (!v) return;
@@ -190,6 +227,71 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
     voiceChecked = false;
     pickVoice();
   };
+}
+
+/**
+ * 사람 목소리를 먼저 틀고, 없으면 음성합성으로 넘어간다 (VOICE-SCRIPT.md §4).
+ * 둘 다 없으면 조용히 넘어간다 — 소리가 없어도 화면에 글이 그대로 있다.
+ */
+export function playVoice(id: VoiceId, on: boolean): void {
+  if (!enabled || !on) return;
+  const clip = VOICE_CLIPS[id];
+  if (!clip) {
+    speak(VOICE_LINES[id], on);
+    return;
+  }
+  try {
+    stopSpeaking();
+    stopVoice();
+    current = new Audio(clip);
+    current.volume = 0.9;
+    void current.play().catch(() => {
+      /* 자동 재생이 막히면 음성합성으로 */
+      speak(VOICE_LINES[id], on);
+    });
+  } catch {
+    speak(VOICE_LINES[id], on);
+  }
+}
+
+let current: HTMLAudioElement | null = null;
+
+export function stopVoice(): void {
+  try {
+    current?.pause();
+  } catch {
+    /* 무시 */
+  }
+  current = null;
+}
+
+/**
+ * 화면을 떠나면 소리를 끊는다.
+ *
+ * `speechSynthesis` 는 탭이 아니라 **브라우저가 쥐고 있는 기능**이다. 읽을 말이 큐에
+ * 남은 채로 탭을 닫으면 창이 사라진 뒤에도 계속 읽는다 — 실제로 "브라우저를 닫았는데
+ * 소리가 난다"는 지적을 받았다. 떠나기 전에 반드시 비운다.
+ *
+ * 탭을 숨겼을 때도 멈춘다. 안 보이는 화면이 소리를 내면 어디서 나는지 알 수 없다.
+ */
+if (typeof window !== 'undefined') {
+  const hush = (): void => {
+    stopSpeaking();
+    stopVoice();
+    try {
+      if (ctx && ctx.state === 'running') void ctx.suspend();
+    } catch {
+      /* 무시 */
+    }
+  };
+  window.addEventListener('pagehide', hush);
+  window.addEventListener('beforeunload', hush);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) hush();
+      else if (enabled && ctx?.state === 'suspended') void ctx.resume();
+    });
+  }
 }
 
 export function stopSpeaking(): void {

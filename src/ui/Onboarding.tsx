@@ -24,12 +24,8 @@ export default function Onboarding({ open, onClose }: Props) {
   const finishOnboarding = useKids((s) => s.finishOnboarding);
   const resetAll = useKids((s) => s.resetAll);
   const setStep = useKids((s) => s.setStep);
-  const [page, setPage] = useState<'template' | 'floor'>('template');
+  const [page] = useState<'template'>('template');
   const easy = profile.gradeMode === 'easy';
-
-  useEffect(() => {
-    if (open) setPage(step === 'lowFloor' ? 'floor' : 'template');
-  }, [open, step]);
 
   useEffect(() => {
     if (!open) return;
@@ -42,14 +38,18 @@ export default function Onboarding({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  /*
+   * 집 모양을 고르면 곧바로 시작한다.
+   * 1층·반지하 물음은 침수 규칙에만 쓰였는데 기본판이 화재 한 종이라 지웠다
+   * (설계서 v1.6 §2). 온보딩이 한 걸음 짧아진다.
+   */
   const pick = (id: string | null) => {
     if (id) loadTemplate(id);
     else {
       if (hasPlan) resetAll();
-      if (!onboarded) setStep('lowFloor');
+      if (!onboarded) finishOnboarding(false);
     }
-    if (onboarded) onClose();
-    else setPage('floor');
+    onClose();
   };
 
   return (
@@ -118,44 +118,7 @@ export default function Onboarding({ open, onClose }: Props) {
               </button>
             </div>
           </>
-        ) : (
-          <>
-            <header>
-              <h2 id="k-onboard-title">{easy ? '너희 집은 1층이나 반지하야?' : '1층 또는 반지하에 사는가?'}</h2>
-              <button type="button" className="k-x" onClick={onClose} aria-label="닫기">
-                <CloseIcon />
-              </button>
-            </header>
-            <p className="k-note">{easy ? '물이 찰 때 어디로 가야 하는지가 달라져. 잘 모르면 어른께 여쭤봐도 돼.' : '침수 때 대피 방향이 달라진다. 이 값만 침수 규칙 분기에 쓰인다.'}</p>
-            <div className="k-choice">
-              <button
-                type="button"
-                className="k-big"
-                data-lowfloor="yes"
-                onClick={() => {
-                  finishOnboarding(true);
-                  onClose();
-                }}
-              >
-                {easy ? '응' : '예 — 1층·반지하'}
-              </button>
-              <button
-                type="button"
-                className="k-big"
-                data-lowfloor="no"
-                onClick={() => {
-                  finishOnboarding(false);
-                  onClose();
-                }}
-              >
-                {easy ? '아니야' : '아니오 — 2층 이상'}
-              </button>
-            </div>
-            <button type="button" className="k-link" onClick={() => setPage('template')}>
-              {easy ? '← 다른 모양 고르기' : '← 평면 다시 고르기'}
-            </button>
-          </>
-        )}
+        ) : null}
       </div>
     </div>
   );

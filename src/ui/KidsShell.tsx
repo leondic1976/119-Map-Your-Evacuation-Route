@@ -32,7 +32,7 @@ import { SLOT_STYLE } from './PlanSvg';
 import { PLAYER_NAME } from './Avatar';
 import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
-import { playDoor, playTap, stopSpeaking, unlockAudio } from './sound';
+import { playDoor, playTap, setSoundEnabled, stopSpeaking, unlockAudio } from './sound';
 
 export default function KidsShell() {
   const ready = useKids((s) => s.ready);
@@ -77,6 +77,8 @@ export default function KidsShell() {
   /* 시작 */
   useEffect(() => {
     useKids.getState().boot();
+    /* 저장해 둔 켬/끔을 소리 모듈에 알린다 — 안 하면 껐던 아이가 소리를 다시 듣는다 */
+    setSoundEnabled(useKids.getState().profile.soundOn);
     document.body.classList.add('kids-mode');
     const style = document.createElement('style');
     style.id = 'k-page';
@@ -99,7 +101,7 @@ export default function KidsShell() {
   /* 온보딩 1·2단계는 모달로 */
   useEffect(() => {
     if (!ready) return;
-    setOnboard(step === 'template' || step === 'lowFloor');
+    setOnboard(step === 'template');
   }, [ready, step]);
 
   useEffect(() => {
@@ -311,7 +313,8 @@ export default function KidsShell() {
             onClick={() => {
               const next = !profile.soundOn;
               if (next) unlockAudio();
-              else stopSpeaking();
+              /* 켬/끔은 여기 한 번만 알린다. 끄면 예약된 소리까지 즉시 멎는다 */
+              setSoundEnabled(next);
               useKids.getState().setProfile({ soundOn: next });
               if (next) playTap(true);
             }}
@@ -375,7 +378,7 @@ export default function KidsShell() {
                 <>
                   <KidsCanvas showHint={showHint} grayscale={gray} />
                   {mode === 'game' && <GameView />}
-                  {editing && plan.blocks.length === 0 && step !== 'template' && step !== 'lowFloor' && (
+                  {editing && plan.blocks.length === 0 && step !== 'template' && (
                     <div className="k-empty">
                       <p>{easy ? '아직 아무것도 없어. 왼쪽에서 “방”을 고르고 도면을 눌러 보자.' : '도면이 비어 있다. 팔레트에서 방을 골라 도면을 누른다.'}</p>
                       <button type="button" className="k-big" onClick={() => setOnboard(true)}>

@@ -60,8 +60,6 @@ async function main(): Promise<void> {
   await page.waitForSelector('.k-onboard');
   await page.screenshot({ path: path.join(dest, '1-template.png') });
   await page.locator('[data-template="apt_2room"]').click();
-  await page.waitForSelector('[data-lowfloor="no"]');
-  await page.locator('[data-lowfloor="no"]').click();
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(dest, '2-myspot.png') });
   const box = (await page.locator('svg.k-stage').boundingBox())!;

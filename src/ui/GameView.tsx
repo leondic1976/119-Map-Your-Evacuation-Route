@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
 import { useKids } from '../store/kidsStore';
-import { playCrouch, playDetector, playDoor, playIntro, playStep, playSuccess, unlockAudio } from './sound';
+import { playCrouch, playDetector, playDoor, playIntro, playStep, playSuccess, playVoice, unlockAudio } from './sound';
 
 const TICK_MS = 250;
 
@@ -50,10 +50,13 @@ export default function GameView() {
     const was = useKids.getState().game?.state.player.posture;
     toggleRaw();
     playCrouch(soundRef.current, was !== 'crouch');
+    /* 몸을 낮출 때만 말해 준다 — 일어설 때까지 말하면 잔소리가 된다 */
+    if (was !== 'crouch') playVoice('v-crouch', soundRef.current);
   }, [toggleRaw]);
   const closeDoor = useCallback(() => {
     closeDoorRaw();
     playDoor(soundRef.current, true);
+    playVoice('v-close', soundRef.current);
   }, [closeDoorRaw]);
   const rang = useRef(false);
 
@@ -68,11 +71,16 @@ export default function GameView() {
     unlockAudio();
     playIntro(soundOn);
     window.setTimeout(() => playDetector(soundOn), 480);
+    /* 감지기가 울린 뒤에 말한다 — 겹치면 둘 다 안 들린다 */
+    window.setTimeout(() => playVoice('v-start', soundRef.current), 2600);
   }, [status, soundOn]);
 
   /* 성공했을 때만 소리로 알린다. 실패에는 아무 소리도 내지 않는다 (C3) */
   useEffect(() => {
-    if (status === 'success') playSuccess(soundOn);
+    if (status === 'success') {
+      playSuccess(soundOn);
+      window.setTimeout(() => playVoice('v-success', soundRef.current), 900);
+    }
   }, [status, soundOn]);
 
   /* 틱 */

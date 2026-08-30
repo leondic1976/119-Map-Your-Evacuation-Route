@@ -18,25 +18,6 @@
     ]
   },
   {
-    "id": "step.lowFloor",
-    "trigger": {
-      "on": "stepEnter",
-      "step": "lowFloor"
-    },
-    "priority": 10,
-    "speaker": "ungi",
-    "emotion": "normal",
-    "text": {
-      "easy": "너희 집은 1층이나 반지하야? 물이 찰 때 갈 곳이 달라져.",
-      "normal": "1층이나 반지하에 사나요? 침수 때 대피 방향이 달라집니다."
-    },
-    "cardId": "flood.basement",
-    "cooldown": 0,
-    "sourceIds": [
-      "safekorea-flood"
-    ]
-  },
-  {
     "id": "step.mySpot",
     "trigger": {
       "on": "stepEnter",
@@ -1402,24 +1383,6 @@
     "text": {
       "easy": "우리 집과 비슷한 모양을 하나 누르면 돼.",
       "normal": "우리 집과 비슷한 평면을 하나 고르세요."
-    },
-    "cooldown": 1,
-    "sourceIds": [
-      "app-guide"
-    ]
-  },
-  {
-    "id": "help.lowFloor",
-    "trigger": {
-      "on": "helpRequested",
-      "step": "lowFloor"
-    },
-    "priority": 10,
-    "speaker": "ungi",
-    "emotion": "normal",
-    "text": {
-      "easy": "우리 집이 1층이나 반지하면 “응”, 아니면 “아니야”를 누르자. 모르면 어른께 여쭤봐.",
-      "normal": "1층·반지하면 “예”, 아니면 “아니오”를 누르세요."
     },
     "cooldown": 1,
     "sourceIds": [

@@ -263,8 +263,6 @@ async function main(): Promise<void> {
       assert(blurb.includes('어른') && blurb.includes('바꿀 수 있어'), `안심 문구가 없다: ${blurb}`);
       await card.click();
       /* 되묻지 않는다 — 바로 다음 물음(1층·반지하)으로 간다 */
-      await page.waitForSelector('[data-lowfloor="no"]');
-      await page.locator('[data-lowfloor="no"]').click();
       await page.waitForTimeout(700);
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
       assert(rooms === 8, `방 두 개 아파트가 안 실렸다 — 방 ${rooms}개`);
@@ -274,10 +272,8 @@ async function main(): Promise<void> {
       await page.waitForSelector('.k-onboard');
     });
 
-    await check('온보딩 5회 조작으로 게임 시작 — 집 모양·1층·내 방·나중에·시작 (§2.5)', async () => {
+    await check('온보딩 4회 조작으로 게임 시작 — 집 모양·내 방·나중에·시작 (설계서 v1.6 §2)', async () => {
       await page.locator('[data-template="apt_2room"]').click(); // 1
-      await page.waitForSelector('[data-lowfloor="no"]');
-      await page.locator('[data-lowfloor="no"]').click(); // 2
       await page.waitForTimeout(400);
       assert((await page.locator('.k-onboard').count()) === 0, '안내가 안 닫혔다');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '내 방 단계가 아니다');
@@ -370,6 +366,33 @@ async function main(): Promise<void> {
       await page.keyboard.press('Control+z');
       await page.waitForTimeout(800);
       assert((await kidsSave(page)).blocks === before, '되돌리기가 안 됐다');
+    });
+
+    /* 팔레트가 한 줄에 셋 이상 (설계서 v1.6 §1) */
+    await check('팔레트 칸이 좁아져 한 줄에 셋 이상 보인다 (설계서 v1.6 §1)', async () => {
+      const perRow = await page.evaluate(() => {
+        const cells = Array.from(document.querySelectorAll('.k-blocks.k-basic .k-block')) as HTMLElement[];
+        if (cells.length === 0) return 0;
+        const top = Math.round(cells[0].getBoundingClientRect().top);
+        return cells.filter((c) => Math.abs(Math.round(c.getBoundingClientRect().top) - top) < 4).length;
+      });
+      assert(perRow >= 3, `한 줄에 ${perRow}칸뿐이다`);
+    });
+
+    /* 소리 켬/끔 (설계서 v1.6 §3) */
+    await check('소리를 끄면 말도 멎는다 (설계서 v1.6 §3)', async () => {
+      const btn = page.locator('[data-coach="kids-sound"]');
+      const wasOn = (await btn.getAttribute('aria-pressed')) === 'true';
+      if (!wasOn) await btn.click();
+      await page.waitForTimeout(200);
+      await btn.click(); // 끈다
+      await page.waitForTimeout(300);
+      assert((await btn.getAttribute('aria-pressed')) === 'false', '끄지 못했다');
+      const speaking = await page.evaluate(() => window.speechSynthesis?.speaking ?? false);
+      assert(speaking === false, '껐는데 아직 읽고 있다');
+      await btn.click(); // 다시 켠다
+      await page.waitForTimeout(200);
+      assert((await btn.getAttribute('aria-pressed')) === 'true', '다시 켜지지 않는다');
     });
 
     /* 여럿 고르기와 함께 옮기기 (설계서 v1.5 §1) */
@@ -843,8 +866,6 @@ async function main(): Promise<void> {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForSelector('.k-onboard');
       await page.locator('[data-template="blank"]').click();
-      await page.waitForSelector('[data-lowfloor="no"]');
-      await page.locator('[data-lowfloor="no"]').click();
       await page.waitForTimeout(500);
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'edit', '빈 도면인데 내 자리부터 묻는다');
       await page.locator('[data-block-id="bedroom"]').click();
@@ -872,8 +893,6 @@ async function main(): Promise<void> {
       await m.reload({ waitUntil: 'networkidle' });
       await m.waitForSelector('.k-onboard');
       await m.locator('[data-template="apt_2room"]').click();
-      await m.waitForSelector('[data-lowfloor="no"]');
-      await m.locator('[data-lowfloor="no"]').click();
       await m.waitForTimeout(700);
 
       /*
@@ -966,8 +985,6 @@ async function main(): Promise<void> {
         await p3.goto(`file:///${standalone.split(path.sep).join('/')}`);
         await p3.waitForSelector('.k-onboard', { timeout: 20000 });
         await p3.locator('[data-template="apt_2room"]').click();
-        await p3.waitForSelector('[data-lowfloor="no"]');
-        await p3.locator('[data-lowfloor="no"]').click();
         await p3.waitForTimeout(400);
         const box = await p3.locator('svg.k-stage').boundingBox();
         assert(box !== null, '도면이 없다');

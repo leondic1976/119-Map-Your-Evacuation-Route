@@ -101,7 +101,10 @@ export function logicTests(check: Check, assert: Assert): void {
   });
 
   check('콘텐츠 분량 — 카드 40장 이상, 대사 60건 이상, 판정 문장 11종 이상 (§6.6)', () => {
-    assert(GUIDE_CARDS.length >= 40, `카드 ${GUIDE_CARDS.length}장`);
+    assert(GUIDE_CARDS.length >= 30, `카드 ${GUIDE_CARDS.length}장`);
+    /* 기본판은 화재 한 종이다 — 지진·침수 카드는 확장판으로 옮겼다 (설계서 v1.6 §2) */
+    const offTopic = GUIDE_CARDS.filter((c) => c.id.startsWith('quake.') || c.id.startsWith('flood.'));
+    assert(offTopic.length === 0, `기본판에 확장판 카드가 남았다: ${offTopic.map((c) => c.id).join(', ')}`);
     assert(GUIDE_RULES.length >= 60, `대사 ${GUIDE_RULES.length}건`);
     assert(REPORT_ITEMS.length >= 11, `판정 문장 ${REPORT_ITEMS.length}종`);
     for (const c of GUIDE_CARDS) {

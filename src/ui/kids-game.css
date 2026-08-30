@@ -10,7 +10,7 @@
 
 .k-blocks.k-basic {
   overflow: visible;
-  grid-template-columns: 1fr 1fr;
+  /* 기본 여덟 칸도 폭에 맞춰 채운다 — 넓히면 한 줄에 더 들어간다 (설계서 v1.6 §1) */
   border-bottom: 1px solid var(--k-line);
 }
 

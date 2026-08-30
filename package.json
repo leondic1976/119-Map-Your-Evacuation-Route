@@ -15,7 +15,8 @@
     "verify": "npm run typecheck && npm run validate && npm test && npm run build:standalone && npm run build && npm run smoke",
     "validate": "tsx tools/validate.ts",
     "validate:strict": "tsx tools/validate.ts --strict",
-    "shots": "tsx tools/shots.ts"
+    "shots": "tsx tools/shots.ts",
+    "voice": "tsx tools/voice-bake.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

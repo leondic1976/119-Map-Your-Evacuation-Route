@@ -3,7 +3,7 @@
  *
  * 정적 내보내기(out/)를 임시 서버로 띄우고 Chromium 으로 실제 화면을 눌러 본다.
  * 온보딩 → 그리기 → 경로 → 대피 연습 → 리포트 → 3D 리플레이 → 인쇄까지 한 번에 가고,
- * 세로 스마트폰과 오프라인 배포본(file://)도 같은 길을 걷는다.
+ * PC 화면과 오프라인 배포본(file://)도 같은 길을 걷는다.
  *
  *   npm run build && npm run smoke
  */
@@ -254,6 +254,130 @@ async function main(): Promise<void> {
     // 내려받은 크로미움이 없는 곳에서는 SMOKE_CHROMIUM 으로 다른 실행 파일을 준다
     browser = await chromium.launch({ executablePath: process.env.SMOKE_CHROMIUM || undefined });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
+    /* 실제 스피커 대신 호출을 기록한다. 켬/끔 검사는 버튼 상태만 보고 통과하면 안 된다. */
+    await context.addInitScript({
+      /* 콜백 안의 class 는 tsx가 붙인 이름 보존 helper가 브라우저에 없어 실행이 끊긴다. 순수 JS 문자열로 주입한다. */
+      content: `(() => {
+      const probe = {
+        contextAttempts: 0,
+        starts: 0,
+        scheduledStops: 0,
+        immediateStops: 0,
+        resumes: 0,
+        suspends: 0,
+        speaks: 0,
+        cancels: 0,
+        successTones: 0,
+        installCalls: 0,
+        installErrors: 0,
+      };
+      Object.defineProperty(window, '__soundProbe', { configurable: true, value: probe });
+
+      class FakeGain {
+        gain = {
+          setValueAtTime: () => undefined,
+          linearRampToValueAtTime: () => undefined,
+        };
+        connect(target) {
+          return target;
+        }
+        disconnect() {}
+      }
+
+      class FakeOscillator {
+        type = 'sine';
+        frequencyValue = 0;
+        frequency = { setValueAtTime: (value) => { this.frequencyValue = value; } };
+        onended = null;
+        connect(target) {
+          return target;
+        }
+        disconnect() {}
+        start() {
+          probe.starts += 1;
+          if ([523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98, 2093].includes(this.frequencyValue)) {
+            probe.successTones += 1;
+          }
+        }
+        stop(when) {
+          if (when === undefined) {
+            probe.immediateStops += 1;
+            this.onended?.();
+          } else {
+            probe.scheduledStops += 1;
+          }
+        }
+      }
+
+      class FakeAudioContext {
+        state = 'suspended';
+        currentTime = 0;
+        destination = {};
+        constructor() {
+          probe.contextAttempts += 1;
+          /* 첫 생성 실패 뒤 다음 조작에서 다시 시도하는지도 함께 검증한다 */
+          if (probe.contextAttempts === 1) throw new Error('검사용 첫 AudioContext 생성 실패');
+        }
+        createGain() {
+          return new FakeGain();
+        }
+        createOscillator() {
+          return new FakeOscillator();
+        }
+        resume() {
+          this.state = 'running';
+          probe.resumes += 1;
+          return Promise.resolve();
+        }
+        suspend() {
+          this.state = 'suspended';
+          probe.suspends += 1;
+          return Promise.resolve();
+        }
+      }
+
+      class FakeUtterance {
+        voice = null;
+        lang = '';
+        pitch = 1;
+        rate = 1;
+        volume = 1;
+        constructor(text) {
+          this.text = text;
+        }
+      }
+
+      const speech = {
+        speaking: false,
+        onvoiceschanged: null,
+        getVoices: () => [{ lang: 'ko-KR', name: '검사용 한국어', voiceURI: 'test', default: true, localService: true }],
+        speak: () => {
+          probe.speaks += 1;
+          speech.speaking = true;
+        },
+        cancel: () => {
+          probe.cancels += 1;
+          speech.speaking = false;
+        },
+      };
+
+      const install = () => {
+        probe.installCalls += 1;
+        try {
+          Object.defineProperty(window, 'AudioContext', { configurable: true, writable: true, value: FakeAudioContext });
+          Object.defineProperty(window, 'webkitAudioContext', { configurable: true, writable: true, value: FakeAudioContext });
+          Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, writable: true, value: FakeUtterance });
+          Object.defineProperty(window, 'speechSynthesis', { configurable: true, writable: true, value: speech });
+        } catch {
+          probe.installErrors += 1;
+        }
+      };
+
+      /* 일부 Chromium은 초기 스크립트 뒤에 Web API 전역을 다시 설치한다. 사용자 조작 전인 load 때 한 번 더 덮는다. */
+      install();
+      window.addEventListener('load', install, { once: true });
+      })();`,
+    });
     const page = await context.newPage();
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -409,15 +533,42 @@ async function main(): Promise<void> {
 
     /* 소리 켬/끔 (설계서 v1.6 §3) */
     await check('소리를 끄면 말도 멎는다 (설계서 v1.6 §3)', async () => {
+      const readProbe = () =>
+        page.evaluate(() => ({ ...(window as unknown as { __soundProbe: Record<string, number> }).__soundProbe }));
       const btn = page.locator('[data-coach="kids-sound"]');
       const wasOn = (await btn.getAttribute('aria-pressed')) === 'true';
       if (!wasOn) await btn.click();
       await page.waitForTimeout(200);
+      const beforeOff = await readProbe();
+      const soundEnvironment = await page.evaluate(() => ({
+        audioContext: window.AudioContext?.name ?? '없음',
+        webkitAudioContext:
+          (window as unknown as { webkitAudioContext?: { name?: string } }).webkitAudioContext?.name ?? '없음',
+        speechSynthesis: typeof window.speechSynthesis,
+        utterance: window.SpeechSynthesisUtterance?.name ?? '없음',
+      }));
+      assert(
+        beforeOff.contextAttempts >= 2 && beforeOff.starts > 0,
+        `AudioContext 첫 실패 뒤 다시 시도하지 않았다: ${JSON.stringify(beforeOff)} / ${JSON.stringify(soundEnvironment)}`,
+      );
       await btn.click(); // 끈다
       await page.waitForTimeout(300);
       assert((await btn.getAttribute('aria-pressed')) === 'false', '끄지 못했다');
+      assert((await btn.innerText()).includes('꺼짐'), '단추가 현재 상태를 분명히 보여 주지 않는다');
       const speaking = await page.evaluate(() => window.speechSynthesis?.speaking ?? false);
       assert(speaking === false, '껐는데 아직 읽고 있다');
+      const afterOff = await readProbe();
+      assert(afterOff.cancels > beforeOff.cancels, '끄면서 읽던 말을 취소하지 않았다');
+      assert(afterOff.suspends > beforeOff.suspends, '끄면서 AudioContext 를 멈추지 않았다');
+      assert(afterOff.immediateStops > beforeOff.immediateStops, '현재·예약 효과음을 취소하지 않았다');
+
+      /* 꺼진 동안 새 말과 효과음이 시작되면 안 된다 */
+      const silentBase = await readProbe();
+      await page.locator('[data-coach="kids-help"]').click();
+      await page.waitForTimeout(200);
+      const silentAfter = await readProbe();
+      assert(silentAfter.starts === silentBase.starts, '꺼진 동안 효과음이 시작됐다');
+      assert(silentAfter.speaks === silentBase.speaks, '꺼진 동안 새 말을 읽었다');
       /* 껐다는 사실이 곧바로 저장돼야 한다 — 600ms 뒤 저장은 창을 닫으면 날아간다 */
       const savedOff = await page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.soundOn);
       assert(savedOff === false, '끈 것이 곧바로 저장되지 않았다');
@@ -431,9 +582,13 @@ async function main(): Promise<void> {
       const speakingAgain = await page.evaluate(() => window.speechSynthesis?.speaking ?? false);
       assert(speakingAgain === false, '다시 열자마자 읽고 있다');
 
+      const beforeOn = await readProbe();
       await page.locator('[data-coach="kids-sound"]').click(); // 다시 켠다
       await page.waitForTimeout(200);
       assert((await page.locator('[data-coach="kids-sound"]').getAttribute('aria-pressed')) === 'true', '다시 켜지지 않는다');
+      assert((await page.locator('[data-coach="kids-sound"]').innerText()).includes('켜짐'), '켠 상태가 단추에 보이지 않는다');
+      const afterOn = await readProbe();
+      assert(afterOn.starts > beforeOn.starts, '다시 켰는데 확인음이 나지 않았다');
     });
 
     /* 여럿 고르기와 함께 옮기기 (설계서 v1.5 §1) */
@@ -891,8 +1046,13 @@ async function main(): Promise<void> {
       const anyway = page.locator('[data-coach="kids-start-anyway"]');
       if (await anyway.count()) await anyway.click();
       await page.waitForSelector('.k-game');
+      await page.waitForTimeout(200);
+      await page.evaluate(() => {
+        (window as unknown as { __soundProbe: { successTones: number } }).__soundProbe.successTones = 0;
+      });
       /* 내 방(안방) → 복도 → 현관 → 현관문 */
-      for (const m of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight']) {
+      const successMoves = ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight'];
+      for (const m of successMoves) {
         await page.keyboard.press(m);
         await page.waitForTimeout(120);
       }
@@ -901,6 +1061,11 @@ async function main(): Promise<void> {
       await page.waitForSelector('.k-report-view');
       const head = await page.locator('.k-report-banner h2').innerText();
       assert(head.includes('무사히'), `성공하지 못했다: ${head}`);
+      const successTones = await page.evaluate(
+        () => (window as unknown as { __soundProbe: { successTones: number } }).__soundProbe.successTones,
+      );
+      /* 도·미·솔·높은 도의 두 겹, 모두 여덟 음. 실패 결과에는 이 화음이 없다. */
+      assert(successTones >= 8, `성공 화음이 ${successTones}/8음만 시작됐다`);
       await page.locator('[data-coach="kids-replay3d-open"]').click();
       await page.waitForSelector('.k-replay');
       const max = Number((await page.locator('.k-replay-range').getAttribute('max')) ?? 0);
@@ -933,96 +1098,18 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '첫 방 뒤에 내 자리를 안 묻는다');
     });
 
-    /* 세로 스마트폰에서도 다 쓸 수 있는지 (설계서 v1.2 §13) */
-    await check('세로 스마트폰(390x844)에서 가로로 넘치지 않고 다 쓸 수 있다', async () => {
-      const mob = await browser!.newContext({
-        viewport: { width: 390, height: 844 },
-        locale: 'ko-KR',
-        isMobile: true,
-        hasTouch: true,
-        deviceScaleFactor: 2,
-      });
-      const m = await mob.newPage();
+    await check('1024px 미만 화면에서는 PC 안내만 보이고 앱이 실행되지 않는다', async () => {
+      const narrow = await browser!.newContext({ viewport: { width: 900, height: 844 }, locale: 'ko-KR' });
+      const p = await narrow.newPage();
       const errs: string[] = [];
-      m.on('pageerror', (e) => errs.push(e.message));
-      await m.goto(server.url, { waitUntil: 'networkidle' });
-      await m.evaluate(() => window.localStorage.clear());
-      await m.reload({ waitUntil: 'networkidle' });
-      await m.waitForSelector('.k-onboard');
-      await m.locator('[data-template="apt_2room"]').click();
-      await m.waitForTimeout(700);
-
-      /*
-       * 가로로 넘치면 아이가 화면 밖 단추를 못 찾는다.
-       * 문서의 scrollWidth 만 보면 안 된다 — .k-app 이 overflow: hidden 이라
-       * 넘친 것이 잘려 나가고 문서는 멀쩡해 보인다. 실제로 칸이 730px 로 벌어져
-       * 도면과 팔레트 오른쪽이 잘린 적이 있다. 그래서 안쪽 상자를 따로 잰다.
-       */
-      const size = await m.evaluate(() => {
-        const boxes: { name: string; over: number }[] = [];
-        for (const sel of ['.k-app', '.k-top', '.k-work', '.k-center', '.k-palette', '.k-bottom']) {
-          const el = document.querySelector(sel) as HTMLElement | null;
-          if (!el) continue;
-          boxes.push({ name: sel, over: Math.round(el.scrollWidth - el.clientWidth) });
-        }
-        const stage = document.querySelector('svg.k-stage') as SVGElement | null;
-        const r = stage?.getBoundingClientRect();
-        return {
-          over: document.documentElement.scrollWidth - window.innerWidth,
-          boxes,
-          app: Math.round((document.querySelector('.k-app') as HTMLElement).getBoundingClientRect().height),
-          win: window.innerHeight,
-          stage: r ? { x: Math.round(r.x), right: Math.round(r.right), w: Math.round(r.width), h: Math.round(r.height) } : null,
-        };
-      });
-      assert(size.over <= 0, `가로로 ${size.over}px 넘친다`);
-      assert(Math.abs(size.app - size.win) <= 2, `앱 높이 ${size.app} / 화면 ${size.win}`);
-      const spill = size.boxes.filter((b) => b.over > 1);
-      assert(spill.length === 0, `잘려 나간 칸: ${spill.map((b) => `${b.name} +${b.over}px`).join(', ')}`);
-
-      /* 도면이 화면 안에 있고, 볼 만한 크기여야 한다 */
-      assert(size.stage !== null, '도면이 없다');
-      assert(size.stage!.x >= -1 && size.stage!.right <= 391, `도면이 화면 밖에 있다 (x=${size.stage!.x} right=${size.stage!.right})`);
-      assert(size.stage!.w >= 240 && size.stage!.h >= 140, `도면이 너무 작다 (${size.stage!.w}x${size.stage!.h})`);
-
-      /* 상단바는 접히고 「더보기」 시트에 나머지가 들어 있다 */
-      assert((await m.locator('[data-coach="kids-more"]').count()) === 1, '더보기 단추가 없다');
-      assert((await m.locator('[data-coach="kids-template"]').isVisible()) === false, '집 모양 단추가 그대로 보인다');
-      await m.locator('[data-coach="kids-more"]').click();
-      await m.waitForSelector('.k-optsheet');
-      const sheet = await m.locator('.k-optsheet').innerText();
-      for (const label of ['집 모양', '내 캐릭터', '사용법', '처음부터']) {
-        assert(sheet.includes(label), `시트에 ${label} 이 없다`);
-      }
-      await m.locator('.k-optsheet .k-x').click();
-      await m.waitForTimeout(200);
-
-      /* 누르는 것은 좁은 화면에서도 48x48 이상이다 */
-      const small = (await hitTargets(m)).filter((t) => t.w < 48 || t.h < 48);
-      assert(small.length === 0, `48px 미만 ${small.length}개: ${small.slice(0, 3).map((t) => `${t.w}x${t.h} ${t.name}`).join(' | ')}`);
-
-      /* 게임에서는 팔레트가 사라져 도면이 넓어진다 */
-      await m.locator('[data-coach="kids-start-game"]').click();
-      await m.waitForTimeout(400);
-      const anyway = m.locator('[data-coach="kids-start-anyway"]');
-      if (await anyway.count()) await anyway.click();
-      await m.waitForSelector('.k-game');
-      await m.waitForTimeout(500);
-      assert((await m.locator('.k-palette').isVisible()) === false, '게임 중에 팔레트가 남아 있다');
-      assert((await m.locator('.k-dpad').isVisible()) === true, '방향키가 없다');
-      const game = await m.evaluate(() => {
-        const boxes: { name: string; over: number }[] = [];
-        for (const sel of ['.k-app', '.k-work', '.k-center']) {
-          const el = document.querySelector(sel) as HTMLElement | null;
-          if (el) boxes.push({ name: sel, over: Math.round(el.scrollWidth - el.clientWidth) });
-        }
-        return { over: document.documentElement.scrollWidth - window.innerWidth, boxes };
-      });
-      assert(game.over <= 0, `게임에서 가로로 ${game.over}px 넘친다`);
-      const spill2 = game.boxes.filter((b) => b.over > 1);
-      assert(spill2.length === 0, `게임에서 잘려 나간 칸: ${spill2.map((b) => `${b.name} +${b.over}px`).join(', ')}`);
+      p.on('pageerror', (e) => errs.push(e.message));
+      await p.goto(server.url, { waitUntil: 'networkidle' });
+      await p.waitForSelector('.k-pc-only');
+      assert((await p.locator('.k-app').count()) === 0, '좁은 화면에서 앱이 실행됐다');
+      assert((await p.locator('.k-onboard').count()) === 0, '좁은 화면에서 온보딩이 실행됐다');
+      assert((await p.locator('.k-pc-only').innerText()).includes('PC에서 이용해 주세요'), 'PC 안내 문구가 없다');
       assert(errs.length === 0, errs.slice(0, 2).join(' | '));
-      await mob.close();
+      await narrow.close();
     });
 
     await context.close();

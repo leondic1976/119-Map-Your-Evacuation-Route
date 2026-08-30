@@ -46,7 +46,7 @@ import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roo
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { loadKids, saveKids } from './storage';
-import { playDoor, playTap, setSoundEnabled } from '../ui/sound';
+import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
 
 const HISTORY = 30;
 const AUTOSAVE_MS = 600;
@@ -287,7 +287,7 @@ export const useKids = create<KidsStore>()((set, get) => {
     commit({ plan: { ...get().plan, blocks: get().plan.blocks.concat([b]) } });
     firstPlaced(isRoom(b) ? b.roomKind : b.kind === 'opening' ? b.openingKind : b.subKind);
     get().countOp();
-    playTap(get().profile.soundOn);
+    playTap();
     /*
      * 빈 도면에서 시작했으면 온보딩이 mySpot 을 건너뛰고 여기서 기다린다 (설계서 v1.2 §1.3).
      * 첫 방이 놓이는 순간 "네 방은 어디야?"로 넘어간다.
@@ -346,6 +346,8 @@ export const useKids = create<KidsStore>()((set, get) => {
       pendingFixIds: report.fix.map((i) => i.id),
       bestTicks: Number.isFinite(best) ? best : undefined,
     };
+    /* GameView 는 바로 결과 화면으로 교체되므로 성공 소리는 교체 전에 시작한다. */
+    if (log.outcome === 'success') playSuccessCue();
     set({ report, progress, mode: 'report', game: { ...g } });
     /* 시도 기록은 바로 남긴다 — 결과 화면에서 창을 닫아도 잃지 않게 */
     const ok = saveKids(get().toSaveFile());
@@ -400,8 +402,8 @@ export const useKids = create<KidsStore>()((set, get) => {
       if (patch.soundOn !== undefined) {
         setSoundEnabled(patch.soundOn);
         /* 끄자마자 창을 닫으면 600ms 뒤의 저장이 날아간다. 켬/끔만은 즉시 저장한다 */
-        saveKids(get().toSaveFile());
-        set({ savedAt: Date.now() });
+        const ok = saveKids(get().toSaveFile());
+        set({ savedAt: ok ? Date.now() : get().savedAt, saveError: !ok });
         return;
       }
       scheduleSave();
@@ -692,7 +694,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         },
       });
       get().countOp();
-      playDoor(get().profile.soundOn, !target.closedByDefault);
+      playDoor(!target.closedByDefault);
       get().notify(target.closedByDefault ? '평소 열어 두는 것으로 바꿨다.' : '평소 닫아 두는 것으로 바꿨다.');
     },
 

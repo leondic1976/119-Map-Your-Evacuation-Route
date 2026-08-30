@@ -44,8 +44,8 @@ export default function GuideBubble() {
      * 소리를 끄면 말도 멎어야 한다. 예전에는 `||` 라서 ttsEnabled 가 켜져 있으면
      * 소리를 꺼도 계속 읽었다 (설계서 v1.2 §7.1 C1).
      */
-    speak(toTts(bubble.text), profile.soundOn);
-  }, [bubble, profile.soundOn, profile.ttsEnabled]);
+    speak(toTts(bubble.text));
+  }, [bubble, profile.soundOn]);
 
   if (!bubble) return null;
   const card = openCard ? cardById(openCard) : null;

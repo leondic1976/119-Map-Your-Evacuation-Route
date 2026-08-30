@@ -32,6 +32,64 @@ body {
   word-break: keep-all;
 }
 
+/* PC 전용 진입 안내. 좁은 화면에서는 본 앱을 마운트하지 않는다. */
+.k-pc-only {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: #eef3f7;
+  color: #22303a;
+}
+
+.k-pc-only-card {
+  width: min(520px, 100%);
+  padding: 44px 36px;
+  border: 2px solid #d6e0e8;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(16, 47, 75, 0.12);
+  text-align: center;
+}
+
+.k-pc-only-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: #e3edf7;
+  color: #0f3d68;
+}
+
+.k-pc-only-icon svg {
+  width: 52px;
+  height: 52px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-pc-only-card h1 {
+  margin: 0 0 12px;
+  color: #0f3d68;
+  font-size: 28px;
+}
+
+.k-pc-only-card p {
+  margin: 0 0 12px;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.k-pc-only-card small {
+  color: #606c7a;
+  font-size: 14px;
+}
+
 /* 인쇄는 kids.css 의 body.kids-mode 규칙이 맡는다 */
 @media print {
   body {

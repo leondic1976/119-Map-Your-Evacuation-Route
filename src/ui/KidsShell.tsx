@@ -69,8 +69,6 @@ export default function KidsShell() {
   /** 필수가 빠졌을 때 시작 직전에 한 번만 묻는다 (설계서 v1.2 §1.4) */
   const [askMissing, setAskMissing] = useState<string[] | null>(null);
   const [pickChar, setPickChar] = useState(false);
-  /** 좁은 화면에서 상단바 단추를 모아 두는 시트 */
-  const [sheet, setSheet] = useState(false);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -158,7 +156,6 @@ export default function KidsShell() {
         /* 덮개는 모두 Esc 로 닫힌다 (작업지침 §5). 닫는 쪽은 어느 것도 되돌릴 수 없는 일을 하지 않는다 */
         setPreview(false);
         setHelp(false);
-        setSheet(false);
         setPickChar(false);
         setConfirmReset(false);
         setAskMissing(null);
@@ -260,7 +257,7 @@ export default function KidsShell() {
 
           <span className="k-spacer" />
 
-          <div className="k-seg k-hide-sm" role="group" aria-label="이용 수준" data-coach="kids-grade">
+          <div className="k-seg" role="group" aria-label="이용 수준" data-coach="kids-grade">
             <button type="button" aria-pressed={easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'easy' })}>
               쉬움
             </button>
@@ -268,7 +265,7 @@ export default function KidsShell() {
               보통
             </button>
           </div>
-          <div className="k-seg k-hide-sm" role="group" aria-label="게임 방식" data-coach="kids-timed">
+          <div className="k-seg" role="group" aria-label="게임 방식" data-coach="kids-timed">
             <button type="button" aria-pressed={!timed} onClick={() => useKids.getState().setTimed(false)} title="시간제한 없음 — 기본값">
               연습
             </button>
@@ -276,7 +273,7 @@ export default function KidsShell() {
               도전
             </button>
           </div>
-          <div className="k-seg k-hide-sm" role="group" aria-label="블록 외형">
+          <div className="k-seg" role="group" aria-label="블록 외형">
             <button type="button" aria-pressed={profile.blockStyle === 'kid'} onClick={() => useKids.getState().setProfile({ blockStyle: 'kid' })}>
               그림
             </button>
@@ -288,16 +285,16 @@ export default function KidsShell() {
           <button type="button" className="k-tb" onClick={() => useKids.getState().undo()} disabled={!past.length || !editing} title="되돌리기 (Ctrl+Z)">
             <UndoIcon /> 되돌리기
           </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={() => useKids.getState().redo()} disabled={!future.length || !editing} title="다시 하기 (Ctrl+Shift+Z)">
+          <button type="button" className="k-tb" onClick={() => useKids.getState().redo()} disabled={!future.length || !editing} title="다시 하기 (Ctrl+Shift+Z)">
             <RedoIcon /> 다시
           </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={() => setOnboard(true)} disabled={!editing} title="다른 집 모양을 고른다" data-coach="kids-template">
+          <button type="button" className="k-tb" onClick={() => setOnboard(true)} disabled={!editing} title="다른 집 모양을 고른다" data-coach="kids-template">
             집 모양
           </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={() => setConfirmReset(true)} disabled={!editing} title="그린 것을 모두 지우고 처음부터">
+          <button type="button" className="k-tb" onClick={() => setConfirmReset(true)} disabled={!editing} title="그린 것을 모두 지우고 처음부터">
             처음부터
           </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={() => setPickChar(true)} title="게임에서 내가 될 캐릭터를 고른다" data-coach="kids-character">
+          <button type="button" className="k-tb" onClick={() => setPickChar(true)} title="게임에서 내가 될 캐릭터를 고른다" data-coach="kids-character">
             <span className="k-char-chip" aria-hidden="true">
               <KidPortrait id={profile.playerCharacter} size={26} />
             </span>
@@ -314,15 +311,13 @@ export default function KidsShell() {
               if (next) unlockAudio();
               /* 알리는 것도 저장하는 것도 setProfile 한 곳에서 한다 */
               useKids.getState().setProfile({ soundOn: next });
-              if (next) playTap(true);
+              useKids.getState().notify(next ? '소리를 켰다.' : '소리를 껐다.');
+              if (next) playTap();
             }}
           >
-            <SoundIcon on={profile.soundOn} /> {profile.soundOn ? '소리 켬' : '소리 끔'}
+            <SoundIcon on={profile.soundOn} /> {profile.soundOn ? '소리 켜짐' : '소리 꺼짐'}
           </button>
-          <button type="button" className="k-tb k-only-sm" onClick={() => setSheet(true)} aria-haspopup="dialog" data-coach="kids-more">
-            <MoreIcon /> 더보기
-          </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={() => setHelp(true)} title="사용법 (?)">
+          <button type="button" className="k-tb" onClick={() => setHelp(true)} title="사용법 (?)">
             사용법
           </button>
         </header>
@@ -447,14 +442,14 @@ export default function KidsShell() {
           <button type="button" className="k-tb" onClick={() => setPreview(true)} data-coach="kids-print">
             <PrintIcon /> {easy ? '뽑기' : '인쇄'}
           </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={saveFile} title="파일로 저장 (Ctrl+S)">
+          <button type="button" className="k-tb" onClick={saveFile} title="파일로 저장 (Ctrl+S)">
             파일 저장
           </button>
-          <button type="button" className="k-tb k-hide-sm" onClick={() => fileRef.current?.click()} disabled={!editing}>
+          <button type="button" className="k-tb" onClick={() => fileRef.current?.click()} disabled={!editing}>
             불러오기
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => onOpenFile(e.target.files?.[0])} />
-          <span className={`k-save k-hide-sm${saveError ? ' err' : ''}`}>{saveError ? '자동 저장 불가' : saved ? `자동 저장 ${saved}` : '자동 저장 대기'}</span>
+          <span className={`k-save${saveError ? ' err' : ''}`}>{saveError ? '자동 저장 불가' : saved ? `자동 저장 ${saved}` : '자동 저장 대기'}</span>
           <span className="k-spacer" />
           {dev && (
             <span className="k-dev" title="조작 횟수 · 경과 시간 (FR-7.11)" data-coach="kids-dev">
@@ -512,110 +507,6 @@ export default function KidsShell() {
         </div>
       )}
 
-      {sheet && (
-        <div className="k-modal-back" onClick={() => setSheet(false)} role="presentation">
-          <div className="k-modal k-optsheet" role="dialog" aria-modal="true" aria-labelledby="k-optsheet-title" onClick={(e) => e.stopPropagation()}>
-            <header>
-              <h2 id="k-optsheet-title">{easy ? '더 할 수 있는 것' : '설정과 도구'}</h2>
-              <button type="button" className="k-x" onClick={() => setSheet(false)} aria-label="닫기">
-                <CloseIcon />
-              </button>
-            </header>
-            <div className="k-optsheet-rows">
-              <div className="k-optsheet-row">
-                <b>{easy ? '말 고르기' : '이용 수준'}</b>
-                <div className="k-seg light" role="group" aria-label="이용 수준">
-                  <button type="button" aria-pressed={easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'easy' })}>
-                    쉬움
-                  </button>
-                  <button type="button" aria-pressed={!easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'normal' })}>
-                    보통
-                  </button>
-                </div>
-              </div>
-              <div className="k-optsheet-row">
-                <b>{easy ? '놀이 방법' : '게임 방식'}</b>
-                <div className="k-seg light" role="group" aria-label="게임 방식">
-                  <button type="button" aria-pressed={!timed} onClick={() => useKids.getState().setTimed(false)}>
-                    연습
-                  </button>
-                  <button type="button" aria-pressed={timed} onClick={() => useKids.getState().setTimed(true)}>
-                    도전
-                  </button>
-                </div>
-              </div>
-              <div className="k-optsheet-row">
-                <b>{easy ? '보이는 모양' : '블록 외형'}</b>
-                <div className="k-seg light" role="group" aria-label="블록 외형">
-                  <button type="button" aria-pressed={profile.blockStyle === 'kid'} onClick={() => useKids.getState().setProfile({ blockStyle: 'kid' })}>
-                    그림
-                  </button>
-                  <button type="button" aria-pressed={profile.blockStyle === 'blueprint'} onClick={() => useKids.getState().setProfile({ blockStyle: 'blueprint' })}>
-                    도면
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="k-optsheet-grid">
-              <button type="button" className="k-tb" disabled={!past.length || !editing} onClick={() => useKids.getState().undo()}>
-                되돌리기
-              </button>
-              <button type="button" className="k-tb" disabled={!future.length || !editing} onClick={() => useKids.getState().redo()}>
-                다시
-              </button>
-              <button
-                type="button"
-                className="k-tb"
-                disabled={!editing}
-                onClick={() => {
-                  setSheet(false);
-                  setOnboard(true);
-                }}
-              >
-                집 모양
-              </button>
-              <button
-                type="button"
-                className="k-tb"
-                onClick={() => {
-                  setSheet(false);
-                  setPickChar(true);
-                }}
-              >
-                내 캐릭터
-              </button>
-              <button type="button" className="k-tb" onClick={saveFile}>
-                파일 저장
-              </button>
-              <button type="button" className="k-tb" disabled={!editing} onClick={() => fileRef.current?.click()}>
-                불러오기
-              </button>
-              <button
-                type="button"
-                className="k-tb"
-                onClick={() => {
-                  setSheet(false);
-                  setHelp(true);
-                }}
-              >
-                사용법
-              </button>
-              <button
-                type="button"
-                className="k-tb"
-                disabled={!editing}
-                onClick={() => {
-                  setSheet(false);
-                  setConfirmReset(true);
-                }}
-              >
-                처음부터
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {pickChar && (
         <div className="k-modal-back" onClick={() => setPickChar(false)} role="presentation">
           <div className="k-modal" role="dialog" aria-modal="true" aria-labelledby="k-char-title" style={{ width: 760 }} onClick={(e) => e.stopPropagation()}>
@@ -637,7 +528,7 @@ export default function KidsShell() {
                   title={c.note}
                   onClick={() => {
                     useKids.getState().setProfile({ playerCharacter: c.id });
-                    playTap(profile.soundOn);
+                    playTap();
                     setPickChar(false);
                   }}
                 >
@@ -822,16 +713,6 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         </footer>
       </div>
     </div>
-  );
-}
-
-function MoreIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="5" cy="12" r="2.1" />
-      <circle cx="12" cy="12" r="2.1" />
-      <circle cx="19" cy="12" r="2.1" />
-    </svg>
   );
 }
 

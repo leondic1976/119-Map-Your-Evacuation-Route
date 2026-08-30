@@ -2,8 +2,7 @@
  * 화면 캡처 — 눈으로 확인하기 위한 도구. out/ 를 띄우고 몇 장 찍는다.
  *   npm run shots -- <출력 폴더>
  *
- * 화면 크기는 SHOT_VIEWPORT 로 준다 (`390x844` 처럼). 기본은 1440x900 이다.
- * 좁은 화면(767px 이하)일 때는 「더보기」 시트도 한 장 찍는다 (설계서 v1.2 §13).
+ * 화면 크기는 SHOT_VIEWPORT 로 준다. PC 전용이므로 너비 1024px 이상만 허용한다.
  * 내려받은 크로미움이 없는 곳에서는 SMOKE_CHROMIUM 으로 다른 실행 파일을 준다.
  */
 import fs from 'node:fs';
@@ -44,14 +43,14 @@ const server = http.createServer((req, res) => {
 });
 
 async function main(): Promise<void> {
+  const vp = /^(\d+)x(\d+)$/.exec(process.env.SHOT_VIEWPORT ?? '');
+  const viewport = vp ? { width: Number(vp[1]), height: Number(vp[2]) } : { width: 1440, height: 900 };
+  if (viewport.width < 1024) throw new Error('PC 전용 화면 캡처는 너비 1024px 이상이어야 한다.');
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   const addr = server.address();
   const url = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}/`;
   const browser = await chromium.launch({ executablePath: process.env.SMOKE_CHROMIUM || undefined });
-  const vp = /^(\d+)x(\d+)$/.exec(process.env.SHOT_VIEWPORT ?? '');
-  const viewport = vp ? { width: Number(vp[1]), height: Number(vp[2]) } : { width: 1440, height: 900 };
-  const narrow = viewport.width <= 767;
-  const page = await browser.newPage({ viewport, isMobile: narrow, hasTouch: narrow, deviceScaleFactor: narrow ? 2 : 1 });
+  const page = await browser.newPage({ viewport });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url, { waitUntil: 'networkidle' });
@@ -70,15 +69,6 @@ async function main(): Promise<void> {
   await page.locator('[data-coach="kids-meeting-later"]').click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(dest, '3-ready.png') });
-  if (narrow) {
-    /* 좁은 화면에서는 상단바 단추가 여기로 모인다 */
-    await page.locator('[data-coach="kids-more"]').click();
-    await page.waitForSelector('.k-optsheet');
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: path.join(dest, '3b-sheet.png') });
-    await page.locator('.k-optsheet .k-x').click();
-    await page.waitForTimeout(300);
-  }
   await page.locator('[data-coach="kids-start-game"]').click();
   await page.waitForSelector('.k-game');
   await page.waitForTimeout(3000);

@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
 import { useKids } from '../store/kidsStore';
-import { playCrouch, playDetector, playDoor, playIntro, playStep, playSuccess, playVoice, unlockAudio } from './sound';
+import { playCrouch, playDetector, playDoor, playIntro, playStep, playVoice, unlockAudio } from './sound';
 
 const TICK_MS = 250;
 
@@ -38,49 +38,40 @@ export default function GameView() {
   const best = useKids((s) => s.progress.bestTicks);
   const status = game?.state.status;
   /* 조작마다 아주 짧은 소리를 붙인다. 실패에는 아무 소리도 내지 않는다 (설계서 v1.2 §7.1 C3) */
-  const soundRef = useRef(true);
   const moveTo = useCallback(
     (d: Parameters<typeof moveRaw>[0]) => {
       moveRaw(d);
-      playStep(soundRef.current);
+      playStep();
     },
     [moveRaw],
   );
   const toggle = useCallback(() => {
     const was = useKids.getState().game?.state.player.posture;
     toggleRaw();
-    playCrouch(soundRef.current, was !== 'crouch');
+    playCrouch(was !== 'crouch');
     /* 몸을 낮출 때만 말해 준다 — 일어설 때까지 말하면 잔소리가 된다 */
-    if (was !== 'crouch') playVoice('v-crouch', soundRef.current);
+    if (was !== 'crouch') playVoice('v-crouch');
   }, [toggleRaw]);
   const closeDoor = useCallback(() => {
     closeDoorRaw();
-    playDoor(soundRef.current, true);
-    playVoice('v-close', soundRef.current);
+    playDoor(true);
+    playVoice('v-close');
   }, [closeDoorRaw]);
   const rang = useRef(false);
-
-  useEffect(() => {
-    soundRef.current = soundOn;
-  }, [soundOn]);
 
   /* 감지기 소리 — 시작 때 한 벌만 (설계서 v1.2 §7.1 C2) */
   useEffect(() => {
     if (status !== 'running' || rang.current) return;
     rang.current = true;
     unlockAudio();
-    playIntro(soundOn);
-    window.setTimeout(() => playDetector(soundOn), 480);
+    playIntro();
+    const detectorTimer = window.setTimeout(() => playDetector(), 480);
     /* 감지기가 울린 뒤에 말한다 — 겹치면 둘 다 안 들린다 */
-    window.setTimeout(() => playVoice('v-start', soundRef.current), 2600);
-  }, [status, soundOn]);
-
-  /* 성공했을 때만 소리로 알린다. 실패에는 아무 소리도 내지 않는다 (C3) */
-  useEffect(() => {
-    if (status === 'success') {
-      playSuccess(soundOn);
-      window.setTimeout(() => playVoice('v-success', soundRef.current), 900);
-    }
+    const voiceTimer = window.setTimeout(() => playVoice('v-start'), 2600);
+    return () => {
+      window.clearTimeout(detectorTimer);
+      window.clearTimeout(voiceTimer);
+    };
   }, [status, soundOn]);
 
   /* 틱 */
@@ -99,14 +90,29 @@ export default function GameView() {
       if (t && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
       const s = useKids.getState();
       const k = e.key.toLowerCase();
-      if (k === 'arrowup' || k === 'w') s.gameMove('up');
-      else if (k === 'arrowdown' || k === 's') s.gameMove('down');
-      else if (k === 'arrowleft' || k === 'a') s.gameMove('left');
-      else if (k === 'arrowright' || k === 'd') s.gameMove('right');
-      else if (k === ' ') s.gameToggle();
-      else if (k === 't') s.gameTouch();
-      else if (k === 'c') s.gameCloseDoor();
-      else if (k === 'p') {
+      if (k === 'arrowup' || k === 'w') {
+        s.gameMove('up');
+        playStep();
+      } else if (k === 'arrowdown' || k === 's') {
+        s.gameMove('down');
+        playStep();
+      } else if (k === 'arrowleft' || k === 'a') {
+        s.gameMove('left');
+        playStep();
+      } else if (k === 'arrowright' || k === 'd') {
+        s.gameMove('right');
+        playStep();
+      } else if (k === ' ') {
+        const was = s.game?.state.player.posture;
+        s.gameToggle();
+        playCrouch(was !== 'crouch');
+        if (was !== 'crouch') playVoice('v-crouch');
+      } else if (k === 't') s.gameTouch();
+      else if (k === 'c') {
+        s.gameCloseDoor();
+        playDoor(true);
+        playVoice('v-close');
+      } else if (k === 'p') {
         if (s.game?.state.status === 'running') s.gamePause();
         else s.gameResume();
       } else return;

@@ -18,7 +18,15 @@
 import { VOICE_CLIPS, VOICE_LINES, type VoiceId } from '../content/voice';
 
 let ctx: AudioContext | null = null;
-let unlocked = false;
+let soundEpoch = 0;
+const activeTones = new Set<{ osc: OscillatorNode; amp: GainNode }>();
+const pendingSoundTimers = new Set<number>();
+
+function clearScheduledSounds(): void {
+  if (typeof window === 'undefined') return;
+  for (const timer of pendingSoundTimers) window.clearTimeout(timer);
+  pendingSoundTimers.clear();
+}
 
 /**
  * 소리 켬/끔의 **단 하나의 기준**.
@@ -37,19 +45,22 @@ let enabled = false;
 
 export function setSoundEnabled(on: boolean): void {
   enabled = on;
+  soundEpoch += 1;
   if (!on) {
     stopSpeaking();
     stopVoice();
-    /* 이미 예약된 소리를 끊는다 — 멈추지 않으면 끈 뒤에도 경보가 이어진다 */
+    clearScheduledSounds();
+    stopEffectSounds();
+    /* 예약음을 취소한 다음 문맥도 멈춘다. 다시 켜도 예전 경보가 이어지지 않는다. */
     try {
-      if (ctx && ctx.state === 'running') void ctx.suspend();
+      if (ctx && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
     } catch {
       /* 무시 */
     }
     return;
   }
   try {
-    if (ctx && ctx.state === 'suspended') void ctx.resume();
+    if (ctx && ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
   } catch {
     /* 무시 */
   }
@@ -59,18 +70,29 @@ export function soundEnabled(): boolean {
   return enabled;
 }
 
-/** 자동 재생 제한 — 이용자가 한 번 누른 뒤에야 소리를 낼 수 있다 */
-export function unlockAudio(): void {
-  if (unlocked) return;
-  unlocked = true;
+function getAudioContext(): AudioContext | null {
+  if (ctx && ctx.state !== 'closed') return ctx;
   try {
     const AC: typeof AudioContext | undefined =
       window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
+    if (!AC) return null;
     ctx = new AC();
-    if (ctx.state === 'suspended') void ctx.resume();
+    return ctx;
   } catch {
     ctx = null;
+    return null;
+  }
+}
+
+/** 자동 재생 제한 — 이용자가 누를 때마다 잠금 해제를 재시도할 수 있어야 한다 */
+export function unlockAudio(): void {
+  if (typeof window === 'undefined') return;
+  const a = getAudioContext();
+  if (!a || !enabled || a.state !== 'suspended') return;
+  try {
+    void a.resume().catch(() => undefined);
+  } catch {
+    /* 다음 조작에서 다시 시도한다 */
   }
 }
 
@@ -81,16 +103,19 @@ export function unlockAudio(): void {
  */
 function withAudio(job: (a: AudioContext) => void): void {
   if (!enabled) return;
-  if (!ctx) unlockAudio();
-  const a = ctx;
+  const epoch = soundEpoch;
+  const a = getAudioContext();
   if (!a) return;
+  const run = (): void => {
+    if (enabled && epoch === soundEpoch && a.state === 'running') job(a);
+  };
   if (a.state === 'running') {
-    job(a);
+    run();
     return;
   }
   void a
     .resume()
-    .then(() => job(a))
+    .then(run)
     .catch(() => {
       /* 브라우저가 막으면 조용히 넘어간다 */
     });
@@ -100,6 +125,17 @@ function withAudio(job: (a: AudioContext) => void): void {
 function beep(a: AudioContext, at: number, freq: number, dur: number, gain = 0.12, type: OscillatorType = 'square'): void {
   const osc = a.createOscillator();
   const amp = a.createGain();
+  const tone = { osc, amp };
+  activeTones.add(tone);
+  osc.onended = () => {
+    activeTones.delete(tone);
+    try {
+      osc.disconnect();
+      amp.disconnect();
+    } catch {
+      /* 이미 끊긴 노드 */
+    }
+  };
   osc.type = type;
   osc.frequency.setValueAtTime(freq, at);
   /* 딸깍 소리가 나지 않게 앞뒤를 부드럽게 여닫는다 */
@@ -112,13 +148,30 @@ function beep(a: AudioContext, at: number, freq: number, dur: number, gain = 0.1
   osc.stop(at + dur + 0.02);
 }
 
+/** 현재 재생 중이거나 미래 시각에 예약된 효과음을 모두 취소한다 */
+function stopEffectSounds(): void {
+  for (const { osc, amp } of activeTones) {
+    try {
+      osc.stop();
+    } catch {
+      /* 이미 끝난 노드 */
+    }
+    try {
+      osc.disconnect();
+      amp.disconnect();
+    } catch {
+      /* 이미 끊긴 노드 */
+    }
+  }
+  activeTones.clear();
+}
+
 /**
  * 주거용 감지기의 T-3 경보 — 0.5초 울림 세 번 뒤 쉼.
  * 진짜 소리를 알아듣게 하는 것이 목적이므로 주파수(3.1kHz)는 실물을 따르되,
  * 한 묶음만 내고 끝낸다 (C2). 놀라지 않게 음량을 낮추고 부드럽게 연다.
  */
-export function playDetector(on: boolean): void {
-  if (!on) return;
+export function playDetector(): void {
   withAudio((a) => {
     const t0 = a.currentTime + 0.08;
     for (let i = 0; i < 3; i += 1) {
@@ -130,8 +183,7 @@ export function playDetector(on: boolean): void {
 }
 
 /** 게임이 열릴 때의 짧은 신호음 세 마디 — 겁주지 않게 낮고 부드럽게 */
-export function playIntro(on: boolean): void {
-  if (!on) return;
+export function playIntro(): void {
   withAudio((a) => {
     const t0 = a.currentTime + 0.02;
     [392, 523.25, 659.25].forEach((f, i) => beep(a, t0 + i * 0.13, f, 0.26, 0.07, 'sine'));
@@ -139,8 +191,7 @@ export function playIntro(on: boolean): void {
 }
 
 /** 문을 여닫는 소리 — 아주 짧은 나무 소리 */
-export function playDoor(on: boolean, closing: boolean): void {
-  if (!on) return;
+export function playDoor(closing: boolean): void {
   withAudio((a) => {
     const t = a.currentTime + 0.01;
     beep(a, t, closing ? 190 : 260, 0.09, 0.09, 'triangle');
@@ -149,16 +200,14 @@ export function playDoor(on: boolean, closing: boolean): void {
 }
 
 /** 한 칸 걸음 — 아주 작게. 연달아 나도 시끄럽지 않다 */
-export function playStep(on: boolean): void {
-  if (!on) return;
+export function playStep(): void {
   withAudio((a) => {
     beep(a, a.currentTime + 0.005, 150 + Math.random() * 40, 0.05, 0.035, 'triangle');
   });
 }
 
 /** 자세를 낮출 때 */
-export function playCrouch(on: boolean, down: boolean): void {
-  if (!on) return;
+export function playCrouch(down: boolean): void {
   withAudio((a) => {
     const t = a.currentTime + 0.01;
     beep(a, t, down ? 330 : 440, 0.1, 0.05, 'sine');
@@ -167,8 +216,7 @@ export function playCrouch(on: boolean, down: boolean): void {
 }
 
 /** 성공했을 때의 짧은 화음. 지는 순간에는 아무 소리도 내지 않는다 (C3) */
-export function playSuccess(on: boolean): void {
-  if (!on) return;
+export function playSuccess(): void {
   withAudio((a) => {
     const t0 = a.currentTime + 0.03;
     /* 도-미-솔-도 — 짧은 팡파르 */
@@ -179,9 +227,20 @@ export function playSuccess(on: boolean): void {
   });
 }
 
+/** 성공 화음과 칭찬을 한 묶음으로 낸다. 화면이 곧 리포트로 바뀌어도 빠지지 않는다. */
+export function playSuccessCue(): void {
+  if (!enabled || typeof window === 'undefined') return;
+  const epoch = soundEpoch;
+  playSuccess();
+  const timer = window.setTimeout(() => {
+    pendingSoundTimers.delete(timer);
+    if (enabled && epoch === soundEpoch) playVoice('v-success');
+  }, 900);
+  pendingSoundTimers.add(timer);
+}
+
 /** 놓았을 때·눌렀을 때의 아주 짧은 확인음 */
-export function playTap(on: boolean): void {
-  if (!on) return;
+export function playTap(): void {
   withAudio((a) => beep(a, a.currentTime + 0.01, 880, 0.06, 0.06, 'sine'));
 }
 
@@ -191,6 +250,7 @@ export function playTap(on: boolean): void {
 
 let voice: SpeechSynthesisVoice | null = null;
 let voiceChecked = false;
+let pendingSpeech: string | null = null;
 
 /** 한국어 음성을 찾는다. 없으면 말하지 않는다 (v1.0 §7.4 — TTS 는 부가 기능) */
 function pickVoice(): SpeechSynthesisVoice | null {
@@ -207,12 +267,17 @@ function pickVoice(): SpeechSynthesisVoice | null {
  * 캐릭터의 말을 읽어 준다. 피치를 올려 어린이에게 친근한 소리로 만든다.
  * 한국어 음성이 없으면 조용히 그만둔다 — 소리가 없어도 화면에 글이 그대로 있다.
  */
-export function speak(text: string, on: boolean): void {
-  if (!enabled || !on || !text) return;
+export function speak(text: string): void {
+  if (!enabled || !text) return;
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   const v = pickVoice();
-  if (!v) return;
+  if (!v) {
+    /* 음성 목록이 늦게 도착하면 가장 최근 문장을 그때 한 번 읽는다 */
+    pendingSpeech = text;
+    return;
+  }
   try {
+    pendingSpeech = null;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.voice = v;
@@ -231,6 +296,8 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = () => {
     voiceChecked = false;
     pickVoice();
+    const text = pendingSpeech;
+    if (text && enabled) speak(text);
   };
 }
 
@@ -238,11 +305,11 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
  * 사람 목소리를 먼저 틀고, 없으면 음성합성으로 넘어간다 (VOICE-SCRIPT.md §4).
  * 둘 다 없으면 조용히 넘어간다 — 소리가 없어도 화면에 글이 그대로 있다.
  */
-export function playVoice(id: VoiceId, on: boolean): void {
-  if (!enabled || !on) return;
+export function playVoice(id: VoiceId): void {
+  if (!enabled) return;
   const clip = VOICE_CLIPS[id];
   if (!clip) {
-    speak(VOICE_LINES[id], on);
+    speak(VOICE_LINES[id]);
     return;
   }
   try {
@@ -252,10 +319,10 @@ export function playVoice(id: VoiceId, on: boolean): void {
     current.volume = 0.9;
     void current.play().catch(() => {
       /* 자동 재생이 막히면 음성합성으로 */
-      speak(VOICE_LINES[id], on);
+      speak(VOICE_LINES[id]);
     });
   } catch {
-    speak(VOICE_LINES[id], on);
+    speak(VOICE_LINES[id]);
   }
 }
 
@@ -283,8 +350,10 @@ if (typeof window !== 'undefined') {
   const hush = (): void => {
     stopSpeaking();
     stopVoice();
+    clearScheduledSounds();
+    stopEffectSounds();
     try {
-      if (ctx && ctx.state === 'running') void ctx.suspend();
+      if (ctx && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
     } catch {
       /* 무시 */
     }
@@ -294,12 +363,13 @@ if (typeof window !== 'undefined') {
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) hush();
-      else if (enabled && ctx?.state === 'suspended') void ctx.resume();
+      else if (enabled && ctx?.state === 'suspended') void ctx.resume().catch(() => undefined);
     });
   }
 }
 
 export function stopSpeaking(): void {
+  pendingSpeech = null;
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();

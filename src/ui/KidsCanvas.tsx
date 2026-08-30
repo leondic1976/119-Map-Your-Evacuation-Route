@@ -5,7 +5,7 @@
  *
  * 그리기 편의가 최우선이다 (docs/DESIGN-v1.1-changes.md §2).
  *   D2  팔레트 클릭 → 도면 클릭이면 표준 크기로 놓인다. 끌기는 선택
- *   D3  맞댄 벽의 문 후보를 한 번 눌러 문을 놓는다
+ *   D3  문은 팔레트에서 고르고 원하는 방 벽을 한 번 눌러 놓는다
  *   D4  겹치는 배치는 시도부터 막는다
  *   FR-7.9 화면은 늘 내용에 맞춰 들어온다. 줌 조작이 없다
  * 게임 중에는 같은 SVG 위에 위험장을 그리고, 칸을 누르면 그 방향으로 한 칸 간다.
@@ -20,7 +20,6 @@ import type { Direction } from '../types/game';
 import { roomAt, canPlaceRoom } from '../core/grid/occupancy';
 import { boundarySlots, lineCells, nearestSlot, rectFromDrag, sameCell, slotCenter } from '../core/grid/geometry';
 import { blocksInRect } from '../core/grid/occupancy';
-import { doorCandidates } from '../core/grid/doors';
 import { suggestedRoute, useKids } from '../store/kidsStore';
 import { CS, PlanSvg, type GameLayer } from './PlanSvg';
 
@@ -83,7 +82,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     () => (showHint && !inGame ? suggestedRoute({ plan, hazardId, routeSlot, profile, routes }) : null),
     [showHint, inGame, plan, hazardId, routeSlot, profile, routes],
   );
-  const candidates = useMemo(() => (inGame ? [] : doorCandidates(plan)), [plan, inGame]);
   const slots = useMemo(() => plan.blocks.filter(isRoom).flatMap((r) => boundarySlots(r.rect)), [plan]);
 
   /* 화면 좌표 → 셀 좌표(실수) */
@@ -123,15 +121,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     },
     [plan, toCell],
   );
-
-  /** 문 후보를 눌렀나 */
-  const candidateAt = (p: { x: number; y: number }) => {
-    for (const d of candidates) {
-      const sc = slotCenter(d.cell, d.side);
-      if ((sc.x - p.x) ** 2 + (sc.y - p.y) ** 2 < 0.2) return d;
-    }
-    return null;
-  };
 
   /**
    * 하나 놓으면 팔레트에서 손을 뗀다 (설계서 v1.5 §4).
@@ -178,15 +167,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         dragRef.current = { kind: 'resize', id: room.id, handle, start: c, base: room.rect };
         setResizePreview(room.rect);
         svgRef.current?.setPointerCapture(e.pointerId);
-        return;
-      }
-    }
-
-    /* 문 후보 — 어떤 도구든 한 번에 문이 놓인다 (FR-7.3) */
-    if (tool !== 'route') {
-      const cand = candidateAt(p);
-      if (cand) {
-        s.placeOpening('door', cand.cell, cand.side);
         return;
       }
     }
@@ -273,13 +253,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       return;
     }
     const mid = { x: c.x + 0.5, y: c.y + 0.5 };
-    if (tool !== 'route') {
-      const cand = candidateAt(mid);
-      if (cand) {
-        s.placeOpening('door', cand.cell, cand.side);
-        return;
-      }
-    }
     if (tool === 'place' && armed) {
       if (armed.category === 'room') {
         if (s.placeRoom(armed.id as RoomKind, c)) disarm();
@@ -479,7 +452,6 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           shift={inGame ? undefined : multiShift ? { ids: multi, ...multiShift } : undefined}
           style={profile.blockStyle}
           gradeMode={profile.gradeMode}
-          doorCandidates={mode === 'edit' && step !== 'mySpot' && step !== 'meeting' ? candidates : undefined}
           game={gameLayer}
           onPointerDown={onDown}
           onPointerMove={onMove}

@@ -177,8 +177,8 @@ export interface KidsActions {
   replace: (file: SaveFile) => void;
   toSaveFile: () => SaveFile;
 
-  /** 캐릭터 대사 발동. 말할 것이 있었으면 true */
-  fire: (ev: GuideTrigger, params?: Record<string, string>) => boolean;
+  /** 캐릭터 대사 발동. 자동 상태 변화처럼 새 안내가 꼭 필요한 때는 쿨다운을 무시할 수 있다 */
+  fire: (ev: GuideTrigger, params?: Record<string, string>, ignoreCooldown?: boolean) => boolean;
   help: () => void;
   dismissBubble: () => void;
   markCardSeen: (id: string) => void;
@@ -850,10 +850,10 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     /* -------------------------------------------------- 캐릭터 가이드 */
 
-    fire: (ev, params = {}) => {
+    fire: (ev, params = {}, ignoreCooldown = false) => {
       const s = get();
       const now = Date.now();
-      const rule = selectGuide(GUIDE_RULES, ev, s.guideHistory, now);
+      const rule = selectGuide(GUIDE_RULES, ev, ignoreCooldown ? {} : s.guideHistory, now);
       if (!rule) return false;
       const bubble = toBubble(rule, s.profile.gradeMode, !isVerified(rule.sourceIds), now, params);
       set({

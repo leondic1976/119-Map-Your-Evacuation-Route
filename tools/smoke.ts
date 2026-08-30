@@ -502,8 +502,23 @@ async function main(): Promise<void> {
       assert(after === before + 1, `방이 안 놓였다 ${before} → ${after}`);
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
       assert(rooms === 9, `방 ${rooms}개`);
+      assert((await page.locator('[data-door-candidate]').count()) === 0, '없앤 문 후보가 도면에 나타났다');
+      const doorlessBubble = await page.locator('.k-bubble').innerText();
+      assert(doorlessBubble.includes('문이 하나도 없는 방'), `문 없는 방 해설이 나오지 않았다: ${doorlessBubble.slice(0, 60)}`);
+      assert((await page.locator('[data-block-id="door"]').getAttribute('class'))?.includes('k-hl') === true, '해설이 문 도구를 가리키지 않는다');
+      assert((await page.locator('.k-stage .kids-hl').count()) >= 1, '문 없는 방을 도면에서 강조하지 않는다');
       /* 하나 놓으면 팔레트에서 손을 뗀다 — 도면을 누를 때마다 계속 놓이지 않는다 (설계서 v1.5 §4) */
       assert((await page.locator('[data-block-id="bedroom"]').getAttribute('aria-pressed')) !== 'true', '놓은 뒤에도 장전이 남아 있다');
+
+      /* 캐릭터가 가리킨 문을 골라 벽을 누르면 문이 놓이고 누락 강조가 사라진다 */
+      await page.locator('[data-block-id="door"]').click();
+      const wall = await kidsCell(page, 19, 2);
+      await page.mouse.click(wall.x, wall.y);
+      await page.waitForTimeout(800);
+      assert((await kidsSave(page)).blocks === after + 1, '팔레트에서 고른 문이 놓이지 않았다');
+      assert((await page.locator('[data-block-id="door"]').getAttribute('class'))?.includes('k-hl') !== true, '문을 놓은 뒤에도 누락 강조가 남았다');
+      await page.keyboard.press('Control+z');
+      await page.waitForTimeout(500);
 
       /* 다시 골라야 또 놓인다. 이번엔 겹치는 곳이라 거부 */
       await page.locator('[data-block-id="bedroom"]').click();
@@ -529,6 +544,15 @@ async function main(): Promise<void> {
         return cells.filter((c) => Math.abs(Math.round(c.getBoundingClientRect().top) - top) < 4).length;
       });
       assert(perRow >= 3, `한 줄에 ${perRow}칸뿐이다`);
+    });
+
+    await check('고르기·나가는 길·지우개가 왼쪽 패널 한 줄에 보인다 (설계서 v1.6 §7)', async () => {
+      const tools = await page.locator('.k-tools .k-tool').evaluateAll((buttons) =>
+        buttons.map((button) => ({ text: button.textContent?.trim() ?? '', top: Math.round(button.getBoundingClientRect().top) })),
+      );
+      assert(tools.length === 3, `도구 ${tools.length}개`);
+      assert(new Set(tools.map((tool) => tool.top)).size === 1, `도구가 여러 줄이다: ${JSON.stringify(tools)}`);
+      for (const label of ['고르기', '나가는 길', '지우개']) assert(tools.some((tool) => tool.text.includes(label)), `${label}가 없다`);
     });
 
     /* 소리 켬/끔 (설계서 v1.6 §3) */
@@ -672,15 +696,9 @@ async function main(): Promise<void> {
       await page.waitForTimeout(150);
     });
 
-    await check('문 후보 — 맞댄 벽의 “문?”을 한 번 누르면 문이 놓인다 (FR-7.3)', async () => {
-      await page.locator('[data-coach="kids-tool-select"]').click();
-      const cands = await page.locator('.k-stage [data-door-candidate]').count();
-      assert(cands >= 1, `문 후보 ${cands}개`);
-      const before = (await kidsSave(page)).blocks;
-      await page.locator('.k-stage [data-door-candidate]').first().click();
-      await page.waitForTimeout(800);
-      assert((await kidsSave(page)).blocks === before + 1, '문이 안 놓였다');
-      assert((await page.locator('.k-stage [data-door-candidate]').count()) === cands - 1, '후보가 안 줄었다');
+    await check('도면에는 “문?” 후보가 나타나지 않는다 (설계서 v1.6 §6)', async () => {
+      assert((await page.locator('[data-door-candidate], .k-door-candidate').count()) === 0, '도면에 문 후보가 남아 있다');
+      assert(!((await page.locator('.k-stage').textContent()) ?? '').includes('문?'), '도면에 “문?” 글자가 남아 있다');
     });
 
     await check('더보기에서 소화기를 골라 놓고, 캐릭터가 처음 놓은 블록을 말한다', async () => {

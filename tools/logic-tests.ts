@@ -25,7 +25,7 @@ import { evaluate, severityOf } from '../src/core/rules/engine';
 import { EXTENSION_RULES, RULES } from '../src/core/rules/definitions';
 import { canPlaceRoom } from '../src/core/grid/occupancy';
 import { isAdjacent } from '../src/core/grid/geometry';
-import { doorCandidates } from '../src/core/grid/doors';
+import { doorlessRooms } from '../src/core/grid/doors';
 import { buildContext } from '../src/core/hazard/transfer';
 import { createField, ignite, spread } from '../src/core/hazard/field';
 import { aheadTicks, gameGoalCells, hasSurvivablePath, pickIgnition, rng, simulateAhead } from '../src/core/hazard/ignition';
@@ -138,7 +138,7 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(!canPlaceRoom(plan, { x: 0, y: 0, w: 1, h: 3 }), '2×2 보다 작은데 허용');
   });
 
-  check('맞댄 벽에 문 후보가 생기고, 문이 있으면 사라진다 (FR-7.3)', () => {
+  check('문이 없는 방을 모두 찾고, 공유 문은 양쪽 방의 문으로 센다 (FR-7.3)', () => {
     const plan: FloorPlan = {
       ...emptyFloorPlan(),
       blocks: [
@@ -147,11 +147,28 @@ export function logicTests(check: Check, assert: Assert): void {
         { kind: 'room', id: 'c', layer: 'home', roomKind: 'bath', rect: { x: 12, y: 2, w: 3, h: 3 }, label: '' },
       ],
     };
-    const cands = doorCandidates(plan);
-    assert(cands.length === 1, `후보 ${cands.length}개`);
-    assert(cands[0].side === 'E' && cands[0].cell.x === 5, `후보 자리 ${cands[0].cell.x},${cands[0].cell.y} ${cands[0].side}`);
-    const withDoor: FloorPlan = { ...plan, blocks: plan.blocks.concat([{ kind: 'opening', id: 'd', layer: 'home', openingKind: 'door', cell: cands[0].cell, side: 'E', closedByDefault: true }]) };
-    assert(doorCandidates(withDoor).length === 0, '문을 놓았는데 후보가 남았다');
+    assert(doorlessRooms(plan).map((room) => room.id).join(',') === 'a,b,c', '문 없는 방 셋을 찾지 못했다');
+    const withSharedDoor: FloorPlan = {
+      ...plan,
+      blocks: plan.blocks.concat([
+        { kind: 'opening', id: 'd1', layer: 'home', openingKind: 'door', cell: { x: 5, y: 3 }, side: 'E', closedByDefault: true },
+      ]),
+    };
+    assert(doorlessRooms(withSharedDoor).map((room) => room.id).join(',') === 'c', '공유 문을 양쪽 방에서 세지 못했다');
+    const withWindow: FloorPlan = {
+      ...withSharedDoor,
+      blocks: withSharedDoor.blocks.concat([
+        { kind: 'opening', id: 'w1', layer: 'home', openingKind: 'window', cell: { x: 12, y: 2 }, side: 'N', closedByDefault: true },
+      ]),
+    };
+    assert(doorlessRooms(withWindow).map((room) => room.id).join(',') === 'c', '창문을 문으로 잘못 셌다');
+    const complete: FloorPlan = {
+      ...withWindow,
+      blocks: withWindow.blocks.concat([
+        { kind: 'opening', id: 'd2', layer: 'home', openingKind: 'balcony_window', cell: { x: 12, y: 3 }, side: 'W', closedByDefault: true },
+      ]),
+    };
+    assert(doorlessRooms(complete).length === 0, '통로인 발코니 창을 놓았는데 문 없는 방으로 남았다');
   });
 
   check('시작 평면 8종이 모두 말이 되고 고립된 방이 없다 (설계서 v1.2 §1.2)', () => {

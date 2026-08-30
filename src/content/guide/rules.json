@@ -201,8 +201,8 @@
     "speaker": "yeongi",
     "emotion": "normal",
     "text": {
-      "easy": "거실이야. 방이랑 맞대면 문 자리가 저절로 보여.",
-      "normal": "거실입니다. 다른 방과 변을 맞대면 문 후보가 반투명으로 표시됩니다."
+      "easy": "거실이야. 문이 없으면 내가 알려 줄게. 왼쪽에서 문을 골라 벽에 놓자.",
+      "normal": "거실입니다. 문이 없으면 안내합니다. 팔레트에서 문을 골라 벽에 놓으세요."
     },
     "cooldown": 0,
     "sourceIds": [
@@ -754,8 +754,8 @@
     "speaker": "ilgu",
     "emotion": "worried",
     "text": {
-      "easy": "킁킁, {roomName}에서 나갈 길이 없어! 문을 하나 놓아 주자.",
-      "normal": "{roomName}에서 나갈 문이 없습니다. 벽에 문을 놓으세요."
+      "easy": "문이 하나도 없는 방을 찾았어: {roomName}. 왼쪽에서 문을 고르고 이 방의 벽을 눌러 놓아 주자.",
+      "normal": "문이 없는 방: {roomName}. 왼쪽 팔레트에서 문을 고르고 이 방의 벽을 누르세요."
     },
     "highlight": {
       "paletteItem": "door"

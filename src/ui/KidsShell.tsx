@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockName } from '../content';
 import { checklist, missingOf } from '../core/checklist';
+import { doorlessRooms } from '../core/grid/doors';
 import { i } from '../core/josa';
 import { isOpening } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
@@ -71,6 +72,7 @@ export default function KidsShell() {
   const [pickChar, setPickChar] = useState(false);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const doorlessNoticeRef = useRef(false);
 
   /* 시작 */
   useEffect(() => {
@@ -188,6 +190,32 @@ export default function KidsShell() {
   const onboardingOnCanvas = step === 'mySpot' || step === 'meeting';
   const required = useMemo(() => checklist(plan, REQUIRED_BLOCKS), [plan]);
   const missing = missingOf(required);
+  const roomsWithoutDoor = useMemo(() => doorlessRooms(plan), [plan]);
+  const doorlessKey = roomsWithoutDoor.map((room) => room.id).sort().join('|');
+
+  /* 도면 위 후보 대신 캐릭터가 문 없는 방을 이름으로 알려 주고 실제 문 도구를 가리킨다 (v1.6 §6). */
+  useEffect(() => {
+    const state = useKids.getState();
+    if (!doorlessKey) {
+      if (doorlessNoticeRef.current) {
+        if (state.bubble?.ruleId === 'fail.RULE-C-03') {
+          state.dismissBubble();
+          stopSpeaking();
+        }
+        if (state.highlight?.paletteItem === 'door') state.setHighlight(null);
+        doorlessNoticeRef.current = false;
+      }
+      return;
+    }
+    if (!ready || !editing || onboardingOnCanvas) return;
+    const roomName = roomsWithoutDoor
+      .map((room) => room.label.trim() || blockName(room.roomKind, profile.gradeMode))
+      .join(', ');
+    if (state.fire({ on: 'ruleFail', ruleId: 'RULE-C-03' }, { roomName }, true)) {
+      state.setHighlight({ paletteItem: 'door', blockIds: roomsWithoutDoor.map((room) => room.id) });
+      doorlessNoticeRef.current = true;
+    }
+  }, [doorlessKey, editing, onboardingOnCanvas, profile.gradeMode, ready, roomsWithoutDoor]);
 
   /** 시작 — 필수가 빠졌으면 막지 않고 한 번 물어본다 (D5) */
   const startGame = useCallback(() => {
@@ -664,7 +692,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
     ? [
         ['1. 집 모양', '우리 집과 비슷한 것을 고른다. 백지에서 시작하지 않아도 된다.'],
         ['2. 내 방', '캐릭터가 물으면 네가 자는 방을 누른다.'],
-        ['3. 방 고치기', '방을 끌어 옮기고, 모서리를 끌어 크기를 바꾼다. 맞댄 벽에 “문?”이 보이면 한 번 눌러 문을 놓는다.'],
+        ['3. 방 고치기', '방을 끌어 옮기고, 모서리를 끌어 크기를 바꾼다. 문이 없는 방은 캐릭터가 알려 준다. 왼쪽에서 “문”을 고르고 방의 벽을 누른다.'],
         ['4. 나가는 길', '“나가는 길”을 누르고 내 방부터 현관까지 끌어서 잇는다. 못 나갈 때 갈 길도 그려 두면 좋다.'],
         ['5. 대피 연습', '“대피 연습 시작!”을 누르면 불이 난다. 화살표로 움직이고, 연기가 오면 “낮게!”'],
         ['6. 결과', '잘한 점과 고칠 점을 본다. “다시 해보기”나 “지도 고치기”를 누른다.'],
@@ -673,7 +701,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
       ]
     : [
         ['평면', '집 모양(템플릿)에서 시작해 방을 옮기고 크기를 바꾼다. 방은 직사각형만 된다. 팔레트 클릭 → 도면 클릭이면 표준 크기로 놓인다.'],
-        ['문', '두 방이 맞닿으면 문 후보가 반투명으로 보인다. 한 번 누르면 문이 놓인다.'],
+        ['문', '문이 없는 방은 캐릭터가 알려 준다. 팔레트에서 문을 고르고 원하는 방의 벽을 누르면 놓인다.'],
         ['피난경로', '주 경로(현관)와 보조 경로(못 나갈 때)를 각각 끌어서 잇는다. 뒤로 되짚으면 지워진다.'],
         ['게임', '발화점은 매번 다르다. 방향키로 이동, 스페이스로 자세, T 문 만져보기, C 문 닫기, P 멈춤. 연습 모드가 기본이다.'],
         ['리포트', '규칙 엔진(정적)과 플레이 로그(동적)를 합쳐 잘한 점·고칠 점으로 정리한다. [왜?]를 누르면 학습 카드가 펼쳐진다.'],

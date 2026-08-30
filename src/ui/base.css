@@ -1,0 +1,40 @@
+/*
+ * 바탕 — 브라우저 기본값을 고르는 곳. 화면 규칙은 kids.css · kids-game.css 에 있다.
+ *
+ * 문서에는 화면이 하나뿐이므로 body 가 곧 앱이다. 스크롤을 만들지 않는다 —
+ * `.k-app` 이 100dvh 를 차지하고 그 안에서만 넘친다.
+ */
+:root {
+  --font-sans: Pretendard, 'Pretendard Variable', 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo',
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: #22303a;
+  background: #f4f6f2;
+  -webkit-font-smoothing: antialiased;
+  /* 숫자가 자리마다 흔들리지 않게 — 시계와 남은 칸 수가 덜컹거린다 */
+  font-feature-settings: 'tnum' 1;
+  word-break: keep-all;
+}
+
+/* 인쇄는 kids.css 의 body.kids-mode 규칙이 맡는다 */
+@media print {
+  body {
+    background: #fff;
+  }
+}

@@ -15,11 +15,11 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import type { FloorPlan } from '../src/kids/types/plan';
-import { HAZARD_PRESETS, TEMPLATES, fuelOf } from '../src/kids/content';
-import { buildGraph } from '../src/kids/core/graph/build';
-import { buildContext } from '../src/kids/core/hazard/transfer';
-import { simulateAhead } from '../src/kids/core/hazard/ignition';
+import type { FloorPlan } from '../src/types/plan';
+import { HAZARD_PRESETS, TEMPLATES, fuelOf } from '../src/content';
+import { buildGraph } from '../src/core/graph/build';
+import { buildContext } from '../src/core/hazard/transfer';
+import { simulateAhead } from '../src/core/hazard/ignition';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (cond: boolean, msg: string) => void;
@@ -84,7 +84,7 @@ export function qaTests(check: Check, assert: Assert): void {
   check('[점검] 오프라인 배포본은 웹폰트도 부르지 않는다 (NFR-1)', () => {
     const layout = read(path.join(root, 'src/app/layout.tsx'));
     assert(/NEXT_PUBLIC_OFFLINE/.test(layout), 'layout.tsx 에 오프라인 분기가 없다');
-    const f = path.join(root, 'dist', 'evacuation-planner.html');
+    const f = path.join(root, 'dist', 'home-escape-map.html');
     if (!fs.existsSync(f)) return;
     const html = read(f);
     // 글 속의 출처 주소(sources.json)는 그냥 글자다. 실제로 받아오는 자리만 본다
@@ -122,9 +122,9 @@ export function qaTests(check: Check, assert: Assert): void {
 
   /* -------------------------------------------------- 챗봇을 만들지 않는다 */
 
-  check('[점검] 어린이 화면에 자유 텍스트 입력이 없다 (설계서 v1.1 의견 3)', () => {
+  check('[점검] 자유 텍스트 입력이 없다 (설계서 v1.1 의견 3)', () => {
     const bad: string[] = [];
-    for (const f of sourceFiles(path.join(root, 'src', 'kids'), ['.tsx'])) {
+    for (const f of sourceFiles(path.join(root, 'src'), ['.tsx'])) {
       const src = read(f);
       for (const m of src.matchAll(/<(input|textarea)\b[^>]*/g)) {
         const tag = m[0];
@@ -188,7 +188,7 @@ export function qaTests(check: Check, assert: Assert): void {
    * 설계서는 RULE-F-06·07 로 적었는데 그 번호가 이미 쓰이고 있어 F-08·09 로 나간 적이 있다.
    */
   check('[점검] 설계서가 적은 규칙 id 가 코드에 있다 (작업지침 §9)', () => {
-    const defs = read(path.join(root, 'src/kids/core/rules/definitions.ts'));
+    const defs = read(path.join(root, 'src/core/rules/definitions.ts'));
     const known = new Set<string>();
     for (const m of defs.matchAll(/id:\s*'(RULE-[A-Z]-\d+)'/g)) known.add(m[1]);
     assert(known.size > 0, '규칙 id 를 하나도 못 찾았다');
@@ -207,7 +207,7 @@ export function qaTests(check: Check, assert: Assert): void {
 
   check('[점검] 화면 문구에 "을(를)" 같은 괄호 조사가 없다 (작업지침 §8)', () => {
     const bad: string[] = [];
-    for (const f of sourceFiles(path.join(root, 'src', 'kids'), ['.ts', '.tsx', '.json'])) {
+    for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.json'])) {
       // 조사를 고르는 당사자는 뺀다 — 주석에서 고쳐야 할 예로 그 꼴을 든다
       if (rel(f).endsWith('core/josa.ts')) continue;
       const src = read(f);
@@ -219,14 +219,14 @@ export function qaTests(check: Check, assert: Assert): void {
 
   /* -------------------------------------------------- 누르는 것의 크기 */
 
-  check('[점검] 어린이 화면의 히트박스 기준이 48px 한 곳에서 정해진다 (D6 · NFR-10)', () => {
-    const css = read(path.join(root, 'src/kids/ui/kids.css'));
+  check('[점검] 히트박스 기준이 48px 한 곳에서 정해진다 (D6 · NFR-10)', () => {
+    const css = read(path.join(root, 'src/ui/kids.css'));
     const m = css.match(/--k-hit:\s*(\d+)px/);
     assert(m !== null, '--k-hit 이 없다');
     assert(Number(m![1]) >= 48, `--k-hit 이 ${m![1]}px 이다`);
     // 기준보다 작은 값을 따로 박아 넣은 규칙이 없어야 한다
     const bad: string[] = [];
-    for (const f of ['src/kids/ui/kids.css', 'src/kids/ui/kids-game.css']) {
+    for (const f of ['src/ui/kids.css', 'src/ui/kids-game.css']) {
       const src = read(path.join(root, f));
       for (const hit of src.matchAll(/min-(?:height|width):\s*(\d+)px/g)) {
         const px = Number(hit[1]);
@@ -241,10 +241,54 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(bad.length === 0, `48px 미만 규칙: ${bad.join(' | ')}`);
   });
 
+  /* -------------------------------------------------- 층 나누기 */
+
+  /**
+   * `core/**` 는 순수 계산만 한다 (작업지침 §9-4).
+   * react·zustand 를 들이면 화면 없이 돌릴 수 없어 tools/logic-tests.ts 가 못 부르고,
+   * document·window 를 부르면 Electron 의 주 프로세스에서도 못 쓴다.
+   */
+  check('[점검] core 가 react·zustand·document·window 를 부르지 않는다 (작업지침 §9-4)', () => {
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src', 'core'), ['.ts', '.tsx'])) {
+      const src = read(f);
+      for (const m of src.matchAll(/from\s+['"](react|zustand)['"]|\b(document|window)\s*\./g)) {
+        /* 주석 줄은 뺀다 — 무엇을 부르지 않는지 적어 둔 곳이 있다 */
+        const line = src.slice(0, m.index ?? 0).split('\n').pop() ?? '';
+        if (/^\s*(\*|\/\/)/.test(line)) continue;
+        bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[0]}`);
+      }
+    }
+    assert(bad.length === 0, `순수하지 않다: ${bad.slice(0, 4).join(' | ')}`);
+  });
+
+  /**
+   * 저장소와 파일 내려받기는 `platform/**` 한 곳만 만진다.
+   * Electron 으로 감쌀 때 갈아 끼울 자리를 하나로 묶어 두기 위해서다 — 다른 데로
+   * 새면 껍데기를 바꿀 때마다 온 코드를 뒤져야 한다.
+   */
+  check('[점검] localStorage·파일 내려받기가 platform 밖으로 새지 않는다', () => {
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])) {
+      if (rel(f).startsWith('src/platform/')) continue;
+      const src = read(f);
+      for (const m of src.matchAll(/localStorage|createObjectURL|\.download\s*=/g)) {
+        const line = src.slice(0, m.index ?? 0).split('\n').pop() ?? '';
+        if (/^\s*(\*|\/\/)/.test(line)) continue;
+        bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[0]}`);
+      }
+    }
+    assert(bad.length === 0, `platform 밖에서 만진다: ${bad.slice(0, 4).join(' | ')} — platform/host.ts 를 쓴다`);
+  });
+
   /* -------------------------------------------------- 죽은 CSS */
 
-  check('[점검] 어린이 화면에 쓰지 않는 CSS 규칙이 남아 있지 않다', () => {
-    const css = [read(path.join(root, 'src/kids/ui/kids.css')), read(path.join(root, 'src/kids/ui/kids-game.css'))].join('\n');
+  check('[점검] 쓰지 않는 CSS 규칙이 남아 있지 않다', () => {
+    const css = [
+      read(path.join(root, 'src/ui/base.css')),
+      read(path.join(root, 'src/ui/kids.css')),
+      read(path.join(root, 'src/ui/kids-game.css')),
+    ].join('\n');
     const code = sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])
       .map(read)
       .join('\n');
@@ -259,7 +303,7 @@ export function qaTests(check: Check, assert: Assert): void {
   /* -------------------------------------------------- 오프라인 배포본 */
 
   check('[점검] 오프라인 배포본이 4MB 를 넘지 않는다 (NFR-3)', () => {
-    const f = path.join(root, 'dist', 'evacuation-planner.html');
+    const f = path.join(root, 'dist', 'home-escape-map.html');
     if (!fs.existsSync(f)) {
       // 아직 만들지 않았으면 건너뛴다 — npm run verify 는 만든 뒤에 부른다
       return;

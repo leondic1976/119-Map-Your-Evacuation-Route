@@ -14,7 +14,7 @@ import path from 'node:path';
 const root = path.resolve(process.cwd());
 const outDir = path.join(root, 'out');
 const distDir = path.join(root, 'dist');
-const target = path.join(distDir, 'evacuation-planner.html');
+const target = path.join(distDir, 'home-escape-map.html');
 
 function fail(msg: string): never {
   process.stderr.write(`\n  실패: ${msg}\n\n`);

@@ -1,5 +1,5 @@
 /**
- * 어린이 화면 콘텐츠 검증 게이트 — plan2.md §3.6.
+ * 어린이 화면 콘텐츠 검증 게이트 — docs/DESIGN-v1.0.md §3.6.
  *
  *   npm run validate          개발 모드. 출처 미검수는 경고, 구조 오류만 실패
  *   npm run validate:strict   배포 모드. 출처 미검수도 실패
@@ -7,7 +7,7 @@
  * 배포 워크플로는 아직 개발 모드로 돈다. 소방청 1차 자료 대조가 끝나
  * sources.json 의 verified 가 모두 true 가 되면 strict 로 바꾼다.
  */
-import { validateContent } from '../src/kids/content/validate';
+import { validateContent } from '../src/content/validate';
 
 const strict = process.argv.includes('--strict');
 const r = validateContent(strict);

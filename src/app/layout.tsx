@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import React from 'react';
 import '../ui/base.css';
+import '../ui/tailwind.css';
 import '../ui/kids.css';
 import '../ui/kids-game.css';
 

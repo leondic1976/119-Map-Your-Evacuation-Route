@@ -164,6 +164,7 @@ export function qaTests(check: Check, assert: Assert): void {
       'v1.1': read(path.join(root, 'docs/DESIGN-v1.1-changes.md')),
       'v1.2': read(path.join(root, 'docs/DESIGN-v1.2-changes.md')),
       'v1.3': read(path.join(root, 'docs/DESIGN-v1.3-changes.md')),
+      'v1.4': read(path.join(root, 'docs/DESIGN-v1.4-changes.md')),
     };
     /* 문서마다 있는 절 번호를 모은다 — 제목 줄의 "## 8.2" 같은 것 */
     const heads: Record<string, Set<string>> = {};
@@ -175,7 +176,7 @@ export function qaTests(check: Check, assert: Assert): void {
     const bad: string[] = [];
     for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css'])) {
       const src = read(f);
-      for (const m of src.matchAll(/설계서\s+(v1\.[0123])\s+§(\d+(?:\.\d+)*)/g)) {
+      for (const m of src.matchAll(/설계서\s+(v1\.[01234])\s+§(\d+(?:\.\d+)*)/g)) {
         const [, ver, sec] = m;
         if (heads[ver]?.has(sec)) continue;
         bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${ver} §${sec}`);
@@ -194,7 +195,7 @@ export function qaTests(check: Check, assert: Assert): void {
     for (const m of defs.matchAll(/id:\s*'(RULE-[A-Z]-\d+)'/g)) known.add(m[1]);
     assert(known.size > 0, '규칙 id 를 하나도 못 찾았다');
     const bad: string[] = [];
-    for (const d of ['docs/DESIGN-v1.1-changes.md', 'docs/DESIGN-v1.2-changes.md', 'docs/DESIGN-v1.3-changes.md']) {
+    for (const d of ['docs/DESIGN-v1.1-changes.md', 'docs/DESIGN-v1.2-changes.md', 'docs/DESIGN-v1.3-changes.md', 'docs/DESIGN-v1.4-changes.md']) {
       const src = read(path.join(root, d));
       for (const m of src.matchAll(/RULE-[A-Z]-\d+/g)) {
         if (known.has(m[0])) continue;
@@ -249,11 +250,11 @@ export function qaTests(check: Check, assert: Assert): void {
    * react·zustand 를 들이면 화면 없이 돌릴 수 없어 tools/logic-tests.ts 가 못 부르고,
    * document·window 를 부르면 Electron 의 주 프로세스에서도 못 쓴다.
    */
-  check('[점검] core 가 react·zustand·document·window 를 부르지 않는다 (작업지침 §9-4)', () => {
+  check('[점검] core 가 react·zustand·three·document·window 를 부르지 않는다 (작업지침 §9-4)', () => {
     const bad: string[] = [];
     for (const f of sourceFiles(path.join(root, 'src', 'core'), ['.ts', '.tsx'])) {
       const src = read(f);
-      for (const m of src.matchAll(/from\s+['"](react|zustand)['"]|\b(document|window)\s*\./g)) {
+      for (const m of src.matchAll(/from\s+['"](react|zustand|three|@react-three\/[a-z]+)['"]|\b(document|window)\s*\./g)) {
         /* 주석 줄은 뺀다 — 무엇을 부르지 않는지 적어 둔 곳이 있다 */
         const line = src.slice(0, m.index ?? 0).split('\n').pop() ?? '';
         if (/^\s*(\*|\/\/)/.test(line)) continue;
@@ -313,10 +314,70 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(mb <= 4, `${mb.toFixed(2)}MB`);
   });
 
-  check('[점검] 런타임 의존성은 react·react-dom·zustand·next 뿐이다', () => {
+  /**
+   * 런타임 의존성 목록의 정본은 설계서 v1.4 §1.1 이다.
+   * 여기 없는 것을 더하면 실패한다 — 늘리려면 설계서를 먼저 고친다 (작업지침 §9-12).
+   */
+  const RUNTIME_DEPS = [
+    '@react-three/drei',
+    '@react-three/fiber',
+    '@react-three/postprocessing',
+    'lucide-react',
+    'next',
+    'react',
+    'react-dom',
+    'three',
+    'three-pathfinding',
+    'zustand',
+  ];
+
+  check('[점검] 런타임 의존성이 설계서 v1.4 §1.1 의 목록과 같다', () => {
     const pkg = JSON.parse(read(path.join(root, 'package.json')));
     const deps = Object.keys(pkg.dependencies ?? {}).sort();
-    assert(deps.join(',') === 'next,react,react-dom,zustand', `의존성: ${deps.join(', ')}`);
+    const added = deps.filter((d) => !RUNTIME_DEPS.includes(d));
+    const gone = RUNTIME_DEPS.filter((d) => !deps.includes(d));
+    assert(added.length === 0, `설계서에 없는 의존성: ${added.join(', ')} — 설계서를 먼저 고친다`);
+    assert(gone.length === 0, `설계서에 있는데 없는 의존성: ${gone.join(', ')}`);
+  });
+
+  /**
+   * 3D 라이브러리가 오프라인 규칙을 깨는 두 통로를 막는다 (설계서 v1.4 §1.2).
+   * 둘 다 화면에서는 멀쩡히 보이고 인터넷이 끊긴 교실에서만 깨진다 — 눈으로는 못 잡는다.
+   */
+  check('[점검] drei 의 Environment preset·Text 를 쓰지 않는다 (NFR-1)', () => {
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])) {
+      const src = read(f);
+      const line = (i: number): number => src.slice(0, i).split('\n').length;
+      for (const m of src.matchAll(/<Environment\b[^>]*\bpreset\s*=/g)) {
+        bad.push(`${rel(f)}:${line(m.index ?? 0)} Environment preset — HDRI 를 CDN 에서 받아온다`);
+      }
+      /* drei 의 Text·Text3D 는 troika 가 글꼴을 받아온다 */
+      for (const m of src.matchAll(/from\s+['"]@react-three\/drei['"]/g)) {
+        const imported = src.slice(Math.max(0, (m.index ?? 0) - 400), m.index ?? 0);
+        if (/\b(Text3D|Text)\s*[,}]/.test(imported)) {
+          bad.push(`${rel(f)}:${line(m.index ?? 0)} drei 의 Text — 글꼴을 CDN 에서 받아온다`);
+        }
+      }
+    }
+    assert(bad.length === 0, bad.slice(0, 3).join(' | '));
+  });
+
+  /**
+   * 3D 는 리플레이에만 있다 (작업지침 §9-3).
+   * 에디터·게임·인쇄는 SVG 하나로 간다 — 인쇄물이 3D 가 되면 흑백에서 읽히지 않는다.
+   */
+  check('[점검] three 를 ui/replay3d 밖에서 부르지 않는다 (작업지침 §9-3)', () => {
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])) {
+      const r = rel(f);
+      if (r.startsWith('src/ui/replay3d/')) continue;
+      const src = read(f);
+      for (const m of src.matchAll(/from\s+['"](three|@react-three\/[a-z]+|three-pathfinding)['"]/g)) {
+        bad.push(`${r}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[1]}`);
+      }
+    }
+    assert(bad.length === 0, `리플레이 밖에서 3D 를 부른다: ${bad.slice(0, 3).join(' | ')}`);
   });
 
   /* -------------------------------------------------- 성능 */

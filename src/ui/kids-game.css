@@ -711,13 +711,17 @@
   position: fixed;
   inset: 0;
   z-index: 120;
+  /* 그림이 화면을 채우고 조작 패널이 그 위 오른쪽에 뜬다 (설계서 v1.4 §3) */
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   background: #0b1118;
   color: #fff;
 }
 
 .k-replay-stage {
+  grid-column: 1 / -1;
+  grid-row: 1;
   position: relative;
   min-height: 0;
   overflow: hidden;
@@ -743,77 +747,221 @@
   height: 100%;
 }
 
-.k-replay-caption {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  max-width: min(720px, 92vw);
-  padding: 10px 18px;
-  border-radius: 14px;
-  background: rgba(8, 14, 20, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-weight: 700;
-  line-height: 1.45;
-  word-break: keep-all;
-}
-
-.k-replay-caption b {
-  font-variant-numeric: tabular-nums;
-  font-size: 20px;
-  color: #ffd166;
-}
-
-.k-replay-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  color: #fff;
-  background: rgba(8, 14, 20, 0.7) !important;
-}
-
-.k-replay-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
+.k-replay-range {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+  height: 48px;
+  margin: 0;
+  accent-color: #2f6ea3;
   background: #101922;
   border-top: 1px solid #22303c;
 }
 
-.k-replay-bar .k-tb {
+/* ---------------------------------------------------- 다시 보기 조작 패널
+ * 설계서 v1.4 §3. 유리판처럼 비치되 글자가 읽히도록 바탕을 충분히 어둡게 깐다 —
+ * 뒤에 잔디와 하늘이 있어 옅게 깔면 흰 글자가 묻힌다.
+ */
+.k-r-panel {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+  z-index: 3;
+  margin: 14px;
+  width: 288px;
+  max-height: calc(100% - 28px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(11, 19, 28, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  word-break: keep-all;
+}
+
+.k-r-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-r-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  flex: 1;
+}
+
+.k-r-head .k-x {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border-radius: 10px;
+}
+
+.k-r-caption {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: #dbe6f1;
+  line-height: 1.45;
+}
+
+.k-r-caption b.num {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffd166;
+}
+
+.k-r-row {
+  display: flex;
+  gap: 6px;
+}
+
+.k-r-row .k-tb {
+  flex: 1;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 13px;
   border-color: #33465a;
   background: #17222d;
   color: #e8eef5;
 }
 
-.k-replay-bar .k-tb.primary {
+.k-r-row .k-tb.primary {
   background: var(--k-safe) !important;
   border-color: var(--k-safe) !important;
+  color: #fff !important;
 }
 
-.k-replay-bar .k-seg.dark {
+.k-r-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.k-r-field.column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.k-r-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #b8c7d6;
+}
+
+.k-r-field .k-seg.dark {
+  flex: 1;
   background: #17222d;
+  border-radius: 10px;
 }
 
-.k-replay-bar .k-seg.dark button {
+.k-r-field .k-seg.dark button {
   color: #cdd8e4;
+  font-size: 12.5px;
+  padding: 0 6px;
 }
 
-.k-replay-bar .k-seg.dark button[aria-pressed='true'] {
+.k-r-field .k-seg.dark button[aria-pressed='true'] {
   background: #2f6ea3;
   color: #fff;
 }
 
-.k-replay-range {
-  flex: 1 1 220px;
-  min-width: 160px;
-  height: 48px;
-  accent-color: #2f6ea3;
+.k-r-views button {
+  min-width: 0;
+}
+
+/* 켬/끔 — 라벨 전체가 누르는 칸이다 (48 높이) */
+.k-r-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--k-hit);
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.k-r-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.k-r-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.k-r-toggle-track {
+  flex: none;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #33465a;
+  position: relative;
+  transition: background 0.15s;
+}
+
+.k-r-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+
+.k-r-toggle input:checked + .k-r-toggle-track {
+  background: var(--k-safe);
+}
+
+.k-r-toggle input:checked + .k-r-toggle-track .k-r-toggle-knob {
+  transform: translateX(18px);
+}
+
+.k-r-toggle input:focus-visible + .k-r-toggle-track {
+  outline: 2px solid #7fb4dd;
+  outline-offset: 2px;
+}
+
+.k-r-toggle-label {
+  font-size: 13px;
+  color: #e8eef5;
+}
+
+.k-r-reset {
+  border-color: #33465a;
+  background: #17222d;
+  color: #e8eef5;
+}
+
+.k-r-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: #9fb0c2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-r-toggle-track,
+  .k-r-toggle-knob {
+    transition: none;
+  }
 }
 
 /* 더보기 — 꼭 있어야 하는 것과 있을 수 있는 것을 나눠 보인다 (설계서 v1.2 §1.4) */
@@ -845,28 +993,6 @@
 
 .k-replay-canvas:active {
   cursor: grabbing;
-}
-
-.k-replay-hint {
-  position: absolute;
-  left: 14px;
-  top: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(8, 14, 20, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #dbe6f1;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.k-replay-hint .k-tb {
-  border-color: #33465a;
-  background: #17222d;
-  color: #e8eef5;
 }
 
 /* ---------------------------------------------------- 마지막 장면 (성공만) */
@@ -1271,26 +1397,9 @@
     font-size: 17px;
   }
 
-  /* 3D — 조작 막대가 두 줄이 된다 */
-  .k-replay-bar {
-    gap: 6px;
-    padding: 8px;
-  }
-
+  /* 3D — 유리판이 아래 띠로 접힌다 (설계서 v1.4 §3) */
   .k-replay-range {
     flex: 1 1 100%;
-    order: -1;
-  }
-
-  .k-replay-hint {
-    font-size: 11.5px;
-    padding: 5px 10px;
-  }
-
-  .k-replay-caption {
-    bottom: 10px;
-    font-size: 13px;
-    padding: 8px 12px;
   }
 
   /*

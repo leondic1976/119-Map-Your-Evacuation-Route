@@ -10,7 +10,8 @@
  */
 import type { Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
 import { isOpening, isPoint, isRoom } from '../../types/plan';
-import { STRIDE } from './gl';
+/** 한 줄 = 위치3 · 법선3 · 색3 */
+export const STRIDE = 9;
 
 /** 벽 높이(칸 단위). 한 칸을 60cm 로 보면 2.4m 다 */
 export const WALL_H = 4;
@@ -28,18 +29,22 @@ const COLOR = {
   safety: [0.2, 0.55, 0.4],
 };
 
+/*
+ * 방마다 다른 바닥 색. 3D 에서 조명을 받으면 옅은 색은 죄다 흰색으로 보여
+ * 방이 구분되지 않는다. 그래서 도면보다 조금 진하게 잡는다 (설계서 v1.4 §2.2).
+ */
 const ROOM_TINT: Record<RoomBlock['roomKind'], number[]> = {
-  bedroom: [0.99, 0.94, 0.82],
-  living: [0.9, 0.95, 0.87],
-  kitchen: [1, 0.9, 0.8],
-  bath: [0.85, 0.92, 1],
-  entry: [0.93, 0.9, 0.97],
-  balcony: [0.89, 0.96, 0.95],
-  utility: [0.93, 0.93, 0.93],
-  corridor: [0.96, 0.96, 0.9],
-  stair: [0.87, 0.9, 0.94],
-  refuge_lobby: [0.87, 0.93, 0.88],
-  elevator_hall: [0.95, 0.88, 0.88],
+  bedroom: [0.97, 0.88, 0.68],
+  living: [0.82, 0.92, 0.78],
+  kitchen: [1, 0.83, 0.66],
+  bath: [0.74, 0.87, 1],
+  entry: [0.88, 0.82, 0.96],
+  balcony: [0.79, 0.94, 0.91],
+  utility: [0.88, 0.88, 0.88],
+  corridor: [0.95, 0.93, 0.8],
+  stair: [0.79, 0.85, 0.93],
+  refuge_lobby: [0.78, 0.91, 0.82],
+  elevator_hall: [0.93, 0.8, 0.8],
 };
 
 /** 한 줄 = 위치3 · 법선3 · 색3 */
@@ -316,14 +321,25 @@ function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: Op
   const horizontal = side === 'N' || side === 'S';
   const at = side === 'N' ? z0 : side === 'S' ? z1 : side === 'W' ? x0 : x1;
 
-  const put = (from: number, to: number, yLo: number, yHi: number, color: number[]): void => {
-    if (to - from <= 0.001 || yHi - yLo <= 0.001) return;
-    if (horizontal) b.box(from, yLo, at - t / 2, to, yHi, at + t / 2, color, color);
-    else b.box(at - t / 2, yLo, from, at + t / 2, yHi, to, color, color);
-  };
-
   const lo = horizontal ? x0 : z0;
   const hi = horizontal ? x1 : z1;
+
+  /*
+   * 칸 경계에서 아주 조금 겹치게 늘인다.
+   * 벽은 칸마다 상자 하나다. 이웃한 상자와 딱 맞대면 마구리 면 둘이 같은 자리에 겹쳐
+   * 깊이 다툼(z-fighting)이 일어나 벽에 세로 줄무늬가 생긴다. 6mm 만 밀어 넣으면
+   * 마구리가 이웃 상자 **안쪽**으로 들어가 다툴 일이 없다.
+   * 문·창 쪽 끝은 늘이지 않는다 — 늘이면 열린 자리를 갉아먹는다.
+   */
+  const EPS = 0.006;
+
+  const put = (from: number, to: number, yLo: number, yHi: number, color: number[]): void => {
+    if (to - from <= 0.001 || yHi - yLo <= 0.001) return;
+    const f = from === lo ? from - EPS : from;
+    const t2 = to === hi ? to + EPS : to;
+    if (horizontal) b.box(f, yLo, at - t / 2, t2, yHi, at + t / 2, color, color);
+    else b.box(at - t / 2, yLo, f, at + t / 2, yHi, t2, color, color);
+  };
 
   if (!op) {
     put(lo, hi, 0, WALL_H, col);
@@ -427,4 +443,3 @@ export function planExtent(plan: FloorPlan): { minX: number; minZ: number; maxX:
   return { minX, minZ, maxX, maxZ };
 }
 
-export { STRIDE };

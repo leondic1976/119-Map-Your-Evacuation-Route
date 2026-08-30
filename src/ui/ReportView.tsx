@@ -29,6 +29,7 @@ export default function ReportView({ onPrint }: Props) {
   const plan = useKids((s) => s.plan);
   const game = useKids((s) => s.game);
   const hazardId = useKids((s) => s.hazardId);
+  const routes = useKids((s) => s.routes);
   if (!report) return null;
   const frames = game?.frames ?? [];
   const tickSeconds = presetById(hazardId)?.tickSeconds ?? 1;
@@ -135,6 +136,7 @@ export default function ReportView({ onPrint }: Props) {
           frames={frames}
           character={profile.playerCharacter}
           tickSeconds={tickSeconds}
+          routes={routes[hazardId]}
           outcome={report.outcome === 'success' ? 'success' : 'failed'}
           bestTicks={progress.bestTicks}
           onClose={() => setShow3d(false)}

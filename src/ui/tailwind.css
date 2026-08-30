@@ -1,0 +1,10 @@
+/*
+ * Tailwind — 3D 리플레이의 유리판 패널에만 쓴다 (설계서 v1.4 §1.1).
+ *
+ * preflight(전역 초기화)를 일부러 뺐다. 켜면 Tailwind 의 초기화가 kids.css 를 덮어써
+ * 단추 크기와 도면 배치가 무너진다 (설계서 v1.4 §1.2). 그래서 theme 과 utilities 만 들인다.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);

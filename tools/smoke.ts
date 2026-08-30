@@ -645,16 +645,22 @@ async function main(): Promise<void> {
       await page.locator('[data-coach="kids-replay3d-open"]').click();
       await page.waitForSelector('.k-replay');
       await page.waitForTimeout(900);
-      const cap = await page.locator('.k-replay-caption').innerText();
+      const cap = await page.locator('.k-r-caption').innerText();
       assert(/초/.test(cap), `자막 없음: ${cap}`);
-      /* WebGL 을 못 쓰는 기기에서는 2D 로 내려간다 (FR-11.7) */
+      /* WebGL 을 못 쓰는 기기에서는 2D 로 내려간다 */
       const has3d = (await page.locator('.k-replay-canvas').count()) === 1;
       const has2d = (await page.locator('[data-fallback="2d"]').count()) === 1;
       assert(has3d || has2d, '3D 도 2D 도 없다');
-      assert((await page.locator('[data-view="first"]').getAttribute('aria-pressed')) === 'true', '1인칭이 기본이 아니다');
-      await page.locator('[data-view="top"]').click();
+      /* 기본은 집 전체 — 처음 보는 아이가 방향을 잃지 않는다 (설계서 v1.4 §2.1) */
+      assert(
+        (await page.locator('[data-view="dollhouse"]').getAttribute('aria-pressed')) === 'true',
+        '집 전체가 기본 시점이 아니다',
+      );
+      await page.locator('[data-view="first"]').click();
       await page.waitForTimeout(300);
-      assert((await page.locator('[data-view="top"]').getAttribute('aria-pressed')) === 'true', '시점이 안 바뀐다');
+      assert((await page.locator('[data-view="first"]').getAttribute('aria-pressed')) === 'true', '시점이 안 바뀐다');
+      await page.locator('[data-view="dollhouse"]').click();
+      await page.waitForTimeout(300);
       /* 끌어서 둘러보기 — 시점이 움직이면 되돌리기 단추가 뜬다 */
       if (has3d) {
         const cv = await page.locator('.k-replay-canvas').boundingBox();
@@ -664,7 +670,7 @@ async function main(): Promise<void> {
           await page.mouse.move(cv.x + cv.width / 2 + 140, cv.y + cv.height / 2 + 30, { steps: 6 });
           await page.mouse.up();
           await page.waitForTimeout(300);
-          const back = page.locator('.k-replay-hint .k-tb', { hasText: '시점 되돌리기' });
+          const back = page.locator('.k-r-panel .k-tb', { hasText: '시점 되돌리기' });
           assert((await back.count()) === 1, '끌어도 시점이 안 돈다');
           await back.click();
           await page.waitForTimeout(200);
@@ -672,7 +678,30 @@ async function main(): Promise<void> {
       }
       await page.locator('[data-coach="kids-replay-play"]').click();
       await page.waitForTimeout(200);
-      await page.locator('.k-replay-bar .k-tb', { hasText: '닫기' }).click();
+
+      /* 겹 켜고 끄기 — 끄면 사라지고 켜면 돌아온다 (설계서 v1.4 §3) */
+      const layerBox = page.locator('[data-coach="kids-replay-layers"]');
+      assert((await layerBox.locator('input[type="checkbox"]').count()) === 4, '보이기 항목이 넷이 아니다');
+      /* 체크상자 자체는 눈에 보이지 않는다 — 라벨 전체가 누르는 칸이다 (D6) */
+      const routeRow = layerBox.locator('label', { hasText: '내가 그린 길' });
+      const routeToggle = routeRow.locator('input');
+      assert((await routeToggle.isChecked()) === true, '길이 처음부터 꺼져 있다');
+      await routeRow.click();
+      await page.waitForTimeout(250);
+      assert((await routeToggle.isChecked()) === false, '길을 못 끈다');
+      await routeRow.click();
+      await page.waitForTimeout(250);
+      assert((await routeToggle.isChecked()) === true, '길이 다시 안 켜진다');
+
+      /* 화질을 낮춰도 화면이 살아 있다 (FR-11.10) */
+      await page.locator('[data-quality="low"]').click();
+      await page.waitForTimeout(700);
+      assert((await page.locator('[data-quality="low"]').getAttribute('aria-pressed')) === 'true', '화질이 안 바뀐다');
+      assert((await page.locator('.k-replay-canvas canvas').count()) === 1, '화질을 낮추니 그림이 사라졌다');
+      await page.locator('[data-quality="high"]').click();
+      await page.waitForTimeout(500);
+
+      await page.locator('.k-r-panel .k-x').click();
       await page.waitForTimeout(300);
       assert((await page.locator('.k-replay').count()) === 0, '리플레이가 안 닫힌다');
       await page.locator('[data-coach="kids-edit-plan"]').click();

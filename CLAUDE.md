@@ -123,14 +123,15 @@ app   →  ui
 ## 9. 절대 규칙
 
 설계서는 `docs/DESIGN-v1.0.md` 와 변경 명세 `docs/DESIGN-v1.1-changes.md`,
-`docs/DESIGN-v1.2-changes.md`, `docs/DESIGN-v1.3-changes.md` 다.
-어긋나면 **뒤 문서가 이긴다**(v1.3 > v1.2 > v1.1 > v1.0).
+`docs/DESIGN-v1.2-changes.md`, `docs/DESIGN-v1.3-changes.md`, `docs/DESIGN-v1.4-changes.md` 다.
+어긋나면 **뒤 문서가 이긴다**(v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
 구현과 어긋나는 결정을 하면 코드보다 설계서를 먼저 고친다.
 
 1. 런타임에 생성형 AI 를 부르지 않는다. 캐릭터의 말은 전부 `content/guide/*.json` 의 고정 문장이다.
 2. **챗봇·자유 텍스트 입력·검색을 만들지 않는다.** 대사는 트리거(`GuideTrigger`) 기반이다.
 3. **에디터·게임·인쇄에 3D 를 만들지 않는다.** 그 셋의 그래픽은 전부 SVG 이고 `ui/PlanSvg.tsx` 하나를 쓴다.
-   3D 는 **리플레이 화면(`ui/replay3d/`)에만** 허용한다(설계서 v1.2 §8). 라이브러리 없이 WebGL2 를 직접 쓴다.
+   3D 는 **리플레이 화면(`ui/replay3d/`)에만** 허용한다(설계서 v1.2 §8). `three` 를 `ui/replay3d/**`
+   밖에서 부르면 `npm test` 가 실패한다.
 4. `src/core/**` 에서 `react`·`zustand`·`document`·`window` 를 부르지 않는다 (§3).
 5. **위험장 엔진(`core/hazard/field.ts`)에 재난 이름을 넣지 않는다.** `'fire'`·`smoke`·`화재`·`연기`가
    그 파일에 나오면 `npm test` 가 실패한다. 재난은 `content/hazards/*.json` 프리셋으로 들어온다.
@@ -144,9 +145,13 @@ app   →  ui
     없어도 다 된다) 아래에서만 낸다. 시계는 **늘어나는 시각**이지 줄어드는 제한이 아니다.
 11. 기본판은 화재 1종이다. 지진·침수·가스 규칙은 `EXTENSION_RULES` 에 두고 기본 규칙셋에 섞지 않는다.
     재난 탭은 `HAZARD_PRESETS` 수만큼만 생긴다.
-12. 단일 HTML 은 4MB 를 넘지 않는다. 런타임 의존성은 `react`·`react-dom`·`zustand` 뿐이다.
-    3D 리플레이도 이 규칙 안에서 만든다 — Three.js 를 들이지 않는다.
-13. **이용자를 고르는 화면을 되살리지 않는다.** 화면은 하나뿐이고, 열면 바로 온보딩이 뜬다.
+12. **단일 HTML 은 4MB 를 넘지 않는다.** 지금 2.2MB 안팎이라 여유가 넉넉하지 않다.
+    무엇을 더하든 `npm test` 가 매번 잰다. 런타임 의존성 목록은 설계서 v1.4 §1.1 이 정본이고,
+    거기 없는 것을 더하면 검사가 실패한다. 늘리려면 설계서를 먼저 고친다.
+13. **오프라인 배포본은 밖에서 아무것도 받아오지 않는다.** 3D 라이브러리가 이걸 깨기 쉽다.
+    `drei` 의 `<Environment preset=...>`(HDRI)와 `<Text>`(글꼴)는 **쓰지 않는다** — CDN 을 부른다.
+    3D 안의 글자는 HTML 겹판으로 얹고, 자산은 파일로 두지 않고 코드로 만든다.
+14. **이용자를 고르는 화면을 되살리지 않는다.** 화면은 하나뿐이고, 열면 바로 온보딩이 뜬다.
 
 콘텐츠를 더하면 `npm run validate` 를 돌린다. 규칙을 더하면 `content/ruleMessages.json` 에
 `reportHeadline`·`praise` 두 문장(각 easy·normal)과 `content/guide/rules.json` 의 `ruleFail` 대사를 함께 더한다.

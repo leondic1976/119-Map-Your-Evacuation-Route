@@ -53,6 +53,7 @@ if (!fs.existsSync(indexPath)) fail('out/index.html 이 없다.');
 let html = fs.readFileSync(indexPath, 'utf8');
 let css = 0;
 let js = 0;
+let images = 0;
 
 /* 1. 웹폰트 CDN 제거 — 시스템 글꼴로 대체 */
 html = html.replace(/<link[^>]+cdn\.jsdelivr\.net[^>]*>/g, '');
@@ -102,8 +103,32 @@ for (const [href, body] of cssUrls) {
   html = html.split(href).join(dataUrl);
 }
 
-/* 7. 남은 외부 참조 점검 */
-const leftovers = Array.from(html.matchAll(/["'(](\/_next\/[^"')\\]+)/g)).map((m) => m[1]);
+/* 7. 소개 화면 등 public/images 자산도 단일 HTML 안에 넣는다 */
+const imageDir = path.join(root, 'public', 'images');
+const imageMime: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
+if (fs.existsSync(imageDir)) {
+  for (const entry of fs.readdirSync(imageDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const ext = path.extname(entry.name).toLowerCase();
+    const mime = imageMime[ext];
+    if (!mime) continue;
+    const file = path.join(imageDir, entry.name);
+    const body = fs.readFileSync(file);
+    const url = `/images/${entry.name}`;
+    if (!html.includes(url)) continue;
+    html = html.split(url).join(`data:${mime};base64,${body.toString('base64')}`);
+    images += body.length;
+  }
+}
+
+/* 8. 남은 외부 참조 점검 */
+const leftovers = Array.from(html.matchAll(/["'(](\/(?:_next|images)\/[^"')\\]+)/g)).map((m) => m[1]);
 if (leftovers.length) {
   process.stdout.write(`\n  경고: 인라인되지 않은 참조 ${leftovers.length}건\n`);
   Array.from(new Set(leftovers))
@@ -117,7 +142,7 @@ fs.writeFileSync(target, html, 'utf8');
 const size = Buffer.byteLength(html, 'utf8');
 process.stdout.write('\n  오프라인 배포본 생성\n');
 process.stdout.write(`    파일    ${path.relative(root, target)}\n`);
-process.stdout.write(`    크기    ${bytes(size)}  (CSS ${bytes(css)} · JS ${bytes(js)})\n`);
+process.stdout.write(`    크기    ${bytes(size)}  (CSS ${bytes(css)} · JS ${bytes(js)} · 그림 ${bytes(images)})\n`);
 process.stdout.write(`    외부 참조 ${leftovers.length}건\n`);
 
 /* 어린이 화면(게임·리포트)이 더해져 1MB 를 조금 넘는다. 상한은 4MB 다 (docs/DESIGN-v1.1-changes.md NFR-3) */

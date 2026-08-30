@@ -3,20 +3,25 @@
 /**
  * 진입 — 화면은 하나뿐이다. 초등학생용 「우리집 대피지도」.
  *
- * 고를 것이 없으므로 첫 화면(이용자 고르기)도 없다. 열면 바로 온보딩이 뜬다.
+ * 이용자 유형을 고르지는 않는다. 새 탭에서는 교육 목적을 소개한 뒤 온보딩으로 간다 (v1.6 §8).
  */
 import React, { useEffect, useState } from 'react';
 import KidsShell from '../ui/KidsShell';
+import WelcomeScreen from '../ui/WelcomeScreen';
+import { host } from '../platform/host';
 
 const PC_MIN_WIDTH = 1024;
+const WELCOME_SESSION_KEY = 'evac-welcome-seen';
 
 export default function Page() {
   const [desktop, setDesktop] = useState(false);
+  const [welcome, setWelcome] = useState(true);
 
   useEffect(() => {
     const query = window.matchMedia(`(min-width: ${PC_MIN_WIDTH}px)`);
     const update = () => setDesktop(query.matches);
     update();
+    setWelcome(host().readSession(WELCOME_SESSION_KEY) !== '1');
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
   }, []);
@@ -36,6 +41,17 @@ export default function Page() {
           <small>브라우저 창을 1024px 이상으로 넓혀 주세요.</small>
         </div>
       </main>
+    );
+  }
+
+  if (welcome) {
+    return (
+      <WelcomeScreen
+        onStart={() => {
+          host().writeSession(WELCOME_SESSION_KEY, '1');
+          setWelcome(false);
+        }}
+      />
     );
   }
 

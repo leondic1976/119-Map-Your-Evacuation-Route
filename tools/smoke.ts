@@ -2,7 +2,7 @@
  * 브라우저 실조작 검증.
  *
  * 정적 내보내기(out/)를 임시 서버로 띄우고 Chromium 으로 실제 화면을 눌러 본다.
- * 온보딩 → 그리기 → 경로 → 대피 연습 → 리포트 → 3D 리플레이 → 인쇄까지 한 번에 가고,
+ * 소개 → 온보딩 → 그리기 → 경로 → 대피 연습 → 리포트 → 3D 리플레이 → 인쇄까지 한 번에 가고,
  * PC 화면과 오프라인 배포본(file://)도 같은 길을 걷는다.
  *
  *   npm run build && npm run smoke
@@ -22,6 +22,8 @@ const MIME: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
 };
@@ -385,7 +387,28 @@ async function main(): Promise<void> {
     await page.evaluate(() => window.localStorage.clear());
     await page.reload({ waitUntil: 'networkidle' });
 
-    await check('열면 바로 집 모양 고르기가 뜬다 — 고를 화면이 하나뿐이다', async () => {
+    await check('첫 소개 화면이 목적·공식 캐릭터·기관·큰 시작 단추를 보여 주고 온보딩으로 이어진다 (설계서 v1.6 §8)', async () => {
+      await page.waitForSelector('.k-welcome');
+      assert((await page.locator('.k-app').count()) === 0, '소개 전에 편집 앱이 실행됐다');
+      assert((await page.locator('.k-welcome h1').innerText()).includes('우리집\n대피지도 그리기'), '소개 제목이 없다');
+      const purpose = await page.locator('.k-welcome-purpose').innerText();
+      assert(purpose.includes('화재') && purpose.includes('신속하게 대피'), `교육 목적이 빠졌다: ${purpose}`);
+      assert((await page.locator('.k-welcome-missions li').count()) === 3, '배울 내용 세 가지가 아니다');
+      const agency = await page.locator('.k-welcome-agency').innerText();
+      assert(agency.includes('부평소방서'), `기관 표기가 없다: ${agency}`);
+      const images = await page.locator('.k-welcome img').evaluateAll((imgs) =>
+        imgs.map((img) => ({ alt: img.getAttribute('alt'), loaded: (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0 })),
+      );
+      assert(images.length === 3 && images.every((img) => img.loaded), `소개 그림을 못 읽었다: ${JSON.stringify(images)}`);
+      assert(images.some((img) => img.alt?.includes('영이, 일구, 웅이')), '공식 캐릭터 대체 글이 없다');
+      const start = page.locator('[data-coach="kids-welcome-start"]');
+      const box = await start.boundingBox();
+      assert(box !== null && box.height >= 72 && box.width >= 300, `시작 단추가 작다: ${JSON.stringify(box)}`);
+      await start.click();
+      await page.waitForSelector('.k-onboard');
+    });
+
+    await check('소개 화면을 지나면 집 모양 고르기가 뜬다 — 고를 화면이 하나뿐이다', async () => {
       await page.waitForSelector('.k-app');
       await page.waitForSelector('.k-onboard');
       assert((await page.locator('.k-tmpl').count()) === 10, '시작 평면 8종 + 빈 도면 + 잘 모르겠어 (설계서 v1.3 §2.2)');
@@ -1135,7 +1158,7 @@ async function main(): Promise<void> {
     /* 오프라인 배포본이 있으면 file:// 에서 인터넷 없이 동작하는지 본다 */
     const standalone = path.join(root, 'dist', 'home-escape-map.html');
     if (fs.existsSync(standalone)) {
-      await check('오프라인 배포본에서 온보딩부터 리포트까지 간다 (NFR-1)', async () => {
+      await check('오프라인 배포본에서 소개부터 리포트까지 간다 (NFR-1)', async () => {
         const off = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR', offline: true });
         const p3 = await off.newPage();
         const pageErrors: string[] = [];
@@ -1145,6 +1168,12 @@ async function main(): Promise<void> {
           if (!r.url().startsWith('file:')) outside.push(r.url());
         });
         await p3.goto(`file:///${standalone.split(path.sep).join('/')}`);
+        await p3.waitForSelector('.k-welcome', { timeout: 20000 });
+        const welcomeImages = await p3.locator('.k-welcome img').evaluateAll((imgs) =>
+          imgs.map((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0),
+        );
+        assert(welcomeImages.length === 3 && welcomeImages.every(Boolean), '오프라인 소개 그림이 보이지 않는다');
+        await p3.locator('[data-coach="kids-welcome-start"]').click();
         await p3.waitForSelector('.k-onboard', { timeout: 20000 });
         await p3.locator('[data-template="apt_2room"]').click();
         await p3.waitForTimeout(400);

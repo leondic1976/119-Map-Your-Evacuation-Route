@@ -1,11 +1,11 @@
 /**
  * 바깥 세계와 닿는 단 하나의 자리 — 저장소와 파일 내보내기.
  *
- * 나머지 코드는 `localStorage` 도 `document` 도 직접 부르지 않고 여기를 거친다.
+ * 나머지 코드는 `localStorage`·`sessionStorage`·`document` 를 직접 부르지 않고 여기를 거친다.
  * 그래서 나중에 Electron 으로 감쌀 때 이 파일의 구현 하나만 갈아 끼우면 된다.
  * (앱을 띄우는 쪽에서 `setHost(desktopHost)` 를 한 번 부른다.)
  *
- *   웹      localStorage + <a download>
+ *   웹      localStorage + sessionStorage + <a download>
  *   데스크톱 파일 시스템 + 저장 대화상자
  *
  * 어느 쪽이든 자료는 이용자 기기 밖으로 나가지 않는다 (CON-2 · CON-8).
@@ -19,6 +19,9 @@ export interface Host {
   /** 쓰지 못했으면 false — 시크릿 모드·용량 초과 */
   write(key: string, value: string): boolean;
   remove(key: string): void;
+  /** 같은 탭을 쓰는 동안만 기억한다. 소개 화면처럼 새 탭마다 다시 보여 줄 때 쓴다 */
+  readSession(key: string): string | null;
+  writeSession(key: string, value: string): boolean;
   /** 이용자 기기에 파일로 내보낸다 */
   exportFile(data: Blob, filename: string): Promise<void>;
 }
@@ -54,6 +57,25 @@ export const webHost: Host = {
       window.localStorage.removeItem(key);
     } catch {
       /* 지우지 못해도 편집은 이어진다 */
+    }
+  },
+
+  readSession(key) {
+    try {
+      if (typeof window === 'undefined' || !window.sessionStorage) return null;
+      return window.sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+
+  writeSession(key, value) {
+    try {
+      if (typeof window === 'undefined' || !window.sessionStorage) return false;
+      window.sessionStorage.setItem(key, value);
+      return true;
+    } catch {
+      return false;
     }
   },
 

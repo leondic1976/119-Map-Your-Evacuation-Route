@@ -22,6 +22,8 @@ const MIME: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.txt': 'text/plain; charset=utf-8',
 };
 
@@ -56,6 +58,9 @@ async function main(): Promise<void> {
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.evaluate(() => window.localStorage.clear());
   await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('.k-welcome');
+  await page.screenshot({ path: path.join(dest, '0-welcome.png') });
+  await page.locator('[data-coach="kids-welcome-start"]').click();
   await page.waitForSelector('.k-onboard');
   await page.screenshot({ path: path.join(dest, '1-template.png') });
   await page.locator('[data-template="apt_2room"]').click();

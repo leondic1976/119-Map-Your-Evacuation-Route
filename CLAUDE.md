@@ -157,7 +157,8 @@ app   →  ui
 13. **오프라인 배포본은 밖에서 아무것도 받아오지 않는다.** 3D 라이브러리가 이걸 깨기 쉽다.
     `drei` 의 `<Environment preset=...>`(HDRI)와 `<Text>`(글꼴)는 **쓰지 않는다** — CDN 을 부른다.
     3D 안의 글자는 HTML 겹판으로 얹고, 자산은 파일로 두지 않고 코드로 만든다.
-14. **이용자를 고르는 화면을 되살리지 않는다.** 화면은 하나뿐이고, 열면 바로 온보딩이 뜬다.
+14. **이용자를 고르는 화면을 되살리지 않는다.** 화면은 하나뿐이다. 새 탭에서 열면 교육 목적과
+    시작 단추만 있는 소개 화면을 한 번 거친 뒤 초등학생용 온보딩으로 간다(설계서 v1.6 §8).
 
 콘텐츠를 더하면 `npm run validate` 를 돌린다. 규칙을 더하면 `content/ruleMessages.json` 에
 `reportHeadline`·`praise` 두 문장(각 easy·normal)과 `content/guide/rules.json` 의 `ruleFail` 대사를 함께 더한다.

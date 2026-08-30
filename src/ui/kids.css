@@ -22,6 +22,317 @@
   --k-radius: 12px;
 }
 
+/* ------------------------------------------------------------ 첫 소개 화면 (설계서 v1.6 §8) */
+.k-welcome {
+  position: relative;
+  height: 100vh;
+  min-height: 680px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #183249;
+  font-family: var(--font-sans, 'Pretendard Variable', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif);
+  word-break: keep-all;
+}
+
+.k-welcome-bg,
+.k-welcome-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.k-welcome-bg {
+  object-fit: cover;
+  object-position: center;
+  z-index: -3;
+}
+
+.k-welcome-shade {
+  z-index: -2;
+  background:
+    linear-gradient(180deg, rgba(5, 48, 80, 0.04) 0%, rgba(5, 48, 80, 0) 55%, rgba(5, 48, 80, 0.18) 100%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 38%, rgba(235, 248, 255, 0.2) 58%, rgba(255, 251, 234, 0.45) 100%);
+}
+
+.k-welcome-card {
+  position: absolute;
+  top: 50%;
+  right: clamp(34px, 5.2vw, 92px);
+  width: min(600px, calc(100vw - 500px));
+  min-width: 520px;
+  padding: 36px 38px 28px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 30px 80px rgba(19, 54, 80, 0.24), 0 4px 16px rgba(19, 54, 80, 0.1);
+  backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.k-welcome-characters {
+  position: absolute;
+  z-index: 2;
+  top: -72px;
+  right: 20px;
+  width: 238px;
+  height: auto;
+  filter: drop-shadow(0 12px 12px rgba(18, 50, 73, 0.2));
+  animation: k-welcome-float 4s ease-in-out infinite;
+}
+
+.k-welcome-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin: 0 0 12px;
+  padding: 5px 14px;
+  border: 1px solid #f2bdc7;
+  border-radius: 999px;
+  background: #fff0f3;
+  color: #96132d;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+
+.k-welcome-card h1 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  padding-right: 142px;
+  color: #102f4a;
+  font-size: clamp(42px, 3.6vw, 58px);
+  line-height: 1.06;
+  letter-spacing: -0.055em;
+}
+
+.k-welcome-card h1 span {
+  color: #c8102e;
+}
+
+.k-welcome-lead {
+  margin: 22px 0 8px;
+  color: #163b5b;
+  font-size: 22px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.k-welcome-purpose {
+  margin: 0;
+  color: #4c6072;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.7;
+}
+
+.k-welcome-missions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 22px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-welcome-missions li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 90px;
+  padding: 10px 8px;
+  border: 1px solid #d9e8f0;
+  border-radius: 18px;
+  background: #f3f9fc;
+  color: #24435c;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.k-welcome-missions svg {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 4px;
+  fill: #fff;
+  stroke: #0f6781;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-welcome-start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 18px 12px 26px;
+  border: 0;
+  border-radius: 20px;
+  background: #c8102e;
+  box-shadow: 0 10px 22px rgba(166, 13, 43, 0.25), inset 0 -3px 0 rgba(101, 3, 21, 0.22);
+  color: #fff;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.k-welcome-start:hover {
+  background: #ad0e28;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(166, 13, 43, 0.3), inset 0 -3px 0 rgba(101, 3, 21, 0.22);
+}
+
+.k-welcome-start:focus-visible {
+  outline: 4px solid #ffd54a;
+  outline-offset: 4px;
+}
+
+.k-welcome-start:active {
+  transform: translateY(1px);
+}
+
+.k-welcome-start span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  color: #c8102e;
+}
+
+.k-welcome-start svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-welcome-agency {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 58px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #dce6ed;
+}
+
+.k-welcome-agency img {
+  width: 78px;
+  height: auto;
+}
+
+.k-welcome-agency span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.k-welcome-agency strong {
+  color: #173c5a;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.k-welcome-agency small {
+  margin-top: 2px;
+  color: #607384;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@keyframes k-welcome-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1deg);
+  }
+}
+
+@media (max-width: 1180px) {
+  .k-welcome-card {
+    right: 24px;
+    width: 520px;
+    min-width: 0;
+    padding-inline: 30px;
+  }
+
+  .k-welcome-characters {
+    top: -54px;
+    right: 14px;
+    width: 200px;
+  }
+
+  .k-welcome-card h1 {
+    padding-right: 120px;
+    font-size: 44px;
+  }
+}
+
+@media (max-height: 780px) {
+  .k-welcome-card {
+    padding-block: 24px 20px;
+  }
+
+  .k-welcome-card h1 {
+    font-size: 40px;
+  }
+
+  .k-welcome-lead {
+    margin-top: 14px;
+    font-size: 19px;
+  }
+
+  .k-welcome-purpose {
+    font-size: 14px;
+  }
+
+  .k-welcome-missions {
+    margin-block: 14px;
+  }
+
+  .k-welcome-missions li {
+    min-height: 76px;
+  }
+
+  .k-welcome-missions svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .k-welcome-agency {
+    min-height: 48px;
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-welcome-characters {
+    animation: none;
+  }
+
+  .k-welcome-start {
+    transition: none;
+  }
+}
+
 .k-app {
   --k-pal-w: 300px;
   --k-howto-w: 268px;

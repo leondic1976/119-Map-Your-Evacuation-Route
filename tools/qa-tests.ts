@@ -267,16 +267,16 @@ export function qaTests(check: Check, assert: Assert): void {
   });
 
   /**
-   * 저장소와 파일 내려받기는 `platform/**` 한 곳만 만진다.
+   * 영구·탭 저장소와 파일 내려받기는 `platform/**` 한 곳만 만진다.
    * Electron 으로 감쌀 때 갈아 끼울 자리를 하나로 묶어 두기 위해서다 — 다른 데로
    * 새면 껍데기를 바꿀 때마다 온 코드를 뒤져야 한다.
    */
-  check('[점검] localStorage·파일 내려받기가 platform 밖으로 새지 않는다', () => {
+  check('[점검] 브라우저 저장소·파일 내려받기가 platform 밖으로 새지 않는다', () => {
     const bad: string[] = [];
     for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])) {
       if (rel(f).startsWith('src/platform/')) continue;
       const src = read(f);
-      for (const m of src.matchAll(/localStorage|createObjectURL|\.download\s*=/g)) {
+      for (const m of src.matchAll(/(?:local|session)Storage|createObjectURL|\.download\s*=/g)) {
         const line = src.slice(0, m.index ?? 0).split('\n').pop() ?? '';
         if (/^\s*(\*|\/\/)/.test(line)) continue;
         bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[0]}`);

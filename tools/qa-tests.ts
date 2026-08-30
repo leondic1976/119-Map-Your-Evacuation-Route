@@ -91,7 +91,7 @@ export function qaTests(check: Check, assert: Assert): void {
       assert(reportRules.includes(row), `규칙별 문장 불일치: ${id}`);
     }
 
-    const reportItems = section('### 3.2 플레이 판정 문장', '## 4. ElevenLabs 최종 제작본');
+    const reportItems = section('### 3.2 플레이 판정 문장', '## 4. ElevenLabs 전달용 최종 지시문');
     const reportItemRows = reportItems.split('\n').filter((line) => /^\| `dyn\./.test(line));
     assert(reportItemRows.length === REPORT_ITEMS.length, `플레이 판정 문서 ${reportItemRows.length}건 · 앱 ${REPORT_ITEMS.length}건`);
     for (const item of REPORT_ITEMS) {
@@ -99,11 +99,16 @@ export function qaTests(check: Check, assert: Assert): void {
       assert(reportItems.includes(row), `플레이 판정 문장 불일치: ${item.id}`);
     }
 
-    const elevenLabs = section('## 4. ElevenLabs 최종 제작본', '## 5. 소리 효과');
-    const voiceRows = elevenLabs.split('\n').filter((line) => /^\| `v-[^`]+\.mp3` \|/.test(line));
-    assert(voiceRows.length === Object.keys(VOICE_LINES).length, `ElevenLabs 문서 ${voiceRows.length}개 · 앱 ${Object.keys(VOICE_LINES).length}개`);
+    const elevenLabs = section('## 4. ElevenLabs 전달용 최종 지시문', '## 5. 소리 효과');
+    assert(elevenLabs.includes('### 지시문 시작') && elevenLabs.includes('### 지시문 끝'), `복사할 지시문의 시작·끝 표시가 없다`);
+    assert(elevenLabs.includes('같은 화자, 같은 말하기 속도, 같은 음량과 음색'), `음성 일관성 지시가 없다`);
+    assert(elevenLabs.includes('파일명, 번호, `읽을 대사`, `목표 길이` 같은 안내 문구는 소리 내어 읽지 마세요.'), `안내 문구를 읽지 말라는 지시가 없다`);
+    assert(elevenLabs.includes('배경음악, 화재경보음, 효과음, 다른 사람의 목소리, 메아리, 공간 음향은 넣지 마세요.'), `불필요한 소리를 금지하는 지시가 없다`);
+    const voiceBlocks = elevenLabs.match(/^\d+\. 파일명: `v-[^`]+\.mp3`$/gm) ?? [];
+    assert(voiceBlocks.length === Object.keys(VOICE_LINES).length, `ElevenLabs 지시문 ${voiceBlocks.length}개 · 앱 ${Object.keys(VOICE_LINES).length}개`);
     for (const [id, line] of Object.entries(VOICE_LINES)) {
-      assert(voiceRows.some((row) => row.startsWith(`| \`${id}.mp3\` | ${line} |`)), `ElevenLabs 문장 불일치: ${id}`);
+      const block = `파일명: \`${id}.mp3\`\n   - 읽을 대사: \`${line}\``;
+      assert(elevenLabs.includes(block), `ElevenLabs 지시문 불일치: ${id}`);
     }
 
     const baker = read(path.join(root, 'tools', 'voice-bake.ts'));

@@ -216,12 +216,14 @@ async function clickOrExplain(page: Page, selector: string, timeout = 8000): Pro
       const r = el.getBoundingClientRect();
       const cx = r.x + r.width / 2;
       const cy = r.y + r.height / 2;
-      const name = (n: Element): string => `${n.tagName.toLowerCase()}.${typeof n.className === 'string' ? n.className : 'svg'}`;
+      /* 이름 붙인 함수를 여기 두면 tsx 가 __name 을 끼워 넣어 브라우저에서 터진다 */
       return {
         missing: false,
         rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
         inView: r.x >= 0 && r.y >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight,
-        stack: (document.elementsFromPoint(cx, cy) as Element[]).slice(0, 5).map(name),
+        stack: (document.elementsFromPoint(cx, cy) as Element[])
+          .slice(0, 5)
+          .map((n) => `${n.tagName.toLowerCase()}.${typeof n.className === 'string' ? n.className : 'svg'}`),
       };
     }, selector);
     throw new Error(`${selector} 를 못 눌렀다 — ${JSON.stringify(info)} :: ${String(e).slice(0, 80)}`);

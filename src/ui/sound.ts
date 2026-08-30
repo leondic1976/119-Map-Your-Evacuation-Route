@@ -28,7 +28,12 @@ let unlocked = false;
  *   - 이미 예약해 둔 감지기 경보는 끄는 순간에도 끝까지 울렸다.
  * 이제 여기 한 곳에서 잠근다. 끄면 예약된 것까지 즉시 멎는다 (설계서 v1.2 §7.1 C1).
  */
-let enabled = true;
+/*
+ * 처음에는 **꺼 둔다.** 저장해 둔 설정을 읽기 전에는 아무 소리도 내지 않는다 —
+ * 켜 두면 껐던 아이가 앱을 다시 열자마자 소리를 듣는다. 소리를 켜는 것은
+ * 저장을 읽은 뒤 `boot()` 가 한 번, 그리고 아이가 단추를 누를 때 한 번뿐이다.
+ */
+let enabled = false;
 
 export function setSoundEnabled(on: boolean): void {
   enabled = on;

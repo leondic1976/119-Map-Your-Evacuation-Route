@@ -32,7 +32,7 @@ import { SLOT_STYLE } from './PlanSvg';
 import { PLAYER_NAME } from './Avatar';
 import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
-import { playDoor, playTap, setSoundEnabled, stopSpeaking, unlockAudio } from './sound';
+import { playDoor, playTap, stopSpeaking, unlockAudio } from './sound';
 
 export default function KidsShell() {
   const ready = useKids((s) => s.ready);
@@ -76,9 +76,8 @@ export default function KidsShell() {
 
   /* 시작 */
   useEffect(() => {
+    /* 소리 켬/끔은 boot() 안에서 저장을 읽자마자 맞춘다 (설계서 v1.6 §3) */
     useKids.getState().boot();
-    /* 저장해 둔 켬/끔을 소리 모듈에 알린다 — 안 하면 껐던 아이가 소리를 다시 듣는다 */
-    setSoundEnabled(useKids.getState().profile.soundOn);
     document.body.classList.add('kids-mode');
     const style = document.createElement('style');
     style.id = 'k-page';
@@ -313,8 +312,7 @@ export default function KidsShell() {
             onClick={() => {
               const next = !profile.soundOn;
               if (next) unlockAudio();
-              /* 켬/끔은 여기 한 번만 알린다. 끄면 예약된 소리까지 즉시 멎는다 */
-              setSoundEnabled(next);
+              /* 알리는 것도 저장하는 것도 setProfile 한 곳에서 한다 */
               useKids.getState().setProfile({ soundOn: next });
               if (next) playTap(true);
             }}

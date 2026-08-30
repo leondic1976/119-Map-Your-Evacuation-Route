@@ -390,9 +390,22 @@ async function main(): Promise<void> {
       assert((await btn.getAttribute('aria-pressed')) === 'false', '끄지 못했다');
       const speaking = await page.evaluate(() => window.speechSynthesis?.speaking ?? false);
       assert(speaking === false, '껐는데 아직 읽고 있다');
-      await btn.click(); // 다시 켠다
+      /* 껐다는 사실이 곧바로 저장돼야 한다 — 600ms 뒤 저장은 창을 닫으면 날아간다 */
+      const savedOff = await page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.soundOn);
+      assert(savedOff === false, '끈 것이 곧바로 저장되지 않았다');
+
+      /* 껐으면 다시 열어도 꺼져 있어야 한다 (설계서 v1.6 §3) */
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('.k-app');
+      await page.waitForTimeout(900);
+      const stillOff = await page.locator('[data-coach="kids-sound"]').getAttribute('aria-pressed');
+      assert(stillOff === 'false', '다시 열었더니 소리가 켜져 있다');
+      const speakingAgain = await page.evaluate(() => window.speechSynthesis?.speaking ?? false);
+      assert(speakingAgain === false, '다시 열자마자 읽고 있다');
+
+      await page.locator('[data-coach="kids-sound"]').click(); // 다시 켠다
       await page.waitForTimeout(200);
-      assert((await btn.getAttribute('aria-pressed')) === 'true', '다시 켜지지 않는다');
+      assert((await page.locator('[data-coach="kids-sound"]').getAttribute('aria-pressed')) === 'true', '다시 켜지지 않는다');
     });
 
     /* 여럿 고르기와 함께 옮기기 (설계서 v1.5 §1) */
@@ -450,12 +463,13 @@ async function main(): Promise<void> {
       const spot = page.locator('.k-stage [data-kind="marker"] .k-player');
       assert((await spot.count()) >= 1, '내 자리가 캐릭터로 그려지지 않았다');
 
-      await page.locator('[data-coach="kids-more"]').click().catch(() => undefined);
-      await page.waitForTimeout(200);
-      /* 「표시」 갈래에서 동생을 고른다 */
+      /* 「더보기」를 펴고 「표시」 갈래에서 동생을 고른다 */
+      const more = page.locator('[data-block-id="more"]');
+      if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+      await page.waitForTimeout(250);
       const cat = page.locator('.k-cats button', { hasText: '표시' });
-      if (await cat.count()) await cat.first().click();
-      await page.waitForTimeout(200);
+      await cat.first().click();
+      await page.waitForTimeout(250);
       const younger = page.locator('[data-block-id="sibling_younger"]');
       assert((await younger.count()) === 1, '동생 블록이 팔레트에 없다');
       await younger.click();

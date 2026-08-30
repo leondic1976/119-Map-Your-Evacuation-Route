@@ -46,7 +46,7 @@ import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roo
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { loadKids, saveKids } from './storage';
-import { playDoor, playTap } from '../ui/sound';
+import { playDoor, playTap, setSoundEnabled } from '../ui/sound';
 
 const HISTORY = 30;
 const AUTOSAVE_MS = 600;
@@ -362,6 +362,11 @@ export const useKids = create<KidsStore>()((set, get) => {
     boot: () => {
       const saved = loadKids();
       const now = Date.now();
+      /*
+       * 말풍선을 띄우기 전에 소리부터 맞춘다.
+       * 뒤에 맞추면 첫 대사가 이미 소리를 내 버려, 껐던 아이가 앱을 열자마자 듣는다.
+       */
+      setSoundEnabled(saved ? saved.profile.soundOn : defaultProfile().soundOn);
       if (saved && saved.plan.blocks.length > 0) {
         bumpBlockIdSeq(saved.plan);
         const seen = saved.progress.completedSteps.filter((s) => s.startsWith('card:')).map((s) => s.slice(5));
@@ -391,6 +396,14 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     setProfile: (patch) => {
       set({ profile: { ...get().profile, ...patch } });
+      /* 켬/끔은 저장뿐 아니라 소리 모듈에도 곧바로 알린다 (설계서 v1.6 §3) */
+      if (patch.soundOn !== undefined) {
+        setSoundEnabled(patch.soundOn);
+        /* 끄자마자 창을 닫으면 600ms 뒤의 저장이 날아간다. 켬/끔만은 즉시 저장한다 */
+        saveKids(get().toSaveFile());
+        set({ savedAt: Date.now() });
+        return;
+      }
       scheduleSave();
     },
 

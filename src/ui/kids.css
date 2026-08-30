@@ -672,10 +672,11 @@
   padding: 0 8px;
 }
 
-/* 도면 — 막대 · 도면 · 말풍선 · 점검 한 줄 */
+/* 도면 — 막대 · 도면 · 고정 높이 해설 칸 · 점검 한 줄 */
 .k-center {
+  --k-guide-h: 118px;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto minmax(0, 1fr) var(--k-guide-h) auto;
   min-height: 0;
   min-width: 0;
 }

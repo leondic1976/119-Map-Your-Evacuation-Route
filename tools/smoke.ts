@@ -808,18 +808,34 @@ async function main(): Promise<void> {
       await page.waitForSelector('svg.k-stage');
     });
 
-    await check('말풍선이 도면을 가리지 않는다 (설계서 v1.2 §6.1)', async () => {
+    await check('말풍선이 나타나도 도면 크기가 그대로이고 서로 겹치지 않는다 (설계서 v1.6 §9)', async () => {
+      const close = page.locator('.k-bubble .k-tb', { hasText: '알겠어' });
+      if (await close.count()) await close.click();
+      await page.waitForTimeout(150);
+      const before = await page.locator('svg.k-stage').boundingBox();
+      assert(before !== null, '말하기 전 도면을 재지 못했다');
       await page.locator('[data-coach="kids-help"]').click();
       await page.waitForSelector('.k-bubble');
-      const overlap = await page.evaluate(() => {
+      const during = await page.locator('svg.k-stage').boundingBox();
+      assert(during !== null, '말하는 동안 도면을 재지 못했다');
+      assert(
+        Math.abs(during!.width - before!.width) <= 1 && Math.abs(during!.height - before!.height) <= 1,
+        `도면 크기가 ${before!.width}x${before!.height} → ${during!.width}x${during!.height} 로 바뀌었다`,
+      );
+      const geometry = await page.evaluate(() => {
         const b = document.querySelector('.k-bubble')?.getBoundingClientRect();
         const s = document.querySelector('svg.k-stage')?.getBoundingClientRect();
-        if (!b || !s) return -1;
+        const slot = document.querySelector('.k-guide-slot')?.getBoundingClientRect();
+        if (!b || !s || !slot) return { overlap: -1, contained: false };
         const w = Math.min(b.right, s.right) - Math.max(b.left, s.left);
         const h = Math.min(b.bottom, s.bottom) - Math.max(b.top, s.top);
-        return w > 0 && h > 0 ? Math.round(w * h) : 0;
+        return {
+          overlap: w > 0 && h > 0 ? Math.round(w * h) : 0,
+          contained: b.top >= slot.top - 1 && b.bottom <= slot.bottom + 1,
+        };
       });
-      assert(overlap === 0, `겹친 넓이 ${overlap}px2`);
+      assert(geometry.overlap === 0, `겹친 넓이 ${geometry.overlap}px2`);
+      assert(geometry.contained, '말풍선이 해설 전용 칸을 벗어났다');
     });
 
     await check('소리를 끄면 상태가 저장된다 (설계서 v1.2 §7.1 C1)', async () => {
@@ -1056,8 +1072,6 @@ async function main(): Promise<void> {
       await page.waitForTimeout(700);
       assert((await page.locator('[data-quality="low"]').getAttribute('aria-pressed')) === 'true', '화질이 안 바뀐다');
       assert((await page.locator('.k-replay-canvas canvas').count()) === 1, '화질을 낮추니 그림이 사라졌다');
-      await page.locator('[data-quality="high"]').click();
-      await page.waitForTimeout(500);
 
       /*
        * 닫기 단추가 정말 위에 있는지 먼저 확인한다 — 무엇에 덮여 있으면 여기서 잡힌다.

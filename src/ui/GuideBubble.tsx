@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * 캐릭터 말풍선 — 캔버스 위에 떠오르는 덮개 (docs/DESIGN-v1.1-changes.md §4.6).
- * 고정 패널이 아니다. 8초 뒤 저절로 사라지거나 아이가 닫는다.
+ * 캐릭터 말풍선 — 캔버스 아래의 고정 높이 해설 칸 (docs/DESIGN-v1.6-changes.md §9).
+ * 8초 뒤 저절로 사라지거나 아이가 닫지만, 바깥 칸은 남아 도면 크기를 바꾸지 않는다.
  * [왜?] 를 누르면 학습 카드가 그 자리에서 펼쳐진다. 자유 입력은 없다 (FR-9.2).
  */
 import React, { useEffect, useState } from 'react';

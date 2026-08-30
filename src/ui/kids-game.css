@@ -76,13 +76,27 @@
 }
 
 /*
- * 말풍선 — 도면 아래 칸이다. 도면 위에 띄우면 지도를 가린다 (설계서 v1.2 §6.1).
- * 할 말이 없으면 이 칸 자체가 사라져 도면이 다시 넓어진다.
+ * 말풍선 — 도면 아래의 고정 높이 칸이다 (설계서 v1.6 §9).
+ * 바깥 칸은 말이 없어도 남으므로 캐릭터가 말할 때 도면 크기가 달라지지 않는다.
  */
+.k-guide-slot {
+  grid-row: 3;
+  min-height: 0;
+  height: var(--k-guide-h);
+  overflow-y: auto;
+  border-top: 1px solid #dce4eb;
+  background: #f4f7f8;
+  scrollbar-gutter: stable;
+}
+
 .k-bubble {
   display: flex;
   gap: 10px;
   align-items: center;
+  box-sizing: border-box;
+  width: calc(100% - 28px);
+  max-height: calc(var(--k-guide-h) - 14px);
+  overflow-y: auto;
   padding: 8px 12px;
   margin: 6px 14px 8px;
   background: #fff;
@@ -545,11 +559,11 @@
 }
 
 /*
- * 가운데 세 줄의 자리를 못 박는다. 게임·리포트에서는 위 막대가 없는데,
+ * 가운데 네 줄의 자리를 못 박는다. 게임·리포트에서는 위 막대가 없는데,
  * 자리를 정해 두지 않으면 도면 칸이 auto 줄로 밀려 높이가 0 이 된다.
  */
 .k-center {
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) var(--k-guide-h) auto;
 }
 
 .k-canvas-bar {
@@ -558,10 +572,6 @@
 
 .k-canvas-wrap {
   grid-row: 2;
-}
-
-.k-center > .k-bubble {
-  grid-row: 3;
 }
 
 .k-center > .k-report {

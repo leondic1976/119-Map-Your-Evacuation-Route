@@ -767,7 +767,13 @@
   grid-row: 1;
   align-self: start;
   justify-self: end;
-  z-index: 3;
+  /*
+   * position 을 준다. 자리를 옮기려는 것이 아니라 z-index 를 확실히 듣게 하려는 것이다 —
+   * 자리 잡지 않은 격자 칸의 z-index 는 2D 대체 화면(위치 잡은 자손)에 밀린다.
+   * WebGL 이 없는 기기에서 도면 SVG 가 패널을 덮어 닫기 단추가 눌리지 않았다.
+   */
+  position: relative;
+  z-index: 5;
   margin: 14px;
   width: 288px;
   max-height: calc(100% - 28px);

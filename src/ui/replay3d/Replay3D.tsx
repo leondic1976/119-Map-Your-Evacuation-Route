@@ -77,7 +77,6 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const [layers, setLayers] = useState<Layers>({ route: true, trail: true, hazard: true, scenery: true });
   /** 멈춘 뒤 끌어서 둘러보기 — 좌우(yaw)·상하(pitch)와 거리(zoom) */
   const [orbit, setOrbit] = useState({ yaw: 0, pitch: 0, zoom: 1 });
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
   const frame = frames[Math.min(i, frames.length - 1)];
 
   /* 기기를 보고 첫 화질을 고른다 */
@@ -107,6 +106,15 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   useEffect(() => {
     setOrbit({ yaw: 0, pitch: 0, zoom: 1 });
   }, [view]);
+
+  /* 덮개에는 닫기와 Esc 를 둔다 (작업지침 §5) */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const settings = useMemo(() => settingsFor(quality), [quality]);
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);
@@ -141,6 +149,33 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
 
   const setLayer = useCallback((k: keyof Layers, v: boolean) => {
     setLayers((s) => ({ ...s, [k]: v }));
+  }, []);
+
+  /*
+   * 끌어서 둘러보기.
+   * setPointerCapture 를 쓰지 않는다 — 놓아 주지 못한 채 남으면 그 뒤로 모든 누름이
+   * 그 칸으로 빨려 들어가 조작 패널이 먹통이 된다. 끄는 동안만 창에 귀를 붙인다.
+   */
+  const startDrag = useCallback((e: React.PointerEvent) => {
+    let last = { x: e.clientX, y: e.clientY };
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - last.x;
+      const dy = ev.clientY - last.y;
+      last = { x: ev.clientX, y: ev.clientY };
+      setOrbit((o) => ({
+        ...o,
+        yaw: o.yaw + dx * 0.006,
+        pitch: Math.max(-0.6, Math.min(0.9, o.pitch + dy * 0.005)),
+      }));
+    };
+    const stop = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
   }, []);
 
   const moved = orbit.yaw !== 0 || orbit.pitch !== 0 || orbit.zoom !== 1;
@@ -186,30 +221,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
           <div
             className="k-replay-canvas"
             data-render-quality={quality}
-            onPointerDown={(e) => {
-              dragRef.current = { x: e.clientX, y: e.clientY };
-              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-            }}
-            onPointerMove={(e) => {
-              const d = dragRef.current;
-              if (!d) return;
-              const dx = e.clientX - d.x;
-              const dy = e.clientY - d.y;
-              dragRef.current = { x: e.clientX, y: e.clientY };
-              setOrbit((o) => ({
-                ...o,
-                yaw: o.yaw + dx * 0.006,
-                pitch: Math.max(-0.6, Math.min(0.9, o.pitch + dy * 0.005)),
-              }));
-            }}
-            onPointerUp={(e) => {
-              dragRef.current = null;
-              try {
-                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-              } catch {
-                /* 이미 풀렸다 */
-              }
-            }}
+            onPointerDown={startDrag}
             onWheel={(e) => {
               setOrbit((o) => ({ ...o, zoom: Math.max(0.45, Math.min(2.6, o.zoom * (e.deltaY > 0 ? 0.89 : 1.12))) }));
             }}

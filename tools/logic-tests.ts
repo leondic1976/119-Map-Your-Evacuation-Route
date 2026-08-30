@@ -24,9 +24,10 @@ import { analyze } from '../src/core/graph/analyze';
 import { evaluate, severityOf } from '../src/core/rules/engine';
 import { EXTENSION_RULES, RULES } from '../src/core/rules/definitions';
 import { canPlaceRoom } from '../src/core/grid/occupancy';
-import { isAdjacent } from '../src/core/grid/geometry';
+import { isAdjacent, step } from '../src/core/grid/geometry';
 import { doorlessRooms } from '../src/core/grid/doors';
-import { buildContext } from '../src/core/hazard/transfer';
+import { bedroomCount, preparePlan, rotatePlan } from '../src/core/plan/prepare';
+import { buildContext, transfer, walkable } from '../src/core/hazard/transfer';
 import { createField, ignite, spread } from '../src/core/hazard/field';
 import { aheadTicks, gameGoalCells, hasSurvivablePath, pickIgnition, rng, simulateAhead } from '../src/core/hazard/ignition';
 import { finishGame, startGame, tick, tick as gameTick } from '../src/core/game/loop';
@@ -169,6 +170,39 @@ export function logicTests(check: Check, assert: Assert): void {
       ]),
     };
     assert(doorlessRooms(complete).length === 0, '통로인 발코니 창을 놓았는데 문 없는 방으로 남았다');
+  });
+
+  check('개방형 주방은 거실·복도 쪽 벽 전체가 트인 통로가 된다 (설계서 v1.6 §11.3)', () => {
+    const plan = preparePlan(template('apt_2room'), { openKitchen: true });
+    const passages = plan.blocks.filter((block) => block.kind === 'opening' && block.openingKind === 'open_passage');
+    assert(passages.length === 9, `방 두 개 평면의 트인 벽이 9칸이어야 하는데 ${passages.length}칸이다`);
+    assert(passages.every((passage) => passage.kind === 'opening' && passage.closedByDefault === false), '트인 통로가 닫힌 상태다');
+    assert(!doorlessRooms(plan).some((room) => room.roomKind === 'kitchen'), '트인 주방을 문 없는 방으로 잘못 안내한다');
+    const graph = buildGraph(plan);
+    assert(graph.edges.filter((edge) => edge.via === 'open_passage').length === 9, '트인 벽이 통행 그래프에 이어지지 않았다');
+    assert(Object.values(DEFAULT_PASSABILITY.open_passage).every((value) => value === 'open'), '트인 통로가 모든 상황에서 항상 열려 있지 않다');
+    assert(graph.warnings.length === 0, `트인 주방 그래프 경고: ${graph.warnings.join(' | ')}`);
+    const passage = plan.blocks.find((block) => block.kind === 'opening' && block.openingKind === 'open_passage');
+    if (!passage || passage.kind !== 'opening') throw new Error('트인 통로가 없다');
+    const context = buildContext(plan, graph);
+    const field = createField(plan, context, fuelOf);
+    const otherSide = step(passage.cell, passage.side);
+    assert(Boolean(walkable(passage.cell, otherSide, field, context)), '트인 벽을 사람이 지나갈 수 없다');
+    assert(transfer(passage.cell, otherSide, field, context, { [passage.id]: 'closed' }, FIRE) === 1, '트인 벽에서 연기 흐름을 막는다');
+  });
+
+  check('질문형 시작의 방만 놓기·회전이 평면 경계를 지킨다 (설계서 v1.6 §11.4)', () => {
+    const source = template('apt_2room');
+    const roomsOnly = preparePlan(source, { roomsOnly: true });
+    assert(roomsOnly.blocks.every((block) => block.kind === 'room'), '방만 놓기에 문이나 물건이 섞였다');
+    assert(bedroomCount(roomsOnly) === 2, '방만 놓기에서 침실 수가 달라졌다');
+    for (const rotation of [0, 90, 180, 270] as const) {
+      const plan = preparePlan(source, { openKitchen: true, rotation });
+      assert(validatePlan(plan).length === 0, `${rotation}도 회전 평면이 도면 밖으로 나갔다: ${validatePlan(plan).join(' | ')}`);
+      assert(bedroomCount(plan) === 2, `${rotation}도 회전에서 침실 수가 달라졌다`);
+    }
+    const turned = rotatePlan(source, 90);
+    assert(turned.grid.width === source.grid.height && turned.grid.height === source.grid.width, '90도 회전에서 도면 가로·세로가 바뀌지 않았다');
   });
 
   check('시작 평면 8종이 모두 말이 되고 고립된 방이 없다 (설계서 v1.2 §1.2)', () => {

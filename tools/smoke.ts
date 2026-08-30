@@ -408,60 +408,69 @@ async function main(): Promise<void> {
       await page.waitForSelector('.k-onboard');
     });
 
-    await check('소개 화면을 지나면 집 모양 고르기가 뜬다 — 고를 화면이 하나뿐이다', async () => {
+    await check('소개 화면을 지나면 어린이가 고를 수 있는 세 가지 시작 방법이 뜬다 (설계서 v1.6 §11.1)', async () => {
       await page.waitForSelector('.k-app');
       await page.waitForSelector('.k-onboard');
-      assert((await page.locator('.k-tmpl').count()) === 10, '시작 평면 8종 + 빈 도면 + 잘 모르겠어 (설계서 v1.3 §2.2)');
+      assert((await page.locator('[data-start-path]').count()) === 3, '시작 방법이 세 가지가 아니다');
+      assert((await page.locator('[data-start-path="guided"]').count()) === 1, '질문으로 쉽게 만들기가 없다');
+      assert((await page.locator('.k-tmpl').count()) === 0, '첫 화면에 많은 평면 카드가 한꺼번에 보인다');
       assert((await page.locator('.k-tabs').count()) === 0, '기본판에 재난 탭이 있다 (FR-2.1 개정)');
       assert((await page.locator('.k-ask input, textarea').count()) === 0, '자유 입력 UI 가 있다 (의견 3)');
     });
 
-    /*
-     * 아이가 처음 만나는 화면이라 여기가 제일 쉬워야 한다.
-     * 어른 말("타워형"·"복층"·"다세대")이 그대로 나오면 실패다.
-     */
-    await check('쉬움에서 집 모양 이름이 아이 말로 나온다 (FR-7.17)', async () => {
+    await check('질문형 시작은 방 개수로 후보를 세 개 이하로 줄이고 쉬운 이름을 쓴다 (설계서 v1.6 §11.2)', async () => {
+      await page.locator('[data-start-path="guided"]').click();
+      assert((await page.locator('[data-bedroom-count]').count()) === 4, '방 개수 선택이 네 가지가 아니다');
+      await page.locator('[data-bedroom-count="2"]').click();
+      const cards = page.locator('.k-tmpl');
+      assert((await cards.count()) === 3, `방 두 개 후보가 ${(await cards.count())}개다`);
       const names = await page.locator('.k-tmpl b').allInnerTexts();
       const adult = ['타워형', '복층', '다세대', '원룸', '단독주택'];
       const found = adult.filter((w) => names.some((n) => n.includes(w)));
       assert(found.length === 0, `어른 말이 남았다: ${found.join(', ')}`);
-      for (const want of ['방이 빙 둘러싼 아파트', '위아래 두 층인 집', '마당 있는 집', '방 하나인 집', '빌라']) {
-        assert(names.includes(want), `"${want}" 카드가 없다 — ${names.join(' | ')}`);
+      for (const want of ['방이 한쪽에 나란한 집', '거실 둘레에 방이 있는 집', '거실과 마당이 이어진 집']) {
+        assert(names.includes(want), `"${want}" 후보가 없다 — ${names.join(' | ')}`);
       }
-      /* 가운뎃점 든 짧은 말은 줄 끝에서 갈라진다 (작업지침 §5) */
-      assert(!names.some((n) => n.includes('·')), `가운뎃점이 남았다: ${names.filter((n) => n.includes('·')).join(', ')}`);
+      await page.locator('[data-template="apt_2room"]').click();
+      assert((await page.locator('[data-kitchen]').count()) === 3, '주방 형태 선택이 세 가지가 아니다');
+      assert((await page.locator('[data-rotation]').count()) === 4, '평면 방향 선택이 네 가지가 아니다');
     });
 
-    await check('「잘 모르겠어」를 한 번 누르면 방 두 개 아파트로 시작한다 (FR-7.18)', async () => {
-      const card = page.locator('[data-template="unsure"]');
-      const blurb = await card.locator('small').innerText();
-      assert(blurb.includes('어른') && blurb.includes('바꿀 수 있어'), `안심 문구가 없다: ${blurb}`);
-      await card.click();
-      /* 되묻지 않는다 — 바로 다음 물음(1층·반지하)으로 간다 */
-      await page.waitForTimeout(700);
+    await check('트인 주방은 거실·복도 쪽 벽 전체가 실제 통로로 만들어진다 (설계서 v1.6 §11.3)', async () => {
+      assert((await page.locator('[data-kitchen="open"]').getAttribute('aria-pressed')) === 'true', '트인 주방이 기본 선택이 아니다');
+      assert((await page.locator('.k-customize-preview [data-opening-kind="open_passage"]').count()) === 9, '미리보기에서 주방 벽 전체가 열리지 않았다');
+      await page.locator('[data-rotation="90"]').click();
+      assert((await page.locator('[data-rotation="90"]').getAttribute('aria-pressed')) === 'true', '회전 선택이 반영되지 않았다');
+      await page.locator('[data-rotation="0"]').click();
+      await page.locator('[data-coach="kids-plan-start"]').click();
+      await page.waitForTimeout(500);
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
       assert(rooms === 8, `방 두 개 아파트가 안 실렸다 — 방 ${rooms}개`);
-      /* 다음 시나리오가 처음부터 시작하도록 되돌린다 */
+      assert((await page.locator('.k-stage [data-opening-kind="open_passage"]').count()) === 9, '도면에서 주방 벽 전체가 열리지 않았다');
       await page.evaluate(() => window.localStorage.clear());
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForSelector('.k-onboard');
     });
 
-    await check('온보딩 4회 조작으로 게임 시작 — 집 모양·내 방·나중에·시작 (설계서 v1.6 §2)', async () => {
-      await page.locator('[data-template="apt_2room"]').click(); // 1
+    await check('질문형 온보딩을 마치고 대피 게임을 시작한다 (설계서 v1.6 §11)', async () => {
+      await page.locator('[data-start-path="guided"]').click();
+      await page.locator('[data-bedroom-count="2"]').click();
+      await page.locator('[data-template="apt_2room"]').click();
+      await page.locator('[data-kitchen="closed"]').click();
+      await page.locator('[data-coach="kids-plan-start"]').click();
       await page.waitForTimeout(400);
       assert((await page.locator('.k-onboard').count()) === 0, '안내가 안 닫혔다');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '내 방 단계가 아니다');
       const bubble = await page.locator('.k-bubble').innerText();
       assert(bubble.includes('네 방') || bubble.includes('자는 방'), `캐릭터 안내: ${bubble.slice(0, 40)}`);
       const room = await kidsCell(page, 10, 4); // 안방
-      await page.mouse.click(room.x, room.y); // 3
+      await page.mouse.click(room.x, room.y);
       await page.waitForTimeout(300);
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'meeting', '만나는 곳 단계가 아니다');
-      await page.locator('[data-coach="kids-meeting-later"]').click(); // 4
+      await page.locator('[data-coach="kids-meeting-later"]').click();
       await page.waitForTimeout(300);
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'ready', '준비 단계가 아니다');
-      await page.locator('[data-coach="kids-start-game"]').click(); // 5
+      await page.locator('[data-coach="kids-start-game"]').click();
       await page.waitForSelector('.k-game');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'game', '게임이 시작되지 않았다');
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
@@ -1138,19 +1147,20 @@ async function main(): Promise<void> {
       await page.waitForSelector('svg.k-stage');
     });
 
-    await check('빈 도면에서 시작해도 방을 놓을 수 있고 내 자리를 묻는다 (설계서 v1.2 §1.3)', async () => {
+    await check('방부터 놓기는 문과 가구 없이 방만 준비하고 내 자리를 묻는다 (설계서 v1.6 §11.1)', async () => {
       await page.evaluate(() => window.localStorage.clear());
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForSelector('.k-onboard');
-      await page.locator('[data-template="blank"]').click();
-      await page.waitForTimeout(500);
-      assert((await page.locator('.k-app').getAttribute('data-step')) === 'edit', '빈 도면인데 내 자리부터 묻는다');
-      await page.locator('[data-block-id="bedroom"]').click();
-      const p = await kidsCell(page, 8, 6);
-      await page.mouse.click(p.x, p.y);
-      await page.waitForTimeout(900);
-      assert((await kidsSave(page)).blocks === 1, '빈 도면에 방이 안 놓인다');
-      assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '첫 방 뒤에 내 자리를 안 묻는다');
+      await page.locator('[data-start-path="starter"]').click();
+      await page.locator('[data-bedroom-count="2"]').click();
+      assert((await page.locator('.k-customize-preview [data-kind="room"]').count()) === 8, '방 미리보기가 준비되지 않았다');
+      assert((await page.locator('.k-customize-preview [data-kind="opening"]').count()) === 0, '방부터 놓기에 문이 섞였다');
+      await page.locator('[data-coach="kids-plan-start"]').click();
+      await page.waitForTimeout(800);
+      assert((await page.locator('.k-stage [data-kind="room"]').count()) === 8, '도면에 방만 놓이지 않았다');
+      assert((await page.locator('.k-stage [data-kind="opening"]').count()) === 0, '도면에 문이 미리 놓였다');
+      assert((await kidsSave(page)).blocks === 8, '저장된 평면이 방 8개가 아니다');
+      assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '방을 놓은 뒤 내 자리를 묻지 않는다');
     });
 
     await check('1024px 미만 화면에서는 PC 안내만 보이고 앱이 실행되지 않는다', async () => {
@@ -1189,7 +1199,11 @@ async function main(): Promise<void> {
         assert(welcomeImages.length === 3 && welcomeImages.every(Boolean), '오프라인 소개 그림이 보이지 않는다');
         await p3.locator('[data-coach="kids-welcome-start"]').click();
         await p3.waitForSelector('.k-onboard', { timeout: 20000 });
+        await p3.locator('[data-start-path="guided"]').click();
+        await p3.locator('[data-bedroom-count="2"]').click();
         await p3.locator('[data-template="apt_2room"]').click();
+        await p3.locator('[data-kitchen="closed"]').click();
+        await p3.locator('[data-coach="kids-plan-start"]').click();
         await p3.waitForTimeout(400);
         const box = await p3.locator('svg.k-stage').boundingBox();
         assert(box !== null, '도면이 없다');

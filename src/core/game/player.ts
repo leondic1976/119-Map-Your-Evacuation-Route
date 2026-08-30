@@ -57,7 +57,7 @@ export function move(state: GameState, ctx: FieldContext, d: Direction): boolean
     }
     p.lastDoorId = id;
     state.events.push('passedDoor');
-  } else if (bd && bd.openingId) {
+  } else if (bd && bd.openingId && (bd.openingKind === 'window' || bd.openingKind === 'balcony_window')) {
     state.events.push('passedWindow');
     p.lastDoorId = undefined;
   } else {

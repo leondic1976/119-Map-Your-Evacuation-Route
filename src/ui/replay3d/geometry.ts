@@ -346,6 +346,9 @@ function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: Op
     return;
   }
 
+  /* 트인 통로는 문틀과 인방도 없는 완전한 벽 제거다. */
+  if (op.openingKind === 'open_passage') return;
+
   /* 문·창이 좁아 보인다는 지적을 받아 칸의 대부분을 비운다. 0.62 → 0.88 */
   const gapW = op.openingKind === 'window' || op.openingKind === 'balcony_window' ? 0.9 : 0.88;
   const mid = (lo + hi) / 2;
@@ -374,7 +377,7 @@ export function buildDoors(plan: FloorPlan, doorState: Record<string, 'open' | '
   const b = new Builder();
   for (const o of plan.blocks) {
     if (!isOpening(o)) continue;
-    if (o.openingKind === 'window' || o.openingKind === 'balcony_window') continue;
+    if (o.openingKind === 'window' || o.openingKind === 'balcony_window' || o.openingKind === 'open_passage') continue;
     const closed = doorState[o.id] === 'closed';
     if (!closed) continue; // 열린 문은 벽에 붙어 보이지 않게 둔다
     const horizontal = o.side === 'N' || o.side === 'S';
@@ -442,4 +445,3 @@ export function planExtent(plan: FloorPlan): { minX: number; minZ: number; maxX:
   if (!Number.isFinite(minX)) return { minX: 0, minZ: 0, maxX: plan.grid.width, maxZ: plan.grid.height };
   return { minX, minZ, maxX, maxZ };
 }
-

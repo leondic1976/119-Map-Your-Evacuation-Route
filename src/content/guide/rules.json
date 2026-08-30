@@ -9,8 +9,8 @@
     "speaker": "yeongi",
     "emotion": "happy",
     "text": {
-      "easy": "안녕! 너희 집이랑 제일 비슷한 걸 골라볼래?",
-      "normal": "안녕하세요. 우리 집과 가장 비슷한 평면을 고르세요."
+      "easy": "똑같지 않아도 돼! 쉬운 시작 방법을 골라 보자.",
+      "normal": "완전히 같은 평면을 찾지 않아도 됩니다. 시작 방법을 고르세요."
     },
     "cooldown": 0,
     "sourceIds": [
@@ -1381,8 +1381,8 @@
     "speaker": "yeongi",
     "emotion": "normal",
     "text": {
-      "easy": "우리 집과 비슷한 모양을 하나 누르면 돼.",
-      "normal": "우리 집과 비슷한 평면을 하나 고르세요."
+      "easy": "‘질문으로 쉽게 만들기’부터 눌러 보자.",
+      "normal": "질문으로 만들기, 모양 고르기, 방부터 놓기 중 하나를 고르세요."
     },
     "cooldown": 1,
     "sourceIds": [

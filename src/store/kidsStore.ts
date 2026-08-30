@@ -45,6 +45,7 @@ import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, 
 import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
+import { preparePlan, type PreparePlanOptions } from '../core/plan/prepare';
 import { loadKids, saveKids } from './storage';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
 
@@ -149,7 +150,7 @@ export interface KidsActions {
   setTimed: (on: boolean) => void;
   setHowTo: (on: boolean) => void;
 
-  loadTemplate: (id: string) => void;
+  loadTemplate: (id: string, options?: PreparePlanOptions) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
   placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;
   placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
@@ -539,15 +540,20 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     /* -------------------------------------------------- 평면 */
 
-    loadTemplate: (id) => {
+    loadTemplate: (id, options) => {
       const t = TEMPLATES.find((x) => x.id === id);
       if (!t) return;
-      const plan: FloorPlan = JSON.parse(JSON.stringify(t.plan)) as FloorPlan;
+      const plan = preparePlan(t.plan, options);
       bumpBlockIdSeq(plan);
       commit({ plan, routes: {} });
       set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
       get().countOp();
-      get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. 우리 집에 맞게 고쳐 보자.`);
+      const detail = options?.roomsOnly
+        ? '방만 먼저 놓았다. 옮기고 늘린 뒤 문과 물건을 더하자.'
+        : options?.openKitchen
+          ? '주방 쪽 벽이 트인 모양으로 불러왔다. 우리 집에 맞게 고쳐 보자.'
+          : '우리 집에 맞게 고쳐 보자.';
+      get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. ${detail}`);
       /* 화재 한 종만 다루므로 1층·반지하를 묻지 않는다 (설계서 v1.6 §2) */
       if (!get().onboarded) get().finishOnboarding(false);
     },
@@ -577,7 +583,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         openingKind: kind,
         cell,
         side,
-        closedByDefault: kind !== 'inner_door',
+        closedByDefault: kind !== 'inner_door' && kind !== 'open_passage',
       };
       commit({ plan: { ...plan, blocks: blocks.concat([b]) } });
       firstPlaced(kind);
@@ -687,6 +693,10 @@ export const useKids = create<KidsStore>()((set, get) => {
       const plan = get().plan;
       const target = plan.blocks.find((b) => b.id === id);
       if (!target || !isOpening(target)) return;
+      if (target.openingKind === 'open_passage') {
+        get().notify('트인 곳은 문이 아니라서 항상 열려 있어.');
+        return;
+      }
       commit({
         plan: {
           ...plan,

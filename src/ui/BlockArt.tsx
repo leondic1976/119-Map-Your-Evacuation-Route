@@ -473,6 +473,11 @@ export function OpeningArt({
   const stroke = style === 'kid' ? KID.ink : BP.line;
   const isOpen = open !== false;
 
+  if (kind === 'open_passage') {
+    /* 문짝·문틀·인방 없이 벽선만 완전히 지운다 (설계서 v1.6 §11.3). */
+    return <rect x={-len / 2 - 1} y={-t / 2 - 2} width={len + 2} height={t + 4} fill="#ffffff" />;
+  }
+
   if (kind === 'window' || kind === 'balcony_window') {
     const glass = style === 'kid' ? '#4c9ad4' : stroke;
     /*

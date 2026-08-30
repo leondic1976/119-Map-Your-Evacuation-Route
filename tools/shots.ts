@@ -62,8 +62,14 @@ async function main(): Promise<void> {
   await page.screenshot({ path: path.join(dest, '0-welcome.png') });
   await page.locator('[data-coach="kids-welcome-start"]').click();
   await page.waitForSelector('.k-onboard');
-  await page.screenshot({ path: path.join(dest, '1-template.png') });
+  await page.screenshot({ path: path.join(dest, '1-start-methods.png') });
+  await page.locator('[data-start-path="guided"]').click();
+  await page.screenshot({ path: path.join(dest, '1a-bedroom-count.png') });
+  await page.locator('[data-bedroom-count="2"]').click();
+  await page.screenshot({ path: path.join(dest, '1b-layout.png') });
   await page.locator('[data-template="apt_2room"]').click();
+  await page.screenshot({ path: path.join(dest, '1c-customize-open-kitchen.png') });
+  await page.locator('[data-coach="kids-plan-start"]').click();
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(dest, '2-myspot.png') });
   const box = (await page.locator('svg.k-stage').boundingBox())!;

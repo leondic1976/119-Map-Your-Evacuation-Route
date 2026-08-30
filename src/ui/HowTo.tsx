@@ -63,7 +63,11 @@ export default function HowTo() {
   if (sel && isRoom(sel)) {
     rows.push({ title: easy ? '고른 방' : '선택한 방', body: easy ? '끌어서 옮기고, Delete 로 지운다.' : '드래그로 이동, Delete 로 삭제.' });
   } else if (sel && isOpening(sel)) {
-    rows.push({ title: easy ? '고른 문' : '선택한 개구부', body: sel.closedByDefault ? (easy ? '지금은 평소 닫아 두는 문이야.' : '평소 닫힘 상태다.') : easy ? '지금은 평소 열어 두는 문이야.' : '평소 열림 상태다.' });
+    rows.push(
+      sel.openingKind === 'open_passage'
+        ? { title: easy ? '고른 트인 곳' : '선택한 트인 통로', body: easy ? '문이 아니라 벽이 없는 곳이야. 언제나 지나갈 수 있어.' : '문짝과 개폐 상태가 없는 상시 개방 통로다.' }
+        : { title: easy ? '고른 문' : '선택한 개구부', body: sel.closedByDefault ? (easy ? '지금은 평소 닫아 두는 문이야.' : '평소 닫힘 상태다.') : easy ? '지금은 평소 열어 두는 문이야.' : '평소 열림 상태다.' },
+    );
   }
 
   rows.push({ title: easy ? '되돌리기' : '실행 취소', body: 'Ctrl+Z · 마우스가 없으면 Tab 으로 도면에 들어가 방향키와 Enter 를 쓴다.' });

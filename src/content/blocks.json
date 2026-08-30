@@ -205,6 +205,21 @@
     "required": false
   },
   {
+    "id": "open_passage",
+    "category": "opening",
+    "label": "트인 통로",
+    "easy": "트인 곳",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "open"
+    ],
+    "required": false
+  },
+  {
     "id": "window",
     "category": "opening",
     "label": "창문",

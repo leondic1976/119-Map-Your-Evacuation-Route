@@ -92,6 +92,8 @@ export type OpeningKind =
   | 'door'
   | 'front_door'
   | 'inner_door'
+  /** 문짝 없이 벽이 완전히 트인 곳 — 개방형 주방 등에 쓴다 */
+  | 'open_passage'
   | 'window'
   | 'balcony_window'
   | 'emergency_exit';

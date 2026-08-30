@@ -235,6 +235,7 @@ function openingName(o: OpeningBlock): string {
     door: '방문',
     front_door: '현관문',
     inner_door: '중문',
+    open_passage: '트인 통로',
     window: '창문',
     balcony_window: '발코니 창',
     emergency_exit: '비상구',

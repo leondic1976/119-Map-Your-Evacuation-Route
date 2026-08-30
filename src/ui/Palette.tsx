@@ -151,6 +151,8 @@ export default function Palette() {
       {armed && (
         <div className="k-armed" role="status">
           {armed.category === 'room' ? '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
+          {' '}
+          <b>한 번에 하나씩 놓여.</b> 또 놓으려면 여기서 다시 고르자.
           <button type="button" className="k-link" onClick={() => arm(null)}>
             그만
           </button>

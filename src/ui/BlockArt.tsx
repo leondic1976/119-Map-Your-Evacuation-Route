@@ -15,6 +15,7 @@ import {
   SymPartition,
   SymRefuge,
 } from './FireSymbols';
+import { KidToken } from './KidCharacters';
 
 export type ArtStyle = 'kid' | 'blueprint';
 
@@ -403,6 +404,14 @@ export function PointArt({ subKind, w, h, style }: ArtProps & { subKind: string 
       return <GasValve w={w} h={h} style={style} />;
     case 'my_spot':
       return <MySpot w={w} h={h} style={style} />;
+    /*
+     * 형·동생은 사람이다. 팔레트에서는 표본 캐릭터로 보이고,
+     * 도면 위에서는 PlanSvg 가 내 캐릭터와 겹치지 않는 아이로 바꿔 그린다 (설계서 v1.5 §3).
+     */
+    case 'sibling_older':
+      return <KidToken id="boy_sport" size={Math.min(w, h)} posture="stand" facing="left" />;
+    case 'sibling_younger':
+      return <KidToken id="girl_twin" size={Math.min(w, h)} posture="stand" facing="right" />;
     case 'ground_exit':
       return <GroundExit w={w} h={h} style={style} dir="side" />;
     case 'roof_exit':

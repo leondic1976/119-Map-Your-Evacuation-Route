@@ -165,6 +165,7 @@ export function qaTests(check: Check, assert: Assert): void {
       'v1.2': read(path.join(root, 'docs/DESIGN-v1.2-changes.md')),
       'v1.3': read(path.join(root, 'docs/DESIGN-v1.3-changes.md')),
       'v1.4': read(path.join(root, 'docs/DESIGN-v1.4-changes.md')),
+      'v1.5': read(path.join(root, 'docs/DESIGN-v1.5-changes.md')),
     };
     /* 문서마다 있는 절 번호를 모은다 — 제목 줄의 "## 8.2" 같은 것 */
     const heads: Record<string, Set<string>> = {};
@@ -176,7 +177,7 @@ export function qaTests(check: Check, assert: Assert): void {
     const bad: string[] = [];
     for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css'])) {
       const src = read(f);
-      for (const m of src.matchAll(/설계서\s+(v1\.[01234])\s+§(\d+(?:\.\d+)*)/g)) {
+      for (const m of src.matchAll(/설계서\s+(v1\.[012345])\s+§(\d+(?:\.\d+)*)/g)) {
         const [, ver, sec] = m;
         if (heads[ver]?.has(sec)) continue;
         bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${ver} §${sec}`);
@@ -195,7 +196,7 @@ export function qaTests(check: Check, assert: Assert): void {
     for (const m of defs.matchAll(/id:\s*'(RULE-[A-Z]-\d+)'/g)) known.add(m[1]);
     assert(known.size > 0, '규칙 id 를 하나도 못 찾았다');
     const bad: string[] = [];
-    for (const d of ['docs/DESIGN-v1.1-changes.md', 'docs/DESIGN-v1.2-changes.md', 'docs/DESIGN-v1.3-changes.md', 'docs/DESIGN-v1.4-changes.md']) {
+    for (const d of ['docs/DESIGN-v1.1-changes.md', 'docs/DESIGN-v1.2-changes.md', 'docs/DESIGN-v1.3-changes.md', 'docs/DESIGN-v1.4-changes.md', 'docs/DESIGN-v1.5-changes.md']) {
       const src = read(path.join(root, d));
       for (const m of src.matchAll(/RULE-[A-Z]-\d+/g)) {
         if (known.has(m[0])) continue;

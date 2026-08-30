@@ -123,7 +123,9 @@ export type HazardKind = 'gas_range' | 'boiler' | 'power_strip' | 'heater' | 'ca
 /** 밖으로 나가는 곳. 화재는 아래로 나가는 것이 원칙이고 옥상은 아래가 막혔을 때다 (설계서 v1.2 §3.1) */
 export type ExitKind = 'ground_exit' | 'roof_exit' | 'basement_exit';
 
-export type MarkerKind = 'meeting_point' | 'my_spot' | ExitKind;
+/** 사람 표시 — 내 자리와 형·동생 (설계서 v1.5 §3) */
+export type FamilyKind = 'sibling_older' | 'sibling_younger';
+export type MarkerKind = 'meeting_point' | 'my_spot' | FamilyKind | ExitKind;
 
 export const EXIT_KINDS: ExitKind[] = ['ground_exit', 'roof_exit', 'basement_exit'];
 

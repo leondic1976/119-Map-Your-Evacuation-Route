@@ -19,6 +19,7 @@ import { isOpening, isPoint, isRoom } from '../types/plan';
 import type { Direction } from '../types/game';
 import { roomAt, canPlaceRoom } from '../core/grid/occupancy';
 import { boundarySlots, lineCells, nearestSlot, rectFromDrag, sameCell, slotCenter } from '../core/grid/geometry';
+import { blocksInRect } from '../core/grid/occupancy';
 import { doorCandidates } from '../core/grid/doors';
 import { suggestedRoute, useKids } from '../store/kidsStore';
 import { CS, PlanSvg, type GameLayer } from './PlanSvg';
@@ -27,6 +28,8 @@ type Handle = 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
 
 type Drag =
   | { kind: 'room'; start: Cell; moved: boolean }
+  | { kind: 'band'; start: Cell; add: boolean }
+  | { kind: 'multiMove'; start: Cell }
   | { kind: 'move'; id: string; start: Cell }
   | { kind: 'roomMove'; id: string; start: Cell }
   | { kind: 'resize'; id: string; handle: Handle; start: Cell; base: Rect }
@@ -45,6 +48,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   const tool = useKids((s) => s.tool);
   const armed = useKids((s) => s.armed);
   const selection = useKids((s) => s.selection);
+  const multi = useKids((s) => s.multi);
   const drafting = useKids((s) => s.drafting);
   const highlight = useKids((s) => s.highlight);
   const profile = useKids((s) => s.profile);
@@ -60,8 +64,18 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   const [movePreview, setMovePreview] = useState<{ id: string; cell: Cell } | null>(null);
   const [roomShift, setRoomShift] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [resizePreview, setResizePreview] = useState<Rect | null>(null);
+  /** 끌어서 두르는 네모 */
+  const [band, setBand] = useState<Rect | null>(null);
+  /** 여럿을 함께 옮기는 중의 치우침 */
+  const [multiShift, setMultiShift] = useState<{ dx: number; dy: number } | null>(null);
   /** 키보드 커서. 도면에 초점이 있을 때만 보인다 */
   const [caret, setCaret] = useState<Cell | null>(null);
+  /**
+   * 초점이 누름 때문에 온 것인지 표시해 둔다.
+   * 도면을 누르면 SVG 가 초점을 받는데, 그때마다 키보드 커서를 도면 한가운데에
+   * 띄우면 누른 자리와 상관없는 노란 네모가 튀어나온다. 키보드로 들어왔을 때만 띄운다.
+   */
+  const pointerFocus = useRef(false);
 
   const pair = routes[hazardId];
   const inGame = mode === 'game' && game;
@@ -119,8 +133,17 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     return null;
   };
 
+  /**
+   * 하나 놓으면 팔레트에서 손을 뗀다 (설계서 v1.5 §4).
+   * 장전한 채로 두면 도면을 누를 때마다 같은 것이 계속 놓여, 고르려다 실수로
+   * 침대를 넷 놓는 일이 생긴다. 한 번에 하나씩 놓고 다시 고르게 한다.
+   */
+  const disarm = () => useKids.getState().arm(null);
+
   const onDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== undefined && e.button !== 0) return;
+    pointerFocus.current = true;
+    setCaret(null);
     const s = useKids.getState();
     const p = toPoint(e);
     const c = toCell(p);
@@ -176,16 +199,35 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         const slot = nearestSlot(slots, p);
         if (slot) {
           const sc = slotCenter(slot.cell, slot.side);
-          if ((sc.x - p.x) ** 2 + (sc.y - p.y) ** 2 < 0.5) s.placeOpening(armed.id as never, slot.cell, slot.side);
-          else s.notify('문·창은 방의 벽 위에 놓는다. 벽 가까이를 눌러 보자.', 'warn');
+          if ((sc.x - p.x) ** 2 + (sc.y - p.y) ** 2 < 0.5) {
+            s.placeOpening(armed.id as never, slot.cell, slot.side);
+            disarm();
+          } else s.notify('문·창은 방의 벽 위에 놓는다. 벽 가까이를 눌러 보자.', 'warn');
         } else {
           s.notify('먼저 방을 만들어야 문·창을 놓을 수 있다.', 'warn');
         }
-      } else {
-        s.placePoint(armed.category, armed.id as never, c);
+      } else if (s.placePoint(armed.category, armed.id as never, c)) {
+        disarm();
       }
     } else if (tool === 'select') {
       const id = hitTest(p);
+      const add = e.ctrlKey || e.metaKey;
+
+      /* Ctrl+누르기 — 골라 둔 것에 더하거나 뺀다 (설계서 v1.5 §1) */
+      if (add) {
+        if (id) s.toggleSelect(id);
+        else dragRef.current = { kind: 'band', start: c, add: true };
+        return;
+      }
+
+      /* 여럿을 골라 둔 채 그중 하나를 끌면 다 같이 간다 */
+      if (id && s.multi.length > 1 && s.multi.includes(id)) {
+        dragRef.current = { kind: 'multiMove', start: c };
+        setMultiShift({ dx: 0, dy: 0 });
+        svgRef.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+
       s.select(id);
       if (id) {
         const b = plan.blocks.find((x) => x.id === id);
@@ -193,6 +235,9 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         if (b && isOpening(b)) s.toggleOpening(b.id);
         else if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: c };
         else if (b && isRoom(b)) dragRef.current = { kind: 'roomMove', id, start: c };
+      } else {
+        /* 빈 곳에서 끌면 네모로 두른다 */
+        dragRef.current = { kind: 'band', start: c, add: false };
       }
     } else if (tool === 'route') {
       s.startRoute(c);
@@ -236,12 +281,17 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       }
     }
     if (tool === 'place' && armed) {
-      if (armed.category === 'room') s.placeRoom(armed.id as RoomKind, c);
+      if (armed.category === 'room') {
+        if (s.placeRoom(armed.id as RoomKind, c)) disarm();
+      }
       else if (armed.category === 'opening') {
         const slot = nearestSlot(slots, mid);
-        if (slot) s.placeOpening(armed.id as never, slot.cell, slot.side);
+        if (slot) {
+          s.placeOpening(armed.id as never, slot.cell, slot.side);
+          disarm();
+        }
         else s.notify('먼저 방을 만들어야 문·창을 놓을 수 있다.', 'warn');
-      } else s.placePoint(armed.category, armed.id as never, c);
+      } else if (s.placePoint(armed.category, armed.id as never, c)) disarm();
     } else if (tool === 'select') {
       const id = hitTest(mid);
       s.select(id);
@@ -304,6 +354,12 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       case 'roomMove':
         setRoomShift({ id: d.id, dx: c.x - d.start.x, dy: c.y - d.start.y });
         break;
+      case 'band':
+        setBand(rectFromDrag(d.start, c, 1));
+        break;
+      case 'multiMove':
+        setMultiShift({ dx: c.x - d.start.x, dy: c.y - d.start.y });
+        break;
       case 'resize':
         setResizePreview(applyHandle(d.base, d.handle, c.x - d.start.x, c.y - d.start.y));
         break;
@@ -331,7 +387,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     switch (d.kind) {
       case 'room':
         /* 그냥 눌렀으면 표준 크기, 끌었으면 그 크기 (FR-7.1) */
-        if (armed) s.placeRoom(armed.id as RoomKind, d.start, d.moved && preview ? preview : undefined);
+        if (armed && s.placeRoom(armed.id as RoomKind, d.start, d.moved && preview ? preview : undefined)) disarm();
         setPreview(null);
         break;
       case 'move':
@@ -341,6 +397,22 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       case 'roomMove':
         if (roomShift && (roomShift.dx || roomShift.dy)) s.moveRoom(d.id, roomShift.dx, roomShift.dy);
         setRoomShift(null);
+        break;
+      case 'band': {
+        const r = band;
+        setBand(null);
+        /* 한 칸도 못 두르고 그냥 눌렀으면 고른 것을 푼다 */
+        if (!r || (r.w <= 1 && r.h <= 1)) {
+          if (!d.add) s.select(null);
+          break;
+        }
+        const inside = blocksInRect(plan, r);
+        s.selectMany(d.add ? Array.from(new Set(s.multi.concat(inside))) : inside);
+        break;
+      }
+      case 'multiMove':
+        if (multiShift && (multiShift.dx || multiShift.dy)) s.moveSelection(multiShift.dx, multiShift.dy);
+        setMultiShift(null);
         break;
       case 'resize':
         if (resizePreview) s.resizeRoom(d.id, resizePreview);
@@ -402,6 +474,9 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           suggested={suggested}
           highlight={inGame ? null : highlight}
           selection={inGame ? null : selection}
+          selected={inGame ? undefined : multi}
+          playerCharacter={profile.playerCharacter}
+          shift={inGame ? undefined : multiShift ? { ids: multi, ...multiShift } : undefined}
           style={profile.blockStyle}
           gradeMode={profile.gradeMode}
           doorCandidates={mode === 'edit' && step !== 'mySpot' && step !== 'meeting' ? candidates : undefined}
@@ -411,8 +486,18 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           onPointerUp={onUp}
           onPointerLeave={onLeave}
           onKeyDown={onKeyDown}
-          onFocus={() => setCaret((c) => c ?? { x: Math.floor(plan.grid.width / 2), y: Math.floor(plan.grid.height / 2) })}
-          onBlur={() => setCaret(null)}
+          onFocus={() => {
+            /* 눌러서 들어왔으면 커서를 띄우지 않는다 — 누른 자리와 딴 곳에 네모가 뜬다 */
+            if (pointerFocus.current) {
+              pointerFocus.current = false;
+              return;
+            }
+            setCaret((c) => c ?? { x: Math.floor(plan.grid.width / 2), y: Math.floor(plan.grid.height / 2) });
+          }}
+          onBlur={() => {
+            pointerFocus.current = false;
+            setCaret(null);
+          }}
           focusable
           ariaLabel={`우리집 평면도 — 방향키로 칸을 옮기고 Enter 로 누른다. ${keyHint(step, tool, armed?.category)}`}
           className="k-stage"
@@ -447,6 +532,20 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           )}
           {hover && !preview && !ghost && !inGame && (tool === 'route' || step === 'mySpot' || step === 'meeting' || (tool === 'place' && armed && armed.category !== 'room' && armed.category !== 'opening')) && (
             <rect x={hover.x * CS + 2} y={hover.y * CS + 2} width={CS - 4} height={CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.12} stroke="#0f3d68" strokeWidth={2} strokeDasharray="4 3" style={{ pointerEvents: 'none' }} />
+          )}
+          {band && (
+            <rect
+              x={band.x * CS}
+              y={band.y * CS}
+              width={band.w * CS}
+              height={band.h * CS}
+              fill="#0f3d68"
+              fillOpacity={0.1}
+              stroke="#0f3d68"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              style={{ pointerEvents: 'none' }}
+            />
           )}
           {movePreview && (
             <rect x={movePreview.cell.x * CS + 2} y={movePreview.cell.y * CS + 2} width={CS - 4} height={CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.2} stroke="#0f3d68" strokeWidth={2} style={{ pointerEvents: 'none' }} />

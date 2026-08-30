@@ -90,3 +90,23 @@ export function bumpBlockIdSeq(plan: FloorPlan): void {
     if (Number.isFinite(n) && n > seq) seq = n;
   }
 }
+
+/**
+ * 네모 안에 든 블록들 — 끌어서 여럿 고르기에 쓴다 (설계서 v1.5 §1).
+ *
+ * 방은 **한 칸이라도 걸치면** 잡는다. 아이가 네모를 방에 딱 맞춰 두르기는 어렵다.
+ * 문·창·물건은 그 칸이 네모 안에 있어야 잡는다.
+ */
+export function blocksInRect(plan: FloorPlan, r: Rect): BlockId[] {
+  const out: BlockId[] = [];
+  for (const b of plan.blocks) {
+    if (isRoom(b)) {
+      const hit = b.rect.x < r.x + r.w && r.x < b.rect.x + b.rect.w && b.rect.y < r.y + r.h && r.y < b.rect.y + b.rect.h;
+      if (hit) out.push(b.id);
+    } else {
+      const c = b.cell;
+      if (c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h) out.push(b.id);
+    }
+  }
+  return out;
+}

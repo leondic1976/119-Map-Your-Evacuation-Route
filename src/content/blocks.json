@@ -607,6 +607,36 @@
     "required": true
   },
   {
+    "id": "sibling_older",
+    "category": "marker",
+    "label": "형이나 누나",
+    "easy": "형이나 누나",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "person"
+    ],
+    "required": false
+  },
+  {
+    "id": "sibling_younger",
+    "category": "marker",
+    "label": "동생",
+    "easy": "동생",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0,
+    "tags": [
+      "person"
+    ],
+    "required": false
+  },
+  {
     "id": "ground_exit",
     "category": "marker",
     "label": "지상 출구",

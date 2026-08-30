@@ -13,6 +13,8 @@ import { isOpening, isPoint, isRoom } from '../types/plan';
 import type { HazardField } from '../types/hazard';
 import type { Posture } from '../types/game';
 import type { PlayerCharacter } from '../types/guide';
+import { PLAYER_CHARACTERS } from '../types/guide';
+import { KidToken } from './KidCharacters';
 import { roomLabel } from '../core/graph/build';
 import { slotCenter } from '../core/grid/geometry';
 import type { DoorCandidate } from '../core/grid/doors';
@@ -79,6 +81,12 @@ export interface PlanSvgProps {
   suggested?: Cell[] | null;
   highlight?: Highlight | null;
   selection?: string | null;
+  /** 고른 것 전부 — 여럿 고르기 (설계서 v1.5 §1) */
+  selected?: string[];
+  /** 함께 옮기는 중의 미리보기 치우침 */
+  shift?: { ids: string[]; dx: number; dy: number };
+  /** 「내 자리」를 이 캐릭터 모습으로 그린다 (설계서 v1.5 §2) */
+  playerCharacter?: PlayerCharacter;
   style: 'kid' | 'blueprint';
   gradeMode: 'easy' | 'normal';
   printMode?: boolean;
@@ -106,6 +114,13 @@ export interface PlanSvgProps {
   className?: string;
 }
 
+/** 형·동생을 어떤 캐릭터로 그릴지 — 내 캐릭터와 겹치지 않게 고른다 (설계서 v1.5 §3) */
+export function siblingCharacter(subKind: string, mine: PlayerCharacter | undefined): PlayerCharacter {
+  const pool = PLAYER_CHARACTERS.filter((c) => c !== mine);
+  const i = subKind === 'sibling_older' ? 0 : 1;
+  return pool[i % pool.length] ?? PLAYER_CHARACTERS[i];
+}
+
 export function PlanSvg(props: PlanSvgProps) {
   const {
     plan,
@@ -116,6 +131,9 @@ export function PlanSvg(props: PlanSvgProps) {
     suggested,
     highlight,
     selection,
+    selected,
+    shift,
+    playerCharacter,
     style,
     gradeMode,
     printMode = false,
@@ -136,6 +154,13 @@ export function PlanSvg(props: PlanSvgProps) {
   const rooms = plan.blocks.filter(isRoom);
   const openings = plan.blocks.filter(isOpening);
   const points = plan.blocks.filter(isPoint);
+
+  /* 고른 것 판정 — 하나만 골랐을 때도 selected 에 들어 있다 */
+  const chosen = new Set(selected && selected.length ? selected : selection ? [selection] : []);
+  const isChosen = (id: string): boolean => chosen.has(id);
+  /** 함께 옮기는 중이면 그만큼 밀어 그린다 */
+  const nudge = (id: string): string =>
+    shift && shift.ids.includes(id) && (shift.dx || shift.dy) ? `translate(${shift.dx * CS} ${shift.dy * CS})` : '';
   const hl = highlight ?? null;
 
   const matchesHl = (b: RoomBlock | OpeningBlock | PointBlock): boolean => {
@@ -237,10 +262,10 @@ export function PlanSvg(props: PlanSvgProps) {
           const { x, y, w, h } = r.rect;
           const fill = printMode ? `url(#h${(i % 5) + 1}${uid})` : style === 'kid' ? ROOM_FILL[r.roomKind] : '#ffffff';
           const name = r.label.trim() || (gradeMode === 'easy' ? blockName(r.roomKind, 'easy') : roomLabel(r));
-          const sel = selection === r.id;
+          const sel = isChosen(r.id);
           const isHl = matchesHl(r);
           return (
-            <g key={r.id} data-block={r.id} data-kind="room">
+            <g key={r.id} data-block={r.id} data-kind="room" transform={nudge(r.id)}>
               <rect x={x * CS} y={y * CS} width={w * CS} height={h * CS} fill={fill} stroke={INK} strokeWidth={printMode ? 3 : 4} strokeLinejoin="miter" />
               {r.layer === 'common' && (
                 <rect x={x * CS + 3} y={y * CS + 3} width={w * CS - 6} height={h * CS - 6} fill="none" stroke={INK} strokeWidth={1} strokeDasharray="4 4" opacity={0.6} />
@@ -282,12 +307,12 @@ export function PlanSvg(props: PlanSvgProps) {
         {openings.map((o) => {
           const c = slotCenter(o.cell, o.side);
           const rot = o.side === 'N' ? 0 : o.side === 'S' ? 180 : o.side === 'W' ? -90 : 90;
-          const sel = selection === o.id;
+          const sel = isChosen(o.id);
           const isHl = matchesHl(o);
           /* 게임 중이면 지금 상태, 편집 중이면 평소 상태를 보인다 (설계서 v1.2 §2.3) */
           const open = game ? game.doorState[o.id] !== 'closed' : !o.closedByDefault;
           return (
-            <g key={o.id} data-block={o.id} data-kind="opening" transform={`translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+            <g key={o.id} data-block={o.id} data-kind="opening" transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
               <OpeningArt kind={o.openingKind} len={CS * 0.86} style={style} open={open} />
               {(sel || isHl) && (
                 <circle r={CS * 0.42} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} className={isHl ? 'kids-hl' : undefined} />
@@ -300,16 +325,26 @@ export function PlanSvg(props: PlanSvgProps) {
       {/* 물건·설비·표시 */}
       <g>
         {points.map((p) => {
-          const sel = selection === p.id;
+          const sel = isChosen(p.id);
           const isHl = matchesHl(p);
           const caption =
             !printMode && style === 'kid' && gradeMode === 'easy' && (p.kind === 'safety' || p.kind === 'marker')
               ? blockName(p.subKind, 'easy')
               : null;
           return (
-            <g key={p.id} data-block={p.id} data-kind={p.kind} transform={`translate(${p.cell.x * CS} ${p.cell.y * CS})`}>
+            <g key={p.id} data-block={p.id} data-kind={p.kind} transform={`${nudge(p.id)} translate(${p.cell.x * CS} ${p.cell.y * CS})`}>
               <g transform={`rotate(${p.rotation} ${CS / 2} ${CS / 2})`}>
-                <PointArt subKind={p.subKind} w={CS} h={CS} style={style} />
+                {/*
+                  * 내 자리와 형·동생은 사람이다. 기호 대신 캐릭터로 그린다 (설계서 v1.5 §2 · §3).
+                  * 내 자리는 내가 고른 캐릭터를 그대로 쓴다 — 게임에서 조작할 그 아이다.
+                  */}
+                {p.subKind === 'my_spot' && playerCharacter ? (
+                  <KidToken id={playerCharacter} size={CS} posture="stand" facing="right" />
+                ) : p.subKind === 'sibling_older' || p.subKind === 'sibling_younger' ? (
+                  <KidToken id={siblingCharacter(p.subKind, playerCharacter)} size={CS} posture="stand" facing={p.subKind === 'sibling_older' ? 'left' : 'right'} />
+                ) : (
+                  <PointArt subKind={p.subKind} w={CS} h={CS} style={style} />
+                )}
               </g>
               {/* 이름표는 절대 돌리지 않는다. 8px 이라 안 보인다는 지적을 받아 11.5px 굵게 올렸다 */}
               {caption && (

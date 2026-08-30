@@ -23,7 +23,7 @@
 }
 
 .k-app {
-  --k-pal-w: 200px;
+  --k-pal-w: 300px;
   --k-howto-w: 268px;
   display: grid;
   grid-template-rows: 60px 1fr 60px;
@@ -887,7 +887,7 @@
 /* ------------------------------------------------------------ 좁은 화면 */
 @media (max-width: 1279px) {
   .k-app {
-    --k-pal-w: 160px;
+    --k-pal-w: 240px;
   }
 }
 

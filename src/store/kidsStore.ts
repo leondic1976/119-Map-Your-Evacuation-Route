@@ -85,6 +85,11 @@ export interface KidsState {
   tool: KidsTool;
   armed: Armed | null;
   selection: BlockId | null;
+  /**
+   * 고른 것 전부. 하나만 골랐어도 여기 담긴다 — 늘 `multi[0] === selection` 이다.
+   * 여럿 고르기는 Ctrl+누르기와 빈 곳 끌기로 한다 (설계서 v1.5 §1).
+   */
+  multi: BlockId[];
   /** 지금 그리는 중인 경로 셀 */
   drafting: Cell[] | null;
   layer: LayerId;
@@ -132,6 +137,12 @@ export interface KidsActions {
   setTool: (t: KidsTool) => void;
   arm: (a: Armed | null) => void;
   select: (id: BlockId | null) => void;
+  /** Ctrl+누르기 — 있으면 빼고 없으면 더한다 */
+  toggleSelect: (id: BlockId) => void;
+  /** 끌어서 두른 것들을 한꺼번에 고른다 */
+  selectMany: (ids: BlockId[]) => void;
+  /** 고른 것 전부를 함께 옮긴다. 하나라도 갈 수 없으면 아무것도 옮기지 않는다 */
+  moveSelection: (dx: number, dy: number) => void;
   setHighlight: (h: Highlight | null) => void;
   setRouteSlot: (slot: RouteSlot) => void;
   setTimed: (on: boolean) => void;
@@ -139,8 +150,8 @@ export interface KidsActions {
 
   loadTemplate: (id: string) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
-  placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => void;
-  placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => void;
+  placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;
+  placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
   placePoint: (category: Armed['category'], subKind: PointKind, cell: Cell) => boolean;
   moveBlock: (id: BlockId, cell: Cell) => void;
   moveRoom: (id: BlockId, dx: number, dy: number) => void;
@@ -207,6 +218,7 @@ function initialState(): KidsState {
     tool: 'select',
     armed: null,
     selection: null,
+    multi: [],
     drafting: null,
     layer: 'home',
     highlight: null,
@@ -417,9 +429,85 @@ export const useKids = create<KidsStore>()((set, get) => {
     setTool: (tool) =>
       set({ tool, drafting: tool === 'route' ? get().drafting : null, armed: tool === 'place' ? get().armed : null }),
 
-    arm: (armed) => set({ armed, tool: armed ? 'place' : 'select', selection: null }),
+    arm: (armed) => set({ armed, tool: armed ? 'place' : 'select', selection: null, multi: [] }),
 
-    select: (selection) => set({ selection }),
+    select: (selection) => set({ selection, multi: selection ? [selection] : [] }),
+
+    toggleSelect: (id) => {
+      const multi = get().multi;
+      const next = multi.includes(id) ? multi.filter((x) => x !== id) : multi.concat(id);
+      set({ multi: next, selection: next[0] ?? null });
+    },
+
+    selectMany: (ids) => set({ multi: ids, selection: ids[0] ?? null }),
+
+    /**
+     * 고른 것 전부를 함께 옮긴다.
+     * 방은 붙어 있는 문·창·물건까지 데려간다. 한 칸이라도 겹치거나 도면 밖으로 나가면
+     * **아무것도 옮기지 않는다** — 반만 옮겨 놓으면 아이가 되돌리기 어렵다.
+     */
+    moveSelection: (dx, dy) => {
+      if (dx === 0 && dy === 0) return;
+      const { plan, multi } = get();
+      if (multi.length === 0) return;
+      const chosen = new Set(multi);
+      const rooms = plan.blocks.filter((b) => chosen.has(b.id) && isRoom(b));
+
+      /* 고른 방 안에 있는 것은 방을 따라간다. 따로 또 옮기지 않는다 */
+      const carried = new Set<BlockId>();
+      for (const r of rooms) {
+        if (!isRoom(r)) continue;
+        for (const b of plan.blocks) {
+          if (isRoom(b)) continue;
+          const c = b.cell;
+          if (c.x >= r.rect.x && c.x < r.rect.x + r.rect.w && c.y >= r.rect.y && c.y < r.rect.y + r.rect.h) carried.add(b.id);
+        }
+      }
+
+      const moving = new Set<BlockId>([...chosen, ...carried]);
+
+      /* 옮긴 뒤의 도면을 미리 만들어 놓고 한꺼번에 따져 본다 */
+      const nextBlocks = plan.blocks.map((b) => {
+        if (!moving.has(b.id)) return b;
+        if (isRoom(b)) return { ...b, rect: { ...b.rect, x: b.rect.x + dx, y: b.rect.y + dy } };
+        return { ...b, cell: { x: b.cell.x + dx, y: b.cell.y + dy } };
+      });
+
+      /*
+       * 겹침은 옮긴 뒤의 도면끼리 곧바로 따진다.
+       * canPlaceRoom 은 한 번에 방 하나만 비켜 줄 수 있어서, 여럿이 함께 움직이면
+       * 서로를 장애물로 보고 늘 막는다. 여기서는 다 옮겨 놓고 나서 본다.
+       */
+      const g = plan.grid;
+      const nextRooms = nextBlocks.filter(isRoom);
+      for (const b of nextBlocks) {
+        if (!moving.has(b.id)) continue;
+        if (isRoom(b)) {
+          if (b.rect.x < 0 || b.rect.y < 0 || b.rect.x + b.rect.w > g.width || b.rect.y + b.rect.h > g.height) {
+            get().notify('도면 밖으로는 못 나간다.', 'warn');
+            return;
+          }
+          const hit = nextRooms.some(
+            (o) =>
+              o.id !== b.id &&
+              b.rect.x < o.rect.x + o.rect.w &&
+              o.rect.x < b.rect.x + b.rect.w &&
+              b.rect.y < o.rect.y + o.rect.h &&
+              o.rect.y < b.rect.y + b.rect.h,
+          );
+          if (hit) {
+            get().notify('그쪽으로는 옮길 수 없다. 다른 방과 겹친다.', 'warn');
+            return;
+          }
+        } else if (b.cell.x < 0 || b.cell.y < 0 || b.cell.x >= g.width || b.cell.y >= g.height) {
+          get().notify('도면 밖으로는 못 나간다.', 'warn');
+          return;
+        }
+      }
+
+      commit({ plan: { ...plan, blocks: nextBlocks } });
+      get().countOp();
+    },
 
     setHighlight: (highlight) => set({ highlight }),
 
@@ -441,7 +529,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       const plan: FloorPlan = JSON.parse(JSON.stringify(t.plan)) as FloorPlan;
       bumpBlockIdSeq(plan);
       commit({ plan, routes: {} });
-      set({ selection: null, drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
+      set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
       get().countOp();
       get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. 우리 집에 맞게 고쳐 보자.`);
       if (!get().onboarded) get().setStep('lowFloor');
@@ -455,9 +543,10 @@ export const useKids = create<KidsStore>()((set, get) => {
       const r = clampRect(plan.grid, want);
       if (!canPlaceRoom(plan, r)) {
         get().notify('여기는 다른 방과 겹친다. 빈 곳을 눌러 보자.', 'warn');
-        return;
+        return false;
       }
       addBlock({ kind: 'room', id: newBlockId('r'), layer: get().layer, roomKind, rect: r, label: autoLabel(plan, roomKind) });
+      return true;
     },
 
     placeOpening: (kind, cell, side) => {
@@ -476,6 +565,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       commit({ plan: { ...plan, blocks: blocks.concat([b]) } });
       firstPlaced(kind);
       get().countOp();
+      return true;
     },
 
     placePoint: (category, subKind, cell) => {
@@ -606,7 +696,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         }
       }
       commit({ plan: { ...plan, blocks } });
-      set({ selection: null });
+      set({ selection: null, multi: [] });
       get().countOp();
     },
 
@@ -683,7 +773,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       const { past, future } = get();
       if (!past.length) return;
       const prev = past[past.length - 1];
-      set({ ...prev, past: past.slice(0, -1), future: [snapshot()].concat(future).slice(0, HISTORY), selection: null, drafting: null });
+      set({ ...prev, past: past.slice(0, -1), future: [snapshot()].concat(future).slice(0, HISTORY), selection: null, multi: [], drafting: null });
       scheduleSave();
       get().countOp();
     },
@@ -692,14 +782,14 @@ export const useKids = create<KidsStore>()((set, get) => {
       const { past, future } = get();
       if (!future.length) return;
       const next = future[0];
-      set({ ...next, past: past.concat([snapshot()]).slice(-HISTORY), future: future.slice(1), selection: null, drafting: null });
+      set({ ...next, past: past.concat([snapshot()]).slice(-HISTORY), future: future.slice(1), selection: null, multi: [], drafting: null });
       scheduleSave();
       get().countOp();
     },
 
     resetAll: () => {
       commit({ plan: emptyFloorPlan(), routes: {} });
-      set({ selection: null, drafting: null, armed: null, highlight: null, missions: [], report: null, game: null, mode: 'edit', placedKinds: [] });
+      set({ selection: null, multi: [], drafting: null, armed: null, highlight: null, missions: [], report: null, game: null, mode: 'edit', placedKinds: [] });
       get().notify('처음부터 다시 시작한다. 되돌리기를 누르면 되살릴 수 있다.');
     },
 
@@ -712,6 +802,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         missions: file.progress.guardianMissions,
         seenCardIds: file.progress.completedSteps.filter((s) => s.startsWith('card:')).map((s) => s.slice(5)),
         selection: null,
+        multi: [],
         drafting: null,
         onboarded: true,
         mode: 'edit',
@@ -830,7 +921,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         startCell,
         fuelOf,
       });
-      set({ game, mode: 'game', report: null, drafting: null, armed: null, selection: null, highlight: null, bubble: null });
+      set({ game, mode: 'game', report: null, drafting: null, armed: null, selection: null, multi: [], highlight: null, bubble: null });
       get().setStep('game');
       get().fire({ on: 'gameStart' });
       get().countOp();

@@ -188,6 +188,20 @@ function neededContrast(fs: number, fw: number): number {
   return fs >= 24 || (fw >= 700 && fs >= 18.66) ? 3 : 4.5;
 }
 
+/** 저장된 도면을 통째로 견주기 위한 지문 — 시나리오가 뒤를 더럽히지 않았는지 본다 */
+async function planPrint(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const raw = window.localStorage.getItem('evac-kids-v1');
+    if (!raw) return '';
+    const blocks = (JSON.parse(raw).plan?.blocks ?? []) as Record<string, unknown>[];
+    return JSON.stringify(
+      blocks
+        .map((b) => JSON.stringify({ k: b.kind, s: b.subKind ?? b.roomKind ?? b.openingKind, r: b.rect, c: b.cell }))
+        .sort(),
+    );
+  });
+}
+
 async function kidsDrag(page: Page, path: [number, number][]): Promise<void> {
   const first = await kidsCell(page, path[0][0], path[0][1]);
   await page.mouse.move(first.x, first.y);
@@ -340,8 +354,11 @@ async function main(): Promise<void> {
       assert(after === before + 1, `방이 안 놓였다 ${before} → ${after}`);
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
       assert(rooms === 9, `방 ${rooms}개`);
-      // 장전은 그대로다 — 겹치는 곳을 누르면 거부
-      assert((await page.locator('[data-block-id="bedroom"]').getAttribute('aria-pressed')) === 'true', '놓은 뒤 장전이 풀렸다');
+      /* 하나 놓으면 팔레트에서 손을 뗀다 — 도면을 누를 때마다 계속 놓이지 않는다 (설계서 v1.5 §4) */
+      assert((await page.locator('[data-block-id="bedroom"]').getAttribute('aria-pressed')) !== 'true', '놓은 뒤에도 장전이 남아 있다');
+
+      /* 다시 골라야 또 놓인다. 이번엔 겹치는 곳이라 거부 */
+      await page.locator('[data-block-id="bedroom"]').click();
       const overlap = await kidsCell(page, 9, 10);
       await page.mouse.click(overlap.x, overlap.y);
       await page.waitForTimeout(800);
@@ -353,6 +370,86 @@ async function main(): Promise<void> {
       await page.keyboard.press('Control+z');
       await page.waitForTimeout(800);
       assert((await kidsSave(page)).blocks === before, '되돌리기가 안 됐다');
+    });
+
+    /* 여럿 고르기와 함께 옮기기 (설계서 v1.5 §1) */
+    await check('끌어서 여럿 고르고, Ctrl 로 더하고, 다 같이 옮긴다 (FR-7.19)', async () => {
+      await page.locator('[data-coach="kids-tool-select"]').click();
+      await page.waitForTimeout(150);
+
+      /* 도면을 눌러도 키보드 커서가 뜨지 않는다 (설계서 v1.5 §4) */
+      const empty = await kidsCell(page, 1, 1);
+      await page.mouse.click(empty.x, empty.y);
+      await page.waitForTimeout(200);
+      assert((await page.locator('[data-caret]').count()) === 0, '눌렀는데 키보드 커서가 떴다');
+
+      const print0 = await planPrint(page);
+      const before = await kidsSave(page);
+      const picked = await page.evaluate(() => {
+        const raw = window.localStorage.getItem('evac-kids-v1');
+        const f = JSON.parse(raw ?? '{}');
+        return (f.plan?.blocks ?? []).filter((b: { kind: string }) => b.kind === 'room').length as number;
+      });
+      assert(picked >= 2, `방이 ${picked}개뿐이다`);
+
+      /* 도면 바깥 빈 칸에서 시작해 집 전체를 두른다 — 방 위에서 시작하면 그 방만 끌린다 */
+      const a = await kidsCell(page, 1, 1);
+      const b = await kidsCell(page, 22, 14);
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      await page.mouse.move(b.x, b.y, { steps: 10 });
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+
+      /* 고른 것 중 하나를 끌면 다 같이 간다 */
+      const from = await kidsCell(page, 10, 4);
+      const to = await kidsCell(page, 10, 5);
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move(to.x, to.y, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForTimeout(900);
+      const after = await kidsSave(page);
+      assert(after.blocks === before.blocks, `옮기다 블록이 사라졌다 ${before.blocks} → ${after.blocks}`);
+      assert((await planPrint(page)) !== print0, '여럿을 골랐는데 아무것도 안 움직였다');
+
+      /* 되돌려 둔다 — 뒤 시나리오가 원래 도면을 그대로 봐야 한다 */
+      await page.keyboard.press('Control+z');
+      await page.waitForTimeout(600);
+      assert((await planPrint(page)) === print0, '되돌렸는데 도면이 원래대로 돌아오지 않았다');
+      await page.mouse.click(empty.x, empty.y);
+      await page.waitForTimeout(150);
+    });
+
+    /* 내 자리와 형·동생 (설계서 v1.5 §2 · §3) */
+    await check('내 자리가 내 캐릭터로 그려지고, 형·동생을 놓을 수 있다 (FR-7.20 · FR-7.21)', async () => {
+      /* 내 자리 칸 안에 캐릭터 그림(k-player)이 들어 있다 */
+      const spot = page.locator('.k-stage [data-kind="marker"] .k-player');
+      assert((await spot.count()) >= 1, '내 자리가 캐릭터로 그려지지 않았다');
+
+      await page.locator('[data-coach="kids-more"]').click().catch(() => undefined);
+      await page.waitForTimeout(200);
+      /* 「표시」 갈래에서 동생을 고른다 */
+      const cat = page.locator('.k-cats button', { hasText: '표시' });
+      if (await cat.count()) await cat.first().click();
+      await page.waitForTimeout(200);
+      const younger = page.locator('[data-block-id="sibling_younger"]');
+      assert((await younger.count()) === 1, '동생 블록이 팔레트에 없다');
+      await younger.click();
+      await page.waitForTimeout(150);
+      const print0 = await planPrint(page);
+      const before = (await kidsSave(page)).blocks;
+      const at = await kidsCell(page, 12, 4);
+      await page.mouse.click(at.x, at.y);
+      await page.waitForTimeout(800);
+      assert((await kidsSave(page)).blocks === before + 1, '동생이 안 놓인다');
+
+      /* 놓아 본 것은 도로 치운다 — 뒤 시나리오가 원래 도면을 봐야 한다 */
+      await page.keyboard.press('Control+z');
+      await page.waitForTimeout(600);
+      assert((await planPrint(page)) === print0, '되돌렸는데 동생이 남았다');
+      await page.locator('[data-coach="kids-tool-select"]').click();
+      await page.waitForTimeout(150);
     });
 
     await check('문 후보 — 맞댄 벽의 “문?”을 한 번 누르면 문이 놓인다 (FR-7.3)', async () => {

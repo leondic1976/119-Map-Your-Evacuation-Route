@@ -33,7 +33,7 @@ import { SLOT_STYLE } from './PlanSvg';
 import { PLAYER_NAME } from './Avatar';
 import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
-import { playDoor, playTap, stopSpeaking, unlockAudio } from './sound';
+import { playDoor, playTap, replayLastGuideVoice, stopSpeaking, unlockAudio } from './sound';
 
 export default function KidsShell() {
   const ready = useKids((s) => s.ready);
@@ -336,11 +336,15 @@ export default function KidsShell() {
             title={profile.soundOn ? '소리를 끈다' : '소리를 켠다'}
             onClick={() => {
               const next = !profile.soundOn;
-              if (next) unlockAudio();
               /* 알리는 것도 저장하는 것도 setProfile 한 곳에서 한다 */
               useKids.getState().setProfile({ soundOn: next });
               useKids.getState().notify(next ? '소리를 켰다.' : '소리를 껐다.');
-              if (next) playTap();
+              if (next) {
+                /* 활성화 뒤, 이 사용자 클릭 안에서 잠금을 풀고 최신 MP3를 직접 재생한다. */
+                unlockAudio();
+                replayLastGuideVoice();
+                playTap();
+              }
             }}
           >
             <SoundIcon on={profile.soundOn} /> {profile.soundOn ? '소리 켜짐' : '소리 꺼짐'}

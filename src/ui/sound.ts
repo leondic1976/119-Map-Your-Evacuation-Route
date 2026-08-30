@@ -320,7 +320,10 @@ export function playVoice(id: VoiceId): void {
  * 브라우저 TTS를 쓰고, 웹에서도 파일 누락·재생 실패 시 같은 문장 TTS로 되돌아간다.
  */
 export function playGuideVoice(ruleId: string, gradeMode: VoiceGradeMode, fallbackText: string): void {
-  if (!enabled || !fallbackText) return;
+  if (!fallbackText) return;
+  /* 꺼진 동안에도 최신 대사를 기억해, 소리를 켜는 클릭에서 곧바로 다시 들려준다. */
+  lastGuideVoice = { ruleId, gradeMode, fallbackText };
+  if (!enabled) return;
   if (process.env.NEXT_PUBLIC_OFFLINE === '1') {
     speak(fallbackText);
     return;
@@ -330,6 +333,13 @@ export function playGuideVoice(ruleId: string, gradeMode: VoiceGradeMode, fallba
 }
 
 let current: HTMLAudioElement | null = null;
+let lastGuideVoice: { ruleId: string; gradeMode: VoiceGradeMode; fallbackText: string } | null = null;
+
+/** 상단 소리 단추로 다시 켤 때 가장 최근 말풍선 MP3를 사용자 클릭 안에서 재생한다. */
+export function replayLastGuideVoice(): void {
+  if (!lastGuideVoice) return;
+  playGuideVoice(lastGuideVoice.ruleId, lastGuideVoice.gradeMode, lastGuideVoice.fallbackText);
+}
 
 function playAudioClip(source: string, fallbackText: string): void {
   if (!enabled) return;

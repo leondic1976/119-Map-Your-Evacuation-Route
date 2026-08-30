@@ -218,7 +218,9 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(sound.includes('NEXT_PUBLIC_BASE_PATH') && sound.includes('/voice/'), '웹 음성 BASE_PATH 경로가 없다');
     assert(sound.includes("NEXT_PUBLIC_OFFLINE === '1'") && sound.includes('speak(fallbackText)'), '오프라인 TTS 대체가 없다');
     assert(sound.includes('audio.onerror = fallback') && sound.includes('stopVoice()'), 'MP3 실패·음소거 중단 처리가 없다');
+    assert(sound.includes('replayLastGuideVoice'), '최근 MP3를 다시 듣는 재생 경로가 없다');
     assert(bubble.includes('playGuideVoice(bubble.ruleId, profile.gradeMode'), '말풍선이 규칙·수준별 MP3를 쓰지 않는다');
+    assert(bubble.includes('data-coach="kids-voice-replay"'), '말풍선에 MP3 다시 듣기 단추가 없다');
     assert(/path\.join\(root, 'public', 'voice'\)/.test(baker), '핵심 음원 굽기가 public/voice를 읽지 않는다');
   });
 

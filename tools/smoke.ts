@@ -273,8 +273,24 @@ async function main(): Promise<void> {
         successTones: 0,
         installCalls: 0,
         installErrors: 0,
+        voicePlayCalls: 0,
+        voicePlayResolves: 0,
+        voicePlaying: 0,
+        voiceEnded: 0,
+        voiceErrors: 0,
       };
       Object.defineProperty(window, '__soundProbe', { configurable: true, value: probe });
+
+      const nativeMediaPlay = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        probe.voicePlayCalls += 1;
+        this.addEventListener('playing', () => { probe.voicePlaying += 1; }, { once: true });
+        this.addEventListener('ended', () => { probe.voiceEnded += 1; }, { once: true });
+        this.addEventListener('error', () => { probe.voiceErrors += 1; }, { once: true });
+        const result = nativeMediaPlay.call(this);
+        result.then(() => { probe.voicePlayResolves += 1; }).catch(() => undefined);
+        return result;
+      };
 
       class FakeGain {
         gain = {
@@ -498,6 +514,16 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '내 방 단계가 아니다');
       const bubble = await page.locator('.k-bubble').innerText();
       assert(bubble.includes('네 방') || bubble.includes('자는 방'), `캐릭터 안내: ${bubble.slice(0, 40)}`);
+      const beforeVoice = await page.evaluate(() => ({ ...(window as unknown as { __soundProbe: Record<string, number> }).__soundProbe }));
+      const voiceResponsesBefore = appVoiceResponses.length;
+      await page.locator('[data-coach="kids-voice-replay"]').click();
+      await page.waitForTimeout(700);
+      const afterVoice = await page.evaluate(() => ({ ...(window as unknown as { __soundProbe: Record<string, number> }).__soundProbe }));
+      assert(afterVoice.voicePlayCalls > beforeVoice.voicePlayCalls, '다시 듣기를 눌러도 MP3 play()를 부르지 않았다');
+      assert(afterVoice.voicePlayResolves > beforeVoice.voicePlayResolves, 'MP3 play() Promise가 성공하지 않았다');
+      assert(afterVoice.voicePlaying > beforeVoice.voicePlaying, 'MP3가 실제 playing 상태가 되지 않았다');
+      assert(afterVoice.voiceErrors === beforeVoice.voiceErrors, 'MP3 재생 중 오류가 났다');
+      assert(appVoiceResponses.length > voiceResponsesBefore, '다시 듣기가 MP3 파일을 새로 요청하지 않았다');
       const room = await kidsCell(page, 10, 4); // 안방
       await page.mouse.click(room.x, room.y);
       await page.waitForTimeout(300);
@@ -703,6 +729,20 @@ async function main(): Promise<void> {
       /* 껐다는 사실이 곧바로 저장돼야 한다 — 600ms 뒤 저장은 창을 닫으면 날아간다 */
       const savedOff = await page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.soundOn);
       assert(savedOff === false, '끈 것이 곧바로 저장되지 않았다');
+
+      /* 꺼진 동안 나온 최신 말은 소리를 켜는 바로 그 클릭에서 MP3로 다시 들려준다. */
+      const voiceBeforeOn = await readProbe();
+      await btn.click();
+      await page.waitForTimeout(700);
+      const voiceAfterOn = await readProbe();
+      assert(voiceAfterOn.voicePlayCalls > voiceBeforeOn.voicePlayCalls, '상단에서 소리를 켜도 최신 MP3를 부르지 않았다');
+      assert(voiceAfterOn.voicePlayResolves > voiceBeforeOn.voicePlayResolves, '상단에서 다시 튼 MP3 play()가 실패했다');
+      assert(voiceAfterOn.voicePlaying > voiceBeforeOn.voicePlaying, '상단에서 다시 튼 MP3가 playing 상태가 되지 않았다');
+      await btn.click();
+      await page.waitForTimeout(200);
+      assert((await btn.getAttribute('aria-pressed')) === 'false', '재생 확인 뒤 소리를 다시 끄지 못했다');
+      const savedOffAgain = await page.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.soundOn);
+      assert(savedOffAgain === false, '재생 확인 뒤 끈 상태가 저장되지 않았다');
 
       /* 껐으면 다시 열어도 꺼져 있어야 한다 (설계서 v1.6 §3) */
       await page.reload({ waitUntil: 'networkidle' });

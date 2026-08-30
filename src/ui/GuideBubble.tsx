@@ -11,7 +11,7 @@ import { toTts } from '../core/guide/runner';
 import { useKids } from '../store/kidsStore';
 import { Avatar, SPEAKER_NAME } from './Avatar';
 import { CloseIcon } from './Onboarding';
-import { playGuideVoice } from './sound';
+import { playGuideVoice, unlockAudio } from './sound';
 
 const AUTO_HIDE_MS = 8000;
 
@@ -45,7 +45,7 @@ export default function GuideBubble() {
      * 소리를 꺼도 계속 읽었다 (설계서 v1.2 §7.1 C1).
      */
     playGuideVoice(bubble.ruleId, profile.gradeMode, toTts(bubble.text));
-  }, [bubble, profile.soundOn, profile.gradeMode]);
+  }, [bubble, profile.gradeMode]);
 
   if (!bubble) return null;
   const card = openCard ? cardById(openCard) : null;
@@ -85,6 +85,18 @@ export default function GuideBubble() {
           </div>
         )}
         <div className="k-bubble-actions">
+          <button
+            type="button"
+            className="k-tb sm"
+            data-coach="kids-voice-replay"
+            onClick={() => {
+              if (!profile.soundOn) useKids.getState().setProfile({ soundOn: true });
+              unlockAudio();
+              playGuideVoice(bubble.ruleId, profile.gradeMode, toTts(bubble.text));
+            }}
+          >
+            <VoiceIcon /> {profile.soundOn ? '목소리 다시 듣기' : '목소리 켜고 듣기'}
+          </button>
           {bubble.cardId && !openCard && (
             <button
               type="button"
@@ -103,5 +115,14 @@ export default function GuideBubble() {
         </div>
       </div>
     </div>
+  );
+}
+
+function VoiceIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 9v6h4l5 4V5L9 9z" />
+      <path d="M17 9a4 4 0 0 1 0 6" />
+    </svg>
   );
 }

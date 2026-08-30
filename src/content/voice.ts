@@ -6,8 +6,9 @@
  *
  * **여기 값은 비어 있는 것이 정상이다.** 음원을 넣는 방법은 이렇다.
  *
- *   1. mp3 여덟 개를 `content/voice/` 에 아래 파일 이름 그대로 둔다
- *      (48kbps 모노 22.05kHz, 한 파일 15KB 안팎, 합쳐 1MB 이내 — 단일 HTML 4MB 상한 때문이다)
+ *   1. mp3 여덟 개를 `content/voice/` 에 아래 파일 이름 그대로 둔다.
+ *      ElevenLabs 웹 TTS의 MP3 128kbps 다운로드본을 그대로 쓸 수 있다. 굽고 난 단일 HTML이
+ *      4MB를 넘을 때만 48kbps 모노 22.05kHz로 줄인다
  *   2. `npm run voice` 를 돌린다. 이 파일이 data URI 로 다시 쓰인다
  *   3. `npm run verify` 로 크기와 외부 참조 0건을 확인한다
  *

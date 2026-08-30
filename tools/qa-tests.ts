@@ -100,16 +100,24 @@ export function qaTests(check: Check, assert: Assert): void {
     }
 
     const elevenLabs = section('## 4. ElevenLabs 전달용 최종 지시문', '## 5. 소리 효과');
-    assert(elevenLabs.includes('### 지시문 시작') && elevenLabs.includes('### 지시문 끝'), `복사할 지시문의 시작·끝 표시가 없다`);
-    assert(elevenLabs.includes('같은 화자, 같은 말하기 속도, 같은 음량과 음색'), `음성 일관성 지시가 없다`);
-    assert(elevenLabs.includes('파일명, 번호, `읽을 대사`, `목표 길이` 같은 안내 문구는 소리 내어 읽지 마세요.'), `안내 문구를 읽지 말라는 지시가 없다`);
-    assert(elevenLabs.includes('배경음악, 화재경보음, 효과음, 다른 사람의 목소리, 메아리, 공간 음향은 넣지 마세요.'), `불필요한 소리를 금지하는 지시가 없다`);
-    const voiceBlocks = elevenLabs.match(/^\d+\. 파일명: `v-[^`]+\.mp3`$/gm) ?? [];
+    assert(elevenLabs.includes('https://elevenlabs.io/app/speech-synthesis/text-to-speech'), `실제 Text to Speech 작업 주소가 없다`);
+    assert(elevenLabs.includes('이 절 전체를 Text to Speech 입력창에 붙여 넣지 않는다'), `작업 설명을 음성으로 읽지 않게 하는 경고가 없다`);
+    for (const preset of ['Eleven Multilingual v2', 'Stability', '50%', 'Similarity', '75%', 'Style Exaggeration', '0%', 'Speaker Boost', 'Speed', '0.95']) {
+      assert(elevenLabs.includes(preset), `ElevenLabs 공통 설정이 빠졌다: ${preset}`);
+    }
+    assert(elevenLabs.includes('`Enhance`는 누르지 않는다'), `대사를 자동 수정하지 말라는 지시가 없다`);
+    assert(elevenLabs.includes('같은 목소리 하나'), `음성 일관성 지시가 없다`);
+    assert(elevenLabs.includes('파일명·번호·설명·백틱은 넣지 않는다'), `안내 문구를 읽지 말라는 지시가 없다`);
+    assert(elevenLabs.includes('배경음악·화재경보음·효과음·다른 목소리는 넣지 않는다'), `불필요한 소리를 금지하는 지시가 없다`);
+    assert(elevenLabs.includes('`MP3 (128kbps)`'), `웹 화면에서 실제로 받을 MP3 형식이 없다`);
+    assert(!elevenLabs.includes('MP3 48kbps'), `웹 화면에서 고를 수 없는 MP3 48kbps를 지시한다`);
+    const voiceBlocks = elevenLabs.match(/^#### \d+\. `v-[^`]+\.mp3`$/gm) ?? [];
     assert(voiceBlocks.length === Object.keys(VOICE_LINES).length, `ElevenLabs 지시문 ${voiceBlocks.length}개 · 앱 ${Object.keys(VOICE_LINES).length}개`);
     for (const [id, line] of Object.entries(VOICE_LINES)) {
-      const block = `파일명: \`${id}.mp3\`\n   - 읽을 대사: \`${line}\``;
-      assert(elevenLabs.includes(block), `ElevenLabs 지시문 불일치: ${id}`);
+      assert(elevenLabs.includes(`#### ${Object.keys(VOICE_LINES).indexOf(id) + 1}. \`${id}.mp3\``), `ElevenLabs 파일 순서 불일치: ${id}`);
+      assert(elevenLabs.includes(`\`\`\`text\n${line}\n\`\`\``), `ElevenLabs 입력 대사 불일치: ${id}`);
     }
+    assert(elevenLabs.includes('content/voice/') && elevenLabs.includes('npm run voice') && elevenLabs.includes('npm run verify'), `납품·굽기·검증 절차가 없다`);
 
     const baker = read(path.join(root, 'tools', 'voice-bake.ts'));
     const idsSource = baker.match(/const IDS = \[([^\]]+)\]/)?.[1] ?? '';

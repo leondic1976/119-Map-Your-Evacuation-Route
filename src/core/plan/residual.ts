@@ -1,9 +1,10 @@
 /**
- * 상자 + 잔여공간 시작 평면 생성기 — 설계서 v1.8 §2~§4.
+ * 외곽 + 독립실 + 공용 바닥 시작 평면 생성기 — 설계서 v1.9 §2~§4.
  *
  * 어린이는 닫힌 방의 위치만 고른다. 거실·복도·개방형 주방은 집 테두리에서
  * 상자를 뺀 나머지로 계산한다. 현재 저장 스키마와 호환되도록 연결 영역을
- * 직사각형 RoomBlock 여러 개와 그 사이 open_passage로 투영한다.
+ * 직사각형 RoomBlock 여러 개와 그 사이 open_passage로 투영하되, 실제 벽이 아닌
+ * 공용 구역 경계는 화면에서 숨긴다.
  *
  * 순수 계산만 하며 시간·난수·브라우저 API를 쓰지 않는다.
  */
@@ -19,6 +20,8 @@ export interface ResidualPlanRequest {
   shell: ShellShape;
   bedroomSides: Side8[];
   kitchenClosed: boolean;
+  includeRefugeLobby?: boolean;
+  includeAlphaRoom?: boolean;
 }
 
 export interface ResidualPlanSummary {
@@ -89,21 +92,39 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
 
   for (const side of normalizeBedroomSides(request.bedrooms, request.bedroomSides)) {
     bedroomNo += 1;
-    const rect = findBox(shell, occupied, side, 5, 4, true) ?? findBox(shell, occupied, side, 4, 4, true);
+    const rect = findBox(shell, occupied, side, 5, 4, true, boxes.map((box) => box.rect))
+      ?? findBox(shell, occupied, side, 4, 4, true, boxes.map((box) => box.rect));
     if (!rect) throw new Error(`방 ${bedroomNo}을 놓을 자리를 찾지 못했다.`);
     const box: BoxDraft = { id: `box_bed_${bedroomNo}`, roomKind: 'bedroom', label: `방 ${bedroomNo}`, rect };
     boxes.push(box);
     addRect(occupied, rect);
   }
 
-  const bathRect = findBox(shell, occupied, 'E', 3, 3, false) ?? findBox(shell, occupied, 'S', 3, 2, false);
+  const bathRect = findBox(shell, occupied, 'E', 3, 3, false, boxes.map((box) => box.rect))
+    ?? findBox(shell, occupied, 'S', 3, 2, false, boxes.map((box) => box.rect));
   if (bathRect) {
     boxes.push({ id: 'box_bath', roomKind: 'bath', label: '', rect: bathRect });
     addRect(occupied, bathRect);
   }
 
+  if (request.includeRefugeLobby) {
+    const rect = findAnyBox(shell, occupied, 3, 2, ['SE', 'E', 'S', 'W', 'N'], boxes.map((box) => box.rect));
+    if (!rect) throw new Error('피난전실을 놓을 자리를 찾지 못했다.');
+    boxes.push({ id: 'box_refuge_lobby', roomKind: 'refuge_lobby', label: '피난전실', rect });
+    addRect(occupied, rect);
+  }
+
+  if (request.includeAlphaRoom) {
+    const rect = findAnyBox(shell, occupied, 3, 3, ['W', 'SW', 'S', 'E', 'N'], boxes.map((box) => box.rect))
+      ?? findAnyBox(shell, occupied, 3, 2, ['W', 'SW', 'S', 'E', 'N'], boxes.map((box) => box.rect));
+    if (!rect) throw new Error('알파룸을 놓을 자리를 찾지 못했다.');
+    boxes.push({ id: 'box_alpha', roomKind: 'utility', label: '알파룸', rect });
+    addRect(occupied, rect);
+  }
+
   if (request.kitchenClosed) {
-    const kitchenRect = findBox(shell, occupied, 'SW', 4, 3, true) ?? findBox(shell, occupied, 'S', 3, 3, false);
+    const kitchenRect = findBox(shell, occupied, 'SW', 4, 3, true, boxes.map((box) => box.rect))
+      ?? findBox(shell, occupied, 'S', 3, 3, false, boxes.map((box) => box.rect));
     if (kitchenRect) {
       boxes.push({ id: 'box_kitchen', roomKind: 'kitchen', label: '문 있는 주방', rect: kitchenRect });
       addRect(occupied, kitchenRect);
@@ -130,6 +151,7 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
     rect,
     label: index === livingIndex ? '거실' : '',
     showLabel: index === livingIndex,
+    wallMode: 'zone',
   }));
   if (openKitchenRect) {
     residualRooms.push({
@@ -140,7 +162,22 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
       rect: openKitchenRect,
       label: '트인 주방',
       showLabel: true,
+      wallMode: 'zone',
     });
+  }
+
+  /* 현관문 가까이에 따로 분해된 작은 공용 구역이 있으면 현관으로 이름 붙인다. */
+  const entry = residualRooms
+    .filter((room) => room.roomKind === 'corridor' && exteriorBoundary(room.rect, shell).length > 0)
+    .sort((a, b) => {
+      const aSlot = exteriorBoundary(a.rect, shell).sort((x, y) => frontScore(x) - frontScore(y))[0];
+      const bSlot = exteriorBoundary(b.rect, shell).sort((x, y) => frontScore(x) - frontScore(y))[0];
+      return frontScore(aSlot) - frontScore(bSlot) || area(a.rect) - area(b.rect);
+    })[0];
+  if (entry) {
+    entry.roomKind = 'entry';
+    entry.label = '현관';
+    entry.showLabel = true;
   }
 
   const boxRooms: RoomBlock[] = boxes.map((box) => ({
@@ -150,6 +187,7 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
     roomKind: box.roomKind,
     rect: box.rect,
     label: box.label,
+    wallMode: 'closed',
   }));
   const rooms = boxRooms.concat(residualRooms);
   const owner = ownerMap(rooms);
@@ -166,7 +204,7 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
         const key = edgeKey(cell, side);
         if (openedBoundary.has(key)) continue;
         openedBoundary.add(key);
-        openings.push(makeOpening(`open_${openings.length + 1}`, 'open_passage', cell, side, false));
+        openings.push(makeOpening(`open_${openings.length + 1}`, 'open_passage', cell, side, false, true));
       }
     }
   }
@@ -180,7 +218,8 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
   }
 
   /* 현관은 남은 자리의 바깥 경계 중 아래쪽 중앙에 가장 가까운 곳이다. */
-  const frontCandidates = residualRooms.flatMap((room) => exteriorBoundary(room.rect, shell));
+  const entryRooms = residualRooms.filter((room) => room.roomKind === 'entry');
+  const frontCandidates = (entryRooms.length ? entryRooms : residualRooms).flatMap((room) => exteriorBoundary(room.rect, shell));
   const front = frontCandidates.sort((a, b) => frontScore(a) - frontScore(b))[0];
   if (front) openings.push(makeOpening('front_door', 'front_door', front.cell, front.side, true));
 
@@ -193,7 +232,8 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
   }
 
   const points = starterPoints(boxRooms, residualRooms);
-  const plan: FloorPlan = { grid: { ...DEFAULT_GRID }, blocks: [...rooms, ...openings, ...points] };
+  const shellList = [...shell].map(parseCell).sort((a, b) => a.y - b.y || a.x - b.x);
+  const plan: FloorPlan = { grid: { ...DEFAULT_GRID }, shell: { cells: shellList }, blocks: [...rooms, ...openings, ...points] };
   const issues = validateResidualProjection(plan, request);
   if (issues.length) throw new Error(issues.join(' '));
 
@@ -223,10 +263,28 @@ export function validateResidualProjection(plan: FloorPlan, request: ResidualPla
   }
   const beds = rooms.filter((room) => room.roomKind === 'bedroom');
   if (beds.length !== request.bedrooms) issues.push(`침실이 ${request.bedrooms}개가 아니다.`);
+  if (!rooms.some((room) => room.id === 'box_bath')) issues.push('욕실이 없다.');
+  if (request.includeRefugeLobby && !rooms.some((room) => room.id === 'box_refuge_lobby')) issues.push('피난전실이 없다.');
+  if (request.includeAlphaRoom && !rooms.some((room) => room.id === 'box_alpha')) issues.push('알파룸이 없다.');
+
+  const shell = new Set((plan.shell?.cells ?? []).map(cellKey));
+  if (shell.size === 0) issues.push('집 외곽 정보가 없다.');
+  else {
+    if (shell.size !== occupied.size) issues.push('집 외곽과 방 바닥의 넓이가 다르다.');
+    for (const key of shell) if (!occupied.has(key)) issues.push(`${key}가 집 외곽 안에서 비었다.`);
+    for (const key of occupied) if (!shell.has(key)) issues.push(`${key}가 집 외곽을 벗어났다.`);
+  }
+  for (const room of rooms) {
+    const expected = room.id.startsWith('zone_') ? 'zone' : 'closed';
+    if (room.wallMode !== expected) issues.push(`${room.id}의 벽 성격이 ${expected}가 아니다.`);
+  }
 
   const openings = plan.blocks.filter(isOpening);
   const owner = ownerMap(rooms);
   const residualIds = new Set(rooms.filter((room) => room.id.startsWith('zone_')).map((room) => room.id));
+  for (const opening of openings.filter((item) => item.openingKind === 'open_passage')) {
+    if (!opening.hideInPlan) issues.push(`${opening.id}가 화면에 벽 틈으로 보인다.`);
+  }
   for (const room of rooms.filter((room) => room.id.startsWith('box_'))) {
     const hasDoor = openings.some((opening) => {
       if (opening.openingKind !== 'door') return false;
@@ -282,6 +340,7 @@ function findBox(
   width: number,
   height: number,
   requireExterior: boolean,
+  existingBoxes: Rect[] = [],
 ): Rect | null {
   const bounds = boundsOf(shell);
   const target = targetPoint(bounds, targetSide);
@@ -296,6 +355,8 @@ function findBox(
       const blocked = new Set([...occupied, ...keys]);
       const remain = subtract(shell, blocked);
       if (!connected(remain)) continue;
+      const accessible = existingBoxes.concat(rect).every((box) => cellsOf(box).some((cell) => SIDES.some((side) => remain.has(cellKey(step(cell, side))))));
+      if (!accessible) continue;
       const center = { x: x + width / 2, y: y + height / 2 };
       const distance = Math.hypot(center.x - target.x, center.y - target.y);
       const thin = [...remain].filter((key) => neighborCount(remain, parseCell(key)) <= 1).length;
@@ -304,6 +365,15 @@ function findBox(
   }
   choices.sort((a, b) => a.score - b.score);
   return choices[0]?.rect ?? null;
+}
+
+/** 요청한 독립실은 공용 바닥 연결을 지키는 후보 가운데 첫 번째로 배치한다. */
+function findAnyBox(shell: Set<string>, occupied: Set<string>, width: number, height: number, sides: Side8[], existingBoxes: Rect[]): Rect | null {
+  for (const side of sides) {
+    const rect = findBox(shell, occupied, side, width, height, false, existingBoxes);
+    if (rect) return rect;
+  }
+  return null;
 }
 
 function reserveZone(cells: Set<string>, targetSide: Side8, width: number, height: number): Rect | null {
@@ -406,8 +476,17 @@ function frontScore(slot: BoundarySlot): number {
   return sidePenalty + Math.abs(slot.cell.x - DEFAULT_GRID.width * 0.62) + Math.abs(slot.cell.y - DEFAULT_GRID.height);
 }
 
-function makeOpening(id: string, kind: OpeningBlock['openingKind'], cell: Cell, side: Side, closed: boolean): OpeningBlock {
-  return { kind: 'opening', id, layer: 'home', openingKind: kind, cell: { ...cell }, side, closedByDefault: closed };
+function makeOpening(id: string, kind: OpeningBlock['openingKind'], cell: Cell, side: Side, closed: boolean, hideInPlan = false): OpeningBlock {
+  return {
+    kind: 'opening',
+    id,
+    layer: 'home',
+    openingKind: kind,
+    cell: { ...cell },
+    side,
+    closedByDefault: closed,
+    ...(hideInPlan ? { hideInPlan: true } : {}),
+  };
 }
 
 function ownerMap(rooms: RoomBlock[]): Map<string, string> {

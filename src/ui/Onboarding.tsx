@@ -76,6 +76,8 @@ export default function Onboarding({ open, onClose }: Props) {
   const [rotation, setRotation] = useState<PlanRotation>(0);
   const [shell, setShell] = useState<ShellShape>('wide');
   const [bedroomSides, setBedroomSides] = useState<Side8[]>(normalizeBedroomSides(2, []));
+  const [includeRefugeLobby, setIncludeRefugeLobby] = useState(false);
+  const [includeAlphaRoom, setIncludeAlphaRoom] = useState(false);
   const easy = profile.gradeMode === 'easy';
 
   useEffect(() => {
@@ -89,6 +91,8 @@ export default function Onboarding({ open, onClose }: Props) {
     setRotation(0);
     setShell('wide');
     setBedroomSides(normalizeBedroomSides(2, []));
+    setIncludeRefugeLobby(false);
+    setIncludeAlphaRoom(false);
   }, [open]);
 
   useEffect(() => {
@@ -122,8 +126,15 @@ export default function Onboarding({ open, onClose }: Props) {
     [selected, roomsOnly, hasKitchen, kitchen, rotation],
   );
   const residualRequest = useMemo(
-    () => ({ bedrooms, shell, bedroomSides: normalizeBedroomSides(bedrooms, bedroomSides), kitchenClosed: kitchen === 'closed' } as const),
-    [bedrooms, shell, bedroomSides, kitchen],
+    () => ({
+      bedrooms,
+      shell,
+      bedroomSides: normalizeBedroomSides(bedrooms, bedroomSides),
+      kitchenClosed: kitchen === 'closed',
+      includeRefugeLobby,
+      includeAlphaRoom,
+    } as const),
+    [bedrooms, shell, bedroomSides, kitchen, includeRefugeLobby, includeAlphaRoom],
   );
   const residualPreview = useMemo(
     () => rotatePlan(generateResidualPlan(residualRequest).plan, rotation),
@@ -196,7 +207,7 @@ export default function Onboarding({ open, onClose }: Props) {
     if (page === 'gallery') return easy ? '눈으로 보고 골라 볼까?' : '전체 집 모양 보기';
     if (page === 'shell') return easy ? '집 바깥 모양은 어느 쪽이 비슷해?' : '집 테두리와 가까운 모양을 고르세요';
     if (page === 'boxSides') return easy ? '방이 있는 쪽을 눌러 봐!' : '침실이 놓인 쪽을 선택하세요';
-    if (page === 'boxPreview') return easy ? '남은 자리에 거실을 만들었어!' : '상자와 잔여공간으로 만든 평면';
+    if (page === 'boxPreview') return easy ? '집 안에 방을 놓고 남은 곳을 이었어!' : '외곽과 독립실로 만든 평면';
     return easy ? '우리 집처럼 바꿔 보자!' : '방향과 주방 모양 정하기';
   })();
 
@@ -234,8 +245,8 @@ export default function Onboarding({ open, onClose }: Props) {
               </button>
               <button type="button" className="k-start-path" data-start-path="starter" onClick={() => { setFlow('starter'); setPage('starterRooms'); }}>
                 <span className="k-start-path-icon"><PathIcon kind="starter" /></span>
-                <b>{easy ? '방 상자로 쉽게 만들기' : '상자와 남은 자리로 만들기'}</b>
-                <small>{easy ? '방이 있는 쪽만 고르면 남은 자리에 거실을 만들어 줄게.' : '닫힌 방을 배치하고 잔여공간을 거실과 복도로 자동 구성합니다.'}</small>
+                <b>{easy ? '집 테두리 안에 방 놓기' : '외곽과 독립실로 만들기'}</b>
+                <small>{easy ? '집 모양과 방 위치를 고르면 남은 곳을 거실로 이어 줄게.' : '집 외곽에 독립실을 배치하고 남은 바닥을 공용공간으로 자동 구성합니다.'}</small>
               </button>
             </div>
           </div>
@@ -295,7 +306,7 @@ export default function Onboarding({ open, onClose }: Props) {
           <div className="k-onboard-body k-box-side-page">
             <p className="k-start-note">
               {easy
-                ? `파란 방 ${bedrooms}개가 있는 쪽을 눌러 봐. 다른 쪽을 누르면 먼저 고른 자리가 바뀌어.`
+                ? `집 테두리 안에서 파란 방 ${bedrooms}개가 있는 쪽을 눌러 봐. 다른 쪽을 누르면 먼저 고른 자리가 바뀌어.`
                 : `침실 ${bedrooms}개의 대략적인 위치를 선택하세요. 새 위치를 누르면 오래된 선택을 교체합니다.`}
             </p>
             <div className="k-side-picker" aria-label="방이 있는 쪽 선택">
@@ -326,7 +337,7 @@ export default function Onboarding({ open, onClose }: Props) {
             <div className="k-side-actions">
               <span>방 자리 {bedroomSides.length}/{bedrooms}</span>
               <button type="button" className="k-start-plan" data-box-sides-next onClick={() => setPage('boxPreview')}>
-                남은 자리에 거실 만들기
+                독립실 놓고 남은 곳 잇기
               </button>
             </div>
           </div>
@@ -334,12 +345,25 @@ export default function Onboarding({ open, onClose }: Props) {
 
         {page === 'boxPreview' ? (
           <div className="k-onboard-body k-customize-page k-box-preview-page">
-            <section className="k-customize-preview" aria-label="상자와 남은 자리로 만든 집 미리보기">
+            <section className="k-customize-preview" aria-label="외곽과 독립실로 만든 집 미리보기">
               <PlanSvg plan={residualPreview} routePair={undefined} showSlots={[]} style="kid" gradeMode={profile.gradeMode} showGrid={false} />
-              <b>{bedrooms}개 방 상자와 남은 자리</b>
-              <small>{easy ? '남은 자리는 거실과 복도가 되고, 닫힌 방에는 문이 생겨.' : '닫힌 상자에는 자동 문을, 잔여공간 사이에는 트인 경계를 만들었습니다.'}</small>
+              <b>집 외곽 안의 독립실과 열린 바닥</b>
+              <small>{easy ? '검은 선은 진짜 벽이야. 거실과 복도는 벽 틈 없이 한 바닥으로 이어져.' : '독립실만 내부 벽으로 닫고 공용공간은 끊김 없는 바닥으로 표시합니다.'}</small>
             </section>
             <section className="k-customize-options">
+              <fieldset className="k-choice-field">
+                <legend>{easy ? '문이 있는 방을 더 놓을까?' : '추가 독립실'}</legend>
+                <p>{easy ? '집에 있으면 눌러 봐. 다시 누르면 뺄 수 있어.' : '실제 집에 있는 구획실만 선택하세요.'}</p>
+                <div className="k-segmented k-extra-room-choices">
+                  <button type="button" className={includeRefugeLobby ? 'on' : ''} data-extra-room="refuge-lobby" aria-pressed={includeRefugeLobby} onClick={() => setIncludeRefugeLobby((value) => !value)}>
+                    피난전실
+                  </button>
+                  <button type="button" className={includeAlphaRoom ? 'on' : ''} data-extra-room="alpha" aria-pressed={includeAlphaRoom} onClick={() => setIncludeAlphaRoom((value) => !value)}>
+                    알파룸
+                  </button>
+                </div>
+                <small className="k-choice-help">욕실은 기본으로 문이 있는 방으로 만들어 둬.</small>
+              </fieldset>
               <fieldset className="k-choice-field">
                 <legend>{easy ? '주방에 문이 있어?' : '주방이 닫혀 있나요?'}</legend>
                 <p>{easy ? '문이 없으면 거실과 이어진 트인 주방으로 만들게.' : '문이 없으면 잔여공간 안에 개방형 주방으로 배치합니다.'}</p>

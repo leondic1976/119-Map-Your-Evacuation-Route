@@ -148,6 +148,8 @@ export function buildHouse(plan: FloorPlan): Float32Array {
         for (const [side, nb] of sides) {
           const other = occupied.get(`${nb.x},${nb.y}`);
           if (other === r) continue; // 같은 방 안쪽
+          /* 외곽 우선 평면의 거실·복도·현관·트인 주방은 이름만 다른 하나의 공용 바닥이다. */
+          if (other && r.wallMode === 'zone' && other.wallMode === 'zone') continue;
           /* 두 방 사이 벽은 한 번만 세운다 */
           const key = [`${x},${y},${side}`, `${nb.x},${nb.y},${side === 'N' ? 'S' : side === 'S' ? 'N' : side === 'E' ? 'W' : 'E'}`]
             .sort()

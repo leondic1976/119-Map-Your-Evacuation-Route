@@ -1288,7 +1288,7 @@
   padding-top: 14px;
 }
 
-/* 상자 + 잔여공간 시작 방식 — 설계서 v1.8 §2. */
+/* 외곽 + 독립실 + 공용 바닥 시작 방식 — 설계서 v1.9 §2. */
 .k-shell-page,
 .k-box-side-page {
   display: flex;
@@ -1526,6 +1526,10 @@
 
 .k-kitchen-choices {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.k-extra-room-choices {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .k-rotation-choices {

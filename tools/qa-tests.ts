@@ -52,6 +52,26 @@ const rel = (p: string): string => path.relative(root, p).split(path.sep).join('
 /** 낱말과 기호 사이에 낀 진짜 이모지만 잡는다. 한글·한자·괘선 문자는 아니다 */
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F1E6}-\u{1F1FF}]/u;
 
+/** ID3 뒤의 실제 MPEG-1 Layer III 프레임을 연속해서 읽을 수 있는지 확인한다. */
+function mp3AudioOffset(data: Buffer): number {
+  if (data.subarray(0, 3).toString('ascii') !== 'ID3') return 0;
+  const tagSize = ((data[6] & 0x7f) << 21) | ((data[7] & 0x7f) << 14) | ((data[8] & 0x7f) << 7) | (data[9] & 0x7f);
+  return 10 + tagSize;
+}
+
+function mp3FrameLength(data: Buffer, offset: number): number {
+  const b1 = data[offset + 1] ?? 0;
+  const b2 = data[offset + 2] ?? 0;
+  if (data[offset] !== 0xff || (b1 & 0xe0) !== 0xe0) return 0;
+  if (((b1 >> 3) & 0x03) !== 0x03 || ((b1 >> 1) & 0x03) !== 0x01) return 0;
+  const bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+  const sampleRates = [44100, 48000, 32000];
+  const bitrate = bitrates[(b2 >> 4) & 0x0f] ?? 0;
+  const sampleRate = sampleRates[(b2 >> 2) & 0x03] ?? 0;
+  if (!bitrate || !sampleRate) return 0;
+  return Math.floor((144 * bitrate * 1000) / sampleRate) + ((b2 >> 1) & 0x01);
+}
+
 export function qaTests(check: Check, assert: Assert): void {
   const srcFiles = sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css', '.json']);
 
@@ -126,7 +146,7 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(JSON.stringify(bakedIds) === JSON.stringify(voiceIds), `MP3 굽기 목록이 음성 정본과 다르다`);
   });
 
-  check('[점검] Juwonmom 전체 음성 176개와 웹·오프라인 재생 경로가 맞다', () => {
+  check('[점검] Juwonmom 실제 MP3 176개와 웹·오프라인 재생 경로가 맞다', () => {
     const voiceDir = path.join(root, 'public', 'voice');
     const manifestPath = path.join(voiceDir, 'manifest.json');
     assert(fs.existsSync(manifestPath), 'public/voice/manifest.json 이 없다');
@@ -179,16 +199,16 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(JSON.stringify(actualFiles) === JSON.stringify(expectedFiles), `MP3 ${actualFiles.length}/176 — 누락·초과 파일이 있다`);
     for (const filename of actualFiles) {
       const data = fs.readFileSync(path.join(voiceDir, filename));
-      const frameLimit = Math.min(data.length - 1, 8192);
-      let hasFrame = false;
-      for (let i = 0; i < frameLimit; i += 1) {
-        if (data[i] === 0xff && (data[i + 1] & 0xe0) === 0xe0) {
-          hasFrame = true;
-          break;
-        }
+      let frameOffset = mp3AudioOffset(data);
+      let frameCount = 0;
+      for (; frameCount < 3; frameCount += 1) {
+        const length = mp3FrameLength(data, frameOffset);
+        if (!length) break;
+        frameOffset += length;
       }
       assert(data.length > 1024, `MP3가 너무 작다: ${filename} ${data.length}바이트`);
-      assert(data.subarray(0, 3).toString('ascii') === 'ID3' || hasFrame, `MP3 헤더가 없다: ${filename}`);
+      assert(frameCount === 3, `실제 MP3 음성 프레임을 읽을 수 없다: ${filename}`);
+      assert(data.subarray(0, Math.min(data.length, 4096)).includes(Buffer.from('Eleven Labs Inc.')), `ElevenLabs 제작 서명이 없다: ${filename}`);
       assert(!data.subarray(0, 32).toString('utf8').toLowerCase().includes('<html'), `HTML이 MP3로 저장됐다: ${filename}`);
     }
 

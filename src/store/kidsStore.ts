@@ -152,7 +152,7 @@ export interface KidsActions {
   setHowTo: (on: boolean) => void;
 
   loadTemplate: (id: string, options?: PreparePlanOptions) => void;
-  /** 상자와 남은 자리 방식으로 만든 시작 평면을 불러온다 (설계서 v1.8 §2). */
+  /** 외곽과 독립실 방식으로 만든 시작 평면을 불러온다 (설계서 v1.9 §2). */
   loadResidualPlan: (request: ResidualPlanRequest, rotation?: PlanRotation) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
   placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;

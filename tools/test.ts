@@ -47,7 +47,7 @@ function assert(cond: boolean, msg: string): void {
 section('연산 로직');
 logicTests(check, assert);
 
-section('상자와 남은 자리');
+section('외곽과 독립실');
 layoutTests(check, assert);
 
 section('배포 전 점검');

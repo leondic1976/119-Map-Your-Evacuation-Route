@@ -1,4 +1,4 @@
-/** 상자 + 잔여공간 생성기와 안전 미션의 순수 연산 시험 — 설계서 v1.8 §6.1. */
+/** 외곽 + 독립실 + 공용 바닥 생성기와 안전 미션의 순수 연산 시험 — 설계서 v1.9 §6. */
 import { buildGraph } from '../src/core/graph/build';
 import { openingBetween } from '../src/core/graph/build';
 import { safetyMissions } from '../src/core/game/missions';
@@ -61,6 +61,47 @@ export function layoutTests(check: Check, assert: Assert): void {
     }
   });
 
+  check('피난전실과 알파룸 선택 4가지도 모든 테두리·방 수·주방에서 독립실로 만든다', () => {
+    for (const shell of SHELLS) {
+      for (const bedrooms of [1, 2, 3, 4] as const) {
+        for (const kitchenClosed of [false, true]) {
+          for (const extras of [
+            { includeRefugeLobby: false, includeAlphaRoom: false },
+            { includeRefugeLobby: true, includeAlphaRoom: false },
+            { includeRefugeLobby: false, includeAlphaRoom: true },
+            { includeRefugeLobby: true, includeAlphaRoom: true },
+          ]) {
+            const request: ResidualPlanRequest = {
+              shell,
+              bedrooms,
+              kitchenClosed,
+              bedroomSides: normalizeBedroomSides(bedrooms, []),
+              ...extras,
+            };
+            const { plan } = generateResidualPlan(request);
+            const issues = validateResidualProjection(plan, request);
+            assert(issues.length === 0, `${JSON.stringify(request)}: ${issues.join(' / ')}`);
+          }
+        }
+      }
+    }
+  });
+
+  check('외곽 칸은 바닥과 정확히 같고 공용 구역 경계는 화면에서 숨긴다', () => {
+    for (const request of cases()) {
+      const { plan } = generateResidualPlan(request);
+      const shell = new Set((plan.shell?.cells ?? []).map(cellKey));
+      const floor = new Set(plan.blocks.filter(isRoom).flatMap((room) => cellsOf(room.rect).map(cellKey)));
+      assert(shell.size === floor.size && [...shell].every((key) => floor.has(key)), `${JSON.stringify(request)}: 외곽과 바닥이 다르다.`);
+      for (const room of plan.blocks.filter(isRoom)) {
+        assert(room.wallMode === (room.id.startsWith('zone_') ? 'zone' : 'closed'), `${room.id} 벽 성격이 잘못됐다.`);
+      }
+      for (const opening of plan.blocks.filter(isOpening).filter((item) => item.openingKind === 'open_passage')) {
+        assert(opening.hideInPlan === true, `${opening.id}가 흰색 벽 틈으로 남는다.`);
+      }
+    }
+  });
+
   check('현관문에서 생성된 모든 침실까지 통행 그래프가 이어진다', () => {
     for (const request of cases()) {
       const { plan } = generateResidualPlan(request);
@@ -99,7 +140,7 @@ export function layoutTests(check: Check, assert: Assert): void {
           shared += 1;
           const openingId = openingBetween(plan, cell, side);
           const opening = plan.blocks.find((block) => block.id === openingId);
-          assert(Boolean(opening && isOpening(opening) && opening.openingKind === 'open_passage'), `${cellKey(cell)} ${side}가 트인 통로가 아니다.`);
+          assert(Boolean(opening && isOpening(opening) && opening.openingKind === 'open_passage' && opening.hideInPlan), `${cellKey(cell)} ${side}가 숨은 공용 통로가 아니다.`);
         }
       }
       assert(shared > 0, `${JSON.stringify(request)}: 주방이 공용부와 맞닿지 않는다.`);

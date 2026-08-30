@@ -82,7 +82,19 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     () => (showHint && !inGame ? suggestedRoute({ plan, hazardId, routeSlot, profile, routes }) : null),
     [showHint, inGame, plan, hazardId, routeSlot, profile, routes],
   );
-  const slots = useMemo(() => plan.blocks.filter(isRoom).flatMap((r) => boundarySlots(r.rect)), [plan]);
+  const slots = useMemo(() => {
+    const roomWalls = plan.blocks.filter(isRoom).filter((room) => room.wallMode !== 'zone').flatMap((room) => boundarySlots(room.rect));
+    if (!plan.shell) return roomWalls;
+    const inside = new Set(plan.shell.cells.map((cell) => `${cell.x},${cell.y}`));
+    const shellWalls = plan.shell.cells.flatMap((cell) => ([
+      ['N', { x: cell.x, y: cell.y - 1 }],
+      ['E', { x: cell.x + 1, y: cell.y }],
+      ['S', { x: cell.x, y: cell.y + 1 }],
+      ['W', { x: cell.x - 1, y: cell.y }],
+    ] as [Side, Cell][]).filter(([, other]) => !inside.has(`${other.x},${other.y}`)).map(([side]) => ({ cell, side })));
+    const unique = new Map(roomWalls.concat(shellWalls).map((slot) => [`${slot.cell.x},${slot.cell.y},${slot.side}`, slot]));
+    return [...unique.values()];
+  }, [plan]);
 
   /* 화면 좌표 → 셀 좌표(실수) */
   const toPoint = useCallback((e: React.PointerEvent): { x: number; y: number } => {
@@ -112,7 +124,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       const pt = plan.blocks.find((b) => isPoint(b) && sameCell(b.cell, c));
       if (pt) return pt.id;
       for (const b of plan.blocks) {
-        if (!isOpening(b)) continue;
+        if (!isOpening(b) || b.hideInPlan) continue;
         const sc = slotCenter(b.cell, b.side);
         /* 문·창을 고르는 판을 넓혔다 — 작아서 잘 안 눌린다는 지적을 받았다 */
         if ((sc.x - p.x) ** 2 + (sc.y - p.y) ** 2 < 0.3) return b.id;

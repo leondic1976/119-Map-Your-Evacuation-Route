@@ -226,11 +226,13 @@ export function logicTests(check: Check, assert: Assert): void {
   check('개방형 주방은 거실·복도 쪽 벽 전체가 트인 통로가 된다 (설계서 v1.6 §11.3)', () => {
     const plan = preparePlan(template('apt_2room'), { openKitchen: true });
     const passages = plan.blocks.filter((block) => block.kind === 'opening' && block.openingKind === 'open_passage');
-    assert(passages.length === 9, `방 두 개 평면의 트인 벽이 9칸이어야 하는데 ${passages.length}칸이다`);
+    assert(passages.length === 14, `방 두 개 평면의 열린 공용 경계가 14칸이어야 하는데 ${passages.length}칸이다`);
     assert(passages.every((passage) => passage.kind === 'opening' && passage.closedByDefault === false), '트인 통로가 닫힌 상태다');
+    assert(passages.every((passage) => passage.kind === 'opening' && passage.hideInPlan === true), '공용 경계가 2D에서 벽 틈으로 보인다');
+    assert(Boolean(plan.shell?.cells.length), '집 외곽 칸이 만들어지지 않았다');
     assert(!doorlessRooms(plan).some((room) => room.roomKind === 'kitchen'), '트인 주방을 문 없는 방으로 잘못 안내한다');
     const graph = buildGraph(plan);
-    assert(graph.edges.filter((edge) => edge.via === 'open_passage').length === 9, '트인 벽이 통행 그래프에 이어지지 않았다');
+    assert(graph.edges.filter((edge) => edge.via === 'open_passage').length === 14, '열린 공용 바닥이 통행 그래프에 이어지지 않았다');
     assert(Object.values(DEFAULT_PASSABILITY.open_passage).every((value) => value === 'open'), '트인 통로가 모든 상황에서 항상 열려 있지 않다');
     assert(graph.warnings.length === 0, `트인 주방 그래프 경고: ${graph.warnings.join(' | ')}`);
     const passage = plan.blocks.find((block) => block.kind === 'opening' && block.openingKind === 'open_passage');

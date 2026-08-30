@@ -24,6 +24,7 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.mp3': 'audio/mpeg',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
 };
@@ -382,7 +383,16 @@ async function main(): Promise<void> {
     });
     const page = await context.newPage();
     const errors: string[] = [];
+    const appVoiceResponses: Array<{ url: string; status: number; contentType: string }> = [];
     page.on('pageerror', (e) => errors.push(e.message));
+    page.on('response', (response) => {
+      if (!/\/voice\/[^/?]+\.mp3(?:\?|$)/.test(response.url())) return;
+      appVoiceResponses.push({
+        url: response.url(),
+        status: response.status(),
+        contentType: response.headers()['content-type'] ?? '',
+      });
+    });
     await page.goto(server.url, { waitUntil: 'networkidle' });
     const continueAfterWelcome = async (expected = '.k-app') => {
       const start = page.locator('[data-coach="kids-welcome-start"]');
@@ -457,7 +467,9 @@ async function main(): Promise<void> {
 
     await check('트인 주방은 거실·복도 쪽 벽 전체가 실제 통로로 만들어진다 (설계서 v1.6 §11.3)', async () => {
       assert((await page.locator('[data-kitchen="open"]').getAttribute('aria-pressed')) === 'true', '트인 주방이 기본 선택이 아니다');
-      assert((await page.locator('.k-customize-preview [data-opening-kind="open_passage"]').count()) === 9, '미리보기에서 주방 벽 전체가 열리지 않았다');
+      assert((await page.locator('.k-customize-preview [data-opening-kind="open_passage"]').count()) === 14, '미리보기에서 공용 바닥 전체가 이어지지 않았다');
+      assert((await page.locator('.k-customize-preview [data-plan-hidden="true"]').count()) === 14, '미리보기 공용 경계에 벽 틈 그림이 남았다');
+      assert((await page.locator('.k-customize-preview [data-house-shell="true"]').count()) === 1, '미리보기에 하나의 집 외곽선이 없다');
       await page.locator('[data-rotation="90"]').click();
       assert((await page.locator('[data-rotation="90"]').getAttribute('aria-pressed')) === 'true', '회전 선택이 반영되지 않았다');
       await page.locator('[data-rotation="0"]').click();
@@ -465,7 +477,8 @@ async function main(): Promise<void> {
       await page.waitForTimeout(500);
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
       assert(rooms === 8, `방 두 개 아파트가 안 실렸다 — 방 ${rooms}개`);
-      assert((await page.locator('.k-stage [data-opening-kind="open_passage"]').count()) === 9, '도면에서 주방 벽 전체가 열리지 않았다');
+      assert((await page.locator('.k-stage [data-opening-kind="open_passage"]').count()) === 14, '도면에서 공용 바닥 전체가 이어지지 않았다');
+      assert((await page.locator('.k-stage [data-plan-hidden="true"]').count()) === 14, '도면 공용 경계에 벽 틈 그림이 남았다');
       await page.evaluate(() => window.localStorage.clear());
       await page.reload({ waitUntil: 'networkidle' });
       /* 떠나는 화면이 저장을 다시 쓸 수 있으므로 새 문서에서도 한 번 더 지운다. */
@@ -1219,7 +1232,7 @@ async function main(): Promise<void> {
       await page.waitForSelector('svg.k-stage');
     });
 
-    await check('방 상자와 남은 자리로 꺾인 집을 만들고 자동 문·트인 주방까지 준비한다 (설계서 v1.8 §2)', async () => {
+    await check('외곽 안에 독립실을 놓고 남은 공용 바닥을 벽 틈 없이 잇는다 (설계서 v1.9 §2)', async () => {
       await page.evaluate(() => window.localStorage.clear());
       await page.reload({ waitUntil: 'networkidle' });
       await page.evaluate(() => window.localStorage.clear());
@@ -1235,8 +1248,15 @@ async function main(): Promise<void> {
       await page.locator('[data-bedroom-side="S"]').click();
       assert((await page.locator('[data-bedroom-side][aria-pressed="true"]').count()) === 2, '새 위치를 골랐더니 방 수가 늘었다');
       await page.locator('[data-box-sides-next]').click();
-      assert((await page.locator('.k-customize-preview [data-kind="room"]').count()) >= 5, '상자와 남은 자리 미리보기가 없다');
+      assert((await page.locator('.k-customize-preview [data-kind="room"]').count()) >= 5, '독립실과 공용 바닥 미리보기가 없다');
       assert((await page.locator('.k-customize-preview [data-opening-kind="open_passage"]').count()) >= 1, '남은 자리와 트인 주방이 이어지지 않았다');
+      assert((await page.locator('.k-customize-preview [data-house-shell="true"]').count()) === 1, '생성 미리보기에 집 외곽선이 하나가 아니다');
+      const hiddenPassages = page.locator('.k-customize-preview [data-opening-kind="open_passage"]');
+      assert((await hiddenPassages.count()) === (await page.locator('.k-customize-preview [data-plan-hidden="true"]').count()), '공용부 경계 일부가 벽 틈으로 보인다');
+      await page.locator('[data-extra-room="refuge-lobby"]').click();
+      await page.locator('[data-extra-room="alpha"]').click();
+      assert((await page.locator('[data-extra-room][aria-pressed="true"]').count()) === 2, '추가 독립실 선택이 반영되지 않았다');
+      assert((await page.locator('.k-customize-preview [data-wall-mode="closed"]').count()) >= 5, '피난전실과 알파룸이 독립실 벽으로 생기지 않았다');
       await page.locator('[data-box-rotation="90"]').click();
       assert((await page.locator('[data-box-rotation="90"]').getAttribute('aria-pressed')) === 'true', '상자 평면 회전이 반영되지 않았다');
       await page.locator('[data-residual-plan-start]').click();
@@ -1245,8 +1265,48 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-stage [data-opening-kind="front_door"]').count()) === 1, '자동 현관문이 없다');
       assert((await page.locator('.k-stage [data-opening-kind="door"]').count()) >= 2, '닫힌 방의 자동 문이 없다');
       assert((await page.locator('.k-stage [data-opening-kind="open_passage"]').count()) >= 1, '공용부의 트인 통로가 없다');
+      assert((await page.locator('.k-stage [data-house-shell="true"]').count()) === 1, '캔버스의 집 외곽선이 하나가 아니다');
       assert((await kidsSave(page)).blocks >= 12, '생성 평면이 저장되지 않았다');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '집을 만든 뒤 내 자리를 묻지 않는다');
+    });
+
+    await check('Juwonmom MP3 176개를 Chromium이 실제 음성으로 모두 해독한다', async () => {
+      assert(appVoiceResponses.length > 0, '앱 말풍선이 MP3 파일을 한 번도 요청하지 않았다');
+      assert(
+        appVoiceResponses.some((response) => response.status === 200 && response.contentType === 'audio/mpeg'),
+        `앱 MP3 요청이 정상 응답하지 않았다: ${JSON.stringify(appVoiceResponses.slice(0, 3))}`,
+      );
+      const audioContext = await browser!.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ko-KR' });
+      const audioPage = await audioContext.newPage();
+      await audioPage.goto(server.url, { waitUntil: 'networkidle' });
+      const result = await audioPage.evaluate(async () => {
+        const manifestResponse = await fetch('voice/manifest.json');
+        if (!manifestResponse.ok) return { count: 0, failed: [`manifest HTTP ${manifestResponse.status}`], minDuration: 0 };
+        const manifest = await manifestResponse.json() as { items: Array<{ filename: string }> };
+        const decoder = new AudioContext();
+        const failed: string[] = [];
+        let minDuration = Number.POSITIVE_INFINITY;
+        for (let start = 0; start < manifest.items.length; start += 8) {
+          const batch = manifest.items.slice(start, start + 8);
+          await Promise.all(batch.map(async ({ filename }) => {
+            try {
+              const response = await fetch(`voice/${filename}`);
+              if (!response.ok || response.headers.get('content-type') !== 'audio/mpeg') throw new Error(`HTTP ${response.status}`);
+              const decoded = await decoder.decodeAudioData(await response.arrayBuffer());
+              if (!Number.isFinite(decoded.duration) || decoded.duration < 0.4) throw new Error(`길이 ${decoded.duration}`);
+              minDuration = Math.min(minDuration, decoded.duration);
+            } catch (error) {
+              failed.push(`${filename}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }));
+        }
+        await decoder.close();
+        return { count: manifest.items.length, failed, minDuration };
+      });
+      await audioContext.close();
+      assert(result.count === 176, `MP3 매니페스트가 ${result.count}/176개다`);
+      assert(result.failed.length === 0, `해독 실패 ${result.failed.length}개: ${result.failed.slice(0, 3).join(' | ')}`);
+      assert(result.minDuration >= 0.4, `가장 짧은 MP3가 ${result.minDuration}초다`);
     });
 
     await check('1024px 미만 화면에서는 PC 안내만 보이고 앱이 실행되지 않는다', async () => {

@@ -152,6 +152,8 @@ export interface RoomBlock {
   label: string;
   /** 잔여공간을 호환 직사각형으로 나눌 때 같은 이름이 반복되지 않도록 숨긴다. 기본은 true다. */
   showLabel?: boolean;
+  /** closed는 실제 벽이 있는 독립실, zone은 벽 없이 이어진 공용 바닥의 용도 구역이다. */
+  wallMode?: 'closed' | 'zone';
 }
 
 export interface OpeningBlock {
@@ -164,6 +166,8 @@ export interface OpeningBlock {
   /** 그 셀의 어느 벽면인가 */
   side: Side;
   closedByDefault: boolean;
+  /** 통행 그래프에는 필요하지만 실제 벽이 없는 공용 구역 경계라 2D에는 그리지 않는다. */
+  hideInPlan?: boolean;
 }
 
 export interface PointBlock {
@@ -177,9 +181,16 @@ export interface PointBlock {
 
 export type Block = RoomBlock | OpeningBlock | PointBlock;
 
+export interface FloorShell {
+  /** 집 외곽 안쪽을 채우는 격자 칸. 바깥과 맞닿은 변만 외벽으로 그린다. */
+  cells: Cell[];
+}
+
 export interface FloorPlan {
   grid: GridSpec;
   blocks: Block[];
+  /** 외곽 우선 평면에서만 쓴다. 없는 기존 저장 자료는 방 둘레선 방식으로 표시한다. */
+  shell?: FloorShell;
 }
 
 export function emptyFloorPlan(): FloorPlan {

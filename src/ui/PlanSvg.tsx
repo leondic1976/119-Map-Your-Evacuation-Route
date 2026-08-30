@@ -148,6 +148,7 @@ export function PlanSvg(props: PlanSvgProps) {
   const W = plan.grid.width * CS;
   const H = plan.grid.height * CS;
   const rooms = plan.blocks.filter(isRoom);
+  const roomsForDrawing = rooms.slice().sort((a, b) => Number(a.wallMode !== 'zone') - Number(b.wallMode !== 'zone'));
   const openings = plan.blocks.filter(isOpening);
   const points = plan.blocks.filter(isPoint);
 
@@ -254,15 +255,26 @@ export function PlanSvg(props: PlanSvgProps) {
 
       {/* 방 — 외벽은 저절로 생긴다 (FR-7.2) */}
       <g>
-        {rooms.map((r, i) => {
+        {roomsForDrawing.map((r, i) => {
           const { x, y, w, h } = r.rect;
           const fill = printMode ? `url(#h${(i % 5) + 1}${uid})` : style === 'kid' ? ROOM_FILL[r.roomKind] : '#ffffff';
           const name = r.label.trim() || (gradeMode === 'easy' ? blockName(r.roomKind, 'easy') : roomLabel(r));
           const sel = isChosen(r.id);
           const isHl = matchesHl(r);
+          const isPublicZone = Boolean(plan.shell && r.wallMode === 'zone');
           return (
             <g key={r.id} data-block={r.id} data-kind="room" transform={nudge(r.id)}>
-              <rect x={x * CS} y={y * CS} width={w * CS} height={h * CS} fill={fill} stroke={INK} strokeWidth={printMode ? 3 : 4} strokeLinejoin="miter" />
+              <rect
+                x={x * CS}
+                y={y * CS}
+                width={w * CS}
+                height={h * CS}
+                fill={fill}
+                stroke={isPublicZone ? 'none' : INK}
+                strokeWidth={isPublicZone ? 0 : printMode ? 3 : 4}
+                strokeLinejoin="miter"
+                data-wall-mode={r.wallMode ?? 'legacy'}
+              />
               {r.layer === 'common' && (
                 <rect x={x * CS + 3} y={y * CS + 3} width={w * CS - 6} height={h * CS - 6} fill="none" stroke={INK} strokeWidth={1} strokeDasharray="4 4" opacity={0.6} />
               )}
@@ -300,6 +312,20 @@ export function PlanSvg(props: PlanSvgProps) {
         })}
       </g>
 
+      {/* 외곽 우선 평면은 방 사각형이 아니라 집 칸의 합집합 바깥쪽만 한 번 그린다. */}
+      {plan.shell ? (
+        <path
+          d={shellOutlinePath(plan.shell.cells)}
+          fill="none"
+          stroke={INK}
+          strokeWidth={printMode ? 4 : 5}
+          strokeLinecap="square"
+          strokeLinejoin="miter"
+          data-house-shell="true"
+          style={{ pointerEvents: 'none' }}
+        />
+      ) : null}
+
       {/* 개구부 */}
       <g>
         {openings.map((o) => {
@@ -310,9 +336,9 @@ export function PlanSvg(props: PlanSvgProps) {
           /* 게임 중이면 지금 상태, 편집 중이면 평소 상태를 보인다 (설계서 v1.2 §2.3) */
           const open = o.openingKind === 'open_passage' || (game ? game.doorState[o.id] !== 'closed' : !o.closedByDefault);
           return (
-            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-state={open ? 'open' : 'closed'} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
-              {/* 트인 통로가 이어질 때 칸 사이에 짧은 벽 조각이 남지 않도록 서로 조금 겹쳐 지운다. */}
-              <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS + 4 : CS * 0.86} style={style} open={open} />
+            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-state={open ? 'open' : 'closed'} data-plan-hidden={o.hideInPlan ? 'true' : undefined} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+              {/* 공용 구역 경계는 실제 벽이 아니므로 지우개 모양조차 그리지 않는다. */}
+              {!o.hideInPlan ? <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS + 4 : CS * 0.86} style={style} open={open} /> : null}
               {(sel || isHl) && (
                 <circle r={CS * 0.42} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} className={isHl ? 'kids-hl' : undefined} />
               )}
@@ -401,6 +427,22 @@ export function PlanSvg(props: PlanSvgProps) {
       {children}
     </svg>
   );
+}
+
+/** 집 안 칸과 바깥 칸이 만나는 변만 SVG 선으로 만든다. */
+function shellOutlinePath(cells: Cell[]): string {
+  const inside = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
+  const has = (x: number, y: number): boolean => inside.has(`${x},${y}`);
+  const commands: string[] = [];
+  for (const cell of cells) {
+    const x = cell.x * CS;
+    const y = cell.y * CS;
+    if (!has(cell.x, cell.y - 1)) commands.push(`M${x} ${y}H${x + CS}`);
+    if (!has(cell.x + 1, cell.y)) commands.push(`M${x + CS} ${y}V${y + CS}`);
+    if (!has(cell.x, cell.y + 1)) commands.push(`M${x + CS} ${y + CS}H${x}`);
+    if (!has(cell.x - 1, cell.y)) commands.push(`M${x} ${y + CS}V${y}`);
+  }
+  return commands.join(' ');
 }
 
 function RoutePath({

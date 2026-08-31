@@ -1,23 +1,16 @@
 'use client';
 
-/**
- * 집 밖 — 설계서 v1.4 §2.5 · FR-11.9.
- *
- * 검은 빈 공간에 집만 떠 있으면 어디인지 알 수 없다. 잔디와 보도를 깔고 나무를 몇 그루 세운다.
- * 전부 코드로 만든 단순한 형태다 — 모델 파일을 두지 않는다 (FR-11.2 유지).
- * 저화질 단에서는 나무를 세우지 않는다 (§1.3).
- */
+/** 절차형 주택가 풍경 — 외부 파일 없이 잔디·보도·도로·수목·가로등을 만든다. */
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
+import type { QualitySettings } from './quality';
 
 interface Props {
-  /** 도면이 차지하는 칸 범위 */
   extent: { minX: number; minZ: number; maxX: number; maxZ: number };
-  /** 나무를 세울지 */
   scenery: boolean;
+  detail: QualitySettings['detail'];
 }
 
-/** 씨앗을 고정한 난수 — 볼 때마다 나무가 옮겨 다니면 산만하다 */
 function seeded(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
@@ -26,114 +19,136 @@ function seeded(seed: number): () => number {
   };
 }
 
-function Tree({ at, scale }: { at: [number, number, number]; scale: number }) {
+function Tree({ at, scale, full }: { at: [number, number, number]; scale: number; full: boolean }) {
   return (
     <group position={at} scale={scale}>
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <cylinderGeometry args={[0.14, 0.2, 1.8, 6]} />
-        <meshStandardMaterial color="#7a5a3a" />
+      <mesh position={[0, 0.95, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.13, 0.22, 1.9, full ? 12 : 7]} />
+        <meshStandardMaterial color="#6b4931" roughness={0.94} />
       </mesh>
-      <mesh position={[0, 2.5, 0]} castShadow>
-        <icosahedronGeometry args={[1.25, 0]} />
-        <meshStandardMaterial color="#3f8f52" flatShading />
+      <mesh position={[0, 2.35, 0]} castShadow receiveShadow>
+        <icosahedronGeometry args={[1.13, full ? 1 : 0]} />
+        <meshStandardMaterial color="#38754a" roughness={0.97} flatShading={!full} />
       </mesh>
-      <mesh position={[0.5, 1.9, 0.3]} castShadow>
-        <icosahedronGeometry args={[0.8, 0]} />
-        <meshStandardMaterial color="#4e9e5e" flatShading />
+      <mesh position={[0.55, 2.03, 0.28]} castShadow receiveShadow>
+        <icosahedronGeometry args={[0.72, full ? 1 : 0]} />
+        <meshStandardMaterial color="#4b8d57" roughness={0.96} flatShading={!full} />
       </mesh>
+      {full && (
+        <mesh position={[-0.48, 2.18, -0.35]} castShadow receiveShadow>
+          <icosahedronGeometry args={[0.68, 1]} />
+          <meshStandardMaterial color="#2f6942" roughness={0.98} />
+        </mesh>
+      )}
     </group>
   );
 }
 
-export default function Outside({ extent, scenery }: Props) {
+function Bush({ at, scale = 1 }: { at: [number, number, number]; scale?: number }) {
+  return (
+    <group position={at} scale={scale}>
+      <mesh position={[-0.35, 0.35, 0]} castShadow><dodecahedronGeometry args={[0.48, 1]} /><meshStandardMaterial color="#3c7449" roughness={1} /></mesh>
+      <mesh position={[0.28, 0.38, 0.04]} castShadow><dodecahedronGeometry args={[0.55, 1]} /><meshStandardMaterial color="#4b8552" roughness={1} /></mesh>
+    </group>
+  );
+}
+
+function StreetLight({ at }: { at: [number, number, number] }) {
+  return (
+    <group position={at}>
+      <mesh position={[0, 1.8, 0]} castShadow><cylinderGeometry args={[0.055, 0.09, 3.6, 10]} /><meshStandardMaterial color="#343a40" metalness={0.72} roughness={0.38} /></mesh>
+      <mesh position={[0, 3.52, 0]} castShadow><cylinderGeometry args={[0.26, 0.16, 0.18, 14]} /><meshStandardMaterial color="#23282d" metalness={0.7} roughness={0.35} /></mesh>
+      <mesh position={[0, 3.4, 0]}><sphereGeometry args={[0.13, 12, 8]} /><meshStandardMaterial color="#fff2c7" emissive="#ffd27a" emissiveIntensity={1.1} /></mesh>
+    </group>
+  );
+}
+
+export default function Outside({ extent, scenery, detail }: Props) {
   const w = extent.maxX - extent.minX;
   const d = extent.maxZ - extent.minZ;
   const cx = (extent.minX + extent.maxX) / 2;
   const cz = (extent.minZ + extent.maxZ) / 2;
-  /* 집을 넉넉히 둘러쌀 만큼 */
-  const groundW = w + 28;
-  const groundD = d + 28;
+  const groundW = w + 34;
+  const groundD = d + 34;
+  const roadZ = extent.maxZ + 8.2;
+  const full = detail === 'full';
 
   const trees = useMemo(() => {
     if (!scenery) return [];
-    const rnd = seeded(1234);
+    const rnd = seeded(1192026);
+    const count = full ? 18 : 11;
     const out: { at: [number, number, number]; scale: number }[] = [];
-    for (let i = 0; i < 14; i += 1) {
-      /* 집 둘레 띠 안에만 — 집 위에 나무가 서면 안 된다 */
-      const side = Math.floor(rnd() * 4);
+    for (let i = 0; i < count; i += 1) {
+      const side = Math.floor(rnd() * 3);
       const along = rnd();
-      const away = 3.5 + rnd() * 8;
-      let x = 0;
-      let z = 0;
-      if (side === 0) {
-        x = extent.minX + along * w;
-        z = extent.minZ - away;
-      } else if (side === 1) {
-        x = extent.minX + along * w;
-        z = extent.maxZ + away;
-      } else if (side === 2) {
-        x = extent.minX - away;
-        z = extent.minZ + along * d;
-      } else {
-        x = extent.maxX + away;
-        z = extent.minZ + along * d;
-      }
-      out.push({ at: [x, 0, z], scale: 0.75 + rnd() * 0.6 });
+      const away = 4.3 + rnd() * 7.5;
+      let x: number;
+      let z: number;
+      if (side === 0) { x = extent.minX + along * w; z = extent.minZ - away; }
+      else if (side === 1) { x = extent.minX - away; z = extent.minZ + along * d; }
+      else { x = extent.maxX + away; z = extent.minZ + along * d; }
+      out.push({ at: [x, 0, z], scale: 0.72 + rnd() * 0.58 });
     }
     return out;
-  }, [extent, scenery, w, d]);
+  }, [d, extent, full, scenery, w]);
+
+  const bushes = useMemo(() => {
+    if (!scenery || !full) return [];
+    const out: [number, number, number][] = [];
+    for (let i = 0; i < 8; i += 1) {
+      const x = extent.minX + 1.1 + (i * Math.max(1, w - 2.2)) / 7;
+      out.push([x, 0, extent.minZ - 1.25]);
+    }
+    return out;
+  }, [extent, full, scenery, w]);
 
   return (
     <group>
-      {/* 잔디 */}
-      <mesh position={[cx, -0.02, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[cx, -0.055, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[groundW, groundD]} />
-        <meshStandardMaterial color="#6f9f5c" />
+        <meshStandardMaterial color="#6c9559" roughness={1} />
       </mesh>
-      {/* 집 둘레의 보도 — 집이 땅에 놓인 느낌을 준다 */}
-      <mesh position={[cx, -0.01, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[cx, -0.035, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w + 3.2, d + 3.2]} />
-        <meshStandardMaterial color="#c9c6bd" />
+        <meshStandardMaterial color="#c5c2b9" roughness={0.95} />
       </mesh>
-      {trees.map((t, i) => (
-        <Tree key={i} at={t.at} scale={t.scale} />
+      <mesh position={[cx, -0.025, roadZ]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[groundW, 7]} />
+        <meshStandardMaterial color="#41474b" roughness={0.91} />
+      </mesh>
+      <mesh position={[cx, -0.012, extent.maxZ + 3.8]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[groundW, 1.4]} />
+        <meshStandardMaterial color="#bab8b1" roughness={0.96} />
+      </mesh>
+      <mesh position={[cx, -0.004, extent.maxZ + 2.15]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[1.8, 3.1]} />
+        <meshStandardMaterial color="#d5d0c5" roughness={0.9} />
+      </mesh>
+      {scenery && Array.from({ length: 10 }, (_, i) => (
+        <mesh key={`road-line-${i}`} position={[cx - groundW / 2 + 3 + i * 4.5, -0.005, roadZ]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[2.4, 0.12]} /><meshBasicMaterial color="#f4e9ba" />
+        </mesh>
       ))}
+      {trees.map((tree, i) => <Tree key={`tree-${i}`} at={tree.at} scale={tree.scale} full={full} />)}
+      {bushes.map((at, i) => <Bush key={`bush-${i}`} at={at} scale={0.82 + (i % 3) * 0.08} />)}
+      {scenery && full && (
+        <>
+          <StreetLight at={[extent.minX - 3.3, 0, extent.maxZ + 4.1]} />
+          <StreetLight at={[extent.maxX + 3.3, 0, extent.maxZ + 4.1]} />
+        </>
+      )}
     </group>
   );
 }
 
-/** 하늘 — 위는 파랗고 아래는 옅다. 큰 구 안쪽에 칠한다 */
+/** 하늘은 큰 구 안쪽의 위·아래 색을 섞어 지평선이 검게 끊기지 않게 한다. */
 export function Sky() {
-  const mat = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        side: THREE.BackSide,
-        depthWrite: false,
-        uniforms: {
-          top: { value: new THREE.Color('#7fb4dd') },
-          bottom: { value: new THREE.Color('#e8eef2') },
-        },
-        vertexShader: `
-          varying float vY;
-          void main() {
-            vY = normalize(position).y;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform vec3 top;
-          uniform vec3 bottom;
-          varying float vY;
-          void main() {
-            gl_FragColor = vec4(mix(bottom, top, clamp(vY * 0.5 + 0.5, 0.0, 1.0)), 1.0);
-          }
-        `,
-      }),
-    [],
-  );
-  return (
-    <mesh material={mat} renderOrder={-1}>
-      <sphereGeometry args={[140, 16, 12]} />
-    </mesh>
-  );
+  const mat = useMemo(() => new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: { top: { value: new THREE.Color('#5f9ed0') }, bottom: { value: new THREE.Color('#eef2ef') } },
+    vertexShader: `varying float vY; void main(){vY=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader: `uniform vec3 top;uniform vec3 bottom;varying float vY;void main(){gl_FragColor=vec4(mix(bottom,top,clamp(vY*.5+.5,0.,1.)),1.);}`,
+  }), []);
+  return <mesh material={mat} renderOrder={-1}><sphereGeometry args={[150, 32, 20]} /></mesh>;
 }

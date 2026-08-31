@@ -738,17 +738,128 @@
   position: fixed;
   inset: 0;
   z-index: 120;
-  /* 그림이 화면을 채우고 조작 패널이 그 위 오른쪽에 뜬다 (설계서 v1.4 §3) */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  grid-template-rows: auto minmax(0, 1fr) 48px;
   background: #0b1118;
   color: #fff;
 }
 
-.k-replay-stage {
+.k-r-topbar {
   grid-column: 1 / -1;
   grid-row: 1;
+  position: relative;
+  z-index: 30;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #142331 0%, #0e1923 100%);
+  border-bottom: 1px solid #2f4658;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.k-r-top-title,
+.k-r-camera-group,
+.k-r-look-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.k-r-top-title {
+  min-width: 185px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.k-r-top-title b.num {
+  color: #ffd166;
+  font-size: 17px;
+}
+
+.k-r-live {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef5350;
+  box-shadow: 0 0 0 4px rgba(239, 83, 80, 0.15);
+}
+
+.k-r-camera-group {
+  flex: 1;
+  justify-content: center;
+}
+
+.k-r-look-group {
+  justify-content: flex-end;
+}
+
+.k-r-top-label {
+  color: #b9c9d7;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+.k-r-view-button,
+.k-r-look-button,
+.k-r-topbar .k-x {
+  min-width: 48px;
+  height: 48px;
+  border: 1px solid #3c5265;
+  border-radius: 12px;
+  background: #1a2b3a;
+  color: #eaf2f8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.k-r-view-button {
+  min-width: 92px;
+  padding: 0 12px;
+}
+
+.k-r-view-button:hover,
+.k-r-look-button:hover,
+.k-r-topbar .k-x:hover {
+  border-color: #75bbed;
+  background: #233d52;
+}
+
+.k-r-view-button[aria-pressed='true'] {
+  background: #2479b8;
+  border-color: #65baf1;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15), 0 5px 14px rgba(28, 112, 170, 0.35);
+}
+
+.k-r-look-button.reset {
+  color: #9dd6ff;
+}
+
+.k-r-look-button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.k-r-topbar .k-x {
+  flex: none;
+  background: #3a2327;
+  border-color: #754049;
+}
+
+.k-replay-stage {
+  grid-column: 1 / -1;
+  grid-row: 2;
   position: relative;
   min-height: 0;
   overflow: hidden;
@@ -776,7 +887,7 @@
 
 .k-replay-range {
   grid-column: 1 / -1;
-  grid-row: 2;
+  grid-row: 3;
   width: 100%;
   height: 48px;
   margin: 0;
@@ -785,13 +896,10 @@
   border-top: 1px solid #22303c;
 }
 
-/* ---------------------------------------------------- 다시 보기 조작 패널
- * 설계서 v1.4 §3. 유리판처럼 비치되 글자가 읽히도록 바탕을 충분히 어둡게 깐다 —
- * 뒤에 잔디와 하늘이 있어 옅게 깔면 흰 글자가 묻힌다.
- */
+/* ---------------------------------------------------- 다시 보기 보조 설정 패널 */
 .k-r-panel {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   align-self: start;
   justify-self: end;
   /*
@@ -801,14 +909,14 @@
    */
   position: relative;
   z-index: 20;
-  margin: 14px;
-  width: 288px;
-  max-height: calc(100% - 28px);
+  margin: 12px;
+  width: 246px;
+  max-height: calc(100% - 24px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 13px;
   border-radius: 16px;
   background: rgba(11, 19, 28, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -834,27 +942,84 @@
   flex: 1;
 }
 
-.k-r-head .k-x {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #fff;
-  border-radius: 10px;
+.k-r-scene-hud {
+  position: absolute;
+  left: 18px;
+  right: 288px;
+  bottom: 18px;
+  z-index: 12;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  pointer-events: none;
 }
 
 .k-r-caption {
   margin: 0;
+  min-height: 52px;
+  max-width: 620px;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  color: #dbe6f1;
-  line-height: 1.45;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(9, 18, 26, 0.86);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.34);
+  color: #eef6fc;
+  line-height: 1.4;
 }
 
-.k-r-caption b.num {
-  font-size: 20px;
-  font-weight: 800;
+.k-r-caption b {
   color: #ffd166;
+  font-size: 20px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.k-r-mouse-hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(9, 18, 26, 0.76);
+  color: #c6d7e5;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.k-r-reticle {
+  position: absolute;
+  left: calc(50% - 9px);
+  top: calc(50% - 9px);
+  z-index: 11;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+.k-r-reticle::before,
+.k-r-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.k-r-reticle::before {
+  left: 6px;
+  top: -5px;
+  width: 2px;
+  height: 24px;
+}
+
+.k-r-reticle::after {
+  left: -5px;
+  top: 6px;
+  width: 24px;
+  height: 2px;
 }
 
 .k-r-row {
@@ -915,10 +1080,6 @@
 .k-r-field .k-seg.dark button[aria-pressed='true'] {
   background: #2f6ea3;
   color: #fff;
-}
-
-.k-r-views button {
-  min-width: 0;
 }
 
 /* 켬/끔 — 라벨 전체가 누르는 칸이다 (48 높이) */
@@ -982,12 +1143,6 @@
   color: #e8eef5;
 }
 
-.k-r-reset {
-  border-color: #33465a;
-  background: #17222d;
-  color: #e8eef5;
-}
-
 .k-r-hint {
   margin: 0;
   font-size: 11.5px;
@@ -998,6 +1153,47 @@
   .k-r-toggle-track,
   .k-r-toggle-knob {
     transition: none;
+  }
+}
+
+@media (max-width: 1279px) {
+  .k-replay {
+    grid-template-columns: minmax(0, 1fr) 252px;
+  }
+
+  .k-r-topbar {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .k-r-top-title {
+    min-width: 158px;
+    font-size: 14px;
+  }
+
+  .k-r-top-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .k-r-view-button {
+    min-width: 82px;
+    padding-inline: 8px;
+  }
+
+  .k-r-panel {
+    width: 228px;
+  }
+
+  .k-r-scene-hud {
+    right: 270px;
+  }
+
+  .k-r-mouse-hint {
+    display: none;
   }
 }
 

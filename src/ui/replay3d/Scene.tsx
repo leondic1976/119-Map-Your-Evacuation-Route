@@ -14,7 +14,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Cell, FloorPlan } from '../../types/plan';
 import type { ReplayFrame } from '../../types/game';
-import { WALL_H, buildDoors, buildHouse, planExtent } from './geometry';
+import { WALL_H, buildCeiling, buildDoors, buildHouse, planExtent } from './geometry';
 import { interleavedGeometry } from './bridge';
 import Avatar3D, { FirstPersonHands3D } from './Avatar3D';
 import RoutePath, { TrailPath } from './RoutePath';
@@ -22,6 +22,7 @@ import Markers from './Markers';
 import Outside, { Sky } from './Outside';
 import Hazard from './Hazard';
 import type { QualitySettings } from './quality';
+import InteriorDetails from './InteriorDetails';
 
 export type ViewMode = 'dollhouse' | 'follow' | 'first';
 
@@ -113,6 +114,17 @@ function House({
   );
 }
 
+/** 1인칭·뒤따라가기에서는 천장을 보여 실제 실내 높이와 조명감을 살린다. */
+function Ceiling({ plan, shadows }: { plan: FloorPlan; shadows: boolean }) {
+  const ceiling = useMemo(() => interleavedGeometry(buildCeiling(plan)), [plan]);
+  useEffect(() => () => ceiling.dispose(), [ceiling]);
+  return (
+    <mesh geometry={ceiling} receiveShadow={shadows}>
+      <meshStandardMaterial vertexColors roughness={0.93} metalness={0} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+
 /**
  * 카메라 — 시점마다 다른 자리에서 집을 본다.
  * 갑자기 튀지 않게 늘 지금 자리에서 목표 자리로 부드럽게 따라간다.
@@ -137,14 +149,15 @@ function Rig({ plan, frame, ahead, view, orbit }: { plan: FloorPlan; frame: Repl
     const cz = (extent.minZ + extent.maxZ) / 2;
     const span = Math.max(extent.maxX - extent.minX, extent.maxZ - extent.minZ);
 
+    const turnedHeading = heading.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), orbit.yaw);
     if (view === 'first') {
       want.current.set(me.x, eye, me.z);
-      target.current.copy(me).add(heading.clone().multiplyScalar(3)).setY(eye * 0.82);
+      target.current.copy(me).add(turnedHeading.multiplyScalar(4)).setY(eye - Math.sin(orbit.pitch) * 3.2);
     } else if (view === 'follow') {
-      /* 지나온 길 안쪽에 카메라를 둔다. 멀리 빼면 벽 밖으로 나가 화면이 벽으로 가득 찬다. */
-      const back = heading.clone().multiplyScalar(-1.15);
-      want.current.set(me.x + back.x, 2.2, me.z + back.z);
-      target.current.copy(me).setY(0.9);
+      /* 캐릭터 전신과 주변 길이 함께 보이는 3인칭 게임 거리. 벽은 아래 장면에서 컷어웨이한다. */
+      const back = turnedHeading.multiplyScalar(-4 / orbit.zoom);
+      want.current.set(me.x + back.x, 3.05 + orbit.pitch * 1.75, me.z + back.z);
+      target.current.copy(me).setY(1.25);
     } else {
       /*
        * 집 전체 — 45° 비스듬히 내려다본다 (설계서 v1.4 §2.1).
@@ -167,7 +180,7 @@ function Rig({ plan, frame, ahead, view, orbit }: { plan: FloorPlan; frame: Repl
     camera.position.lerp(want.current, t);
     camera.lookAt(target.current);
     if (camera instanceof THREE.PerspectiveCamera) {
-      const nextFov = view === 'first' ? 62 : view === 'follow' ? 65 : 34;
+      const nextFov = view === 'first' ? Math.max(42, Math.min(78, 68 / orbit.zoom)) : view === 'follow' ? 54 : 34;
       const fov = THREE.MathUtils.lerp(camera.fov, nextFov, t);
       if (Math.abs(fov - camera.fov) > 0.01) {
         camera.fov = fov;
@@ -224,8 +237,8 @@ export default function Scene({
         position={[cx - 14, 22, cz - 10]}
         intensity={1.3}
         castShadow={quality.shadows}
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={quality.shadowMapSize}
+        shadow-mapSize-height={quality.shadowMapSize}
         shadow-camera-left={-30}
         shadow-camera-right={30}
         shadow-camera-top={30}
@@ -246,8 +259,10 @@ export default function Scene({
         />
       )}
 
-      <Outside extent={extent} scenery={layers.scenery && quality.scenery} />
-      <House plan={plan} doorState={frame.doorState} shadows={quality.shadows} cutaway={view === 'dollhouse'} />
+      <Outside extent={extent} scenery={layers.scenery && quality.scenery} detail={quality.detail} />
+      <House plan={plan} doorState={frame.doorState} shadows={quality.shadows} cutaway={view !== 'first'} />
+      {view === 'first' && <Ceiling plan={plan} shadows={quality.shadows} />}
+      <InteriorDetails plan={plan} quality={quality} view={view} />
 
       {layers.route && primaryRoute.length > 1 && <RoutePath waypoints={primaryRoute} color="#22c55e" />}
       {layers.route && alternateRoute.length > 1 && <RoutePath waypoints={alternateRoute} color="#38bdf8" faint />}

@@ -1,22 +1,111 @@
 'use client';
 
-/**
- * 다시 보기 조작 패널 — 설계서 v1.4 §3.
- *
- * 목표 그림의 유리판 패널을 따르되 한국어로, **계기판 없이** 만든다.
- * `42/50`·`84%` 같은 숫자는 두지 않는다 — 점수·등급·순위를 만들지 않는다(작업지침 §9-9).
- * 시간은 줄어드는 제한이 아니라 **늘어나는 시각**이다(§9-10).
- *
- * 누르는 것은 좁은 화면에서도 48×48 이상이다. 유리판이라고 작게 만들지 않는다.
- */
+/** 3D 다시 보기의 상단 카메라 바와 보조 설정 패널 — 설계서 v1.10. */
 import React from 'react';
-import { ChevronsRight, Eye, Gauge, Pause, Play, RotateCcw, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ChevronsRight,
+  Eye,
+  Footprints,
+  Gauge,
+  House,
+  LocateFixed,
+  Pause,
+  Play,
+  RotateCcw,
+  Settings2,
+  X,
+} from 'lucide-react';
 import type { Layers, ViewMode } from './Scene';
 import type { Quality } from './quality';
 
-interface Props {
+export type LookDirection = 'up' | 'down' | 'left' | 'right';
+
+const VIEWS: { id: ViewMode; label: string; icon: React.ReactNode }[] = [
+  { id: 'first', label: '내 눈으로', icon: <Eye size={20} /> },
+  { id: 'follow', label: '뒤에서', icon: <Footprints size={20} /> },
+  { id: 'dollhouse', label: '집 전체', icon: <House size={20} /> },
+];
+
+const LOOKS: { id: LookDirection; label: string; icon: React.ReactNode }[] = [
+  { id: 'left', label: '왼쪽 보기', icon: <ArrowLeft size={22} /> },
+  { id: 'up', label: '위 보기', icon: <ArrowUp size={22} /> },
+  { id: 'down', label: '아래 보기', icon: <ArrowDown size={22} /> },
+  { id: 'right', label: '오른쪽 보기', icon: <ArrowRight size={22} /> },
+];
+
+interface CameraToolbarProps {
   seconds: number;
-  caption: string;
+  view: ViewMode;
+  onView: (view: ViewMode) => void;
+  onLook: (direction: LookDirection) => void;
+  moved: boolean;
+  onReset: () => void;
+  onClose: () => void;
+}
+
+/** 가장 중요한 시점 조작은 캔버스 위를 가리지 않는 독립된 첫 줄에 둔다. */
+export function CameraToolbar({ seconds, view, onView, onLook, moved, onReset, onClose }: CameraToolbarProps) {
+  return (
+    <header className="k-r-topbar" aria-label="3D 시점 조작">
+      <div className="k-r-top-title">
+        <span className="k-r-live" aria-hidden="true" />
+        <span>3D 대피 리플레이</span>
+        <b className="num">{seconds}초</b>
+      </div>
+      <div className="k-r-camera-group" role="group" aria-label="어디서 볼까">
+        <span className="k-r-top-label">어디서 볼까</span>
+        {VIEWS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="k-r-view-button"
+            aria-pressed={view === item.id}
+            data-view={item.id}
+            onClick={() => onView(item.id)}
+          >
+            {item.icon}<span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+      <div className="k-r-look-group" role="group" aria-label="보는 방향">
+        <span className="k-r-top-label">보는 방향</span>
+        {LOOKS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="k-r-look-button"
+            data-look-direction={item.id}
+            onClick={() => onLook(item.id)}
+            aria-label={item.label}
+            title={item.label}
+          >
+            {item.icon}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="k-r-look-button reset"
+          data-look-reset
+          onClick={onReset}
+          disabled={!moved}
+          aria-label="시점 정면으로"
+          title="시점 정면으로"
+        >
+          <LocateFixed size={22} />
+        </button>
+      </div>
+      <button type="button" className="k-x" onClick={onClose} aria-label="3D 다시 보기 닫기">
+        <X size={24} strokeWidth={2.6} />
+      </button>
+    </header>
+  );
+}
+
+interface Props {
   playing: boolean;
   onPlay: () => void;
   onRestart: () => void;
@@ -24,23 +113,11 @@ interface Props {
   speed: number;
   speeds: number[];
   onSpeed: (v: number) => void;
-  view: ViewMode;
-  onView: (v: ViewMode) => void;
   layers: Layers;
   onLayer: (k: keyof Layers, v: boolean) => void;
   quality: Quality;
   onQuality: (q: Quality) => void;
-  /** 시점을 손대면 되돌리기가 뜬다 */
-  moved: boolean;
-  onResetView: () => void;
-  onClose: () => void;
 }
-
-const VIEWS: { id: ViewMode; label: string }[] = [
-  { id: 'dollhouse', label: '집 전체' },
-  { id: 'follow', label: '뒤에서' },
-  { id: 'first', label: '내 눈으로' },
-];
 
 const LAYER_LABELS: { id: keyof Layers; label: string }[] = [
   { id: 'route', label: '내가 그린 길' },
@@ -49,117 +126,54 @@ const LAYER_LABELS: { id: keyof Layers; label: string }[] = [
   { id: 'scenery', label: '집 밖 풍경' },
 ];
 
-/** 켬/끔 하나 — 라벨 전체가 누르는 칸이다 */
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="k-r-toggle">
       <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
-      <span className="k-r-toggle-track" aria-hidden="true">
-        <span className="k-r-toggle-knob" />
-      </span>
+      <span className="k-r-toggle-track" aria-hidden="true"><span className="k-r-toggle-knob" /></span>
       <span className="k-r-toggle-label">{label}</span>
     </label>
   );
 }
 
-export default function Hud({
-  seconds,
-  caption,
-  playing,
-  onPlay,
-  onRestart,
-  onStep,
-  speed,
-  speeds,
-  onSpeed,
-  view,
-  onView,
-  layers,
-  onLayer,
-  quality,
-  onQuality,
-  moved,
-  onResetView,
-  onClose,
-}: Props) {
+/** 재생·레이어·화질처럼 덜 자주 쓰는 기능만 오른쪽 보조 패널에 둔다. */
+export default function Hud({ playing, onPlay, onRestart, onStep, speed, speeds, onSpeed, layers, onLayer, quality, onQuality }: Props) {
   return (
-    <aside className="k-r-panel" aria-label="다시 보기 조작">
+    <aside className="k-r-panel" aria-label="3D 화면 설정">
       <header className="k-r-head">
-        <h2>다시 보기</h2>
-        <button type="button" className="k-x" onClick={onClose} aria-label="닫기">
-          <X size={20} strokeWidth={2.6} />
-        </button>
+        <Settings2 size={20} aria-hidden="true" />
+        <h2>화면 설정</h2>
       </header>
-      <p className="k-r-caption" role="status">
-        <b className="num">{seconds}초</b>
-        <span>{caption}</span>
-      </p>
 
       <div className="k-r-row" role="group" aria-label="재생">
         <button type="button" className="k-tb primary" data-coach="kids-replay-play" onClick={onPlay} aria-label={playing ? '멈춤' : '재생'}>
-          {playing ? <Pause size={20} /> : <Play size={20} />}
-          {playing ? '멈춤' : '재생'}
+          {playing ? <Pause size={20} /> : <Play size={20} />}{playing ? '멈춤' : '재생'}
         </button>
-        <button type="button" className="k-tb" onClick={onRestart} aria-label="처음으로">
-          <RotateCcw size={18} />
-          처음
-        </button>
-        <button type="button" className="k-tb" onClick={onStep} aria-label="한 칸 앞으로">
-          <ChevronsRight size={18} />한 칸
-        </button>
+        <button type="button" className="k-tb" onClick={onRestart} aria-label="처음으로"><RotateCcw size={18} />처음</button>
+        <button type="button" className="k-tb" onClick={onStep} aria-label="한 칸 앞으로"><ChevronsRight size={18} />한 칸</button>
       </div>
 
       <div className="k-r-field">
-        <span className="k-r-label">
-          <Gauge size={16} aria-hidden="true" /> 빠르기
-        </span>
+        <span className="k-r-label"><Gauge size={16} aria-hidden="true" /> 빠르기</span>
         <div className="k-seg dark" role="group" aria-label="빠르기">
-          {speeds.map((s) => (
-            <button key={s} type="button" aria-pressed={speed === s} onClick={() => onSpeed(s)}>
-              {s}배
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="k-r-field">
-        <span className="k-r-label">
-          <Eye size={16} aria-hidden="true" /> 어디서 볼까
-        </span>
-        <div className="k-seg dark k-r-views" role="group" aria-label="시점">
-          {VIEWS.map((v) => (
-            <button key={v.id} type="button" aria-pressed={view === v.id} data-view={v.id} onClick={() => onView(v.id)}>
-              {v.label}
-            </button>
-          ))}
+          {speeds.map((s) => <button key={s} type="button" aria-pressed={speed === s} onClick={() => onSpeed(s)}>{s}배</button>)}
         </div>
       </div>
 
       <div className="k-r-field column" data-coach="kids-replay-layers">
         <span className="k-r-label">보이기</span>
-        {LAYER_LABELS.map((l) => (
-          <Toggle key={l.id} label={l.label} on={layers[l.id]} onChange={(v) => onLayer(l.id, v)} />
-        ))}
+        {LAYER_LABELS.map((item) => <Toggle key={item.id} label={item.label} on={layers[item.id]} onChange={(v) => onLayer(item.id, v)} />)}
       </div>
 
-      <div className="k-r-field">
+      <div className="k-r-field column">
         <span className="k-r-label">화질</span>
         <div className="k-seg dark" role="group" aria-label="화질">
-          <button type="button" aria-pressed={quality === 'high'} data-quality="high" onClick={() => onQuality('high')}>
-            높게
-          </button>
-          <button type="button" aria-pressed={quality === 'low'} data-quality="low" onClick={() => onQuality('low')}>
-            낮게
-          </button>
+          <button type="button" aria-pressed={quality === 'ultra'} data-quality="ultra" onClick={() => onQuality('ultra')}>고급</button>
+          <button type="button" aria-pressed={quality === 'high'} data-quality="high" onClick={() => onQuality('high')}>높음</button>
+          <button type="button" aria-pressed={quality === 'low'} data-quality="low" onClick={() => onQuality('low')}>가벼움</button>
         </div>
       </div>
-
-      {moved && (
-        <button type="button" className="k-tb k-r-reset" onClick={onResetView}>
-          시점 되돌리기
-        </button>
-      )}
-      <p className="k-r-hint">끌어서 둘러보기 · 휠로 확대·축소</p>
+      <p className="k-r-hint">화면을 마우스로 끌거나 방향키를 눌러 둘러보세요.</p>
     </aside>
   );
 }

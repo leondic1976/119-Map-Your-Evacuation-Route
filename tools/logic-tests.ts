@@ -46,6 +46,7 @@ import { ruleReportsFor } from '../src/store/kidsStore';
 import { KIDS } from '../src/ui/KidCharacters';
 import { avatar3dIdentity } from '../src/ui/replay3d/Avatar3D';
 import { buildDoors } from '../src/ui/replay3d/geometry';
+import { lowerQuality, settingsFor } from '../src/ui/replay3d/quality';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (cond: boolean, msg: string) => void;
@@ -651,6 +652,17 @@ export function logicTests(check: Check, assert: Assert): void {
       assert(a.top === k.top && a.bottom === k.bottom, `${k.id}: 옷 색이 다르다`);
       assert(Boolean(a.glasses) === Boolean(k.glasses) && a.accent === k.accent, `${k.id}: 소품이 다르다`);
     }
+  });
+
+  check('3D 화질 세 단계는 해상도·그림자·장식을 함께 조절하고 한 단계씩만 낮춘다 (설계서 v1.10 §4)', () => {
+    const ultra = settingsFor('ultra');
+    const high = settingsFor('high');
+    const low = settingsFor('low');
+    assert(ultra.dpr[1] > high.dpr[1] && high.dpr[1] > low.dpr[1], '화질별 화면 배율 상한이 내려가지 않는다');
+    assert(ultra.shadowMapSize > high.shadowMapSize && high.shadowMapSize > low.shadowMapSize, '그림자 해상도가 내려가지 않는다');
+    assert(ultra.detail === 'full' && high.detail === 'standard' && low.detail === 'minimal', '장식 단계가 맞지 않는다');
+    assert(ultra.textureSize > high.textureSize && high.textureSize > low.textureSize, '절차형 재질 크기가 내려가지 않는다');
+    assert(lowerQuality('ultra') === 'high' && lowerQuality('high') === 'low' && lowerQuality('low') === 'low', '자동 화질 하향 순서가 다르다');
   });
 
   check('닫힌 창은 확산을 늦추고, 열린 창은 돕는다 (설계서 v1.2 §2.2)', () => {

@@ -12,15 +12,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
+import * as THREE from 'three';
 import type { ReplayFrame } from '../../types/game';
 import type { Cell, FloorPlan, RoutePair } from '../../types/plan';
 import type { PlayerCharacter } from '../../types/guide';
 import { PlanSvg } from '../PlanSvg';
 import Scene, { type Layers, type ViewMode } from './Scene';
 import { avatar3dIdentity } from './Avatar3D';
-import Hud from './Hud';
+import Hud, { CameraToolbar, type LookDirection } from './Hud';
 import EndingScene from './EndingScene';
-import { FrameWatch, guessQuality, settingsFor, type Quality } from './quality';
+import { FrameWatch, guessQuality, lowerQuality, settingsFor, type Quality } from './quality';
 import { smokeAt } from './Hazard';
 
 interface Props {
@@ -114,6 +115,17 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     closeRef.current = onClose;
   }, [onClose]);
 
+  const resetView = useCallback(() => setOrbit({ yaw: 0, pitch: 0, zoom: 1 }), []);
+  const nudgeLook = useCallback((direction: LookDirection) => {
+    const yawStep = Math.PI / 12;
+    const pitchStep = Math.PI / 18;
+    setOrbit((old) => ({
+      ...old,
+      yaw: old.yaw + (direction === 'left' ? -yawStep : direction === 'right' ? yawStep : 0),
+      pitch: Math.max(-0.78, Math.min(0.78, old.pitch + (direction === 'up' ? -pitchStep : direction === 'down' ? pitchStep : 0))),
+    }));
+  }, []);
+
   /*
    * 덮개에는 닫기와 Esc 를 둔다 (작업지침 §5).
    * WebGL 캔버스나 범위 입력이 포커스를 가진 채 이벤트 전파를 막아도 닫히도록
@@ -121,14 +133,23 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
    */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      const direction: LookDirection | null =
+        e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right' : e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : null;
+      if (!direction) return;
       e.preventDefault();
-      e.stopPropagation();
-      closeRef.current();
+      nudgeLook(direction);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
+  }, [nudgeLook]);
 
   const settings = useMemo(() => settingsFor(quality), [quality]);
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);
@@ -156,7 +177,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
 
   const onSlow = useCallback(() => {
     setAutoLowered(true);
-    setQuality((q) => (q === 'high' ? 'low' : q));
+    setQuality((q) => lowerQuality(q));
   }, []);
 
   const setLayer = useCallback((k: keyof Layers, v: boolean) => {
@@ -169,6 +190,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
    * 그 칸으로 빨려 들어가 조작 패널이 먹통이 된다. 끄는 동안만 창에 귀를 붙인다.
    */
   const startDrag = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     let last = { x: e.clientX, y: e.clientY };
     const move = (ev: PointerEvent) => {
       const dx = ev.clientX - last.x;
@@ -177,7 +199,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
       setOrbit((o) => ({
         ...o,
         yaw: o.yaw + dx * 0.006,
-        pitch: Math.max(-0.6, Math.min(0.9, o.pitch + dy * 0.005)),
+        pitch: Math.max(-0.78, Math.min(0.78, o.pitch + dy * 0.005)),
       }));
     };
     const stop = () => {
@@ -209,7 +231,27 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   }
 
   return (
-    <div className="k-replay" role="dialog" aria-modal="true" aria-label={`${avatar.name} 캐릭터의 3D 다시 보기`} data-coach="kids-replay3d">
+    <div
+      className="k-replay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${avatar.name} 캐릭터의 3D 다시 보기`}
+      data-coach="kids-replay3d"
+      data-camera-view={view}
+      data-camera-yaw={orbit.yaw.toFixed(3)}
+      data-camera-pitch={orbit.pitch.toFixed(3)}
+      data-camera-zoom={orbit.zoom.toFixed(3)}
+      data-scene-detail={settings.detail}
+    >
+      <CameraToolbar
+        seconds={seconds}
+        view={view}
+        onView={setView}
+        onLook={nudgeLook}
+        moved={moved}
+        onReset={resetView}
+        onClose={onClose}
+      />
       <div className="k-replay-stage">
         {gone ? (
           <div className="k-replay-2d" data-fallback="2d">
@@ -243,10 +285,14 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
             <Canvas
               shadows={settings.shadows}
               dpr={settings.dpr}
-              camera={{ fov: 34, near: 0.1, far: 400, position: [18, 18, 22] }}
-              gl={{ antialias: quality === 'high', powerPreference: 'high-performance' }}
+              camera={{ fov: 34, near: 0.08, far: 400, position: [18, 18, 22] }}
+              gl={{ antialias: quality !== 'low', powerPreference: 'high-performance', precision: 'highp' }}
               onCreated={({ gl }) => {
                 gl.setClearColor('#0b1118');
+                gl.outputColorSpace = THREE.SRGBColorSpace;
+                gl.toneMapping = THREE.AgXToneMapping;
+                gl.toneMappingExposure = 1.12;
+                gl.shadowMap.type = THREE.PCFSoftShadowMap;
                 /* 집 전체 시점에서 벽을 허리께로 자르려면 켜야 한다 (설계서 v1.4 §2.1) */
                 gl.localClippingEnabled = true;
               }}
@@ -270,18 +316,21 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
               />
               {settings.postprocessing && (
                 <EffectComposer enableNormalPass>
-                  <N8AO intensity={1.4} aoRadius={1.6} distanceFalloff={1} />
-                  <Bloom intensity={0.75} luminanceThreshold={0.62} luminanceSmoothing={0.25} mipmapBlur />
+                  <N8AO intensity={settings.aoIntensity} aoRadius={1.5} distanceFalloff={1} />
+                  <Bloom intensity={settings.bloomIntensity} luminanceThreshold={0.68} luminanceSmoothing={0.24} mipmapBlur />
                 </EffectComposer>
               )}
             </Canvas>
           </div>
         )}
+        <div className="k-r-scene-hud" aria-live="polite">
+          <p className="k-r-caption"><b>{seconds}초</b><span>{caption}</span></p>
+          <p className="k-r-mouse-hint">마우스로 끌기 · 휠로 확대 · 키보드 방향키</p>
+        </div>
+        {view === 'first' && <span className="k-r-reticle" aria-hidden="true" />}
       </div>
 
       <Hud
-        seconds={seconds}
-        caption={caption}
         playing={playing}
         onPlay={() => setPlaying((v) => !v)}
         onRestart={() => jump(0)}
@@ -289,8 +338,6 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
         speed={speed}
         speeds={SPEEDS}
         onSpeed={setSpeed}
-        view={view}
-        onView={setView}
         layers={layers}
         onLayer={setLayer}
         quality={quality}
@@ -298,9 +345,6 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
           setAutoLowered(true);
           setQuality(q);
         }}
-        moved={moved}
-        onResetView={() => setOrbit({ yaw: 0, pitch: 0, zoom: 1 })}
-        onClose={onClose}
       />
 
       <input

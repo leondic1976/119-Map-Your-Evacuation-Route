@@ -1574,6 +1574,14 @@ async function main(): Promise<void> {
       await page.waitForTimeout(900);
       const cap = await page.locator('.k-r-caption').innerText();
       assert(/초/.test(cap), `자막 없음: ${cap}`);
+      const replay = page.locator('.k-replay');
+      assert((await page.locator('.k-r-topbar').count()) === 1, '상단 시점 조작부가 없다');
+      assert((await page.locator('[data-view]').count()) === 3, '시점 선택이 세 가지가 아니다');
+      assert((await page.locator('[data-look-direction]').count()) === 4, '상하좌우 방향 단추가 넷이 아니다');
+      assert((await page.locator('[data-look-reset]').count()) === 1, '시점 정면 단추가 없다');
+      const topbarBox = await page.locator('.k-r-topbar').boundingBox();
+      const stageBox = await page.locator('.k-replay-stage').boundingBox();
+      assert(Boolean(topbarBox && stageBox && topbarBox.y + topbarBox.height <= stageBox.y + 1), '상단 조작부가 3D 화면과 겹친다');
       /* WebGL 을 못 쓰는 기기에서는 2D 로 내려간다 */
       const has3d = (await page.locator('.k-replay-canvas').count()) === 1;
       const has2d = (await page.locator('[data-fallback="2d"]').count()) === 1;
@@ -1589,11 +1597,10 @@ async function main(): Promise<void> {
         (await page.locator('[data-view="first"]').getAttribute('aria-pressed')) === 'true',
         '내 눈으로 보기가 기본 시점이 아니다',
       );
-      await page.locator('[data-view="dollhouse"]').click();
-      await page.waitForTimeout(300);
-      assert((await page.locator('[data-view="dollhouse"]').getAttribute('aria-pressed')) === 'true', '시점이 안 바뀐다');
-      /* 끌어서 둘러보기 — 시점이 움직이면 되돌리기 단추가 뜬다 */
+      /* 1인칭에서도 마우스 좌우·상하가 모두 카메라 상태를 바꾼다. */
       if (has3d) {
+        const yaw0 = await replay.getAttribute('data-camera-yaw');
+        const pitch0 = await replay.getAttribute('data-camera-pitch');
         const cv = await page.locator('.k-replay-canvas').boundingBox();
         if (cv) {
           await page.mouse.move(cv.x + cv.width / 2, cv.y + cv.height / 2);
@@ -1601,12 +1608,32 @@ async function main(): Promise<void> {
           await page.mouse.move(cv.x + cv.width / 2 + 140, cv.y + cv.height / 2 + 30, { steps: 6 });
           await page.mouse.up();
           await page.waitForTimeout(300);
-          const back = page.locator('.k-r-panel .k-tb', { hasText: '시점 되돌리기' });
-          assert((await back.count()) === 1, '끌어도 시점이 안 돈다');
+          assert((await replay.getAttribute('data-camera-yaw')) !== yaw0, '마우스 좌우로 시점이 안 돈다');
+          assert((await replay.getAttribute('data-camera-pitch')) !== pitch0, '마우스 상하로 시점이 안 돈다');
+          const back = page.locator('[data-look-reset]');
+          assert((await back.isEnabled()) === true, '시점을 움직여도 정면 단추가 활성화되지 않는다');
           await back.click();
           await page.waitForTimeout(200);
+          assert((await replay.getAttribute('data-camera-yaw')) === '0.000', '시점 좌우가 정면으로 돌아오지 않는다');
+          assert((await replay.getAttribute('data-camera-pitch')) === '0.000', '시점 상하가 정면으로 돌아오지 않는다');
         }
       }
+      await page.locator('[data-look-direction="left"]').click();
+      await page.locator('[data-look-direction="up"]').click();
+      assert((await replay.getAttribute('data-camera-yaw')) !== '0.000', '왼쪽 보기 단추가 작동하지 않는다');
+      assert((await replay.getAttribute('data-camera-pitch')) !== '0.000', '위 보기 단추가 작동하지 않는다');
+      await page.locator('[data-look-reset]').click();
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowDown');
+      assert((await replay.getAttribute('data-camera-yaw')) !== '0.000', '키보드 오른쪽 방향키가 작동하지 않는다');
+      assert((await replay.getAttribute('data-camera-pitch')) !== '0.000', '키보드 아래 방향키가 작동하지 않는다');
+      await page.locator('[data-look-reset]').click();
+      await page.locator('[data-view="follow"]').click();
+      await page.waitForTimeout(200);
+      assert((await replay.getAttribute('data-camera-view')) === 'follow', '뒤에서 시점이 안 바뀐다');
+      await page.locator('[data-view="dollhouse"]').click();
+      await page.waitForTimeout(300);
+      assert((await page.locator('[data-view="dollhouse"]').getAttribute('aria-pressed')) === 'true', '집 전체 시점이 안 바뀐다');
       await page.locator('[data-coach="kids-replay-play"]').click();
       await page.waitForTimeout(200);
 
@@ -1624,10 +1651,17 @@ async function main(): Promise<void> {
       await page.waitForTimeout(250);
       assert((await routeToggle.isChecked()) === true, '길이 다시 안 켜진다');
 
-      /* 화질을 낮춰도 화면이 살아 있다 (FR-11.10) */
+      /* 세 화질 단계가 장식 밀도와 함께 바뀌고, 낮춰도 화면은 살아 있다 (FR-11.10) */
+      await page.locator('[data-quality="ultra"]').click();
+      await page.waitForTimeout(350);
+      assert((await replay.getAttribute('data-scene-detail')) === 'full', '고급 화질 장식이 적용되지 않는다');
+      await page.locator('[data-quality="high"]').click();
+      await page.waitForTimeout(350);
+      assert((await replay.getAttribute('data-scene-detail')) === 'standard', '높음 화질 장식이 적용되지 않는다');
       await page.locator('[data-quality="low"]').click();
       await page.waitForTimeout(700);
       assert((await page.locator('[data-quality="low"]').getAttribute('aria-pressed')) === 'true', '화질이 안 바뀐다');
+      assert((await replay.getAttribute('data-scene-detail')) === 'minimal', '가벼움 화질 장식이 적용되지 않는다');
       assert((await page.locator('.k-replay-canvas canvas').count()) === 1, '화질을 낮추니 그림이 사라졌다');
 
       /*
@@ -1638,7 +1672,7 @@ async function main(): Promise<void> {
        * Esc 로 닫히는 것은 어차피 지켜야 하는 규칙이다 (작업지침 §5).
        */
       const onTop = await page.evaluate(() => {
-        const el = document.querySelector('.k-r-panel .k-x') as HTMLElement | null;
+        const el = document.querySelector('.k-r-topbar .k-x') as HTMLElement | null;
         if (!el) return 'none';
         const r = el.getBoundingClientRect();
         const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);

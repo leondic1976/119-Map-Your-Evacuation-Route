@@ -64,9 +64,6 @@ export default function Hazard({ grid, frame }: Props) {
     last.frame = frame;
     last.quat.copy(camera.quaternion);
 
-    /* 판을 전부 카메라 쪽으로 돌린다 */
-    dummy.quaternion.copy(camera.quaternion);
-
     let s = 0;
     let f = 0;
     for (let i = 0; i < frame.secondary.length; i += 1) {
@@ -78,6 +75,8 @@ export default function Hazard({ grid, frame }: Props) {
         for (let l = 0; l < LAYERS.length; l += 1) {
           const a = Math.min(0.55, density * LAYER_MIX[l] * 0.7);
           if (a < 0.02) continue;
+          /* 연기 판만 카메라를 마주 본다. 불꽃은 입체 원뿔이라 세워 둔다. */
+          dummy.quaternion.copy(camera.quaternion);
           dummy.position.set(x, LAYERS[l], z);
           dummy.scale.setScalar(1.5 + density * 0.5);
           dummy.updateMatrix();
@@ -90,16 +89,17 @@ export default function Hazard({ grid, frame }: Props) {
 
       const heat = frame.primary[i] / 255;
       if (heat > 0.06) {
+        dummy.quaternion.identity();
         /* 밑동은 밝은 노랑 */
-        dummy.position.set(x, 0.5, z);
-        dummy.scale.setScalar(1.15);
+        dummy.position.set(x, 0.72, z);
+        dummy.scale.set(0.9 + heat * 0.25, 0.8 + heat * 0.45, 0.9 + heat * 0.25);
         dummy.updateMatrix();
         fire.setMatrixAt(f, dummy.matrix);
         fire.setColorAt(f, tint.setRGB(1, 0.82, 0.35).multiplyScalar(Math.min(1.4, heat * 1.5)));
         f += 1;
         /* 그 위로 붉은 혀 */
-        dummy.position.set(x, 1.3 + heat * 0.9, z);
-        dummy.scale.setScalar(0.95);
+        dummy.position.set(x + 0.12, 1.15 + heat * 0.62, z - 0.08);
+        dummy.scale.set(0.62, 0.75 + heat * 0.36, 0.62);
         dummy.updateMatrix();
         fire.setMatrixAt(f, dummy.matrix);
         fire.setColorAt(f, tint.setRGB(0.98, 0.4, 0.13).multiplyScalar(Math.min(1.2, heat * 1.3)));
@@ -122,10 +122,10 @@ export default function Hazard({ grid, frame }: Props) {
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial map={puff} transparent opacity={0.5} depthWrite={false} vertexColors />
       </instancedMesh>
-      {/* 불 — 가산 혼합이라 블룸이 물어 타오른다 */}
+      {/* 불 — 입체 원뿔 두 겹과 가산 혼합으로 옆에서도 불꽃 형태가 보인다. */}
       <instancedMesh ref={fireRef} args={[undefined, undefined, maxFire]} renderOrder={9} frustumCulled={false}>
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={puff} transparent depthWrite={false} blending={THREE.AdditiveBlending} vertexColors />
+        <coneGeometry args={[0.58, 1.45, 12, 1]} />
+        <meshBasicMaterial transparent opacity={0.88} depthWrite={false} blending={THREE.AdditiveBlending} vertexColors toneMapped={false} />
       </instancedMesh>
     </group>
   );

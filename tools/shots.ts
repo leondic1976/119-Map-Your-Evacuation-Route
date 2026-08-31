@@ -139,14 +139,20 @@ async function main(): Promise<void> {
   await page.screenshot({ path: path.join(dest, '5-report.png') });
   await page.locator('[data-coach="kids-replay3d-open"]').click();
   await page.waitForSelector('.k-replay-canvas[data-character="girl_braid"][data-character-style="braid"]');
+  await page.locator('[data-quality="ultra"]').click();
+  await page.locator('[data-look-direction="right"]').click();
+  await page.locator('[data-look-direction="up"]').click();
   await page.waitForTimeout(1400);
   await page.screenshot({ path: path.join(dest, '5a-replay3d-character.png') });
   await page.locator('[data-view="follow"]').click();
   await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(dest, '5b-replay3d-character-close.png') });
+  await page.locator('[data-view="dollhouse"]').click();
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: path.join(dest, '5c-replay3d-dollhouse.png') });
   /* 짧은 기록은 캡처 중 끝 장면으로 넘어갈 수 있다. 현재 보이는 닫기 길을 직접 누른다. */
   const replayClose = page
-    .getByRole('button', { name: '닫기', exact: true })
+    .getByRole('button', { name: '3D 다시 보기 닫기', exact: true })
     .or(page.getByRole('button', { name: '결과로 돌아가기', exact: true }));
   await replayClose.last().click();
   await page.waitForSelector('[data-coach="kids-replay3d"]', { state: 'detached' });

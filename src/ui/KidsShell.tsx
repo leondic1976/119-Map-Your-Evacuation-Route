@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockName } from '../content';
 import { checklist, missingOf } from '../core/checklist';
 import { doorlessRooms } from '../core/grid/doors';
-import { i } from '../core/josa';
+import { eul, i } from '../core/josa';
 import { isOpening, isRoom, type RoomKind } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
@@ -66,6 +66,12 @@ const OPEN_ZONE_KINDS: { id: RoomKind; label: string }[] = [
   { id: 'balcony', label: '베란다' },
 ];
 
+const QUICK_ROOM_KINDS: { id: Extract<RoomKind, 'bath' | 'entry' | 'balcony'>; label: string; title: string }[] = [
+  { id: 'bath', label: '욕실', title: '벽이 있는 욕실을 추가해요' },
+  { id: 'entry', label: '현관', title: '신발을 벗는 현관을 추가해요' },
+  { id: 'balcony', label: '발코니·베란다', title: '발코니 또는 베란다를 추가해요' },
+];
+
 export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }) {
   const ready = useKids((s) => s.ready);
   const step = useKids((s) => s.step);
@@ -81,6 +87,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const toast = useKids((s) => s.toast);
   const savedAt = useKids((s) => s.savedAt);
   const saveError = useKids((s) => s.saveError);
+  const armed = useKids((s) => s.armed);
   const selection = useKids((s) => s.selection);
   const layer = useKids((s) => s.layer);
   const timed = useKids((s) => s.timed);
@@ -104,6 +111,9 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const doorlessNoticeRef = useRef(false);
+  const quickRoom = step === 'spaces' && armed?.category === 'room'
+    ? QUICK_ROOM_KINDS.find((item) => item.id === armed.id)
+    : undefined;
 
   /* 시작 */
   useEffect(() => {
@@ -412,7 +422,24 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                 <div className="k-build-actions">
                   <div className="k-build-copy">
                     <b>{buildTitle(step, easy)}</b>
-                    <span>{buildHelp(step, easy, Boolean(step === 'spaces' ? selectedRoom : step === 'structure' ? selectedClosedRoom || selectedOpening : true))}</span>
+                    <span>{quickRoom ? `${eul(quickRoom.label)} 골랐어. 이제 도면의 빈 곳을 눌러 놓아 줘.` : buildHelp(step, easy, Boolean(step === 'spaces' ? selectedRoom : step === 'structure' ? selectedClosedRoom || selectedOpening : true))}</span>
+                    {step === 'spaces' && (
+                      <div className="k-space-quick" role="group" aria-label="자주 쓰는 공간 바로 추가">
+                        {QUICK_ROOM_KINDS.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            title={item.title}
+                            aria-pressed={armed?.category === 'room' && armed.id === item.id}
+                            data-quick-room={item.id}
+                            onClick={() => useKids.getState().arm(armed?.category === 'room' && armed.id === item.id ? null : { category: 'room', id: item.id })}
+                          >
+                            <i aria-hidden="true" />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {step === 'spaces' && selectedClosedRoom && (
                     <div className="k-build-choices" role="group" aria-label="고른 독립실의 종류">

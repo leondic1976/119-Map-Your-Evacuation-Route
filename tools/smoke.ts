@@ -694,6 +694,24 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-build-steps li').count()) === 7, '일곱 단계 만들기 순서가 보이지 않는다');
       assert((await page.locator('.k-stage [data-kind="furniture"], .k-stage [data-kind="safety"], .k-stage [data-kind="hazard"], .k-stage [data-kind="marker"]').count()) === 0, '구조 단계 전에 가구나 표시가 놓여 있다');
       assert((await page.locator('.k-cats .k-cat').count()) === 2, '실·문·창 단계의 방·문 팔레트가 아니다');
+      const quickRooms = page.locator('[data-quick-room]');
+      assert((await quickRooms.count()) === 3, '욕실·현관·발코니 바로 추가 단추 세 개가 없다');
+      for (const quick of [
+        { id: 'bath', label: '욕실', x: 10, y: 3 },
+        { id: 'entry', label: '현관', x: 16, y: 3 },
+        { id: 'balcony', label: '발코니', x: 10, y: 10 },
+      ] as const) {
+        const button = page.locator(`[data-quick-room="${quick.id}"]`);
+        await button.click();
+        assert((await button.getAttribute('aria-pressed')) === 'true', `${quick.label} 바로 추가 단추가 선택되지 않았다`);
+        assert((await page.locator('.k-build-copy').innerText()).includes('도면의 빈 곳을 눌러'), `${quick.label}을 어디에 놓는지 안내하지 않는다`);
+        const point = await planPoint(page, await kidsPlan(page), quick.x, quick.y);
+        await page.mouse.click(point.x, point.y);
+        await page.waitForTimeout(800);
+        const placedPlan = await kidsPlan(page);
+        assert(placedPlan.blocks.some((block) => block.kind === 'room' && block.roomKind === quick.id && block.wallMode !== 'zone'), `${quick.label}이 벽 있는 공간으로 놓이지 않았다`);
+        assert((await button.getAttribute('aria-pressed')) === 'false', `${quick.label}을 한 번 놓은 뒤 추가 도구가 해제되지 않았다`);
+      }
       const emptyPlan = await kidsPlan(page);
       const roomCell = await planPoint(page, emptyPlan, 4, 4);
       await page.locator('[data-block-id="bedroom"]').click();

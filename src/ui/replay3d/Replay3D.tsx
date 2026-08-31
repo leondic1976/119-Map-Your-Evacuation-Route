@@ -77,6 +77,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const [layers, setLayers] = useState<Layers>({ route: true, trail: true, hazard: true, scenery: true });
   /** 멈춘 뒤 끌어서 둘러보기 — 좌우(yaw)·상하(pitch)와 거리(zoom) */
   const [orbit, setOrbit] = useState({ yaw: 0, pitch: 0, zoom: 1 });
+  const closeRef = useRef(onClose);
   const frame = frames[Math.min(i, frames.length - 1)];
   const avatar = useMemo(() => avatar3dIdentity(character), [character]);
 
@@ -108,14 +109,26 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     setOrbit({ yaw: 0, pitch: 0, zoom: 1 });
   }, [view]);
 
-  /* 덮개에는 닫기와 Esc 를 둔다 (작업지침 §5) */
+  /* 부모가 다시 그려져도 Esc 수신기를 갈아 끼우는 순간이 생기지 않게 최신 닫기 함수만 보관한다. */
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  /*
+   * 덮개에는 닫기와 Esc 를 둔다 (작업지침 §5).
+   * WebGL 캔버스나 범위 입력이 포커스를 가진 채 이벤트 전파를 막아도 닫히도록
+   * 캡처 단계에서 먼저 받는다. 느린 소프트웨어 렌더링 환경에서도 같은 동작이다.
+   */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeRef.current();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   const settings = useMemo(() => settingsFor(quality), [quality]);
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);

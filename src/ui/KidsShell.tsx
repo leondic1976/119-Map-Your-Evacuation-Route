@@ -14,7 +14,7 @@ import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockName } from '../content';
 import { checklist, missingOf } from '../core/checklist';
 import { doorlessRooms } from '../core/grid/doors';
 import { i } from '../core/josa';
-import { isOpening } from '../types/plan';
+import { isOpening, isRoom, type RoomKind } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
 import { firstIssue, ruleReportsFor, useKids } from '../store/kidsStore';
@@ -34,8 +34,35 @@ import { PLAYER_NAME } from './Avatar';
 import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
 import { playDoor, playTap, replayLastGuideVoice, stopSpeaking, unlockAudio } from './sound';
+import type { StudentInfo } from './ProfileSetup';
+import CampaignDashboard from './CampaignDashboard';
 
-export default function KidsShell() {
+const BUILD_STEPS = [
+  ['template', '집 모양'],
+  ['spaces', '공간 나누기'],
+  ['structure', '크기·위치'],
+  ['furniture', '가구·이름'],
+  ['mySpot', '내 방·위치'],
+  ['meeting', '같이 모일 곳'],
+  ['safety', '안전 위치'],
+] as const;
+
+const CLOSED_ROOM_KINDS: { id: RoomKind; label: string }[] = [
+  { id: 'bedroom', label: '침실' },
+  { id: 'bath', label: '욕실' },
+  { id: 'refuge_lobby', label: '피난전실' },
+  { id: 'utility', label: '알파룸' },
+];
+
+const OPEN_ZONE_KINDS: { id: RoomKind; label: string }[] = [
+  { id: 'living', label: '거실' },
+  { id: 'kitchen', label: '트인 주방' },
+  { id: 'entry', label: '현관' },
+  { id: 'corridor', label: '복도' },
+  { id: 'balcony', label: '베란다' },
+];
+
+export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }) {
   const ready = useKids((s) => s.ready);
   const step = useKids((s) => s.step);
   const mode = useKids((s) => s.mode);
@@ -64,6 +91,7 @@ export default function KidsShell() {
   const [showHint, setShowHint] = useState(false);
   const [gray, setGray] = useState(false);
   const [help, setHelp] = useState(false);
+  const [dashboard, setDashboard] = useState(false);
   const [dev, setDev] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [badFile, setBadFile] = useState<{ version: number; raw: string } | null>(null);
@@ -78,6 +106,7 @@ export default function KidsShell() {
   useEffect(() => {
     /* 소리 켬/끔은 boot() 안에서 저장을 읽자마자 맞춘다 (설계서 v1.6 §3) */
     useKids.getState().boot();
+    if (studentInfo) useKids.getState().setProfile(studentInfo);
     document.body.classList.add('kids-mode');
     const style = document.createElement('style');
     style.id = 'k-page';
@@ -158,6 +187,7 @@ export default function KidsShell() {
         /* 덮개는 모두 Esc 로 닫힌다 (작업지침 §5). 닫는 쪽은 어느 것도 되돌릴 수 없는 일을 하지 않는다 */
         setPreview(false);
         setHelp(false);
+        setDashboard(false);
         setPickChar(false);
         setConfirmReset(false);
         setAskMissing(null);
@@ -187,7 +217,11 @@ export default function KidsShell() {
   const editing = mode === 'edit';
   const selectedBlock = selection ? plan.blocks.find((b) => b.id === selection) : undefined;
   const selectedOpening = selectedBlock && isOpening(selectedBlock) ? selectedBlock : null;
-  const onboardingOnCanvas = step === 'mySpot' || step === 'meeting';
+  const guidedStep = step === 'spaces' || step === 'structure' || step === 'furniture' || step === 'mySpot' || step === 'meeting' || step === 'safety';
+  const onboardingOnCanvas = guidedStep;
+  const selectedClosedRoom = selectedBlock && isRoom(selectedBlock) && selectedBlock.wallMode !== 'zone' ? selectedBlock : null;
+  const selectedOpenZone = selectedBlock && isRoom(selectedBlock) && selectedBlock.wallMode === 'zone' ? selectedBlock : null;
+  const selectedRoom = selectedBlock && isRoom(selectedBlock) ? selectedBlock : null;
   const required = useMemo(() => checklist(plan, REQUIRED_BLOCKS), [plan]);
   const missing = missingOf(required);
   const roomsWithoutDoor = useMemo(() => doorlessRooms(plan), [plan]);
@@ -268,7 +302,7 @@ export default function KidsShell() {
           <div className="k-brand">
             <BrandMark />
             <span>
-              우리집 대피지도 <small>{easy ? '초등학생' : '초등 고학년'}</small>
+              우리집 대피지도 <small>{profile.studentName ? `${profile.schoolGrade}학년 ${profile.className} ${profile.studentName}` : easy ? '초등학생' : '초등 고학년'}</small>
             </span>
           </div>
 
@@ -352,13 +386,77 @@ export default function KidsShell() {
           <button type="button" className="k-tb" onClick={() => setHelp(true)} title="사용법 (?)">
             사용법
           </button>
+          <button type="button" className="k-tb k-dashboard-open" onClick={() => setDashboard(true)} title="학교·학년·반별 캠페인 현황" data-coach="kids-dashboard">
+            대시보드
+          </button>
         </header>
 
         {/* 가운데 */}
         <div className="k-work">
           <Palette />
           <main className="k-center">
-            {editing && (
+            {editing && guidedStep ? (
+              <div className="k-build-bar" data-build-step={step}>
+                <ol className="k-build-steps" aria-label="우리 집 만들기 순서">
+                  {BUILD_STEPS.map(([id, label], index) => {
+                    const current = BUILD_STEPS.findIndex(([candidate]) => candidate === step);
+                    return (
+                      <li key={id} className={index === current ? 'on' : index < current ? 'done' : ''} aria-current={index === current ? 'step' : undefined}>
+                        <i>{index + 1}</i><span>{label}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <div className="k-build-actions">
+                  <div className="k-build-copy">
+                    <b>{buildTitle(step, easy)}</b>
+                    <span>{buildHelp(step, easy, Boolean(step === 'spaces' ? selectedRoom : step === 'structure' ? selectedClosedRoom : true))}</span>
+                  </div>
+                  {step === 'spaces' && selectedClosedRoom && (
+                    <div className="k-build-choices" role="group" aria-label="고른 독립실의 종류">
+                      {CLOSED_ROOM_KINDS.map((item) => (
+                        <button key={item.id} type="button" aria-pressed={selectedClosedRoom.roomKind === item.id} data-room-kind={item.id} onClick={() => useKids.getState().setRoomKind(selectedClosedRoom.id, item.id)}>{item.label}</button>
+                      ))}
+                    </div>
+                  )}
+                  {step === 'spaces' && selectedOpenZone && (
+                    <div className="k-build-choices" role="group" aria-label="고른 열린 공간의 종류">
+                      {OPEN_ZONE_KINDS.map((item) => (
+                        <button key={item.id} type="button" aria-pressed={selectedOpenZone.roomKind === item.id} data-zone-kind={item.id} onClick={() => useKids.getState().setRoomKind(selectedOpenZone.id, item.id)}>{item.label}</button>
+                      ))}
+                    </div>
+                  )}
+                  {step === 'furniture' && selectedRoom && (
+                    <label className="k-build-name">
+                      <span>공간 이름</span>
+                      <input
+                        key={selectedRoom.id}
+                        defaultValue={selectedRoom.label}
+                        maxLength={16}
+                        data-allowed-free-text="room-name"
+                        aria-label="고른 공간 이름"
+                        placeholder={blockName(selectedRoom.roomKind, easy ? 'easy' : 'normal')}
+                        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+                        onBlur={(event) => useKids.getState().renameRoom(selectedRoom.id, event.currentTarget.value.trim())}
+                      />
+                    </label>
+                  )}
+                  {step === 'safety' && (
+                    <div className={`k-safety-check${plan.blocks.some((block) => block.kind === 'safety' && block.subKind === 'extinguisher') ? ' done' : ''}`} role="status">
+                      <b>{plan.blocks.some((block) => block.kind === 'safety' && block.subKind === 'extinguisher') ? '소화기 위치를 확인했어' : '소화기 위치를 찾아 놓아 보자'}</b>
+                      <span>모르면 부모님이나 선생님께 물어봐도 돼.</span>
+                    </div>
+                  )}
+                  <span className="k-spacer" />
+                  <button type="button" className="k-tb sm" data-build-back onClick={() => backBuildStep(step, setOnboard)}>{step === 'spaces' ? '집 모양 다시' : '앞 단계'}</button>
+                  {step === 'meeting' ? (
+                    <button type="button" className="k-tb primary sm" data-coach="kids-meeting-later" onClick={() => useKids.getState().pickMeeting(null)}>{easy ? '나중에 정할래' : '나중에'}</button>
+                  ) : step !== 'mySpot' ? (
+                    <button type="button" className="k-tb primary sm" data-build-next onClick={() => nextBuildStep(step)}>{step === 'safety' ? '지도 만들기 완료' : step === 'furniture' ? '내 방과 위치 정하기' : '다음 단계'}</button>
+                  ) : null}
+                </div>
+              </div>
+            ) : editing ? (
               <div className="k-canvas-bar">
                 <div className="k-seg dark" role="group" aria-label="경로" data-coach="kids-route-slot">
                   {(['primary', 'alternate'] as const).map((slot) => (
@@ -394,7 +492,7 @@ export default function KidsShell() {
                   흑백
                 </label>
               </div>
-            )}
+            ) : null}
 
             <div className="k-canvas-wrap">
               {mode === 'report' ? (
@@ -411,16 +509,6 @@ export default function KidsShell() {
                       </button>
                     </div>
                   )}
-                  {editing && onboardingOnCanvas && (
-                    <div className="k-selbar" role="status" data-coach="kids-onboard-hint">
-                      {step === 'mySpot' ? (easy ? '네 방을 눌러 줘.' : '잠자는 방을 누른다.') : easy ? '집 밖 빈 곳을 눌러 만나는 곳을 놓자.' : '도면 밖 빈 곳을 눌러 만나는 곳을 놓는다.'}
-                      {step === 'meeting' && (
-                        <button type="button" className="k-link" data-coach="kids-meeting-later" onClick={() => useKids.getState().pickMeeting(null)}>
-                          {easy ? '나중에 정할래' : '나중에'}
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -434,7 +522,7 @@ export default function KidsShell() {
             </div>
 
             {/* 점검 한 줄 — 자세한 것은 리포트와 캐릭터가 한다 */}
-            {editing && reports.length > 0 && (
+            {editing && !guidedStep && reports.length > 0 && (
               <div className={`k-report${critical ? ' warn' : ''}`} data-coach="kids-report-bar">
                 <b>{easy ? '점검' : '규칙 점검'}</b>
                 {!issue ? (
@@ -464,7 +552,7 @@ export default function KidsShell() {
           <button type="button" className="k-tb accent" onClick={() => useKids.getState().help()} data-coach="kids-help">
             이제 뭘 해야 해?
           </button>
-          {editing && (
+          {editing && !guidedStep && (
             <button
               type="button"
               className="k-tb primary"
@@ -511,6 +599,8 @@ export default function KidsShell() {
       {toast && <div className={`k-toast${toast.kind === 'warn' ? ' warn' : ''}`}>{toast.text}</div>}
 
       <Onboarding open={onboard} onClose={() => setOnboard(false)} />
+
+      {dashboard && <CampaignDashboard onClose={() => setDashboard(false)} />}
 
       {preview && (
         <div className="k-modal-back" onClick={() => setPreview(false)} role="presentation">
@@ -741,7 +831,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
           <span className="k-kbd">Ctrl</span>+<span className="k-kbd">P</span> 인쇄
         </p>
         <p className="k-note">
-          이 앱은 인터넷에 아무것도 보내지 않는다. 이름·연락처는 저장하지 않고 종이에 손으로 적는다. 캐릭터의 말은 미리 적어 둔 문장이며, “검수 대기” 표시가 있는 문장은 아직 소방청 1차 자료와 대조하지 않았다.
+          이 앱은 인터넷에 아무것도 보내지 않는다. 학교·학년·반·이름은 이 PC 브라우저의 대피지도에만 저장된다. 캐릭터의 말은 미리 적어 둔 문장이며, “검수 대기” 표시가 있는 문장은 아직 소방청 1차 자료와 대조하지 않았다.
         </p>
         <footer>
           <button type="button" className="k-tb primary" onClick={onClose}>
@@ -751,6 +841,42 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+function buildTitle(step: string, easy: boolean): string {
+  if (step === 'spaces') return easy ? '방과 트인 공간을 우리 집처럼 나눠 보자' : '구획실·공용공간 설정';
+  if (step === 'structure') return easy ? '닫힌 방의 크기와 자리를 맞춰 보자' : '독립실 크기·위치 조정';
+  if (step === 'furniture') return easy ? '가구를 놓고 공간 이름도 지어 보자' : '가구 배치·공간 이름 지정';
+  if (step === 'mySpot') return easy ? '내 방에서 내가 자거나 자주 있는 곳을 눌러 줘' : '내 방과 내 위치 지정';
+  if (step === 'meeting') return easy ? '불이 나면 가족이 같이 모일 집 밖 장소를 눌러 줘' : '집 밖 집결지 지정';
+  return easy ? '마지막으로 소화기와 안전 물건의 자리를 확인하자' : '소화기·감지기 등 안전설비 확인';
+}
+
+function buildHelp(step: string, easy: boolean, selected: boolean): string {
+  if (step === 'spaces') return selected
+    ? (easy ? '아래에서 이곳과 같은 이름을 골라. 왼쪽에서 방이나 문도 더할 수 있어.' : '선택한 독립실 또는 공용 구역의 용도를 지정하세요.')
+    : (easy ? '닫힌 방이나 벽 없는 바닥을 누르고 종류를 골라.' : '구획실·공용 바닥을 선택하고 종류와 문·창을 설정하세요.');
+  if (step === 'structure') return selected
+    ? (easy ? '끌면 옮겨지고, 테두리의 점을 끌면 크기가 바뀌어.' : '드래그로 이동하고 8방향 핸들로 크기를 변경합니다.')
+    : (easy ? '벽으로 닫힌 방을 누른 뒤 끌거나 크기를 바꿔 봐.' : '닫힌 독립실을 선택해 이동·크기를 조정하세요.');
+  if (step === 'furniture') return easy ? '침대·책상처럼 실제로 있는 것을 놓고, 공간을 누르면 이름도 바꿀 수 있어.' : '가구·위험원을 실제 위치에 놓고 선택한 공간 이름을 수정하세요.';
+  if (step === 'mySpot') return easy ? '가구 위여도 괜찮아. 나중에 고르기로 다시 옮길 수 있어.' : '집 안의 칸을 클릭합니다. 완성 뒤 다시 이동할 수 있습니다.';
+  if (step === 'meeting') return easy ? '학교 운동장처럼 안전하고 찾기 쉬운 집 밖 장소가 좋아.' : '집 밖의 안전하고 식별하기 쉬운 칸을 클릭합니다.';
+  return easy ? '왼쪽 안전 갈래에서 실제 위치를 아는 것만 놓아. 모르면 어른과 함께 찾아보자.' : '실제 위치를 확인한 안전설비만 배치하고, 모르면 보호자·교사와 확인하세요.';
+}
+
+function nextBuildStep(step: string): void {
+  const next = step === 'spaces' ? 'structure' : step === 'structure' ? 'furniture' : step === 'furniture' ? 'mySpot' : step === 'safety' ? 'ready' : null;
+  if (next) useKids.getState().setStep(next);
+}
+
+function backBuildStep(step: string, openOnboarding: (open: boolean) => void): void {
+  if (step === 'spaces') {
+    openOnboarding(true);
+    return;
+  }
+  const previous = step === 'structure' ? 'spaces' : step === 'furniture' ? 'structure' : step === 'mySpot' ? 'furniture' : step === 'meeting' ? 'mySpot' : step === 'safety' ? 'meeting' : null;
+  if (previous) useKids.getState().setStep(previous);
 }
 
 function SoundIcon({ on }: { on: boolean }) {

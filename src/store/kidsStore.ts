@@ -47,6 +47,7 @@ import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { preparePlan, rotatePlan, type PlanRotation, type PreparePlanOptions } from '../core/plan/prepare';
 import { generateResidualPlan, type ResidualPlanRequest } from '../core/plan/residual';
+import { reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
 import { loadKids, saveKids } from './storage';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
 
@@ -61,7 +62,7 @@ export interface Armed {
 
 export type KidsTool = 'place' | 'select' | 'route' | 'erase';
 export type Mode = 'edit' | 'game' | 'report';
-export type Step = 'template' | 'mySpot' | 'meeting' | 'ready' | 'edit' | 'route' | 'routeAlt' | 'game' | 'report';
+export type Step = 'template' | 'spaces' | 'structure' | 'furniture' | 'mySpot' | 'meeting' | 'safety' | 'ready' | 'edit' | 'route' | 'routeAlt' | 'game' | 'report';
 
 export interface Highlight {
   cells?: Cell[];
@@ -161,6 +162,8 @@ export interface KidsActions {
   moveBlock: (id: BlockId, cell: Cell) => void;
   moveRoom: (id: BlockId, dx: number, dy: number) => void;
   resizeRoom: (id: BlockId, rect: { x: number; y: number; w: number; h: number }) => void;
+  /** 만들기 길잡이에서 독립실·공용 구역의 쓰임을 바꾼다. 벽 성격은 그대로 둔다. */
+  setRoomKind: (id: BlockId, roomKind: RoomKind) => void;
   renameRoom: (id: BlockId, label: string) => void;
   /** 개구부의 평소 상태를 뒤집는다 — 열어 둠 ↔ 닫아 둠 (설계서 v1.2 §2.4) */
   toggleOpening: (id: BlockId) => void;
@@ -297,7 +300,7 @@ export const useKids = create<KidsStore>()((set, get) => {
      * 첫 방이 놓이는 순간 "네 방은 어디야?"로 넘어간다.
      */
     if (!hadRoom && isRoom(b) && get().step === 'edit' && !get().progress.completedSteps.includes('mySpot')) {
-      get().setStep('mySpot');
+      get().setStep('spaces');
     }
   };
 
@@ -426,7 +429,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         get().fire({ on: 'helpRequested', step: 'edit' });
         return;
       }
-      get().setStep('mySpot');
+      get().setStep('spaces');
     },
 
     setStep: (step) => {
@@ -435,7 +438,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       set({ step, progress: { ...s.progress, completedSteps: done } });
       /* 단계마다 알맞은 도구 */
       if (step === 'route' || step === 'routeAlt') set({ tool: 'route', armed: null, routeSlot: step === 'routeAlt' ? 'alternate' : 'primary' });
-      else if (step === 'mySpot' || step === 'meeting') set({ tool: 'select', armed: null });
+      else if (step === 'spaces' || step === 'structure' || step === 'furniture' || step === 'mySpot' || step === 'meeting' || step === 'safety') set({ tool: 'select', armed: null });
       else if (step === 'edit' || step === 'ready') set({ tool: 'select', armed: null });
       get().fire({ on: 'stepEnter', step });
     },
@@ -546,6 +549,7 @@ export const useKids = create<KidsStore>()((set, get) => {
     loadTemplate: (id, options) => {
       const t = TEMPLATES.find((x) => x.id === id);
       if (!t) return;
+      /* 템플릿은 완성 예시를 빠르게 불러오는 갈래다. 단계별 빈 평면은 직접 그리기에서만 쓴다. */
       const plan = preparePlan(t.plan, options);
       bumpBlockIdSeq(plan);
       commit({ plan, routes: {} });
@@ -558,7 +562,11 @@ export const useKids = create<KidsStore>()((set, get) => {
           : '우리 집에 맞게 고쳐 보자.';
       get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. ${detail}`);
       /* 화재 한 종만 다루므로 1층·반지하를 묻지 않는다 (설계서 v1.6 §2) */
-      if (!get().onboarded) get().finishOnboarding(false);
+      if (!get().onboarded) {
+        set({ profile: { ...get().profile, lowFloor: false }, onboarded: true });
+        scheduleSave();
+      }
+      get().setStep('edit');
     },
 
     loadResidualPlan: (request, rotation = 0) => {
@@ -570,6 +578,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       get().countOp();
       get().notify('방 상자를 놓고 남은 자리에 거실과 주방을 만들었다. 우리 집처럼 옮기고 늘려 보자.');
       if (!get().onboarded) get().finishOnboarding(false);
+      else get().setStep('spaces');
     },
 
     placeRoom: (roomKind, at, rect) => {
@@ -578,6 +587,19 @@ export const useKids = create<KidsStore>()((set, get) => {
       const size = def?.size ?? { w: 4, h: 4 };
       const want = rect ?? { x: at.x, y: at.y, w: size.w, h: size.h };
       const r = clampRect(plan.grid, want);
+      if (plan.shell) {
+        const room: Block = { kind: 'room', id: newBlockId('r'), layer: get().layer, roomKind, rect: r, label: autoLabel(plan, roomKind), wallMode: 'closed' };
+        const next = reflowShellFloor({ ...plan, blocks: plan.blocks.concat(room) });
+        if (!next) {
+          get().notify('그 자리에는 닫힌 방을 만들 수 없다. 집 안의 이어진 빈 곳을 골라 보자.', 'warn');
+          return false;
+        }
+        commit({ plan: next });
+        firstPlaced(roomKind);
+        get().countOp();
+        playTap();
+        return true;
+      }
       if (!canPlaceRoom(plan, r)) {
         get().notify('여기는 다른 방과 겹친다. 빈 곳을 눌러 보자.', 'warn');
         return false;
@@ -635,6 +657,14 @@ export const useKids = create<KidsStore>()((set, get) => {
       const plan = get().plan;
       const b = plan.blocks.find((x) => x.id === id);
       if (!b || isRoom(b)) return;
+      if (b.kind === 'marker' && b.subKind === 'my_spot' && !roomAt(plan, cell)) {
+        get().notify('내 위치는 집 안의 방이나 열린 바닥에 놓자.', 'warn');
+        return;
+      }
+      if (b.kind === 'marker' && b.subKind === 'meeting_point' && roomAt(plan, cell)) {
+        get().notify('만나는 장소는 집 밖 빈 곳에 놓자.', 'warn');
+        return;
+      }
       commit({ plan: { ...plan, blocks: plan.blocks.map((x) => (x.id === id ? { ...x, cell } : x)) } });
       get().countOp();
     },
@@ -643,24 +673,28 @@ export const useKids = create<KidsStore>()((set, get) => {
       const plan = get().plan;
       const room = plan.blocks.find((b) => b.id === id);
       if (!room || !isRoom(room) || (dx === 0 && dy === 0)) return;
-      const rect = { ...room.rect, x: room.rect.x + dx, y: room.rect.y + dy };
-      if (!canPlaceRoom(plan, rect, id)) {
-        get().notify('그쪽으로는 옮길 수 없다. 다른 방과 겹친다.', 'warn');
+      if (room.wallMode === 'zone') {
+        get().notify('거실·복도 같은 열린 바닥은 독립실을 옮기면 저절로 바뀐다. 이름은 3단계에서 고르자.', 'warn');
         return;
       }
+      const rect = { ...room.rect, x: room.rect.x + dx, y: room.rect.y + dy };
       const inside = (c: Cell): boolean =>
         c.x >= room.rect.x && c.x < room.rect.x + room.rect.w && c.y >= room.rect.y && c.y < room.rect.y + room.rect.h;
       /* 방에 붙은 문·창·물건도 함께 간다 (FR-7.7) */
-      commit({
-        plan: {
-          ...plan,
-          blocks: plan.blocks.map((b) => {
-            if (b.id === id && isRoom(b)) return { ...b, rect };
-            if (!isRoom(b) && inside(b.cell)) return { ...b, cell: { x: b.cell.x + dx, y: b.cell.y + dy } };
-            return b;
-          }),
-        },
-      });
+      const moved: FloorPlan = {
+        ...plan,
+        blocks: plan.blocks.map((b) => {
+          if (b.id === id && isRoom(b)) return { ...b, rect };
+          if (!isRoom(b) && inside(b.cell)) return { ...b, cell: { x: b.cell.x + dx, y: b.cell.y + dy } };
+          return b;
+        }),
+      };
+      const next = plan.shell ? reflowShellZones(moved, id, rect) : canPlaceRoom(plan, rect, id) ? moved : null;
+      if (!next) {
+        get().notify('그쪽으로는 옮길 수 없다. 집 밖이거나 다른 독립실과 겹친다.', 'warn');
+        return;
+      }
+      commit({ plan: next });
       get().countOp();
     },
 
@@ -668,9 +702,12 @@ export const useKids = create<KidsStore>()((set, get) => {
       const plan = get().plan;
       const room = plan.blocks.find((b) => b.id === id);
       if (!room || !isRoom(room)) return;
+      if (room.wallMode === 'zone') {
+        get().notify('열린 바닥은 독립실의 모양에 맞춰 저절로 채워진다.', 'warn');
+        return;
+      }
       const r = clampRect(plan.grid, rect);
       if (r.w < 2 || r.h < 2) return;
-      if (!canPlaceRoom(plan, r, id)) return;
       const wasInside = (c: Cell): boolean =>
         c.x >= room.rect.x && c.x < room.rect.x + room.rect.w && c.y >= room.rect.y && c.y < room.rect.y + room.rect.h;
       const nowInside = (c: Cell): boolean => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h;
@@ -694,9 +731,35 @@ export const useKids = create<KidsStore>()((set, get) => {
         }
         return true;
       });
-      commit({ plan: { ...plan, blocks: blocks.map((b) => (b.id === id && isRoom(b) ? { ...b, rect: r } : b)) } });
+      const resized: FloorPlan = { ...plan, blocks: blocks.map((b) => (b.id === id && isRoom(b) ? { ...b, rect: r } : b)) };
+      const next = plan.shell ? reflowShellZones(resized, id, r) : canPlaceRoom(plan, r, id) ? resized : null;
+      if (!next) {
+        get().notify('그 크기로는 바꿀 수 없다. 집 밖이거나 다른 독립실과 겹친다.', 'warn');
+        return;
+      }
+      commit({ plan: next });
       if (dropped) get().notify(`방 크기를 바꾸면서 벽에 붙어 있던 ${dropped}개를 지웠다. 되돌리기로 되살릴 수 있다.`, 'warn');
       get().countOp();
+    },
+
+    setRoomKind: (id, roomKind) => {
+      const plan = get().plan;
+      const room = plan.blocks.find((block) => block.id === id);
+      if (!room || !isRoom(room)) return;
+      const def = blockDef(roomKind);
+      const label = roomKind === 'bedroom'
+        ? (room.roomKind === 'bedroom' && room.label ? room.label : autoLabel({ ...plan, blocks: plan.blocks.filter((block) => block.id !== id) }, roomKind))
+        : (def?.easy ?? def?.label ?? '');
+      commit({
+        plan: {
+          ...plan,
+          blocks: plan.blocks.map((block) => block.id === id && isRoom(block)
+            ? { ...block, roomKind, label, showLabel: true }
+            : block),
+        },
+      });
+      get().countOp();
+      get().notify(`${label || '공간'}으로 바꿨다.`);
     },
 
     renameRoom: (id, label) => {
@@ -727,6 +790,10 @@ export const useKids = create<KidsStore>()((set, get) => {
       const plan = get().plan;
       const b = plan.blocks.find((x) => x.id === id);
       if (!b) return;
+      if (isRoom(b) && b.wallMode === 'zone') {
+        get().notify('열린 바닥은 지우지 않아도 된다. 독립실을 놓으면 남은 자리를 저절로 채운다.', 'warn');
+        return;
+      }
       let blocks = plan.blocks.filter((x) => x.id !== id);
       if (isRoom(b)) {
         const inside = (c: Cell): boolean =>
@@ -737,7 +804,13 @@ export const useKids = create<KidsStore>()((set, get) => {
           get().notify(`방을 지우면서 그 안의 ${gone.length}개도 함께 지웠다. 되돌리려면 되돌리기를 누르자.`, 'warn');
         }
       }
-      commit({ plan: { ...plan, blocks } });
+      const reduced = { ...plan, blocks };
+      const next = plan.shell && isRoom(b) && b.wallMode !== 'zone' ? reflowShellFloor(reduced) : reduced;
+      if (!next) {
+        get().notify('이 방을 지우면 열린 바닥이 끊어진다.', 'warn');
+        return;
+      }
+      commit({ plan: next });
       set({ selection: null, multi: [] });
       get().countOp();
     },
@@ -748,6 +821,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         get().notify('방 안을 눌러 줘.', 'warn');
         return false;
       }
+      if (room.roomKind === 'bedroom' && room.label !== '내 방') get().renameRoom(room.id, '내 방');
       get().placePoint('marker', 'my_spot', cell);
       get().setStep('meeting');
       return true;
@@ -763,7 +837,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       } else {
         get().countOp();
       }
-      get().setStep('ready');
+      get().setStep('safety');
     },
 
     /* -------------------------------------------------- 경로 */

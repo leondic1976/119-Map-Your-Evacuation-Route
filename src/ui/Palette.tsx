@@ -51,6 +51,7 @@ export default function Palette() {
   const style = useKids((s) => s.profile.blockStyle);
   const layer = useKids((s) => s.layer);
   const mode = useKids((s) => s.mode);
+  const step = useKids((s) => s.step);
   const paletteHl = useKids((s) => s.highlight?.paletteItem ?? null);
   const plan = useKids((s) => s.plan);
   const setTool = useKids((s) => s.setTool);
@@ -59,6 +60,15 @@ export default function Palette() {
   const [cat, setCat] = useState<BlockCategory>('safety');
   const easy = gradeMode === 'easy';
   const disabled = mode !== 'edit';
+  const stageCats: BlockCategory[] | null = step === 'structure'
+    ? ['room']
+    : step === 'spaces'
+      ? ['room', 'opening']
+      : step === 'furniture'
+        ? ['furniture', 'hazard']
+        : step === 'safety'
+          ? ['safety']
+        : null;
 
   /* 캐릭터가 가리킨 항목이 더보기 안에 있으면 그때 한 번 펼쳐 준다. 그 뒤로는 아이가 고르는 대로다 */
   useEffect(() => {
@@ -68,11 +78,19 @@ export default function Palette() {
     setMore(true);
     setCat(def.category);
   }, [paletteHl]);
-  const showMore = more;
-  const activeCat = cat;
+  useEffect(() => {
+    if (step === 'structure' || step === 'spaces') setCat(step === 'structure' ? 'room' : 'opening');
+    else if (step === 'furniture') setCat('furniture');
+    else if (step === 'safety') setCat('safety');
+  }, [step]);
+  const showMore = stageCats ? true : more;
+  const activeCat = stageCats?.includes(cat) ? cat : (stageCats?.[0] ?? cat);
 
-  const basics = PALETTE_BASIC.map((id) => BLOCKS.find((b) => b.id === id)).filter((b): b is BlockDef => Boolean(b));
+  const basics = PALETTE_BASIC
+    .map((id) => BLOCKS.find((b) => b.id === id))
+    .filter((b): b is BlockDef => b !== undefined && (!stageCats || stageCats.includes(b.category)));
   const moreItems = BLOCKS.filter((b) => b.category === activeCat && !PALETTE_BASIC.includes(b.id));
+  const categories = stageCats ? CATS.filter((item) => stageCats.includes(item.key)) : CATS;
   /* 필수 물건이 도면에 있는지 — 팔레트에 채움 표시로 보인다 (설계서 v1.2 §1.4) */
   const done = new Set(checklist(plan, REQUIRED_BLOCKS).filter((i) => i.present).map((i) => i.id));
 
@@ -108,22 +126,24 @@ export default function Palette() {
         {basics.map((b) => (
           <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} />
         ))}
-        <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
-          <span className="k-block-art">
-            <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
-              <circle cx={12} cy={20} r={3.2} fill="#2a3038" />
-              <circle cx={20} cy={20} r={3.2} fill="#2a3038" />
-              <circle cx={28} cy={20} r={3.2} fill="#2a3038" />
-            </svg>
-          </span>
-          <span className="k-block-name">{showMore ? '접기' : '더보기'}</span>
-        </button>
+        {!stageCats && (
+          <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
+            <span className="k-block-art">
+              <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
+                <circle cx={12} cy={20} r={3.2} fill="#2a3038" />
+                <circle cx={20} cy={20} r={3.2} fill="#2a3038" />
+                <circle cx={28} cy={20} r={3.2} fill="#2a3038" />
+              </svg>
+            </span>
+            <span className="k-block-name">{showMore ? '접기' : '더보기'}</span>
+          </button>
+        )}
       </div>
 
       {showMore && (
         <div className="k-more-panel">
           <div className="k-cats" role="tablist" aria-label="블록 갈래">
-            {CATS.map((c) => (
+            {categories.map((c) => (
               <button key={c.key} type="button" role="tab" aria-selected={activeCat === c.key} className={`k-cat${activeCat === c.key ? ' on' : ''}`} onClick={() => setCat(c.key)}>
                 {easy ? c.easy : c.normal}
               </button>

@@ -33,10 +33,18 @@ export default function HowTo() {
   const sel = selection ? plan.blocks.find((b) => b.id === selection) : undefined;
   const rows: Row[] = [];
 
-  if (step === 'mySpot') {
+  if (step === 'spaces') {
+    rows.push({ title: easy ? '공간부터 나누기' : '공간 설정', body: easy ? '닫힌 방과 벽 없는 바닥을 눌러 종류를 골라.' : '구획실·공용 구역의 용도를 정하고 문·창을 배치한다.' });
+  } else if (step === 'structure') {
+    rows.push({ title: easy ? '방 크기와 자리' : '독립실 조정', body: easy ? '닫힌 방을 끌어 옮기고, 테두리 점을 끌어 크기를 바꿔.' : '닫힌 독립실을 이동하고 8방향으로 크기를 바꾼다.' });
+  } else if (step === 'furniture') {
+    rows.push({ title: easy ? '가구와 이름' : '가구·이름', body: easy ? '침대·책상을 놓고 공간을 눌러 이름을 바꿔.' : '가구·위험원을 놓고 선택한 공간 이름을 수정한다.' });
+  } else if (step === 'mySpot') {
     rows.push({ title: easy ? '네 방을 눌러 줘' : '내 자리 정하기', body: easy ? '네가 잠자는 방 안을 한 번 누르면 돼.' : '취침하는 방 안의 칸을 누른다.' });
   } else if (step === 'meeting') {
     rows.push({ title: easy ? '만나는 곳을 놓자' : '집결지 정하기', body: easy ? '집 밖 빈 곳을 눌러. 나중에 정해도 돼.' : '도면 밖 빈 칸을 누른다. 건너뛸 수 있다.' });
+  } else if (step === 'safety') {
+    rows.push({ title: easy ? '안전 물건 확인' : '안전설비 확인', body: easy ? '소화기와 감지기의 진짜 자리를 어른과 확인해 놓아.' : '보호자·교사와 실제 소화기·감지기 위치를 확인해 배치한다.' });
   } else if (tool === 'place' && armed) {
     const name = blockName(armed.id, easy ? 'easy' : 'normal');
     rows.push(

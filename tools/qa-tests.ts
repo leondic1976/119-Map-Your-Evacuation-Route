@@ -292,7 +292,7 @@ export function qaTests(check: Check, assert: Assert): void {
 
   /* -------------------------------------------------- 챗봇을 만들지 않는다 */
 
-  check('[점검] 자유 텍스트 입력이 없다 (설계서 v1.1 의견 3)', () => {
+  check('[점검] 자유 대화 입력은 없고 학생정보·공간 이름만 제한적으로 받는다', () => {
     const bad: string[] = [];
     for (const f of sourceFiles(path.join(root, 'src'), ['.tsx'])) {
       const src = read(f);
@@ -302,8 +302,8 @@ export function qaTests(check: Check, assert: Assert): void {
           bad.push(`${rel(f)} textarea`);
           continue;
         }
-        // 파일 고르기·체크상자는 자유 입력이 아니다
-        if (!/type=["'](file|checkbox|radio|range)["']/.test(tag)) bad.push(`${rel(f)} ${tag.slice(0, 40)}`);
+        // 파일 고르기·체크상자, 이용자가 명시 요청한 학생 이름표·공간 이름은 자유 대화가 아니다
+        if (!/type=["'](file|checkbox|radio|range)["']/.test(tag) && !/data-allowed-free-text=["'](student-profile|room-name)["']/.test(tag)) bad.push(`${rel(f)} ${tag.slice(0, 40)}`);
       }
     }
     assert(bad.length === 0, `자유 입력 ${bad.join(' | ')}`);

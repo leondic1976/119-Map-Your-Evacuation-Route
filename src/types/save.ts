@@ -8,6 +8,11 @@ import type { FloorPlan, RouteSet } from './plan';
 import type { PlayerCharacter } from './guide';
 
 export interface UserProfile {
+  /** 학교 수업에서 쓰는 기본정보. 서버로 전송하지 않고 이 브라우저의 저장 자료에만 둔다. */
+  schoolName: string;
+  schoolGrade: 1 | 2 | 3 | 4 | 5 | 6;
+  className: string;
+  studentName: string;
   /** 1층·반지하 거주 여부. 침수 규칙 분기의 유일한 입력. 기본판에서도 계속 묻는다 */
   lowFloor: boolean;
   gradeMode: 'easy' | 'normal';
@@ -20,7 +25,18 @@ export interface UserProfile {
 }
 
 export function defaultProfile(): UserProfile {
-  return { lowFloor: false, gradeMode: 'easy', blockStyle: 'kid', ttsEnabled: false, soundOn: true, playerCharacter: 'boy_cap' };
+  return {
+    schoolName: '',
+    schoolGrade: 1,
+    className: '',
+    studentName: '',
+    lowFloor: false,
+    gradeMode: 'easy',
+    blockStyle: 'kid',
+    ttsEnabled: false,
+    soundOn: true,
+    playerCharacter: 'boy_cap',
+  };
 }
 
 export const SCHEMA_VERSION = 2;

@@ -7,13 +7,15 @@
  */
 import React, { useEffect, useState } from 'react';
 import KidsShell from '../ui/KidsShell';
+import ProfileSetup, { type StudentInfo } from '../ui/ProfileSetup';
 import WelcomeScreen from '../ui/WelcomeScreen';
 
 const PC_MIN_WIDTH = 1024;
 
 export default function Page() {
-  const [desktop, setDesktop] = useState(false);
-  const [welcome, setWelcome] = useState(true);
+  const [desktop, setDesktop] = useState<boolean | null>(null);
+  const [screen, setScreen] = useState<'welcome' | 'profile' | 'app'>('welcome');
+  const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
 
   useEffect(() => {
     const query = window.matchMedia(`(min-width: ${PC_MIN_WIDTH}px)`);
@@ -23,7 +25,12 @@ export default function Page() {
     return () => query.removeEventListener('change', update);
   }, []);
 
-  if (!desktop) {
+  /* 첫 배경 소개를 본 뒤에만 PC 해상도를 판정한 결과를 보여 준다 (v1.9 §10). */
+  if (screen === 'welcome') {
+    return <WelcomeScreen onStart={() => setScreen('profile')} />;
+  }
+
+  if (desktop !== true) {
     return (
       <main className="k-pc-only" role="main">
         <div className="k-pc-only-card">
@@ -41,15 +48,9 @@ export default function Page() {
     );
   }
 
-  if (welcome) {
-    return (
-      <WelcomeScreen
-        onStart={() => {
-          setWelcome(false);
-        }}
-      />
-    );
+  if (screen === 'profile') {
+    return <ProfileSetup onComplete={(info) => { setStudentInfo(info); setScreen('app'); }} />;
   }
 
-  return <KidsShell />;
+  return <KidsShell studentInfo={studentInfo ?? undefined} />;
 }

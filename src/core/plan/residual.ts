@@ -8,11 +8,11 @@
  *
  * 순수 계산만 하며 시간·난수·브라우저 API를 쓰지 않는다.
  */
-import type { Block, Cell, FloorPlan, OpeningBlock, PointBlock, Rect, RoomBlock, Side } from '../../types/plan';
+import type { Block, Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
 import { DEFAULT_GRID, isOpening, isRoom } from '../../types/plan';
 import { cellKey, cellsOf, step } from '../grid/geometry';
 
-export type ShellShape = 'wide' | 'long' | 'bend-left' | 'bend-right';
+export type ShellShape = 'wide' | 'long' | 'compact' | 'bend-left' | 'bend-right' | 'step-left' | 'step-right' | 'notch';
 export type Side8 = 'NW' | 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W';
 
 export interface ResidualPlanRequest {
@@ -74,12 +74,22 @@ export function shellCells(shape: ShellShape): Set<string> {
   };
   if (shape === 'wide') add({ x: 2, y: 2, w: 20, h: 12 });
   else if (shape === 'long') add({ x: 5, y: 1, w: 14, h: 14 });
+  else if (shape === 'compact') add({ x: 4, y: 1, w: 16, h: 14 });
   else if (shape === 'bend-left') {
     add({ x: 2, y: 2, w: 20, h: 7 });
     add({ x: 2, y: 9, w: 12, h: 5 });
-  } else {
+  } else if (shape === 'bend-right') {
     add({ x: 2, y: 2, w: 20, h: 7 });
     add({ x: 10, y: 9, w: 12, h: 5 });
+  } else if (shape === 'step-left') {
+    add({ x: 2, y: 2, w: 18, h: 6 });
+    add({ x: 5, y: 8, w: 17, h: 6 });
+  } else if (shape === 'step-right') {
+    add({ x: 4, y: 2, w: 18, h: 6 });
+    add({ x: 2, y: 8, w: 17, h: 6 });
+  } else {
+    add({ x: 2, y: 2, w: 20, h: 12 });
+    for (let y = 2; y < 5; y += 1) for (let x = 10; x < 14; x += 1) cells.delete(cellKey({ x, y }));
   }
   return cells;
 }
@@ -231,9 +241,9 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
     openings.push(makeOpening(`window_${room.id}`, 'window', chosen.cell, chosen.side, false));
   }
 
-  const points = starterPoints(boxRooms, residualRooms);
   const shellList = [...shell].map(parseCell).sort((a, b) => a.y - b.y || a.x - b.x);
-  const plan: FloorPlan = { grid: { ...DEFAULT_GRID }, shell: { cells: shellList }, blocks: [...rooms, ...openings, ...points] };
+  /* 가구·안전설비·내 위치는 집 구조를 다 만든 뒤 단계별로 놓는다 (v1.9 §9). */
+  const plan: FloorPlan = { grid: { ...DEFAULT_GRID }, shell: { cells: shellList }, blocks: [...rooms, ...openings] };
   const issues = validateResidualProjection(plan, request);
   if (issues.length) throw new Error(issues.join(' '));
 
@@ -308,29 +318,6 @@ export function validateResidualProjection(plan: FloorPlan, request: ResidualPla
     }
   }
   return Array.from(new Set(issues));
-}
-
-function starterPoints(boxes: RoomBlock[], residual: RoomBlock[]): PointBlock[] {
-  const points: PointBlock[] = [];
-  const add = (id: string, kind: PointBlock['kind'], subKind: PointBlock['subKind'], cell: Cell): void => {
-    points.push({ kind, id, layer: 'home', subKind, cell, rotation: 0 });
-  };
-  for (const room of boxes.filter((room) => room.roomKind === 'bedroom')) {
-    add(`bed_${room.id}`, 'furniture', 'bed', { x: room.rect.x + 1, y: room.rect.y + 1 });
-  }
-  const living = residual.find((room) => room.roomKind === 'living') ?? residual[0];
-  if (living) {
-    add('starter_detector', 'safety', 'detector', centerCell(living.rect));
-    add('starter_sofa', 'furniture', 'sofa', { x: living.rect.x, y: living.rect.y });
-  }
-  const kitchen = boxes.concat(residual).find((room) => room.roomKind === 'kitchen');
-  if (kitchen) {
-    const cells = cellsOf(kitchen.rect);
-    if (cells[0]) add('starter_range', 'hazard', 'gas_range', cells[0]);
-    if (cells[1]) add('starter_sink', 'furniture', 'sink', cells[1]);
-    if (cells[2]) add('starter_fridge', 'furniture', 'fridge', cells[2]);
-  }
-  return points;
 }
 
 function findBox(

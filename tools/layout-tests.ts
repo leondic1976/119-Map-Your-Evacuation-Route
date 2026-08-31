@@ -1,6 +1,7 @@
 /** 외곽 + 독립실 + 공용 바닥 생성기와 안전 미션의 순수 연산 시험 — 설계서 v1.9 §6. */
 import { buildGraph } from '../src/core/graph/build';
 import { openingBetween } from '../src/core/graph/build';
+import { campaignScore } from '../src/core/campaign/score';
 import { safetyMissions } from '../src/core/game/missions';
 import type { Game } from '../src/core/game/loop';
 import { cellKey, cellsOf, step } from '../src/core/grid/geometry';
@@ -14,13 +15,15 @@ import {
   type Side8,
   validateResidualProjection,
 } from '../src/core/plan/residual';
-import { isOpening, isRoom, type Side } from '../src/types/plan';
+import { canReflowShellRoom, reflowShellZones } from '../src/core/plan/reflow';
+import { isOpening, isPoint, isRoom, type EvacRoute, type FloorPlan, type Rect, type Side } from '../src/types/plan';
 import { VN } from '../src/types/graph';
+import { emptyProgress } from '../src/types/save';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (condition: boolean, message: string) => void;
 
-const SHELLS: ShellShape[] = ['wide', 'long', 'bend-left', 'bend-right'];
+const SHELLS: ShellShape[] = ['wide', 'long', 'compact', 'bend-left', 'bend-right', 'step-left', 'step-right', 'notch'];
 const SIDES: Side8[] = ['NW', 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W'];
 const CARDINAL: Side[] = ['N', 'E', 'S', 'W'];
 
@@ -40,7 +43,7 @@ function cases(): ResidualPlanRequest[] {
 }
 
 export function layoutTests(check: Check, assert: Assert): void {
-  check('테두리 4종 × 방 수 × 주방 × 방 위치 256가지를 모두 만든다', () => {
+  check('테두리 8종 × 방 수 × 주방 × 방 위치 512가지를 모두 만든다', () => {
     for (const request of cases()) {
       const { plan } = generateResidualPlan(request);
       const issues = validateResidualProjection(plan, request);
@@ -100,6 +103,53 @@ export function layoutTests(check: Check, assert: Assert): void {
         assert(opening.hideInPlan === true, `${opening.id}가 흰색 벽 틈으로 남는다.`);
       }
     }
+  });
+
+  check('시작 평면은 구조와 문만 만들고 가구·표시는 뒤 단계에 남겨 둔다', () => {
+    for (const request of cases()) {
+      const { plan } = generateResidualPlan(request);
+      assert(!plan.blocks.some(isPoint), `${JSON.stringify(request)}: 구조 선택 전에 가구나 표시가 들어 있다.`);
+    }
+  });
+
+  check('독립실을 공용 바닥 쪽으로 옮겨도 외곽 안 바닥이 빈틈없이 다시 채워진다', () => {
+    const { plan } = generateResidualPlan({ bedrooms: 2, shell: 'wide', bedroomSides: ['NW', 'NE'], kitchenClosed: false });
+    const room = plan.blocks.find((block) => isRoom(block) && block.wallMode === 'closed' && block.roomKind === 'bedroom');
+    assert(Boolean(room), '옮길 침실이 없다.');
+    if (!room || !isRoom(room)) return;
+    const candidate = firstValidRect(plan, room.id, [
+      { ...room.rect, x: room.rect.x + 1 },
+      { ...room.rect, x: room.rect.x - 1 },
+      { ...room.rect, y: room.rect.y + 1 },
+      { ...room.rect, y: room.rect.y - 1 },
+    ]);
+    assert(Boolean(candidate), '공용 바닥 쪽으로 옮길 수 있는 후보가 없다.');
+    if (!candidate) return;
+    const moved = reflowShellZones(plan, room.id, candidate);
+    assert(Boolean(moved), '방 이동 뒤 공용 바닥 재계산에 실패했다.');
+    if (moved) assertShellProjection(moved, assert);
+  });
+
+  check('독립실 크기를 늘려도 공용 바닥을 다시 만들고 외곽·다른 방 침범은 막는다', () => {
+    const { plan } = generateResidualPlan({ bedrooms: 2, shell: 'wide', bedroomSides: ['NW', 'NE'], kitchenClosed: false });
+    const room = plan.blocks.find((block) => isRoom(block) && block.wallMode === 'closed' && block.roomKind === 'bedroom');
+    assert(Boolean(room), '늘릴 침실이 없다.');
+    if (!room || !isRoom(room)) return;
+    const candidate = firstValidRect(plan, room.id, [
+      { ...room.rect, w: room.rect.w + 1 },
+      { ...room.rect, x: room.rect.x - 1, w: room.rect.w + 1 },
+      { ...room.rect, h: room.rect.h + 1 },
+      { ...room.rect, y: room.rect.y - 1, h: room.rect.h + 1 },
+    ]);
+    assert(Boolean(candidate), '공용 바닥 쪽으로 늘릴 수 있는 후보가 없다.');
+    if (candidate) {
+      const resized = reflowShellZones(plan, room.id, candidate);
+      assert(Boolean(resized), '방 크기 변경 뒤 공용 바닥 재계산에 실패했다.');
+      if (resized) assertShellProjection(resized, assert);
+    }
+    assert(!canReflowShellRoom(plan, room.id, { ...room.rect, x: -1 }), '집 외곽 밖 크기 변경을 허용했다.');
+    const other = plan.blocks.find((block) => isRoom(block) && block.wallMode === 'closed' && block.id !== room.id);
+    if (other && isRoom(other)) assert(!canReflowShellRoom(plan, room.id, other.rect), '다른 독립실과 완전히 겹치는 변경을 허용했다.');
   });
 
   check('현관문에서 생성된 모든 침실까지 통행 그래프가 이어진다', () => {
@@ -200,4 +250,48 @@ export function layoutTests(check: Check, assert: Assert): void {
     assert(optional.find((mission) => mission.id === 'touch-door')?.available === false, '문 없는 판에서 문 확인을 요구한다.');
     assert(optional.find((mission) => mission.id === 'close-door')?.available === false, '문 없는 판에서 문 닫기를 요구한다.');
   });
+
+  check('캠페인 안전 완성도는 구조 20·안전 25·경로 30·연습 25로만 합산한다', () => {
+    const base = generateResidualPlan({ shell: 'wide', bedrooms: 2, bedroomSides: ['NW', 'NE'], kitchenClosed: false }).plan;
+    const plan = {
+      ...base,
+      blocks: base.blocks.concat([
+        { kind: 'safety', id: 'score_extinguisher', layer: 'home', subKind: 'extinguisher', cell: { x: 10, y: 8 }, rotation: 0 },
+        { kind: 'safety', id: 'score_detector', layer: 'home', subKind: 'detector', cell: { x: 11, y: 8 }, rotation: 0 },
+        { kind: 'marker', id: 'score_my_spot', layer: 'home', subKind: 'my_spot', cell: { x: 5, y: 4 }, rotation: 0 },
+        { kind: 'marker', id: 'score_meeting', layer: 'home', subKind: 'meeting_point', cell: { x: 1, y: 1 }, rotation: 0 },
+      ]),
+    } as FloorPlan;
+    const route: EvacRoute = { key: 'fire_exit_available', disaster: 'fire', scenario: 'exit_available', startCell: { x: 5, y: 4 }, waypoints: [{ x: 5, y: 4 }] };
+    const score = campaignScore(
+      plan,
+      { fire: { primary: route, alternate: { ...route, key: 'fire_exit_blocked', scenario: 'exit_blocked' } } },
+      { ...emptyProgress(), attempts: 1, successes: 1 },
+    );
+    assert(score.structure === 20, `구조 점수가 ${score.structure}/20이다.`);
+    assert(score.safety === 25, `안전 위치 점수가 ${score.safety}/25이다.`);
+    assert(score.routes === 30, `경로 점수가 ${score.routes}/30이다.`);
+    assert(score.practice === 25 && score.total === 100, `연습/합계가 ${score.practice}/25, ${score.total}/100이다.`);
+  });
+}
+
+function firstValidRect(plan: FloorPlan, roomId: string, candidates: Rect[]): Rect | null {
+  return candidates.find((rect) => canReflowShellRoom(plan, roomId, rect)) ?? null;
+}
+
+function assertShellProjection(plan: FloorPlan, assert: Assert): void {
+  const shell = new Set((plan.shell?.cells ?? []).map(cellKey));
+  const floor = new Set<string>();
+  for (const room of plan.blocks.filter(isRoom)) {
+    for (const cell of cellsOf(room.rect)) {
+      const key = cellKey(cell);
+      assert(!floor.has(key), `재계산 뒤 ${key} 바닥이 겹친다.`);
+      floor.add(key);
+    }
+  }
+  assert(shell.size === floor.size, '재계산 뒤 외곽과 바닥 칸 수가 다르다.');
+  assert([...shell].every((key) => floor.has(key)), '재계산 뒤 외곽 안에 빈 바닥이 있다.');
+  for (const opening of plan.blocks.filter(isOpening).filter((item) => item.openingKind === 'open_passage')) {
+    assert(opening.hideInPlan === true, `${opening.id} 공용 경계가 화면에 보인다.`);
+  }
 }

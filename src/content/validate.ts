@@ -43,7 +43,7 @@ const OPENING_KINDS: OpeningKind[] = [
 const EASY_MAX = 30;
 
 /** 화면 단계 이름 — helpRequested 가 이 모두에 답해야 한다 (FR-9.7 · P3) */
-export const ALL_STEPS = ['template', 'mySpot', 'meeting', 'ready', 'edit', 'route', 'routeAlt', 'game', 'report'];
+export const ALL_STEPS = ['template', 'spaces', 'structure', 'furniture', 'mySpot', 'meeting', 'safety', 'ready', 'edit', 'route', 'routeAlt', 'game', 'report'];
 
 export function validateContent(strict = false): ValidationReport {
   const errors: string[] = [];

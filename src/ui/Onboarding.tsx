@@ -48,8 +48,12 @@ const ROTATIONS: { value: PlanRotation; label: string }[] = [
 const SHELLS: { value: ShellShape; label: string; note: string }[] = [
   { value: 'wide', label: '넓은 네모', note: '가로로 넓은 집' },
   { value: 'long', label: '길쭉한 네모', note: '세로로 긴 집' },
+  { value: 'compact', label: '도톰한 네모', note: '세로·가로가 비슷한 집' },
   { value: 'bend-left', label: '왼쪽이 꺾인 집', note: '왼쪽 아래가 이어진 집' },
   { value: 'bend-right', label: '오른쪽이 꺾인 집', note: '오른쪽 아래가 이어진 집' },
+  { value: 'step-left', label: '왼쪽 계단 모양', note: '아래쪽이 오른쪽으로 나온 집' },
+  { value: 'step-right', label: '오른쪽 계단 모양', note: '아래쪽이 왼쪽으로 나온 집' },
+  { value: 'notch', label: '가운데가 들어간 집', note: '위쪽 가운데가 들어간 집' },
 ];
 
 const SIDE_CELLS: { value: Side8; label: string; row: number; col: number }[] = [
@@ -68,7 +72,7 @@ export default function Onboarding({ open, onClose }: Props) {
   const loadTemplate = useKids((s) => s.loadTemplate);
   const loadResidualPlan = useKids((s) => s.loadResidualPlan);
   const [page, setPage] = useState<Page>('paths');
-  const [flow, setFlow] = useState<Flow>('guided');
+  const [flow, setFlow] = useState<Flow>('gallery');
   const [bedrooms, setBedrooms] = useState<BedroomChoice>(2);
   const [galleryBedrooms, setGalleryBedrooms] = useState<0 | BedroomChoice>(0);
   const [selected, setSelected] = useState<TemplateDef | null>(null);
@@ -83,7 +87,7 @@ export default function Onboarding({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     setPage('paths');
-    setFlow('guided');
+    setFlow('gallery');
     setBedrooms(2);
     setGalleryBedrooms(0);
     setSelected(null);
@@ -158,7 +162,7 @@ export default function Onboarding({ open, onClose }: Props) {
       setBedroomSides(normalizeBedroomSides(count, []));
       setKitchen('open');
       setRotation(0);
-      setPage('shell');
+      setPage('boxSides');
       return;
     }
     setPage('layout');
@@ -180,10 +184,11 @@ export default function Onboarding({ open, onClose }: Props) {
   };
 
   const goBack = () => {
-    if (page === 'rooms' || page === 'gallery' || page === 'starterRooms') setPage('paths');
+    if (page === 'rooms' || page === 'gallery') setPage('paths');
+    else if (page === 'starterRooms') setPage('shell');
     else if (page === 'layout') setPage('rooms');
-    else if (page === 'shell') setPage('starterRooms');
-    else if (page === 'boxSides') setPage('shell');
+    else if (page === 'shell') setPage('paths');
+    else if (page === 'boxSides') setPage('starterRooms');
     else if (page === 'boxPreview') setPage('boxSides');
     else if (page === 'customize') {
       if (flow === 'guided') setPage('layout');
@@ -232,21 +237,16 @@ export default function Onboarding({ open, onClose }: Props) {
               {easy ? '집이 똑같이 생기지 않아도 괜찮아. 쉬운 방법 하나를 고르면 같이 만들어 줄게!' : '완전히 같은 평면을 찾을 필요가 없습니다. 편한 시작 방법을 선택하세요.'}
             </p>
             <div className="k-start-paths">
-              <button type="button" className="k-start-path recommended" data-start-path="guided" onClick={() => { setFlow('guided'); setPage('rooms'); }}>
+              <button type="button" className="k-start-path recommended" data-start-path="template" onClick={() => { setFlow('gallery'); setPage('gallery'); }}>
                 <span className="k-recommend">가장 쉬워요</span>
-                <span className="k-start-path-icon"><PathIcon kind="guided" /></span>
-                <b>{easy ? '질문으로 쉽게 만들기' : '질문에 답해서 만들기'}</b>
-                <small>{easy ? '방 개수만 알려 주면 비슷한 모양을 찾아 줄게.' : '침실 수부터 물어보고 가까운 구조를 추천합니다.'}</small>
-              </button>
-              <button type="button" className="k-start-path" data-start-path="gallery" onClick={() => { setFlow('gallery'); setPage('gallery'); }}>
                 <span className="k-start-path-icon"><PathIcon kind="gallery" /></span>
-                <b>{easy ? '집 모양을 보고 고르기' : '전체 모양에서 고르기'}</b>
-                <small>{easy ? '여러 집 그림을 천천히 보고 골라 보자.' : '준비된 평면을 한눈에 비교합니다.'}</small>
+                <b>{easy ? '템플릿으로 빠르게 시작' : '템플릿에서 시작하기'}</b>
+                <small>{easy ? '가구까지 그려진 여러 집을 보고 가까운 것을 골라.' : '완성된 예시 평면을 불러와 바로 수정합니다.'}</small>
               </button>
-              <button type="button" className="k-start-path" data-start-path="starter" onClick={() => { setFlow('starter'); setPage('starterRooms'); }}>
+              <button type="button" className="k-start-path" data-start-path="starter" onClick={() => { setFlow('starter'); setPage('shell'); }}>
                 <span className="k-start-path-icon"><PathIcon kind="starter" /></span>
-                <b>{easy ? '집 테두리 안에 방 놓기' : '외곽과 독립실로 만들기'}</b>
-                <small>{easy ? '집 모양과 방 위치를 고르면 남은 곳을 거실로 이어 줄게.' : '집 외곽에 독립실을 배치하고 남은 바닥을 공용공간으로 자동 구성합니다.'}</small>
+                <b>{easy ? '직접 그리기' : '단계별로 직접 그리기'}</b>
+                <small>{easy ? '집 모양부터 안전 물건까지 일곱 단계로 같이 만들어.' : '외곽부터 안전설비까지 7단계 길잡이를 따라 구성합니다.'}</small>
               </button>
             </div>
           </div>
@@ -290,7 +290,7 @@ export default function Onboarding({ open, onClose }: Props) {
                   aria-pressed={shell === item.value}
                   onClick={() => {
                     setShell(item.value);
-                    setPage('boxSides');
+                    setPage('starterRooms');
                   }}
                 >
                   <ShellIcon shape={item.value} />
@@ -501,9 +501,17 @@ function ShellIcon({ shape }: { shape: ShellShape }) {
       ? 'M8 17h48v30H8z'
       : shape === 'long'
         ? 'M17 6h30v52H17z'
+        : shape === 'compact'
+          ? 'M13 6h38v52H13z'
         : shape === 'bend-left'
           ? 'M7 9h50v27H34v20H7z'
-          : 'M7 9h50v47H30V36H7z';
+          : shape === 'bend-right'
+            ? 'M7 9h50v47H30V36H7z'
+            : shape === 'step-left'
+              ? 'M6 9h44v23h8v23H14V32H6z'
+              : shape === 'step-right'
+                ? 'M14 9h44v23h-8v23H6V32h8z'
+                : 'M6 9h20v13h12V9h20v46H6z';
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true">
       <path d={path} />

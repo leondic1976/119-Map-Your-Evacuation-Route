@@ -354,6 +354,22 @@ function Computer({ w, h, style }: ArtProps) {
   );
 }
 
+/** 세탁기·건조기 — 둥근 앞문과 조작부로 한눈에 알아본다. */
+function LaundryMachine({ w, h, style, dryer = false }: ArtProps & { dryer?: boolean }) {
+  const b = box(style);
+  const body = style === 'kid' ? (dryer ? '#f1d7bd' : '#dce8ef') : b.fill;
+  const drum = style === 'kid' ? (dryer ? '#b76e42' : '#5e91aa') : b.stroke;
+  return (
+    <g>
+      <rect x={2} y={2} width={w - 4} height={h - 4} rx={b.rx} fill={body} stroke={b.stroke} strokeWidth={b.sw} />
+      <circle cx={w / 2} cy={h * 0.58} r={Math.min(w, h) * 0.24} fill="#ffffff" stroke={drum} strokeWidth={b.sw + 0.8} />
+      <circle cx={w / 2} cy={h * 0.58} r={Math.min(w, h) * 0.16} fill={dryer ? '#f2c8a5' : '#b8d7e4'} opacity={style === 'kid' ? 1 : 0.35} />
+      <circle cx={w * 0.25} cy={h * 0.18} r={Math.max(1.3, w * 0.045)} fill={b.stroke} />
+      <path d={`M${w * 0.48} ${h * 0.18} H${w * 0.77}`} stroke={b.stroke} strokeWidth={b.sw} strokeLinecap="round" />
+    </g>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 /** 기존 소방 기호는 원점 중심 좌표계다. 상자 가운데로 옮겨 그린다 */
@@ -439,6 +455,10 @@ export function PointArt({ subKind, w, h, style }: ArtProps & { subKind: string 
       return <Sink w={w} h={h} style={style} />;
     case 'computer':
       return <Computer w={w} h={h} style={style} />;
+    case 'washing_machine':
+      return <LaundryMachine w={w} h={h} style={style} />;
+    case 'dryer':
+      return <LaundryMachine w={w} h={h} style={style} dryer />;
 
     case 'gas_range':
       return <GasRange w={w} h={h} style={style} />;
@@ -478,7 +498,7 @@ export function OpeningArt({
     return <rect x={-len / 2 - 1} y={-t / 2 - 2} width={len + 2} height={t + 4} fill="#ffffff" />;
   }
 
-  if (kind === 'window' || kind === 'balcony_window') {
+  if (kind === 'sliding_window' || kind === 'balcony_window') {
     const glass = style === 'kid' ? '#4c9ad4' : stroke;
     /*
      * 창은 벽을 끊고 흰 틀을 남긴다. 닫힘은 유리 두 줄이 틀을 메우고,
@@ -499,6 +519,28 @@ export function OpeningArt({
           <>
             <path d={`M${-len / 2 + 2} -2 H${len / 2 - 2}`} stroke={glass} strokeWidth={2.4} />
             <path d={`M${-len / 2 + 2} 2 H${len / 2 - 2}`} stroke={glass} strokeWidth={2.4} />
+          </>
+        )}
+      </g>
+    );
+  }
+
+  if (kind === 'window') {
+    const glass = style === 'kid' ? '#4c9ad4' : stroke;
+    const half = len * 0.42;
+    return (
+      <g>
+        <rect x={-len / 2} y={-t / 2} width={len} height={t} fill="#ffffff" stroke={stroke} strokeWidth={1.8} />
+        <path d={`M${-len / 2} ${-t / 2 - 2} V${t / 2 + 2} M${len / 2} ${-t / 2 - 2} V${t / 2 + 2}`} stroke={stroke} strokeWidth={2.4} strokeLinecap="round" />
+        {isOpen ? (
+          <>
+            <path d={`M${-len / 2 + 1} 0 L${-len / 2 + 1 + half} ${-half * 0.58} M${len / 2 - 1} 0 L${len / 2 - 1 - half} ${-half * 0.58}`} stroke={glass} strokeWidth={2.4} />
+            <path d={`M${-len / 2 + 1} 0 A${half} ${half} 0 0 1 ${-len / 2 + 1 + half} ${-half * 0.58} M${len / 2 - 1} 0 A${half} ${half} 0 0 0 ${len / 2 - 1 - half} ${-half * 0.58}`} fill="none" stroke={glass} strokeWidth={1.2} strokeDasharray="2 2" />
+          </>
+        ) : (
+          <>
+            <path d={`M${-len / 2 + 2} 0 H${len / 2 - 2}`} stroke={glass} strokeWidth={3} />
+            <path d="M0 -4 V4" stroke={glass} strokeWidth={1.5} />
           </>
         )}
       </g>

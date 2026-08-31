@@ -468,7 +468,9 @@
 .k-tb {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-height: var(--k-hit);
   padding: 0 12px;
   border-radius: 10px;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
@@ -476,6 +478,8 @@
   color: #fff;
   font-weight: 700;
   white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .k-top .k-tb.ghost {
@@ -530,6 +534,24 @@
   gap: 6px;
   padding: 8px;
   border-bottom: 1px solid var(--k-line);
+}
+
+.k-adjust-note {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 10px;
+  padding: 14px 12px;
+  border: 2px solid #c9dae5;
+  border-radius: 12px;
+  background: #f3f8fb;
+  color: var(--k-accent);
+}
+
+.k-adjust-note span {
+  color: var(--k-dim);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .k-tool {
@@ -818,6 +840,38 @@
   border-color: var(--k-accent);
   background: var(--k-accent-soft);
   color: var(--k-accent);
+}
+
+.k-opening-size {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  border-radius: 11px;
+  background: #eef3f6;
+}
+
+.k-opening-size > span {
+  padding: 0 5px;
+  color: var(--k-dim);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.k-opening-size button {
+  min-width: 48px;
+  min-height: 48px;
+  border: 1px solid #c4d4de;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--k-ink);
+  font-weight: 800;
+}
+
+.k-opening-size button[aria-pressed='true'] {
+  border-color: var(--k-accent);
+  background: var(--k-accent);
+  color: #fff;
 }
 
 .k-build-name {
@@ -1121,212 +1175,6 @@
   font-family: var(--font-sans, 'Pretendard Variable', Pretendard, 'Malgun Gothic', sans-serif);
 }
 
-/* 소방서·학교·학부모가 함께 보는 브라우저 내 캠페인 현황판 (v1.9 §11). */
-.k-dashboard-back {
-  padding: 24px;
-}
-
-.k-dashboard {
-  width: min(1380px, 97vw);
-  height: min(850px, 94vh);
-  display: grid;
-  grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
-  overflow: hidden;
-  border: 2px solid #cddde8;
-  border-radius: 24px;
-  background: #f5f8fb;
-  box-shadow: 0 30px 90px rgba(10, 38, 62, 0.28);
-}
-
-.k-dashboard-head {
-  display: flex;
-  align-items: center;
-  padding: 18px 22px;
-  background: linear-gradient(130deg, #0f3d68, #176f83);
-  color: #fff;
-}
-
-.k-dashboard-head div {
-  flex: 1;
-}
-
-.k-dashboard-head p,
-.k-dashboard-head h2 {
-  margin: 0;
-}
-
-.k-dashboard-head p {
-  color: #aee8df;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.k-dashboard-head h2 {
-  font-size: 24px;
-}
-
-.k-dashboard-head .k-x {
-  color: #fff;
-}
-
-.k-dashboard-notice {
-  padding: 9px 20px;
-  border-bottom: 1px solid #ead798;
-  background: #fff8df;
-  color: #6e5617;
-  font-size: 12px;
-}
-
-.k-dashboard-roles {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  padding: 12px 18px 6px;
-}
-
-.k-dashboard-roles article {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 13px;
-  border: 1px solid #d7e3eb;
-  border-radius: 13px;
-  background: #fff;
-}
-
-.k-dashboard-roles i {
-  font-size: 28px;
-  font-style: normal;
-}
-
-.k-dashboard-roles div {
-  display: grid;
-}
-
-.k-dashboard-roles span {
-  color: var(--k-dim);
-  font-size: 11px;
-}
-
-.k-dashboard-summary {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  padding: 8px 18px;
-}
-
-.k-dashboard-summary article {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  padding: 12px 15px;
-  border-radius: 13px;
-  background: #e8f2f8;
-  color: #24465e;
-}
-
-.k-dashboard-summary span {
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.k-dashboard-summary b {
-  color: #0f3d68;
-  font-size: 26px;
-}
-
-.k-dashboard-summary small {
-  margin-left: 2px;
-  font-size: 12px;
-}
-
-.k-dashboard-filters {
-  display: flex;
-  align-items: end;
-  gap: 10px;
-  padding: 8px 18px 12px;
-}
-
-.k-dashboard-filters label {
-  display: grid;
-  gap: 3px;
-  min-width: 150px;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.k-dashboard-filters select {
-  min-height: 40px;
-  padding: 0 10px;
-  border: 1.5px solid #c8d7e1;
-  border-radius: 9px;
-  background: #fff;
-  font: inherit;
-}
-
-.k-dashboard-score-note {
-  margin-left: auto;
-  padding: 8px 11px;
-  border-radius: 9px;
-  background: #edf7f1;
-  color: #34634b;
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.k-dashboard-table-wrap {
-  min-height: 0;
-  margin: 0 18px 18px;
-  overflow: auto;
-  border: 1px solid #d4e0e8;
-  border-radius: 13px;
-  background: #fff;
-}
-
-.k-dashboard-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.k-dashboard-table th,
-.k-dashboard-table td {
-  padding: 11px 10px;
-  border-bottom: 1px solid #e3e9ed;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.k-dashboard-table th {
-  position: sticky;
-  top: 0;
-  background: #edf3f7;
-  color: #365366;
-  font-size: 11px;
-}
-
-.k-score {
-  display: inline-grid;
-  place-items: center;
-  min-width: 52px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #fff1d9;
-  color: #7a5208;
-  font-weight: 900;
-}
-
-.k-score.done {
-  background: #dff4e8;
-  color: #1f6742;
-}
-
-.k-dashboard-empty {
-  height: 120px;
-  color: var(--k-dim);
-  text-align: center !important;
-}
-
 .k-modal header {
   display: flex;
   align-items: center;
@@ -1544,65 +1392,6 @@
   line-height: 1.55;
 }
 
-.k-question-page {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.k-answer-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  padding: 24px 28px 34px;
-}
-
-.k-bedroom-answer {
-  display: flex;
-  min-height: 210px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border: 3px solid #dbe5ee;
-  border-radius: 22px;
-  background: #fff;
-  color: var(--k-ink);
-}
-
-.k-bedroom-answer:hover,
-.k-bedroom-answer:focus-visible {
-  border-color: var(--k-accent);
-  background: var(--k-accent-soft);
-}
-
-.k-bedroom-answer > span {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 5px;
-  width: 90px;
-}
-
-.k-bedroom-answer i {
-  display: block;
-  width: 38px;
-  height: 32px;
-  border: 3px solid #5d86aa;
-  border-radius: 7px;
-  background: #e6f4ff;
-}
-
-.k-bedroom-answer b {
-  color: var(--k-accent);
-  font-size: 25px;
-}
-
-.k-bedroom-answer small {
-  color: var(--k-dim);
-  font-size: 14px;
-}
-
 .k-bedroom-filters {
   display: flex;
   justify-content: center;
@@ -1635,34 +1424,34 @@
   text-align: center;
 }
 
-.k-guided-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-height: none;
-  padding-top: 14px;
-}
-
 /* 외곽 + 독립실 + 공용 바닥 시작 방식 — 설계서 v1.9 §2. */
-.k-shell-page,
-.k-box-side-page {
+.k-shell-page {
   display: flex;
   flex-direction: column;
+}
+
+.k-shell-choice-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  padding: 12px 24px 24px;
 }
 
 .k-shell-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  padding: 22px 26px 32px;
+  gap: 10px;
+  padding: 0;
 }
 
 .k-shell-grid button {
   display: flex;
-  min-height: 190px;
+  min-height: 142px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 18px 12px;
+  padding: 10px 8px;
   border: 3px solid #dbe5ee;
   border-radius: 22px;
   background: #fff;
@@ -1677,21 +1466,13 @@
   box-shadow: 0 0 0 1px var(--k-accent);
 }
 
-.k-shell-grid svg,
-.k-side-shell svg {
-  width: 120px;
-  height: 120px;
+.k-shell-grid svg {
+  width: 78px;
+  height: 78px;
   fill: #f8fbfd;
   stroke: var(--k-accent);
   stroke-width: 3.2;
   stroke-linejoin: round;
-}
-
-.k-shell-grid svg .rooms,
-.k-side-shell svg .rooms {
-  fill: #bde4ff;
-  stroke: #3977a8;
-  stroke-width: 2.2;
 }
 
 .k-shell-grid b {
@@ -1703,43 +1484,57 @@
   font-size: 13px;
 }
 
-.k-side-picker {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, 142px);
-  grid-template-rows: repeat(3, 112px);
-  gap: 9px;
-  align-self: center;
-  padding: 12px;
-  border: 2px solid #dbe5ee;
-  border-radius: 25px;
-  background: #f8fbfd;
-}
-
-.k-side-picker > button {
-  position: relative;
-  z-index: 2;
-  display: grid;
+.k-shell-preview {
+  display: flex;
   min-width: 0;
-  min-height: 0;
-  place-items: center;
-  align-content: center;
-  gap: 3px;
-  border: 3px solid #bfd3e3;
-  border-radius: 17px;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--k-dim);
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid #cddfea;
+  border-radius: 20px;
+  background: #f7fbfd;
 }
 
-.k-side-picker > button:hover,
-.k-side-picker > button:focus-visible,
-.k-side-picker > button.on {
-  border-color: var(--k-accent);
-  background: #dff1ff;
+.k-shell-preview > svg {
+  width: 100%;
+  min-height: 250px;
+}
+
+.k-shell-preview > b {
   color: var(--k-accent);
+  font-size: 18px;
 }
 
-.k-side-picker > button span {
+.k-shell-preview > small {
+  color: var(--k-dim);
+  text-align: center;
+}
+
+.k-shell-preview .k-start-plan {
+  width: 100%;
+  margin-top: auto;
+}
+
+.k-shell-draw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 24px 22px;
+  overflow: hidden;
+}
+
+.k-draw-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--k-dim);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.k-draw-help b {
   display: grid;
   width: 28px;
   height: 28px;
@@ -1747,68 +1542,101 @@
   border-radius: 50%;
   background: var(--k-accent);
   color: #fff;
-  font-size: 14px;
-  font-weight: 900;
 }
 
-.k-side-picker > button:not(.on) span {
-  background: #e6edf2;
+.k-draw-help i {
+  width: 30px;
+  height: 2px;
+  background: #cbd8e1;
 }
 
-.k-side-picker > button b {
-  font-size: 13px;
+.k-shell-draw-board {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: visible;
+  border: 3px solid #afc8d8;
+  border-radius: 18px;
+  background: #fbfdff;
+  cursor: crosshair;
+  touch-action: none;
 }
 
-.k-side-center {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  border: 2px dashed #7fbd96;
-  border-radius: 17px;
-  background: #e8f7ed;
-  color: #23613a;
-  line-height: 1.25;
+.k-shell-draw-board .draw-bg {
+  fill: #fbfdff;
 }
 
-.k-side-center span {
-  font-size: 12px;
-}
-
-.k-side-center b {
-  font-size: 18px;
-}
-
-.k-side-shell {
-  position: absolute;
-  z-index: 1;
-  inset: 50% auto auto 50%;
-  opacity: 0.13;
-  transform: translate(-50%, -50%) scale(2.6);
+.k-shell-draw-board line {
+  stroke: #e2eaf0;
+  stroke-width: 1;
   pointer-events: none;
 }
 
-.k-side-actions {
+.k-shell-draw-board line.major {
+  stroke: #c8d8e3;
+  stroke-width: 1.5;
+}
+
+.k-shell-draw-board .draw-line {
+  fill: none;
+  stroke: #0f3d68;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.k-shell-draw-board .draw-point circle {
+  fill: #ffca45;
+  stroke: #0f3d68;
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+.k-shell-draw-board .draw-point text {
+  fill: #0f3d68;
+  font-size: 13px;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.k-draw-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 18px;
-  padding: 18px 24px 28px;
 }
 
-.k-side-actions > span {
+.k-draw-actions p {
+  margin: 0;
   color: var(--k-accent);
-  font-weight: 900;
+  font-weight: 750;
 }
 
-.k-side-actions .k-start-plan {
-  width: auto;
-  min-width: 280px;
+.k-draw-actions > div {
+  display: flex;
+  gap: 8px;
 }
 
-.k-box-preview-page .k-customize-preview svg {
-  max-height: 360px;
+.k-draw-actions button {
+  min-height: 52px;
+  padding: 0 14px;
+  border: 2px solid var(--k-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--k-ink);
+  font-weight: 800;
+}
+
+.k-draw-actions button:disabled {
+  opacity: 0.45;
+}
+
+.k-draw-actions .k-start-plan {
+  min-width: 150px;
+  border: 0;
+  color: #fff;
 }
 
 .k-customize-page {
@@ -1879,10 +1707,6 @@
 
 .k-kitchen-choices {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.k-extra-room-choices {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .k-rotation-choices {

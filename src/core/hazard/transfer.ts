@@ -68,7 +68,7 @@ export function nodeAt(ctx: FieldContext, c: Cell): string | undefined {
 }
 
 /** 유리로 막힌 개구부 — 닫으면 연기를 막고, 열면 오히려 길을 터 준다 */
-const GLAZED_KINDS: OpeningKind[] = ['window', 'balcony_window'];
+const GLAZED_KINDS: OpeningKind[] = ['window', 'sliding_window', 'balcony_window'];
 
 /** 밀폐 성능이 높은 개구부 — 현관 방화문·비상구 */
 const SEALED_KINDS: OpeningKind[] = ['front_door', 'emergency_exit'];

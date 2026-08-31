@@ -42,12 +42,13 @@ import { buildReport, highlightOf } from '../core/report/build';
 import { type Game, finishGame, pauseGame, quitGame, resumeGame, startGame, tick as gameTick } from '../core/game/loop';
 import { closeDoorBehind, move, togglePosture, touchDoor } from '../core/game/player';
 import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, isVerified, presetById, templateName } from '../content';
-import { bumpBlockIdSeq, canPlaceRoom, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
+import { bumpBlockIdSeq, canPlaceRoom, canResizeOpening, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { preparePlan, rotatePlan, type PlanRotation, type PreparePlanOptions } from '../core/plan/prepare';
 import { generateResidualPlan, type ResidualPlanRequest } from '../core/plan/residual';
 import { reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
+import { shellOnlyPlan } from '../core/plan/shellSketch';
 import { loadKids, saveKids } from './storage';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
 
@@ -155,6 +156,8 @@ export interface KidsActions {
   loadTemplate: (id: string, options?: PreparePlanOptions) => void;
   /** 외곽과 독립실 방식으로 만든 시작 평면을 불러온다 (설계서 v1.9 §2). */
   loadResidualPlan: (request: ResidualPlanRequest, rotation?: PlanRotation) => void;
+  /** 준비된 테두리 또는 직접 그린 외곽만 불러와 실 배치 단계에서 시작한다. */
+  loadShellPlan: (cells: Cell[]) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
   placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;
   placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
@@ -167,6 +170,7 @@ export interface KidsActions {
   renameRoom: (id: BlockId, label: string) => void;
   /** 개구부의 평소 상태를 뒤집는다 — 열어 둠 ↔ 닫아 둠 (설계서 v1.2 §2.4) */
   toggleOpening: (id: BlockId) => void;
+  resizeOpening: (id: BlockId, span: 1 | 2 | 3) => void;
   removeBlock: (id: BlockId) => void;
   /** 온보딩 — 방을 눌러 내 자리를 정한다 */
   pickMyRoom: (cell: Cell) => boolean;
@@ -581,6 +585,17 @@ export const useKids = create<KidsStore>()((set, get) => {
       else get().setStep('spaces');
     },
 
+    loadShellPlan: (cells) => {
+      const plan = shellOnlyPlan(cells);
+      bumpBlockIdSeq(plan);
+      commit({ plan, routes: {} });
+      set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
+      get().countOp();
+      get().notify('집 외곽을 만들었다. 이제 실제로 벽이 있는 방과 문, 창문을 놓아 보자.');
+      if (!get().onboarded) get().finishOnboarding(false);
+      else get().setStep('spaces');
+    },
+
     placeRoom: (roomKind, at, rect) => {
       const plan = get().plan;
       const def = blockDef(roomKind);
@@ -619,6 +634,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         openingKind: kind,
         cell,
         side,
+        span: 1,
         closedByDefault: kind !== 'inner_door' && kind !== 'open_passage',
       };
       commit({ plan: { ...plan, blocks: blocks.concat([b]) } });
@@ -786,6 +802,19 @@ export const useKids = create<KidsStore>()((set, get) => {
       get().notify(target.closedByDefault ? '평소 열어 두는 것으로 바꿨다.' : '평소 닫아 두는 것으로 바꿨다.');
     },
 
+    resizeOpening: (id, span) => {
+      const plan = get().plan;
+      const target = plan.blocks.find((block) => block.id === id && isOpening(block));
+      if (!target || !isOpening(target)) return;
+      if (!canResizeOpening(plan, target, span)) {
+        get().notify('그쪽 벽에는 이만큼 넓힐 자리가 없다. 벽의 시작 쪽에 다시 놓거나 더 작은 폭을 골라 보자.', 'warn');
+        return;
+      }
+      commit({ plan: { ...plan, blocks: plan.blocks.map((block) => block.id === id && isOpening(block) ? { ...block, span } : block) } });
+      get().countOp();
+      get().notify(`${span}칸 너비로 바꿨다.`);
+    },
+
     removeBlock: (id) => {
       const plan = get().plan;
       const b = plan.blocks.find((x) => x.id === id);
@@ -837,7 +866,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       } else {
         get().countOp();
       }
-      get().setStep('safety');
+      get().setStep('ready');
     },
 
     /* -------------------------------------------------- 경로 */

@@ -99,6 +99,7 @@ interface BrowserBlock {
   wallMode?: string;
   openingKind?: string;
   side?: 'N' | 'E' | 'S' | 'W';
+  span?: number;
   cell?: { x: number; y: number };
   rect?: BrowserRect;
 }
@@ -670,26 +671,60 @@ async function main(): Promise<void> {
 
     await check('직접 그리기 7단계로 만들고 내 위치·만나는 장소를 다시 옮긴다 (설계서 v1.9 §9)', async () => {
       await page.locator('[data-start-path="starter"]').click();
+      assert((await page.locator('[data-direct-method]').count()) === 2, '준비된 집 모양과 외곽선 직접 그리기 두 방법이 없다');
+      await page.locator('[data-direct-method="draw"]').click();
+      const drawBoard = page.locator('[data-shell-draw]');
+      const drawBox = await drawBoard.boundingBox();
+      assert(Boolean(drawBox), '외곽선 그리기 격자가 없다');
+      if (!drawBox) throw new Error('외곽선 그리기 격자가 없다');
+      for (const [x, y] of [[2, 2], [20, 2], [20, 14], [2, 14]]) {
+        await page.mouse.click(drawBox.x + (x / 24) * drawBox.width, drawBox.y + (y / 16) * drawBox.height);
+      }
+      assert((await page.locator('.k-shell-draw-board .draw-point').count()) === 4, '외곽 꼭짓점 네 곳이 찍히지 않았다');
+      await page.locator('.k-onboard-back').click();
+      await page.locator('[data-direct-method="shape"]').click();
       assert((await page.locator('[data-shell]').count()) === 8, '다양한 집 외곽 8가지가 보이지 않는다');
       await page.locator('[data-shell="wide"]').click();
-      assert((await page.locator('[data-bedroom-count]').count()) === 4, '집 모양 다음에 침실 수를 묻지 않는다');
-      await page.locator('[data-bedroom-count="2"]').click();
-      await page.locator('[data-box-sides-next]').click();
-      await page.locator('[data-box-kitchen="closed"]').click();
-      await page.locator('[data-residual-plan-start]').click();
+      assert((await page.locator('.k-shell-preview [data-kind="room"]').count()) >= 1, '집 외곽의 열린 바닥 미리보기가 없다');
+      assert((await page.locator('.k-shell-preview [data-wall-mode="closed"]').count()) === 0, '집 모양 단계에서 방이 미리 배치됐다');
+      await page.locator('[data-shell-plan-start]').click();
       await page.waitForTimeout(750);
       assert((await page.locator('.k-onboard').count()) === 0, '안내가 안 닫혔다');
-      assert((await page.locator('.k-app').getAttribute('data-step')) === 'spaces', '집 모양 뒤 공간 나누기 단계가 아니다');
+      assert((await page.locator('.k-app').getAttribute('data-step')) === 'spaces', '집 모양 뒤 실·문·창 단계가 아니다');
       assert((await page.locator('.k-build-steps li').count()) === 7, '일곱 단계 만들기 순서가 보이지 않는다');
       assert((await page.locator('.k-stage [data-kind="furniture"], .k-stage [data-kind="safety"], .k-stage [data-kind="hazard"], .k-stage [data-kind="marker"]').count()) === 0, '구조 단계 전에 가구나 표시가 놓여 있다');
-      assert((await page.locator('.k-cats .k-cat').count()) === 2, '공간 나누기 단계의 방·문 팔레트가 아니다');
+      assert((await page.locator('.k-cats .k-cat').count()) === 2, '실·문·창 단계의 방·문 팔레트가 아니다');
+      const emptyPlan = await kidsPlan(page);
+      const roomCell = await planPoint(page, emptyPlan, 4, 4);
+      await page.locator('[data-block-id="bedroom"]').click();
+      await page.mouse.click(roomCell.x, roomCell.y);
+      await page.waitForTimeout(750);
+      const roomPlan = await kidsPlan(page);
+      const newBedroom = roomPlan.blocks.find((block) => block.kind === 'room' && block.roomKind === 'bedroom' && block.wallMode !== 'zone' && block.rect);
+      assert(Boolean(newBedroom?.rect), '빈 외곽에 침실을 놓지 못했다');
       await page.locator('.k-stage [data-wall-mode="closed"]').first().click();
-      assert((await page.locator('[data-room-kind]').count()) === 4, '독립실 용도를 고르는 단추가 없다');
+      assert((await page.locator('[data-room-kind]').count()) === 7, '침실·욕실·현관·옷방·기타실을 고르는 단추가 없다');
       await page.locator('.k-stage [data-wall-mode="zone"]').first().click();
       assert((await page.locator('[data-zone-kind]').count()) === 5, '열린 공간 용도를 고르는 단추가 없다');
+
+      const bedroomElement = page.locator(`.k-stage [data-block="${newBedroom?.id}"]`);
+      const bedroomBox = await bedroomElement.boundingBox();
+      assert(Boolean(bedroomBox), '침실 벽을 찾지 못했다');
+      if (!bedroomBox) throw new Error('침실 벽을 찾지 못했다');
+      await page.locator('.k-cats .k-cat').nth(1).click();
+      await page.locator('[data-block-id="sliding_window"]').click();
+      await page.mouse.click(bedroomBox.x + bedroomBox.width * 0.14, bedroomBox.y + 2);
+      await page.waitForTimeout(700);
+      assert((await page.locator('.k-stage [data-opening-kind="sliding_window"]').count()) === 1, '미닫이창이 놓이지 않았다');
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'structure', '방 크기·위치 단계로 가지 않았다');
-      assert((await page.locator('.k-cats .k-cat').count()) === 1, '방 크기·위치 단계에 관계없는 팔레트 갈래가 보인다');
+      assert((await page.locator('.k-cats .k-cat').count()) === 0, '크기 조정 단계에 새 블록 팔레트가 보인다');
+      await page.locator('.k-stage [data-opening-kind="sliding_window"]').click();
+      assert((await page.locator('[data-opening-span]').count()) === 3, '문·창 너비 1·2·3칸 선택이 없다');
+      await page.locator('[data-opening-span="3"]').click();
+      await page.waitForTimeout(700);
+      const widePlan = await kidsPlan(page);
+      assert(widePlan.blocks.some((block) => block.openingKind === 'sliding_window' && (block as BrowserBlock & { span?: number }).span === 3), '미닫이창이 3칸 너비로 바뀌지 않았다');
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'furniture', '가구 단계로 가지 않았다');
       assert((await page.locator('.k-cats .k-cat').count()) === 2, '가구 단계에 가구·위험 갈래가 없다');
@@ -710,7 +745,17 @@ async function main(): Promise<void> {
       await page.mouse.click(bedCell.x, bedCell.y);
       assert((await page.locator('.k-stage [data-kind="furniture"]').count()) === 1, '가구 단계에서 침대가 놓이지 않았다');
       await page.locator('[data-build-next]').click();
-      assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '내 방 단계가 아니다');
+      assert((await page.locator('.k-app').getAttribute('data-step')) === 'safety', '가구 다음이 소화기 단계가 아니다');
+      assert((await page.locator('.k-cats .k-cat').count()) === 1, '소화기 단계에 안전설비 외 갈래가 보인다');
+      assert((await page.locator('[data-block-id="extinguisher"]').count()) === 1, '소화기 단계에 소화기가 없다');
+      assert((await page.locator('[data-block-id="detector"]').count()) === 0, '소화기 단계에 관계없는 안전설비가 보인다');
+      const safetyPlan = await kidsPlan(page);
+      await page.locator('[data-block-id="extinguisher"]').click();
+      const extinguisherCell = await planPoint(page, safetyPlan, bedGridCell.x, bedGridCell.y + 1);
+      await page.mouse.click(extinguisherCell.x, extinguisherCell.y);
+      assert((await page.locator('.k-safety-check.done').count()) === 1, '소화기 위치를 놓아도 안전 확인에 반영되지 않았다');
+      await page.locator('[data-build-next]').click();
+      assert((await page.locator('.k-app').getAttribute('data-step')) === 'mySpot', '소화기 다음이 내 방 단계가 아니다');
       const bubble = await page.locator('.k-bubble').innerText();
       assert(bubble.includes('네 방') || bubble.includes('자는 방'), `캐릭터 안내: ${bubble.slice(0, 40)}`);
       const beforeVoice = await page.evaluate(() => ({ ...(window as unknown as { __soundProbe: Record<string, number> }).__soundProbe }));
@@ -732,8 +777,7 @@ async function main(): Promise<void> {
       const outside = await kidsCell(page, 0, 0);
       await page.mouse.click(outside.x, outside.y);
       await page.waitForTimeout(300);
-      assert((await page.locator('.k-app').getAttribute('data-step')) === 'safety', '같이 모일 곳 뒤 안전 위치 확인 단계가 아니다');
-      assert((await page.locator('.k-cats .k-cat').count()) === 1, '안전 위치 단계에 안전설비 외 갈래가 보인다');
+      assert((await page.locator('.k-app').getAttribute('data-step')) === 'ready', '같이 모일 곳 뒤 준비 단계가 아니다');
 
       await page.waitForTimeout(750);
       const beforeMove = await kidsPlan(page);
@@ -763,20 +807,13 @@ async function main(): Promise<void> {
       const movedMeeting = afterMeeting.blocks.find((block) => block.id === meeting.id);
       assert(movedMeeting?.cell?.x === meetingTarget.x && movedMeeting.cell.y === meetingTarget.y, '만나는 장소를 끌어도 이동하지 않았다');
 
-      await page.locator('[data-block-id="extinguisher"]').click();
-      const extinguisherCell = await planPoint(page, afterMeeting, bedGridCell.x, bedGridCell.y + 1);
-      await page.mouse.click(extinguisherCell.x, extinguisherCell.y);
-      assert((await page.locator('.k-safety-check.done').count()) === 1, '소화기 위치를 놓아도 안전 확인에 반영되지 않았다');
-      await page.locator('[data-build-next]').click();
-      assert((await page.locator('.k-app').getAttribute('data-step')) === 'ready', '안전 위치 확인 뒤 준비 단계가 아니다');
-
       await page.locator('[data-coach="kids-start-game"]').click();
       const startAnyway = page.locator('[data-coach="kids-start-anyway"]');
       if (await startAnyway.isVisible({ timeout: 1500 }).catch(() => false)) await startAnyway.click();
       await page.waitForSelector('.k-game');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'game', '게임이 시작되지 않았다');
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
-      assert(rooms >= 5, `방 ${rooms}개`);
+      assert(rooms >= 2, `방 ${rooms}개`);
       assert((await page.locator('.k-game-missions [data-mission]').count()) === 4, '안전 행동 미션이 네 가지가 아니다');
       assert((await page.locator('[data-mission="crouch"]').getAttribute('data-done')) === 'false', '시작 전에 몸 낮추기가 끝나 있다');
     });
@@ -828,22 +865,38 @@ async function main(): Promise<void> {
       assert((await page.locator('svg.k-stage').count()) === 1, '도면이 없다');
     });
 
-    await check('캠페인 대시보드는 소방서·학교·학부모 역할과 학교·학년·반별 안전 완성도를 보여 준다', async () => {
+    await check('독립 캠페인 대시보드는 지역·학교·학급별 안전 준비를 같은 집합으로 보여 준다', async () => {
       const usage = page.locator('.k-top .k-tb', { hasText: '사용법' });
       const dashboardButton = page.locator('[data-coach="kids-dashboard"]');
       const usageBox = await usage.boundingBox();
       const dashboardBox = await dashboardButton.boundingBox();
       assert(Boolean(usageBox && dashboardBox && dashboardBox.x >= usageBox.x), '대시보드가 사용법 오른쪽에 없다');
-      await dashboardButton.click();
-      await page.waitForSelector('.k-dashboard');
-      const text = await page.locator('.k-dashboard').innerText();
-      for (const word of ['소방서', '학교·어린이집', '학부모', '안전 완성도', '부평초등학교', '안전이']) assert(text.includes(word), `대시보드에 ${word}가 없다`);
-      assert((await page.locator('[data-dashboard-filter]').count()) === 3, '학교·학년·반 필터가 세 개가 아니다');
-      assert((await page.locator('.k-dashboard-table tbody tr').count()) >= 1, '현재 학생 지도가 목록에 없다');
-      await page.locator('[data-dashboard-filter="grade"]').selectOption('3');
-      assert((await page.locator('.k-dashboard-table tbody').innerText()).includes('3학년'), '학년 필터 뒤 현재 학생이 사라졌다');
-      await page.locator('.k-dashboard-head .k-x').click();
-      assert((await page.locator('.k-dashboard').count()) === 0, '대시보드가 닫히지 않는다');
+      const dashboardHref = await dashboardButton.getAttribute('href');
+      assert(Boolean(dashboardHref?.endsWith('/dashboard/')), `독립 대시보드 주소가 아니다: ${dashboardHref}`);
+      const dashboardPage = await context.newPage();
+      const dashboardErrors: string[] = [];
+      dashboardPage.on('pageerror', (error) => dashboardErrors.push(error.message));
+      await dashboardPage.goto(new URL(dashboardHref ?? '/dashboard/', page.url()).href, { waitUntil: 'networkidle' });
+      await dashboardPage.waitForSelector('[data-screen="campaign-dashboard"]');
+      /* 정적 HTML이 먼저 보인 뒤 브라우저 저장 기록을 합치는 useEffect까지 기다린다. */
+      await dashboardPage.waitForTimeout(900);
+      const text = await dashboardPage.locator('[data-screen="campaign-dashboard"]').innerText();
+      const storedName = await dashboardPage.evaluate(() => {
+        try { return JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.studentName ?? ''; } catch { return ''; }
+      });
+      for (const word of ['소방서', '학교·선생님', '가족', '캠페인 안전 현황', '부평초등학교']) assert(text.includes(word), `대시보드에 ${word}가 없다 (저장 이름: ${storedName || '없음'}, 오류: ${dashboardErrors.join(' / ') || '없음'})`);
+      assert((await dashboardPage.locator('[data-dashboard-filter]').count()) === 6, '시도·시군구·읍면동·학교·학년·반 필터가 여섯 개가 아니다');
+      assert((await dashboardPage.locator('.d-kpi').count()) === 5, '안전 준비 핵심 지표가 다섯 개가 아니다');
+      await dashboardPage.locator('[data-dashboard-filter="학교·어린이집"]').selectOption({ label: '부평초등학교' });
+      await dashboardPage.locator('[data-dashboard-filter="학년·연령"]').selectOption('3학년');
+      await dashboardPage.locator('[data-dashboard-filter="반"]').selectOption('2반');
+      await dashboardPage.locator('.d-search input').fill('안전이');
+      await dashboardPage.waitForTimeout(200);
+      const tableText = await dashboardPage.locator('.d-table-wrap tbody').innerText();
+      assert(tableText.includes('안전이') && tableText.includes('이 PC'), '현재 PC 학생 기록이 복합 필터 결과에 없다');
+      assert((await dashboardPage.locator('.d-data-notice').innerText()).includes('서버로 보내지 않습니다'), '정적 체험판 데이터 경계가 없다');
+      assert(!/1위|2위|3위|순위/.test(await dashboardPage.locator('.d-students').innerText()), '학생 순위가 표시된다');
+      await dashboardPage.close();
 
       /* 이하 공통 편집·경로·성공 리플레이 회귀 검사는 좌표가 고정된 방 두 개 템플릿에서 한다. */
       await page.locator('[data-coach="kids-template"]').click();
@@ -1573,44 +1626,31 @@ async function main(): Promise<void> {
       await page.waitForSelector('svg.k-stage');
     });
 
-    await check('외곽 안에 독립실을 놓고 남은 공용 바닥을 벽 틈 없이 잇는다 (설계서 v1.9 §2)', async () => {
+    await check('집 외곽을 고른 뒤 독립실을 놓고 크기와 위치를 바꾼다 (설계서 v1.9 §12)', async () => {
       await page.evaluate(() => window.localStorage.clear());
       await page.reload({ waitUntil: 'networkidle' });
       await page.evaluate(() => window.localStorage.clear());
       await continueAfterWelcome('.k-onboard');
       await page.waitForSelector('.k-onboard');
       await page.locator('[data-start-path="starter"]').click();
+      assert((await page.locator('[data-direct-method]').count()) === 2, '직접 그리기 두 방법이 없다');
+      await page.locator('[data-direct-method="shape"]').click();
       assert((await page.locator('[data-shell]').count()) === 8, '집 테두리가 여덟 가지가 아니다');
       await page.locator('[data-shell="bend-left"]').click();
-      await page.locator('[data-bedroom-count="2"]').click();
-      assert((await page.locator('[data-bedroom-side]').count()) === 8, '방 위치가 여덟 방향이 아니다');
-      assert((await page.locator('[data-bedroom-side][aria-pressed="true"]').count()) === 2, '방 두 개의 기본 위치가 준비되지 않았다');
-      await page.locator('[data-bedroom-side="E"]').click();
-      await page.locator('[data-bedroom-side="S"]').click();
-      assert((await page.locator('[data-bedroom-side][aria-pressed="true"]').count()) === 2, '새 위치를 골랐더니 방 수가 늘었다');
-      await page.locator('[data-box-sides-next]').click();
-      assert((await page.locator('.k-customize-preview [data-kind="room"]').count()) >= 5, '독립실과 공용 바닥 미리보기가 없다');
-      assert((await page.locator('.k-customize-preview [data-opening-kind="open_passage"]').count()) >= 1, '남은 자리와 트인 주방이 이어지지 않았다');
-      assert((await page.locator('.k-customize-preview [data-house-shell="true"]').count()) === 1, '생성 미리보기에 집 외곽선이 하나가 아니다');
-      const hiddenPassages = page.locator('.k-customize-preview [data-opening-kind="open_passage"]');
-      assert((await hiddenPassages.count()) === (await page.locator('.k-customize-preview [data-plan-hidden="true"]').count()), '공용부 경계 일부가 벽 틈으로 보인다');
-      await page.locator('[data-extra-room="refuge-lobby"]').click();
-      await page.locator('[data-extra-room="alpha"]').click();
-      assert((await page.locator('[data-extra-room][aria-pressed="true"]').count()) === 2, '추가 독립실 선택이 반영되지 않았다');
-      assert((await page.locator('.k-customize-preview [data-wall-mode="closed"]').count()) >= 5, '피난전실과 알파룸이 독립실 벽으로 생기지 않았다');
-      await page.locator('[data-box-rotation="90"]').click();
-      assert((await page.locator('[data-box-rotation="90"]').getAttribute('aria-pressed')) === 'true', '상자 평면 회전이 반영되지 않았다');
-      await page.locator('[data-box-rotation="0"]').click();
-      await page.locator('[data-residual-plan-start]').click();
+      assert((await page.locator('.k-shell-preview [data-wall-mode="closed"]').count()) === 0, '집 모양을 고를 때 방이 미리 생겼다');
+      await page.locator('[data-shell-plan-start]').click();
       await page.waitForTimeout(800);
-      assert((await page.locator('.k-stage [data-kind="room"]').count()) >= 5, '생성 평면이 도면에 놓이지 않았다');
-      assert((await page.locator('.k-stage [data-opening-kind="front_door"]').count()) === 1, '자동 현관문이 없다');
-      assert((await page.locator('.k-stage [data-opening-kind="door"]').count()) >= 2, '닫힌 방의 자동 문이 없다');
-      assert((await page.locator('.k-stage [data-opening-kind="open_passage"]').count()) >= 1, '공용부의 트인 통로가 없다');
       assert((await page.locator('.k-stage [data-house-shell="true"]').count()) === 1, '캔버스의 집 외곽선이 하나가 아니다');
-      assert((await kidsSave(page)).blocks >= 12, '생성 평면이 저장되지 않았다');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'spaces', '집을 만든 뒤 공간 용도 설정 단계로 가지 않는다');
       assert((await page.locator('.k-stage [data-kind="furniture"], .k-stage [data-kind="marker"]').count()) === 0, '구조를 맞추기 전에 가구나 표시가 생겼다');
+      const emptyPlan = await kidsPlan(page);
+      const roomCell = await planPoint(page, emptyPlan, 4, 4);
+      await page.locator('[data-block-id="bedroom"]').click();
+      await page.mouse.click(roomCell.x, roomCell.y);
+      await page.waitForTimeout(800);
+      assert((await page.locator('.k-stage [data-wall-mode="closed"]').count()) === 1, '빈 집 안에 독립실을 놓지 못했다');
+      assert((await page.locator('.k-stage [data-wall-mode="zone"]').count()) >= 1, '독립실을 놓은 뒤 남은 열린 바닥이 사라졌다');
+      assert((await kidsSave(page)).blocks >= 2, '직접 만든 구조가 저장되지 않았다');
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'structure', '방 이동·크기 변경 단계로 가지 않는다');
 

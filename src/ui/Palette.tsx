@@ -28,6 +28,8 @@ const ROOM_SWATCH: Record<string, string> = {
   entry: '#efe9f7',
   balcony: '#e6f7f4',
   utility: '#f0f0f0',
+  closet: '#eee5d9',
+  other: '#f1ebf4',
   corridor: '#f6f6ee',
   stair: '#e0e7ef',
   refuge_lobby: '#dfe9e0',
@@ -60,8 +62,9 @@ export default function Palette() {
   const [cat, setCat] = useState<BlockCategory>('safety');
   const easy = gradeMode === 'easy';
   const disabled = mode !== 'edit';
-  const stageCats: BlockCategory[] | null = step === 'structure'
-    ? ['room']
+  const adjustOnly = step === 'structure';
+  const stageCats: BlockCategory[] | null = adjustOnly
+    ? []
     : step === 'spaces'
       ? ['room', 'opening']
       : step === 'furniture'
@@ -79,17 +82,17 @@ export default function Palette() {
     setCat(def.category);
   }, [paletteHl]);
   useEffect(() => {
-    if (step === 'structure' || step === 'spaces') setCat(step === 'structure' ? 'room' : 'opening');
+    if (step === 'spaces') setCat('room');
     else if (step === 'furniture') setCat('furniture');
     else if (step === 'safety') setCat('safety');
   }, [step]);
-  const showMore = stageCats ? true : more;
+  const showMore = adjustOnly ? false : stageCats ? true : more;
   const activeCat = stageCats?.includes(cat) ? cat : (stageCats?.[0] ?? cat);
 
   const basics = PALETTE_BASIC
     .map((id) => BLOCKS.find((b) => b.id === id))
-    .filter((b): b is BlockDef => b !== undefined && (!stageCats || stageCats.includes(b.category)));
-  const moreItems = BLOCKS.filter((b) => b.category === activeCat && !PALETTE_BASIC.includes(b.id));
+    .filter((b): b is BlockDef => b !== undefined && (!stageCats || stageCats.includes(b.category)) && (step !== 'safety' || b.id === 'extinguisher'));
+  const moreItems = adjustOnly ? [] : BLOCKS.filter((b) => b.category === activeCat && !PALETTE_BASIC.includes(b.id) && (step !== 'safety' || b.id === 'extinguisher'));
   const categories = stageCats ? CATS.filter((item) => stageCats.includes(item.key)) : CATS;
   /* 필수 물건이 도면에 있는지 — 팔레트에 채움 표시로 보인다 (설계서 v1.2 §1.4) */
   const done = new Set(checklist(plan, REQUIRED_BLOCKS).filter((i) => i.present).map((i) => i.id));
@@ -121,6 +124,8 @@ export default function Palette() {
           </button>
         ))}
       </div>
+
+      {adjustOnly && <div className="k-adjust-note"><b>방·문·창을 눌러 조정해요</b><span>방은 끌어서 옮기고 모서리 점으로 크기를 바꿔요. 문과 창은 위쪽에서 너비를 골라요.</span></div>}
 
       <div className="k-blocks k-basic" role="group" aria-label="기본 블록">
         {basics.map((b) => (
@@ -244,6 +249,8 @@ function hintFor(b: BlockDef, easy: boolean): string {
   if (b.category === 'room') return easy ? '도면을 누르면 방이 놓인다.' : '클릭하면 표준 크기로 놓이고, 드래그하면 그 크기로 놓인다.';
   if (b.id === 'door') return easy ? '앞뒤로 여는 문이다. 방의 벽을 누르자.' : '경첩으로 여는 방문이다. 방 경계선에 놓는다.';
   if (b.id === 'sliding_door') return easy ? '옆으로 미는 문이다. 방의 벽을 누르자.' : '옆으로 미는 방문이다. 방 경계선에 놓는다.';
+  if (b.id === 'window') return easy ? '앞뒤로 여는 창이다. 바깥 벽을 누르자.' : '경첩으로 여는 창이다. 외벽에 놓는다.';
+  if (b.id === 'sliding_window') return easy ? '옆으로 미는 창이다. 바깥 벽을 누르자.' : '옆으로 미는 창이다. 외벽에 놓는다.';
   if (b.category === 'opening') return easy ? '방의 벽을 눌러 놓는다.' : '방 경계선(벽면)에만 놓인다.';
   if (b.tags.includes('adult')) return '어른과 함께 쓰는 설비다.';
   return easy ? '놓을 칸을 누른다.' : '셀 중심에 놓인다.';

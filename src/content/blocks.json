@@ -102,6 +102,34 @@
     "required": false
   },
   {
+    "id": "closet",
+    "category": "room",
+    "label": "옷방",
+    "easy": "옷방",
+    "size": {
+      "w": 3,
+      "h": 3
+    },
+    "fuel": 0.8,
+    "tags": [
+      "combustible"
+    ],
+    "required": false
+  },
+  {
+    "id": "other",
+    "category": "room",
+    "label": "기타실",
+    "easy": "다른 방",
+    "size": {
+      "w": 3,
+      "h": 3
+    },
+    "fuel": 0.5,
+    "tags": [],
+    "required": false
+  },
+  {
     "id": "corridor",
     "category": "room",
     "label": "복도",
@@ -235,8 +263,23 @@
   {
     "id": "window",
     "category": "opening",
-    "label": "창문",
-    "easy": "창문",
+    "label": "여닫이창",
+    "easy": "여닫이창",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.1,
+    "tags": [
+      "glass"
+    ],
+    "required": false
+  },
+  {
+    "id": "sliding_window",
+    "category": "opening",
+    "label": "미닫이창",
+    "easy": "미닫이창",
     "size": {
       "w": 1,
       "h": 1
@@ -526,6 +569,36 @@
     },
     "fuel": 0.4,
     "tags": [],
+    "required": false
+  },
+  {
+    "id": "washing_machine",
+    "category": "furniture",
+    "label": "세탁기",
+    "easy": "세탁기",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.2,
+    "tags": [
+      "topple"
+    ],
+    "required": false
+  },
+  {
+    "id": "dryer",
+    "category": "furniture",
+    "label": "건조기",
+    "easy": "건조기",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "fuel": 0.25,
+    "tags": [
+      "topple"
+    ],
     "required": false
   },
   {

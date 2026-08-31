@@ -50,6 +50,8 @@ const ROOM_FILL: Record<RoomBlock['roomKind'], string> = {
   entry: '#efe9f7',
   balcony: '#e6f7f4',
   utility: '#f0f0f0',
+  closet: '#eee5d9',
+  other: '#f1ebf4',
   corridor: '#f6f6ee',
   stair: '#e0e7ef',
   refuge_lobby: '#dfe9e0',
@@ -329,18 +331,22 @@ export function PlanSvg(props: PlanSvgProps) {
       {/* 개구부 */}
       <g>
         {openings.map((o) => {
-          const c = slotCenter(o.cell, o.side);
+          const span = o.span ?? 1;
+          const anchor = slotCenter(o.cell, o.side);
+          const c = o.side === 'N' || o.side === 'S'
+            ? { x: anchor.x + (span - 1) / 2, y: anchor.y }
+            : { x: anchor.x, y: anchor.y + (span - 1) / 2 };
           const rot = o.side === 'N' ? 0 : o.side === 'S' ? 180 : o.side === 'W' ? -90 : 90;
           const sel = isChosen(o.id);
           const isHl = matchesHl(o);
           /* 게임 중이면 지금 상태, 편집 중이면 평소 상태를 보인다 (설계서 v1.2 §2.3) */
           const open = o.openingKind === 'open_passage' || (game ? game.doorState[o.id] !== 'closed' : !o.closedByDefault);
           return (
-            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-state={open ? 'open' : 'closed'} data-plan-hidden={o.hideInPlan ? 'true' : undefined} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-width={span} data-opening-state={open ? 'open' : 'closed'} data-plan-hidden={o.hideInPlan ? 'true' : undefined} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
               {/* 공용 구역 경계는 실제 벽이 아니므로 지우개 모양조차 그리지 않는다. */}
-              {!o.hideInPlan ? <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS + 4 : CS * 0.86} style={style} open={open} /> : null}
+              {!o.hideInPlan ? <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS * span + 4 : CS * span - 5} style={style} open={open} /> : null}
               {(sel || isHl) && (
-                <circle r={CS * 0.42} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} className={isHl ? 'kids-hl' : undefined} />
+                <rect x={-(CS * span - 3) / 2} y={-CS * 0.42} width={CS * span - 3} height={CS * 0.84} rx={6} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} className={isHl ? 'kids-hl' : undefined} />
               )}
             </g>
           );

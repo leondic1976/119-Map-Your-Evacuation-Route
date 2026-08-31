@@ -10,6 +10,7 @@
  */
 import type { Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
 import { isOpening, isPoint, isRoom } from '../../types/plan';
+import { openingCells } from '../../core/grid/occupancy';
 /** 한 줄 = 위치3 · 법선3 · 색3 */
 export const STRIDE = 9;
 
@@ -41,6 +42,8 @@ const ROOM_TINT: Record<RoomBlock['roomKind'], number[]> = {
   entry: [0.88, 0.82, 0.96],
   balcony: [0.79, 0.94, 0.91],
   utility: [0.88, 0.88, 0.88],
+  closet: [0.88, 0.82, 0.73],
+  other: [0.9, 0.84, 0.93],
   corridor: [0.95, 0.93, 0.8],
   stair: [0.79, 0.85, 0.93],
   refuge_lobby: [0.78, 0.91, 0.82],
@@ -95,9 +98,8 @@ function openingAt(openings: OpeningBlock[], cell: Cell, side: Side): OpeningBlo
   const opp: Side = side === 'N' ? 'S' : side === 'S' ? 'N' : side === 'E' ? 'W' : 'E';
   const nb =
     side === 'N' ? { x: cell.x, y: cell.y - 1 } : side === 'S' ? { x: cell.x, y: cell.y + 1 } : side === 'E' ? { x: cell.x + 1, y: cell.y } : { x: cell.x - 1, y: cell.y };
-  return openings.find(
-    (o) => openingKey(o.cell, o.side) === openingKey(cell, side) || openingKey(o.cell, o.side) === openingKey(nb, opp),
-  );
+  return openings.find((o) => openingCells(o).some((slot) =>
+    openingKey(slot, o.side) === openingKey(cell, side) || openingKey(slot, o.side) === openingKey(nb, opp)));
 }
 
 function inRect(r: Rect, c: Cell): boolean {
@@ -259,6 +261,14 @@ function furniture(b: Builder, kind: string, cell: Cell, rotation: number): void
       put(0.7, 0.4, 0.06, 0.06, 1.45, 1.85, M.metal); // 수전
       put(0.62, 0.4, 0.14, 0.06, 1.78, 1.85, M.metal);
       break;
+    case 'washing_machine':
+      put(0.08, 0.2, 0.84, 0.7, 0.02, 1.45, M.white, [0.85, 0.9, 0.93]);
+      put(0.24, 0.18, 0.52, 0.05, 0.34, 1.04, [0.35, 0.55, 0.66]);
+      break;
+    case 'dryer':
+      put(0.08, 0.2, 0.84, 0.7, 0.02, 1.58, [0.92, 0.84, 0.75], [0.96, 0.9, 0.82]);
+      put(0.24, 0.18, 0.52, 0.05, 0.42, 1.14, [0.55, 0.33, 0.2]);
+      break;
     case 'gas_range':
       put(0.06, 0.28, 0.88, 0.6, 0.02, 1.45, [0.22, 0.24, 0.27], [0.16, 0.18, 0.2]);
       for (const [ox, oz] of [[0.22, 0.4], [0.58, 0.4]]) put(ox, oz, 0.2, 0.2, 1.45, 1.5, [0.45, 0.47, 0.5]);
@@ -352,7 +362,7 @@ function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: Op
   if (op.openingKind === 'open_passage') return;
 
   /* 문·창이 좁아 보인다는 지적을 받아 칸의 대부분을 비운다. 0.62 → 0.88 */
-  const gapW = op.openingKind === 'window' || op.openingKind === 'balcony_window' ? 0.9 : 0.88;
+  const gapW = (op.span ?? 1) > 1 ? 1 : op.openingKind === 'window' || op.openingKind === 'sliding_window' || op.openingKind === 'balcony_window' ? 0.9 : 0.88;
   const mid = (lo + hi) / 2;
   const gLo = mid - gapW / 2;
   const gHi = mid + gapW / 2;
@@ -360,7 +370,7 @@ function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: Op
   put(lo, gLo, 0, WALL_H, col);
   put(gHi, hi, 0, WALL_H, col);
 
-  const glazed = op.openingKind === 'window' || op.openingKind === 'balcony_window';
+  const glazed = op.openingKind === 'window' || op.openingKind === 'sliding_window' || op.openingKind === 'balcony_window';
   if (glazed) {
     put(gLo, gHi, 0, 1.5, col); // 허리벽
     put(gLo, gHi, 3.2, WALL_H, col); // 인방
@@ -379,14 +389,14 @@ export function buildDoors(plan: FloorPlan, doorState: Record<string, 'open' | '
   const b = new Builder();
   for (const o of plan.blocks) {
     if (!isOpening(o)) continue;
-    if (o.openingKind === 'window' || o.openingKind === 'balcony_window' || o.openingKind === 'open_passage') continue;
+    if (o.openingKind === 'window' || o.openingKind === 'sliding_window' || o.openingKind === 'balcony_window' || o.openingKind === 'open_passage') continue;
     const closed = doorState[o.id] === 'closed';
     /* 여닫이문은 열린 뒤 시야를 가리지 않게 숨기되, 미닫이문은 벽 옆에 포개진 문짝을 남긴다. */
     if (!closed && o.openingKind !== 'sliding_door') continue;
     const horizontal = o.side === 'N' || o.side === 'S';
     const at = o.side === 'N' ? o.cell.y : o.side === 'S' ? o.cell.y + 1 : o.side === 'W' ? o.cell.x : o.cell.x + 1;
     const lo = (horizontal ? o.cell.x : o.cell.y) + 0.06;
-    const hi = lo + 0.88;
+    const hi = lo + (o.span ?? 1) - 0.12;
     const col = o.openingKind === 'front_door' || o.openingKind === 'emergency_exit' ? [0.16, 0.48, 0.31] : COLOR.door;
     if (!closed) {
       const foldedHi = lo + 0.38;

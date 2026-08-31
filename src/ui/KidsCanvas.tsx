@@ -79,6 +79,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
 
   const pair = routes[hazardId];
   const inGame = mode === 'game' && game;
+  const canAdjustRooms = step === 'structure' || step === 'edit' || step === 'ready';
   const suggested = useMemo(
     () => (showHint && !inGame ? suggestedRoute({ plan, hazardId, routeSlot, profile, routes }) : null),
     [showHint, inGame, plan, hazardId, routeSlot, profile, routes],
@@ -127,9 +128,15 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       if (pt) return pt.id;
       for (const b of plan.blocks) {
         if (!isOpening(b) || b.hideInPlan) continue;
-        const sc = slotCenter(b.cell, b.side);
+        const span = b.span ?? 1;
+        const anchor = slotCenter(b.cell, b.side);
+        const sc = b.side === 'N' || b.side === 'S'
+          ? { x: anchor.x + (span - 1) / 2, y: anchor.y }
+          : { x: anchor.x, y: anchor.y + (span - 1) / 2 };
         /* 문·창을 고르는 판을 넓혔다 — 작아서 잘 안 눌린다는 지적을 받았다 */
-        if ((sc.x - p.x) ** 2 + (sc.y - p.y) ** 2 < 0.3) return b.id;
+        const along = b.side === 'N' || b.side === 'S' ? Math.abs(sc.x - p.x) : Math.abs(sc.y - p.y);
+        const across = b.side === 'N' || b.side === 'S' ? Math.abs(sc.y - p.y) : Math.abs(sc.x - p.x);
+        if (along <= span / 2 + 0.12 && across < 0.34) return b.id;
       }
       return roomAt(plan, c)?.id ?? null;
     },
@@ -175,7 +182,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
 
     const target = e.target as Element;
     const handle = target.closest?.('[data-handle]')?.getAttribute('data-handle') as Handle | null;
-    if (tool === 'select' && handle && selection) {
+    if (tool === 'select' && canAdjustRooms && handle && selection) {
       const room = plan.blocks.find((b) => b.id === selection);
       if (room && isRoom(room) && room.wallMode !== 'zone') {
         dragRef.current = { kind: 'resize', id: room.id, handle, start: c, base: room.rect, rect: room.rect };
@@ -230,7 +237,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         /* 문·창은 누를 때마다 열리고 닫힌다. 두 번 걸치는 조작을 만들지 않는다 (FR-7 우선) */
         if (b && isOpening(b)) s.toggleOpening(b.id);
         else if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: c, cell: c };
-        else if (b && isRoom(b)) dragRef.current = { kind: 'roomMove', id, start: c, dx: 0, dy: 0 };
+        else if (b && isRoom(b) && canAdjustRooms) dragRef.current = { kind: 'roomMove', id, start: c, dx: 0, dy: 0 };
       } else {
         /* 빈 곳에서 끌면 네모로 두른다 */
         dragRef.current = { kind: 'band', start: c, add: false, rect: null };
@@ -582,7 +589,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
               style={{ pointerEvents: 'none' }}
             />
           )}
-          {!inGame && tool === 'select' && selectedRoom && isRoom(selectedRoom) && !roomShift && <ResizeHandles rect={selectedRoom.rect} />}
+          {!inGame && canAdjustRooms && tool === 'select' && selectedRoom && isRoom(selectedRoom) && !roomShift && <ResizeHandles rect={selectedRoom.rect} />}
           {caret && (
             <rect
               data-caret

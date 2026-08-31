@@ -303,7 +303,7 @@ export function qaTests(check: Check, assert: Assert): void {
           continue;
         }
         // 파일 고르기·체크상자, 이용자가 명시 요청한 학생 이름표·공간 이름은 자유 대화가 아니다
-        if (!/type=["'](file|checkbox|radio|range)["']/.test(tag) && !/data-allowed-free-text=["'](student-profile|room-name)["']/.test(tag)) bad.push(`${rel(f)} ${tag.slice(0, 40)}`);
+        if (!/type=["'](file|checkbox|radio|range)["']/.test(tag) && !/data-allowed-free-text=["'](student-profile|room-name|dashboard-search)["']/.test(tag)) bad.push(`${rel(f)} ${tag.slice(0, 40)}`);
       }
     }
     assert(bad.length === 0, `자유 입력 ${bad.join(' | ')}`);

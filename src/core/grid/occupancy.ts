@@ -4,7 +4,7 @@
  * 방은 직사각형만 허용한다(docs/DESIGN-v1.0.md §4.2). L 자 방은 사각형 둘을 붙여 만든다.
  * 이 제약이 인접 판정을 결정론적으로 만들고 아이의 조작 난이도도 낮춘다.
  */
-import type { Block, BlockId, Cell, FloorPlan, Rect, RoomBlock } from '../../types/plan';
+import type { Block, BlockId, Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
 import { isRoom } from '../../types/plan';
 import { cellKey, cellsOf, rectsOverlap } from './geometry';
 
@@ -68,11 +68,49 @@ export function pointOccupied(plan: FloorPlan, cell: Cell, subKind: string, igno
 }
 
 /** 이미 그 (셀, 면)에 개구부가 있으면 그것을 돌려준다 — 새로 놓는 대신 갈아 끼운다 */
-export function openingAt(plan: FloorPlan, cell: Cell, side: string): BlockId | undefined {
+export function openingCells(opening: Pick<OpeningBlock, 'cell' | 'side' | 'span'>): Cell[] {
+  const span = opening.span ?? 1;
+  return Array.from({ length: span }, (_, index) => opening.side === 'N' || opening.side === 'S'
+    ? { x: opening.cell.x + index, y: opening.cell.y }
+    : { x: opening.cell.x, y: opening.cell.y + index });
+}
+
+export function openingAt(plan: FloorPlan, cell: Cell, side: string, ignoreId?: BlockId): BlockId | undefined {
   const hit = plan.blocks.find(
-    (b) => b.kind === 'opening' && b.cell.x === cell.x && b.cell.y === cell.y && b.side === side,
+    (b) => b.kind === 'opening' && b.id !== ignoreId && b.side === side && openingCells(b).some((slot) => slot.x === cell.x && slot.y === cell.y),
   );
   return hit?.id;
+}
+
+/** 선택한 문·창을 같은 벽 방향으로 span칸 늘릴 수 있는지 확인한다. */
+export function canResizeOpening(plan: FloorPlan, opening: OpeningBlock, span: 1 | 2 | 3): boolean {
+  const probe: OpeningBlock = { ...opening, span };
+  const boundary = new Set<string>();
+  for (const room of rooms(plan).filter((candidate) => candidate.wallMode !== 'zone')) {
+    const r = room.rect;
+    for (let x = r.x; x < r.x + r.w; x += 1) {
+      boundary.add(`${x},${r.y},N`);
+      boundary.add(`${x},${r.y + r.h - 1},S`);
+    }
+    for (let y = r.y; y < r.y + r.h; y += 1) {
+      boundary.add(`${r.x},${y},W`);
+      boundary.add(`${r.x + r.w - 1},${y},E`);
+    }
+  }
+  if (plan.shell) {
+    const shell = new Set(plan.shell.cells.map(cellKey));
+    const delta: Record<Side, Cell> = { N: { x: 0, y: -1 }, E: { x: 1, y: 0 }, S: { x: 0, y: 1 }, W: { x: -1, y: 0 } };
+    for (const cell of plan.shell.cells) {
+      for (const sideName of ['N', 'E', 'S', 'W'] as Side[]) {
+        const d = delta[sideName];
+        if (!shell.has(cellKey({ x: cell.x + d.x, y: cell.y + d.y }))) boundary.add(`${cell.x},${cell.y},${sideName}`);
+      }
+    }
+  }
+  return openingCells(probe).every((cell) =>
+    cell.x >= 0 && cell.y >= 0 && cell.x < plan.grid.width && cell.y < plan.grid.height
+    && boundary.has(`${cell.x},${cell.y},${opening.side}`)
+    && !openingAt(plan, cell, opening.side, opening.id));
 }
 
 let seq = 0;

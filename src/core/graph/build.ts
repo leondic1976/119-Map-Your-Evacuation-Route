@@ -32,6 +32,8 @@ export const ROOM_LABEL: Record<RoomBlock['roomKind'], string> = {
   entry: '현관',
   balcony: '발코니',
   utility: '다용도실',
+  closet: '옷방',
+  other: '기타실',
   corridor: '복도',
   stair: '계단',
   refuge_lobby: '피난전실',
@@ -77,7 +79,7 @@ export function buildGraph(plan: FloorPlan): PlanGraph {
     const inside = new Set(cells.map(cellKey));
     const hazards = points.filter((p) => p.kind === 'hazard' && inside.has(cellKey(p.cell))).map((p) => p.subKind);
     const hasWindow = openings.some(
-      (o) => inside.has(cellKey(o.cell)) && (o.openingKind === 'window' || o.openingKind === 'balcony_window'),
+      (o) => inside.has(cellKey(o.cell)) && (o.openingKind === 'window' || o.openingKind === 'sliding_window' || o.openingKind === 'balcony_window'),
     );
     nodes.push({
       id: r.id,
@@ -238,6 +240,7 @@ function openingName(o: OpeningBlock): string {
     inner_door: '중문',
     open_passage: '트인 통로',
     window: '창문',
+    sliding_window: '미닫이창',
     balcony_window: '발코니 창',
     emergency_exit: '비상구',
   };

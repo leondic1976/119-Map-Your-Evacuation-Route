@@ -54,7 +54,7 @@ function nearAny(c: Cell, list: Cell[]): boolean {
 function windowCells(ctx: RuleContext): Cell[] {
   return ctx.plan.blocks
     .filter(isOpening)
-    .filter((o) => o.openingKind === 'window' || o.openingKind === 'balcony_window')
+    .filter((o) => o.openingKind === 'window' || o.openingKind === 'sliding_window' || o.openingKind === 'balcony_window')
     .map((o) => o.cell);
 }
 
@@ -559,4 +559,3 @@ export const EXTENSION_RULES: RuleDef[] = [E01, E02, E03, E04, W01, W02, W03, G0
 
 /** 보호자 미션으로 돌려주는 규칙들 — 못 채워도 진행을 막지 않는다 (P3) */
 export const GUARDIAN_RULES = RULES.filter((r) => r.guardianMissionId);
-

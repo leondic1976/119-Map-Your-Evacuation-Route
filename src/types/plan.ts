@@ -82,6 +82,8 @@ export type RoomKind =
   | 'entry'
   | 'balcony'
   | 'utility'
+  | 'closet'
+  | 'other'
   | 'corridor'
   | 'stair'
   /** 특별피난계단 부속실(피난전실). 계단 앞을 방화문으로 구획한 칸 */
@@ -98,6 +100,8 @@ export type OpeningKind =
   /** 문짝 없이 벽이 완전히 트인 곳 — 개방형 주방 등에 쓴다 */
   | 'open_passage'
   | 'window'
+  /** 벽을 따라 옆으로 미는 창 */
+  | 'sliding_window'
   | 'balcony_window'
   | 'emergency_exit';
 
@@ -121,7 +125,9 @@ export type FurnitureKind =
   | 'fridge'
   | 'tv'
   | 'sink'
-  | 'computer';
+  | 'computer'
+  | 'washing_machine'
+  | 'dryer';
 
 export type HazardKind = 'gas_range' | 'boiler' | 'power_strip' | 'heater' | 'candle';
 
@@ -165,6 +171,8 @@ export interface OpeningBlock {
   cell: Cell;
   /** 그 셀의 어느 벽면인가 */
   side: Side;
+  /** 벽을 따라 차지하는 길이. 예전 저장자료는 1칸으로 읽는다. */
+  span?: 1 | 2 | 3;
   closedByDefault: boolean;
   /** 통행 그래프에는 필요하지만 실제 벽이 없는 공용 구역 경계라 2D에는 그리지 않는다. */
   hideInPlan?: boolean;

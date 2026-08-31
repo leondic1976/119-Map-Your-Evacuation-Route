@@ -16,6 +16,10 @@ import {
   validateResidualProjection,
 } from '../src/core/plan/residual';
 import { canReflowShellRoom, reflowShellZones } from '../src/core/plan/reflow';
+import { completeShellSketch, preparedShellPlan } from '../src/core/plan/shellSketch';
+import { canResizeOpening } from '../src/core/grid/occupancy';
+import { CAMPAIGN_DEMO_RECORDS } from '../src/content/campaign-demo';
+import { emptyCampaignFilters, filterCampaignRecords, summarizeCampaign } from '../src/core/campaign/dashboard';
 import { isOpening, isPoint, isRoom, type EvacRoute, type FloorPlan, type Rect, type Side } from '../src/types/plan';
 import { VN } from '../src/types/graph';
 import { emptyProgress } from '../src/types/save';
@@ -43,6 +47,44 @@ function cases(): ResidualPlanRequest[] {
 }
 
 export function layoutTests(check: Check, assert: Assert): void {
+  check('준비된 외곽 8종은 방·가구 없이 이어진 공용 바닥에서 시작한다', () => {
+    for (const shell of SHELLS) {
+      const plan = preparedShellPlan(shell);
+      assert(Boolean(plan.shell?.cells.length), `${shell} 외곽 칸이 없다.`);
+      assert(plan.blocks.filter(isRoom).every((room) => room.wallMode === 'zone'), `${shell}에 미리 닫힌 방이 들어 있다.`);
+      assert(!plan.blocks.some(isPoint), `${shell}에 가구나 표시가 미리 들어 있다.`);
+    }
+  });
+
+  check('직각 외곽선은 내부 칸으로 바꾸고 너무 작은 외곽은 고칠 말을 돌려준다', () => {
+    const good = completeShellSketch([{ x: 2, y: 2 }, { x: 20, y: 2 }, { x: 20, y: 14 }, { x: 2, y: 14 }]);
+    assert(good.ok && good.cells.length === 216, `직사각형 외곽 결과 ${good.message} / ${good.cells.length}칸`);
+    const small = completeShellSketch([{ x: 2, y: 2 }, { x: 5, y: 2 }, { x: 5, y: 5 }, { x: 2, y: 5 }]);
+    assert(!small.ok && small.message.includes('네 칸'), `작은 외곽 안내가 알맞지 않다: ${small.message}`);
+  });
+
+  check('문과 창은 같은 곧은 벽에서 1·2·3칸 너비만 허용한다', () => {
+    const plan = preparedShellPlan('wide');
+    const opening = { kind: 'opening', id: 'wide-window', layer: 'home', openingKind: 'sliding_window', cell: { x: 4, y: 2 }, side: 'N', span: 1, closedByDefault: true } as const;
+    const withOpening = { ...plan, blocks: plan.blocks.concat(opening) } as FloorPlan;
+    assert(canResizeOpening(withOpening, opening, 1), '1칸 창을 유지할 수 없다.');
+    assert(canResizeOpening(withOpening, opening, 2), '2칸 창으로 늘릴 수 없다.');
+    assert(canResizeOpening(withOpening, opening, 3), '3칸 창으로 늘릴 수 없다.');
+    const edge = { ...opening, id: 'edge-window', cell: { x: 21, y: 2 } };
+    const atEdge = { ...plan, blocks: plan.blocks.concat(edge) } as FloorPlan;
+    assert(!canResizeOpening(atEdge, edge, 2), '외곽 끝을 넘어 창이 늘어난다.');
+  });
+
+  check('캠페인 지역·학교·학급 필터와 요약은 같은 학생 집합을 사용한다', () => {
+    const filters = { ...emptyCampaignFilters(), sidoCode: '28', sigunguCode: '28237', schoolId: 'demo-bupyeong-es', grade: '3학년', className: '2반' };
+    const filtered = filterCampaignRecords(CAMPAIGN_DEMO_RECORDS, filters);
+    assert(filtered.length > 0, '복합 필터 결과가 없다.');
+    assert(filtered.every((record) => record.region.sidoCode === '28' && record.school.id === 'demo-bupyeong-es' && record.grade === '3학년' && record.className === '2반'), '복합 필터 밖의 학생이 섞였다.');
+    const summary = summarizeCampaign(filtered);
+    assert(summary.participants === filtered.length, '요약 참여 인원과 표의 인원이 다르다.');
+    assert(summary.ready <= summary.participants, '준비 완료 인원이 참여 인원보다 많다.');
+  });
+
   check('테두리 8종 × 방 수 × 주방 × 방 위치 512가지를 모두 만든다', () => {
     for (const request of cases()) {
       const { plan } = generateResidualPlan(request);

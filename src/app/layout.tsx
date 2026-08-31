@@ -4,6 +4,7 @@ import '../ui/base.css';
 import '../ui/tailwind.css';
 import '../ui/kids.css';
 import '../ui/kids-game.css';
+import '../ui/dashboard.css';
 
 export const metadata: Metadata = {
   title: '우리집 대피지도',

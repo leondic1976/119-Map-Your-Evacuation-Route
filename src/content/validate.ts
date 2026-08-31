@@ -33,10 +33,10 @@ const CATEGORIES = ['room', 'opening', 'safety', 'furniture', 'hazard', 'marker'
 
 const ROOM_KINDS: RoomKind[] = [
   'bedroom', 'living', 'kitchen', 'bath', 'entry',
-  'balcony', 'utility', 'corridor', 'stair', 'elevator_hall',
+  'balcony', 'utility', 'closet', 'other', 'corridor', 'stair', 'refuge_lobby', 'elevator_hall',
 ];
 const OPENING_KINDS: OpeningKind[] = [
-  'door', 'sliding_door', 'front_door', 'inner_door', 'open_passage', 'window', 'balcony_window', 'emergency_exit',
+  'door', 'sliding_door', 'front_door', 'inner_door', 'open_passage', 'window', 'sliding_window', 'balcony_window', 'emergency_exit',
 ];
 
 /** CT-3 — 초등용 문장 하나의 길이 상한 */

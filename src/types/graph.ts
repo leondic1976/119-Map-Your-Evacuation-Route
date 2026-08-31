@@ -116,6 +116,7 @@ export const DEFAULT_PASSABILITY: Record<EdgeVia, Record<ScenarioKey, Passabilit
   open_passage: row(O, O, O, O, O),
   front_door: row(O, X, O, O, O),
   window: row(C, C, C, C, O),
+  sliding_window: row(C, C, C, C, O),
   balcony_window: row(O, O, O, O, O),
   emergency_exit: row(O, O, O, O, O),
   light_partition: row(X, O, X, X, X),

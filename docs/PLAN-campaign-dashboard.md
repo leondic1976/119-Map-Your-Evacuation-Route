@@ -1,0 +1,142 @@
+# 캠페인 대시보드 개발계획서
+
+작성일: 2026-08-31
+선행 문서: [연구보고서](./RESEARCH-campaign-dashboard.md), [v1.9 변경 명세](./DESIGN-v1.9-changes.md)
+
+## 1. 이번 개발 목표
+
+기존 편집기 안의 모달 대시보드를 제거하고 `/dashboard/` 독립 페이지를 만든다. 첫 배포는 GitHub
+Pages에서 안전하게 동작하는 PC용 체험판이며, 시도·시군구·읍면동과 학교·학년·반 필터, 캠페인
+콘텐츠, 상태 집계, 학생 목록을 실제로 조작할 수 있어야 한다.
+
+## 2. 범위
+
+### 이번에 구현
+
+- 독립 URL `/dashboard/`와 대피지도 편집기로 돌아가는 링크
+- 학생 친화적 캠페인 히어로 배경 이미지와 역할별 소개
+- 시도 → 시군구 → 읍면동 → 학교 → 학년 → 반 종속 필터
+- 전체/준비됨/함께 확인/작성 중 상태 필터와 이름 검색
+- 참여·지도 완성·소화기·두 경로·연습 요약 카드
+- 4대 안전 항목 진행률, 최근 6주 캠페인 흐름, 지역/학급 현황
+- 학생 활동 표와 데모/이 PC 자료 표시
+- 교실/가정/소방서용 캠페인 활동 카드
+- 필터·집계 순수 함수 단위검사와 Chromium 동작/접근성/스크린샷 검사
+
+### 이번에 구현하지 않음
+
+- 실제 기관 계정, 권한, 중앙 데이터베이스, 보호자 동의 수집
+- 학생 도면 공개 갤러리, 파일 업로드·다운로드, 문자/메일 발송
+- 지역/학교 공식 API 실시간 호출과 전체 대한민국 기준정보 번들
+- 점수 순위, 학교 간 경쟁, 학생 공개 프로필
+
+## 3. 기술 설계
+
+```text
+src/app/dashboard/page.tsx
+  └─ CampaignDashboardPage (client)
+     ├─ demoCampaignRecords
+     ├─ readCampaignRecords()    현재 브라우저 기록
+     ├─ filterCampaignRecords()  종속 필터와 검색
+     ├─ summarizeCampaign()      모든 카드/차트의 단일 집계
+     └─ Campaign components      hero/filter/cards/chart/table/actions
+```
+
+- 도메인 계산은 `src/core/campaign/dashboard.ts`에 두어 React와 브라우저 API에 의존하지 않는다.
+- 가상 기준자료는 `src/content/campaign-demo.ts`에 둔다. 학생 이름은 가상임을 명시한다.
+- 브라우저 저장 접근은 기존 `src/platform/campaign.ts`가 담당한다.
+- 화면은 `src/ui/CampaignDashboardPage.tsx`, 스타일은 별도 `src/ui/dashboard.css`로 분리한다.
+- GitHub Pages `basePath`를 적용한 링크와 이미지 경로를 사용한다.
+- 기존 `CampaignDashboard.tsx` 모달과 모달 전용 스타일/상태는 삭제한다.
+
+## 4. 데이터 모델
+
+```ts
+interface CampaignRecordV2 {
+  id: string;
+  source: 'demo' | 'local';
+  region: { sidoCode: string; sigunguCode: string; eupmyeondongCode: string };
+  school: { id: string; name: string; kind: 'elementary' | 'kindergarten' };
+  grade: number;
+  className: string;
+  studentName: string;
+  updatedAt: string;
+  score: CampaignScore;
+  checks: {
+    mapComplete: boolean;
+    extinguisherChecked: boolean;
+    twoRoutes: boolean;
+    practiced: boolean;
+  };
+}
+```
+
+기존 로컬 기록은 읽을 때 현재 프로필의 지역 기본값과 점수에서 계산한 상태를 붙여 v2 보기 모델로
+변환한다. 저장 형식은 이번 배포에서 바꾸지 않아 기존 자료가 사라지지 않게 한다.
+
+## 5. 화면 순서
+
+1. 상단 전역 탐색: 캠페인 로고/이름, 현황·학생 활동·캠페인 자료, 대피지도 그리기
+2. 히어로: 배경 삽화, “우리 동네 모두가 아는 두 갈래 대피길”, 선택 범위 요약
+3. 데이터 경계 고지: 데모/이 PC와 기관 서버 미연결 상태
+4. 종속 필터: 지역 3단계 + 학교 3단계, 검색, 상태
+5. 핵심 지표와 안전 준비 진행률
+6. 최근 흐름과 역할별 오늘 할 일
+7. 학생 활동 표
+8. 교실·가정·소방서 캠페인 자료와 운영 안내
+
+## 6. 이미지 제작 계획
+
+- AI 생성 이미지는 대시보드 히어로 배경 1장만 사용한다.
+- 16:7 비율의 넓은 교육용 일러스트, 오른쪽에 어린이와 친근한 소방 안전 캐릭터, 왼쪽에는
+  제목을 올릴 여백을 둔다.
+- 이미지 자체에는 글자·공식 로고·워터마크를 넣지 않는다. 부평소방서 표기는 HTML 텍스트로 제공한다.
+- 결과를 눈으로 확인한 뒤 `public/images/dashboard-campaign-hero.png`에 저장한다.
+- 버튼·필터·차트·아이콘은 CSS/SVG로 만들어 해상도와 접근성을 유지한다.
+
+## 7. 개발 단계
+
+### 1단계 — 도메인과 자료
+
+- 지역/학교 데모 자료와 v2 보기 모델
+- 종속 선택지, 필터, 검색, 상태, 집계 순수 함수
+- 기존 로컬 기록 변환
+- 단위검사: 빈 자료·복합 필터·상태·집계·기존 자료 변환
+
+### 2단계 — 독립 페이지
+
+- `/dashboard/` 라우트와 PC 해상도 게이트
+- 상단 탐색, 히어로, 고지, 필터, 요약, 차트, 활동 표, 콘텐츠 카드
+- 키보드 포커스, 표 제목/헤더, 상태의 비색상 표기
+
+### 3단계 — 앱 연결과 정리
+
+- 편집기 상단 `대시보드`를 독립 페이지 링크로 변경
+- 기존 모달 상태·컴포넌트·CSS 제거
+- README와 요청 관리대장 갱신
+
+### 4단계 — 검증과 배포
+
+- `npm run typecheck`, `npm run validate`, `npm test`
+- Chromium: 소개 → 프로필 → 편집기 → 대시보드 새 페이지, 6단계 종속 필터, 검색, 상태
+- 1024/1280/1440/1920 시각 검사, `npm run shots`
+- `npm run verify`, 커밋, `main` 푸시, GitHub Pages 배포와 운영 URL 확인
+
+## 8. 인수 기준
+
+- `/dashboard/`를 직접 새로고침해도 정적 배포에서 열린다.
+- 대시보드는 소개/프로필 절차를 거치지 않고 캠페인 사이트로 바로 열린다.
+- 시도를 바꾸면 시군구 이하, 학교를 바꾸면 학년 이하가 유효한 값으로 초기화된다.
+- 지역과 학교 필터를 함께 적용해도 카드·차트·표의 인원수가 일치한다.
+- 학생 검색과 상태 필터를 조합할 수 있고 빈 결과 안내가 있다.
+- 데모와 이 PC 자료가 구분되며 중앙 관리로 오해할 문구가 없다.
+- 개인 순위·학교 순위가 없고 안전 행동의 진행 상황만 제공한다.
+- 모든 상호작용 요소가 48px 이상이며 Esc로 닫아야 하는 오버레이를 만들지 않는다.
+
+## 9. 후속 운영 로드맵
+
+1. 기관 요구사항/개인정보 영향평가와 역할·보관정책 확정
+2. 공식 행정/학교 기준정보 동기화 배치와 변경 이력 관리
+3. 인증·RBAC·감사 로그가 있는 API/데이터베이스 구축
+4. 학교 단위 시범 운영, 접근성·교사 과업 사용성 시험
+5. 익명 지역 집계 공개와 권한 있는 기관 화면 분리

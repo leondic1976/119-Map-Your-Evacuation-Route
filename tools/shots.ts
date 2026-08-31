@@ -91,6 +91,17 @@ async function main(): Promise<void> {
   await page.screenshot({ path: path.join(dest, '2-spaces.png') });
   await page.locator('.k-stage [data-wall-mode="closed"]').first().click();
   await page.screenshot({ path: path.join(dest, '2a-room-adjust.png') });
+  const roomWall = await page.locator('.k-stage [data-wall-mode="closed"]').first().boundingBox();
+  if (!roomWall) throw new Error('미닫이창을 놓을 방 벽이 보이지 않는다.');
+  await page.locator('.k-cats .k-cat').nth(1).click();
+  await page.locator('[data-block-id="sliding_window"]').click();
+  await page.mouse.click(roomWall.x + roomWall.width * 0.14, roomWall.y + 2);
+  await page.waitForTimeout(400);
+  await page.locator('.k-stage [data-opening-kind="sliding_window"]').click();
+  await page.locator('[data-opening-resize="increase"]').click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(dest, '2b-sliding-length-delete.png') });
+  await page.locator('.k-stage [data-wall-mode="closed"]').first().click();
   await page.locator('[data-build-next]').click();
   await page.screenshot({ path: path.join(dest, '2b-furniture-name.png') });
   await page.locator('[data-build-next]').click();

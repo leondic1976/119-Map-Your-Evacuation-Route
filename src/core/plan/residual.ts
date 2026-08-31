@@ -136,7 +136,7 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
     const kitchenRect = findBox(shell, occupied, 'SW', 4, 3, true, boxes.map((box) => box.rect))
       ?? findBox(shell, occupied, 'S', 3, 3, false, boxes.map((box) => box.rect));
     if (kitchenRect) {
-      boxes.push({ id: 'box_kitchen', roomKind: 'kitchen', label: '문 있는 주방', rect: kitchenRect });
+      boxes.push({ id: 'box_kitchen', roomKind: 'kitchen', label: '벽 있는 주방(부엌)', rect: kitchenRect });
       addRect(occupied, kitchenRect);
     }
   }
@@ -170,7 +170,7 @@ export function generateResidualPlan(request: ResidualPlanRequest): ResidualPlan
       layer: 'home',
       roomKind: 'kitchen',
       rect: openKitchenRect,
-      label: '트인 주방',
+      label: '트인 주방(부엌)',
       showLabel: true,
       wallMode: 'zone',
     });
@@ -307,14 +307,14 @@ export function validateResidualProjection(plan: FloorPlan, request: ResidualPla
   if (!openings.some((opening) => opening.openingKind === 'front_door')) issues.push('현관문이 없다.');
   if (!request.kitchenClosed) {
     const kitchen = rooms.find((room) => room.id === 'zone_kitchen');
-    if (!kitchen) issues.push('트인 주방이 없다.');
+    if (!kitchen) issues.push('트인 주방(부엌)이 없다.');
     else if (!openings.some((opening) => {
       if (opening.openingKind !== 'open_passage') return false;
       const a = owner.get(cellKey(opening.cell));
       const b = owner.get(cellKey(step(opening.cell, opening.side)));
       return a === kitchen.id || b === kitchen.id;
     })) {
-      issues.push('트인 주방의 공유 벽이 열려 있지 않다.');
+      issues.push('트인 주방(부엌)의 공유 벽이 열려 있지 않다.');
     }
   }
   return Array.from(new Set(issues));

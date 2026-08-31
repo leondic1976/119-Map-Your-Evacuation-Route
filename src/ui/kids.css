@@ -708,6 +708,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 69px;
+  min-height: 69px;
+  box-sizing: border-box;
   padding: 6px 10px;
   border-bottom: 1px solid var(--k-line);
   background: var(--k-panel);
@@ -929,6 +932,57 @@
   border-color: var(--k-accent);
   background: var(--k-accent);
   color: #fff;
+}
+
+.k-opening-length button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 68px;
+  padding: 0 7px;
+}
+
+.k-opening-length button b {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.k-opening-length button small {
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.k-opening-length button:disabled {
+  color: #82909a;
+  background: #e4e9ec;
+  cursor: not-allowed;
+}
+
+.k-opening-length output {
+  min-width: 46px;
+  color: var(--k-accent);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.k-delete-selected {
+  min-height: var(--k-hit);
+  padding: 0 13px;
+  border: 1.5px solid #c76b6b;
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #812b2b;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.k-delete-selected:hover {
+  border-color: #a33d3d;
+  background: #fdeaea;
 }
 
 .k-build-name {
@@ -1915,5 +1969,18 @@
 @media (max-width: 1279px) {
   .k-app {
     --k-pal-w: 240px;
+  }
+
+  /* 선택 조작은 1024px PC에서도 가로 스크롤 없이 먼저 보이게 한다. */
+  .k-build-actions:has(.k-delete-selected) .k-build-copy {
+    display: none;
+  }
+
+  .k-opening-length > span {
+    display: none;
+  }
+
+  .k-opening-length button {
+    min-width: 58px;
   }
 }

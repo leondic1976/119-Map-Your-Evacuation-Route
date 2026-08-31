@@ -14,7 +14,7 @@ import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockName } from '../content';
 import { checklist, missingOf } from '../core/checklist';
 import { doorlessRooms } from '../core/grid/doors';
 import { eul, i } from '../core/josa';
-import { isOpening, isRoom, type RoomKind } from '../types/plan';
+import { isOpening, isRoom, type OpeningBlock, type OpeningSpan, type RoomKind } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
 import { firstIssue, ruleReportsFor, useKids } from '../store/kidsStore';
@@ -59,7 +59,7 @@ const CLOSED_ROOM_KINDS: { id: RoomKind; label: string }[] = [
 
 const OPEN_ZONE_KINDS: { id: RoomKind; label: string }[] = [
   { id: 'living', label: '거실' },
-  { id: 'kitchen', label: '트인 주방' },
+  { id: 'kitchen', label: '트인 주방(부엌)' },
   { id: 'entry', label: '현관' },
   { id: 'corridor', label: '복도' },
   { id: 'balcony', label: '베란다' },
@@ -69,7 +69,7 @@ const QUICK_ROOM_KINDS: { id: Extract<RoomKind, 'bath' | 'entry' | 'balcony' | '
   { id: 'bath', mode: 'closed', label: '욕실', title: '벽이 있는 욕실을 추가해요' },
   { id: 'entry', mode: 'closed', label: '현관', title: '신발을 벗는 현관을 추가해요' },
   { id: 'balcony', mode: 'closed', label: '발코니·베란다', title: '발코니 또는 베란다를 추가해요' },
-  { id: 'kitchen', mode: 'zone', label: '트인 주방', title: '거실과 벽 없이 이어진 주방 범위를 그려요' },
+  { id: 'kitchen', mode: 'zone', label: '트인 주방(부엌)', title: '거실과 벽 없이 이어진 주방(부엌) 범위를 그려요' },
 ];
 
 export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }) {
@@ -423,13 +423,13 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                 <div className="k-build-actions">
                   <div className="k-build-copy">
                     <b>{buildTitle(step, easy)}</b>
-                    <span>{quickRoom ? quickRoom.mode === 'zone' ? `${eul(quickRoom.label)} 골랐어. 빈 바닥에서 끌어 주방 크기를 그려 줘.` : `${eul(quickRoom.label)} 골랐어. 이제 도면의 빈 곳을 눌러 놓아 줘.` : buildHelp(step, easy, Boolean(step === 'spaces' ? selectedRoom || selectedOpening : step === 'structure' ? selectedClosedRoom || selectedOpening : true), selectedOpenZone?.roomKind)}</span>
+                    <span>{quickRoom ? quickRoom.mode === 'zone' ? `${eul(quickRoom.label)} 골랐어. 빈 바닥에서 끌어 주방(부엌) 크기를 그려 줘.` : `${eul(quickRoom.label)} 골랐어. 이제 도면의 빈 곳을 눌러 놓아 줘.` : buildHelp(step, easy, Boolean(step === 'spaces' ? selectedRoom || selectedOpening : step === 'structure' ? selectedClosedRoom || selectedOpening : true), selectedOpenZone?.roomKind)}</span>
                     {step === 'spaces' && (
                       <>
                         <div className="k-space-quick" role="group" aria-label="자주 쓰는 공간 바로 추가">
                           {QUICK_ROOM_KINDS.map((item) => {
                             const pressed = armed?.category === 'room' && armed.id === item.id && (armed.roomMode ?? 'closed') === item.mode;
-                            const label = item.id === 'kitchen' && hasOpenKitchen ? '트인 주방 다시' : item.label;
+                            const label = item.id === 'kitchen' && hasOpenKitchen ? '트인 주방(부엌) 다시' : item.label;
                             return (
                               <button
                                 key={`${item.id}-${item.mode}`}
@@ -446,10 +446,20 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                             );
                           })}
                         </div>
-                        <span className="k-space-kitchen-note">벽과 문이 있는 주방은 왼쪽의 ‘부엌’을 골라요.</span>
+                        <span className="k-space-kitchen-note">대부분은 ‘트인 주방(부엌)’을 골라요. 벽과 문이 있으면 왼쪽의 ‘주방(부엌)’을 골라요.</span>
                       </>
                     )}
                   </div>
+                  {selectedBlock && (
+                    <button
+                      type="button"
+                      className="k-delete-selected"
+                      data-delete-selected
+                      aria-label={isRoom(selectedBlock) && selectedBlock.wallMode === 'zone' ? '공간 용도 삭제하기' : '선택한 것 삭제하기'}
+                      title="화면 버튼이나 Delete 키로 지울 수 있어요"
+                      onClick={() => useKids.getState().removeBlock(selectedBlock.id)}
+                    >삭제하기</button>
+                  )}
                   {step === 'spaces' && selectedClosedRoom && (
                     <div className="k-build-choices" role="group" aria-label="고른 독립실의 종류">
                       {CLOSED_ROOM_KINDS.map((item) => (
@@ -480,12 +490,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                     </label>
                   )}
                   {(step === 'spaces' || step === 'structure') && selectedOpening && !selectedOpening.hideInPlan && (
-                    <div className="k-opening-size" role="group" aria-label="고른 문 또는 창의 너비">
-                      <span>문·창 너비</span>
-                      {([1, 2, 3] as const).map((span) => (
-                        <button key={span} type="button" aria-pressed={(selectedOpening.span ?? 1) === span} data-opening-span={span} onClick={() => useKids.getState().resizeOpening(selectedOpening.id, span)}>{span}칸</button>
-                      ))}
-                    </div>
+                    <OpeningSizeControl opening={selectedOpening} />
                   )}
                   {step === 'safety' && (
                     <div className={`k-safety-check${plan.blocks.some((block) => block.kind === 'safety' && block.subKind === 'extinguisher') ? ' done' : ''}`} role="status">
@@ -524,6 +529,17 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                     {easy ? '이 길 지우기' : '이 경로 지우기'}
                   </button>
                 )}
+                {selectedBlock && (
+                  <button
+                    type="button"
+                    className="k-delete-selected"
+                    data-delete-selected
+                    aria-label={isRoom(selectedBlock) && selectedBlock.wallMode === 'zone' ? '공간 용도 삭제하기' : '선택한 것 삭제하기'}
+                    title="화면 버튼이나 Delete 키로 지울 수 있어요"
+                    onClick={() => useKids.getState().removeBlock(selectedBlock.id)}
+                  >삭제하기</button>
+                )}
+                {selectedOpening && !selectedOpening.hideInPlan && <OpeningSizeControl opening={selectedOpening} />}
                 <span className="k-spacer" />
                 <label className="k-chk" title="계산으로 찾은 가장 짧은 길을 회색 점선으로 보여 준다">
                   <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
@@ -817,6 +833,42 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   );
 }
 
+function OpeningSizeControl({ opening }: { opening: OpeningBlock }) {
+  const span = opening.span ?? 1;
+  const sliding = opening.openingKind === 'sliding_door' || opening.openingKind === 'sliding_window';
+  if (sliding) {
+    const name = opening.openingKind === 'sliding_door' ? '미닫이문' : '미닫이창';
+    return (
+      <div className="k-opening-size k-opening-length" role="group" aria-label={`${name} 길이 조절`}>
+        <span>{name} 길이</span>
+        <button
+          type="button"
+          disabled={span <= 1}
+          data-opening-resize="decrease"
+          aria-label="길이 줄이기"
+          onClick={() => useKids.getState().resizeOpening(opening.id, Math.max(1, span - 1) as OpeningSpan)}
+        ><b aria-hidden="true">−</b><small>줄이기</small></button>
+        <output data-opening-length aria-live="polite">{span}칸</output>
+        <button
+          type="button"
+          disabled={span >= 6}
+          data-opening-resize="increase"
+          aria-label="길이 늘리기"
+          onClick={() => useKids.getState().resizeOpening(opening.id, Math.min(6, span + 1) as OpeningSpan)}
+        ><b aria-hidden="true">＋</b><small>늘리기</small></button>
+      </div>
+    );
+  }
+  return (
+    <div className="k-opening-size" role="group" aria-label="고른 문 또는 창의 너비">
+      <span>문·창 너비</span>
+      {([1, 2, 3] as const).map((candidate) => (
+        <button key={candidate} type="button" aria-pressed={span === candidate} data-opening-span={candidate} onClick={() => useKids.getState().resizeOpening(opening.id, candidate)}>{candidate}칸</button>
+      ))}
+    </div>
+  );
+}
+
 function sevLabel(sev: 'critical' | 'important' | 'tip', easy: boolean): string {
   if (sev === 'critical') return easy ? '꼭' : '필수';
   if (sev === 'important') return '중요';
@@ -888,8 +940,8 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
 }
 
 function buildTitle(step: string, easy: boolean): string {
-  if (step === 'spaces') return easy ? '방·주방·문·창을 놓고 크기도 맞춰 보자' : '실·주방·문·창 배치와 크기 조정';
-  if (step === 'structure') return easy ? '방의 자리와 크기, 문·창 너비를 맞춰 보자' : '실·문·창 크기와 위치 조정';
+  if (step === 'spaces') return easy ? '방·주방(부엌)·문·창을 놓고 크기도 맞춰 보자' : '실·주방(부엌)·문·창 배치와 크기 조정';
+  if (step === 'structure') return easy ? '방의 자리와 크기, 문·창 길이를 맞춰 보자' : '실·문·창 크기와 위치 조정';
   if (step === 'furniture') return easy ? '집에 있는 가구와 가전제품을 놓아 보자' : '가구·가전 배치와 공간 이름 지정';
   if (step === 'safety') return easy ? '우리 집 소화기는 어디 있는지 확인해 보자' : '실제 소화기 위치 확인·배치';
   if (step === 'mySpot') return easy ? '내 방에서 내가 자거나 자주 있는 곳을 눌러 줘' : '내 방과 내 위치 지정';
@@ -899,16 +951,16 @@ function buildTitle(step: string, easy: boolean): string {
 
 function buildHelp(step: string, easy: boolean, selected: boolean, openZone?: RoomKind): string {
   if (step === 'spaces' && openZone === 'kitchen') return easy
-    ? '트인 주방은 위의 ‘트인 주방 다시’를 누르고 새 범위를 그리면 자리와 크기가 바뀌어.'
-    : '열린 주방은 빠른 추가에서 범위를 다시 지정해 위치와 크기를 바꿉니다.';
+    ? '트인 주방(부엌)은 위의 ‘트인 주방(부엌) 다시’를 누르고 새 범위를 그리면 자리와 크기가 바뀌어.'
+    : '트인 주방(부엌)은 빠른 추가에서 범위를 다시 지정해 위치와 크기를 바꿉니다.';
   if (step === 'spaces' && openZone) return easy
     ? '벽 없는 바닥이야. 위 단추로 종류를 바꾸거나 독립실을 놓으면 남은 모양이 저절로 바뀌어.'
     : '열린 바닥은 용도를 바꾸거나 독립실 배치에 따라 자동 재구성됩니다.';
   if (step === 'spaces') return selected
-    ? (easy ? '방은 끌어서 옮기고 테두리 점으로 크기를 바꿔. 문·창은 1·2·3칸 너비도 고를 수 있어.' : '선택한 실은 이동·8방향 크기 조정, 문·창은 1~3칸 폭 조정이 가능합니다.')
-    : (easy ? '방과 트인 주방을 놓고, 실제 벽에는 여닫이문·미닫이문·창문을 붙여.' : '구획실과 열린 주방을 배치하고 문·창을 실제 경계에 놓으세요.');
+    ? (easy ? '방은 끌거나 테두리 점으로 바꿔. 미닫이문·창은 줄이기·늘리기로 길이를 맞출 수 있어.' : '실은 이동·8방향 크기 조정, 미닫이문·창은 1~6칸 길이 조정이 가능합니다.')
+    : (easy ? '방과 트인 주방(부엌)을 놓고, 실제 벽에는 여닫이문·미닫이문·창문을 붙여.' : '구획실과 트인 주방(부엌)을 배치하고 문·창을 실제 경계에 놓으세요.');
   if (step === 'structure') return selected
-    ? (easy ? '방은 끌거나 테두리 점으로 바꾸고, 문·창은 1칸·2칸·3칸 너비를 골라.' : '실은 드래그/8방향 핸들, 문·창은 1~3칸 폭으로 조정합니다.')
+    ? (easy ? '방은 끌거나 테두리 점으로 바꾸고, 미닫이문·창은 줄이기·늘리기로 길이를 맞춰.' : '실은 드래그/8방향 핸들, 미닫이문·창은 1~6칸 길이로 조정합니다.')
     : (easy ? '방이나 문·창을 먼저 눌러 줘.' : '닫힌 실 또는 문·창을 선택해 크기와 위치를 조정하세요.');
   if (step === 'furniture') return easy ? '침대·소파·옷장·싱크대·냉장고·TV·세탁기·건조기처럼 실제로 있는 것을 놓아.' : '가구·가전·위험원을 실제 위치에 놓고 선택한 공간 이름을 수정하세요.';
   if (step === 'safety') return easy ? '실제 소화기를 찾아 왼쪽에서 골라 놓아. 모르면 부모님이나 선생님과 같이 찾아보자.' : '실제 소화기 위치를 보호자·교사와 확인한 뒤 배치하세요.';

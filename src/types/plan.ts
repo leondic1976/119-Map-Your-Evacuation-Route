@@ -172,11 +172,14 @@ export interface OpeningBlock {
   /** 그 셀의 어느 벽면인가 */
   side: Side;
   /** 벽을 따라 차지하는 길이. 예전 저장자료는 1칸으로 읽는다. */
-  span?: 1 | 2 | 3;
+  span?: OpeningSpan;
   closedByDefault: boolean;
   /** 통행 그래프에는 필요하지만 실제 벽이 없는 공용 구역 경계라 2D에는 그리지 않는다. */
   hideInPlan?: boolean;
 }
+
+/** 미닫이문·미닫이창까지 표현할 수 있는 개구부 길이. */
+export type OpeningSpan = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface PointBlock {
   kind: 'safety' | 'furniture' | 'hazard' | 'marker';

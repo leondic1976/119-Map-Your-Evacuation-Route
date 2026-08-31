@@ -15,7 +15,7 @@ import {
   type Side8,
   validateResidualProjection,
 } from '../src/core/plan/residual';
-import { canDefineShellZone, canReflowShellRoom, defineShellZone, reflowShellFloor, reflowShellZones } from '../src/core/plan/reflow';
+import { canDefineShellZone, canReflowShellRoom, clearShellZone, defineShellZone, reflowShellFloor, reflowShellZones } from '../src/core/plan/reflow';
 import { completeShellSketch, preparedShellPlan } from '../src/core/plan/shellSketch';
 import { canResizeOpening } from '../src/core/grid/occupancy';
 import { CAMPAIGN_DEMO_RECORDS } from '../src/content/campaign-demo';
@@ -81,6 +81,14 @@ export function layoutTests(check: Check, assert: Assert): void {
     const secondKitchen = new Set(second.blocks.filter(isRoom).filter((room) => room.wallMode === 'zone' && room.roomKind === 'kitchen').flatMap((room) => cellsOf(room.rect)).map(cellKey));
     assert(secondKitchen.size === 12 && cellsOf(secondRect).every((cell) => secondKitchen.has(cellKey(cell))), '다시 그린 주방 범위가 맞지 않는다.');
     assert(cellsOf(firstRect).some((cell) => !secondKitchen.has(cellKey(cell))), '이전 주방 범위가 그대로 남았다.');
+    const kitchenRoom = second.blocks.find((block) => isRoom(block) && block.wallMode === 'zone' && block.roomKind === 'kitchen');
+    assert(Boolean(kitchenRoom), '삭제할 트인 주방 구역이 없다.');
+    if (!kitchenRoom || !isRoom(kitchenRoom)) return;
+    const cleared = clearShellZone(second, kitchenRoom.id);
+    assert(Boolean(cleared), '트인 주방 용도를 삭제하지 못했다.');
+    if (!cleared) return;
+    assert(!cleared.blocks.some((block) => isRoom(block) && block.wallMode === 'zone' && block.roomKind === 'kitchen'), '삭제한 트인 주방 용도가 남았다.');
+    assert(cellsOf(secondRect).every((cell) => cleared.blocks.filter(isRoom).some((room) => room.wallMode === 'zone' && room.roomKind === 'living' && cellsOf(room.rect).some((owned) => cellKey(owned) === cellKey(cell)))), '삭제한 주방 범위가 거실 바닥으로 돌아오지 않았다.');
 
     const closed = {
       kind: 'room', id: 'closed-test', layer: 'home', roomKind: 'bath', rect: { x: 4, y: 4, w: 3, h: 3 },
@@ -100,13 +108,20 @@ export function layoutTests(check: Check, assert: Assert): void {
     assert(!small.ok && small.message.includes('네 칸'), `작은 외곽 안내가 알맞지 않다: ${small.message}`);
   });
 
-  check('문과 창은 같은 곧은 벽에서 1·2·3칸 너비만 허용한다', () => {
+  check('미닫이문·미닫이창은 같은 곧은 벽에서 1~6칸 길이를 늘리고 줄이며 경계·충돌을 넘지 않는다', () => {
     const plan = preparedShellPlan('wide');
     const opening = { kind: 'opening', id: 'wide-window', layer: 'home', openingKind: 'sliding_window', cell: { x: 4, y: 2 }, side: 'N', span: 1, closedByDefault: true } as const;
     const withOpening = { ...plan, blocks: plan.blocks.concat(opening) } as FloorPlan;
     assert(canResizeOpening(withOpening, opening, 1), '1칸 창을 유지할 수 없다.');
-    assert(canResizeOpening(withOpening, opening, 2), '2칸 창으로 늘릴 수 없다.');
     assert(canResizeOpening(withOpening, opening, 3), '3칸 창으로 늘릴 수 없다.');
+    assert(canResizeOpening(withOpening, opening, 6), '6칸 미닫이창으로 늘릴 수 없다.');
+    const slidingDoor = { ...opening, id: 'wide-sliding-door', openingKind: 'sliding_door' as const };
+    const withSlidingDoor = { ...plan, blocks: plan.blocks.concat(slidingDoor) } as FloorPlan;
+    assert(canResizeOpening(withSlidingDoor, slidingDoor, 6), '미닫이문을 6칸 길이로 늘릴 수 없다.');
+    assert(canResizeOpening({ ...withSlidingDoor, blocks: withSlidingDoor.blocks.map((block) => block.id === slidingDoor.id ? { ...slidingDoor, span: 6 } : block) }, { ...slidingDoor, span: 6 }, 1), '미닫이문을 1칸 길이로 줄일 수 없다.');
+    const blocker = { ...opening, id: 'blocking-window', cell: { x: 9, y: 2 } };
+    const blocked = { ...plan, blocks: plan.blocks.concat([opening, blocker]) } as FloorPlan;
+    assert(!canResizeOpening(blocked, opening, 6), '다른 창과 겹치며 미닫이창이 늘어난다.');
     const edge = { ...opening, id: 'edge-window', cell: { x: 21, y: 2 } };
     const atEdge = { ...plan, blocks: plan.blocks.concat(edge) } as FloorPlan;
     assert(!canResizeOpening(atEdge, edge, 2), '외곽 끝을 넘어 창이 늘어난다.');

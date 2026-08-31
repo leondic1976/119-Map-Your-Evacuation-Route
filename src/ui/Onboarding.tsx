@@ -94,7 +94,7 @@ export default function Onboarding({ open, onClose }: Props) {
     : page === 'gallery'
       ? '우리 집과 가까운 템플릿을 골라 봐'
       : page === 'customize'
-        ? '방향과 주방 모양을 맞춰 보자'
+        ? '방향과 주방(부엌) 모양을 맞춰 보자'
         : page === 'direct'
           ? '집 바깥 모양부터 직접 만들어 보자'
           : page === 'shell'
@@ -159,12 +159,12 @@ export default function Onboarding({ open, onClose }: Props) {
             </section>
             <section className="k-customize-options">
               {hasKitchen && <fieldset className="k-choice-field">
-                <legend>주방은 거실 쪽이 트여 있어?</legend>
+                <legend>주방(부엌)은 거실 쪽이 트여 있어?</legend>
                 <p>벽이 없어서 그냥 걸어갈 수 있으면 “트여 있어”를 골라.</p>
                 <div className="k-segmented k-kitchen-choices">
                   {([['open', '트여 있어'], ['closed', '벽과 문이 있어'], ['unsure', '잘 모르겠어']] as [KitchenChoice, string][]).map(([value, label]) => <button key={value} type="button" className={kitchen === value ? 'on' : ''} data-kitchen={value} aria-pressed={kitchen === value} onClick={() => setKitchen(value)}>{label}</button>)}
                 </div>
-                {kitchen === 'unsure' && <small className="k-choice-help">괜찮아. 가장 흔한 트인 주방으로 시작할게.</small>}
+                {kitchen === 'unsure' && <small className="k-choice-help">괜찮아. 가장 흔한 트인 주방(부엌)으로 시작할게.</small>}
               </fieldset>}
               <fieldset className="k-choice-field">
                 <legend>현관과 방 방향이 비슷하게 돌려 볼까?</legend>

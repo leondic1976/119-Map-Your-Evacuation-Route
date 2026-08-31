@@ -4,7 +4,7 @@
  * 방은 직사각형만 허용한다(docs/DESIGN-v1.0.md §4.2). L 자 방은 사각형 둘을 붙여 만든다.
  * 이 제약이 인접 판정을 결정론적으로 만들고 아이의 조작 난이도도 낮춘다.
  */
-import type { Block, BlockId, Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
+import type { Block, BlockId, Cell, FloorPlan, OpeningBlock, OpeningSpan, Rect, RoomBlock, Side } from '../../types/plan';
 import { isRoom } from '../../types/plan';
 import { cellKey, cellsOf, rectsOverlap } from './geometry';
 
@@ -83,7 +83,7 @@ export function openingAt(plan: FloorPlan, cell: Cell, side: string, ignoreId?: 
 }
 
 /** 선택한 문·창을 같은 벽 방향으로 span칸 늘릴 수 있는지 확인한다. */
-export function canResizeOpening(plan: FloorPlan, opening: OpeningBlock, span: 1 | 2 | 3): boolean {
+export function canResizeOpening(plan: FloorPlan, opening: OpeningBlock, span: OpeningSpan): boolean {
   const probe: OpeningBlock = { ...opening, span };
   const boundary = new Set<string>();
   for (const room of rooms(plan).filter((candidate) => candidate.wallMode !== 'zone')) {

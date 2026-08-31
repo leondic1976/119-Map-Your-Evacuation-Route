@@ -60,6 +60,26 @@ export function defineShellZone(plan: FloorPlan, source: RoomBlock): FloorPlan |
   return reflowShellFloor({ ...plan, blocks: reset.concat({ ...source, wallMode: 'zone' }) });
 }
 
+/**
+ * 벽 없는 용도 구역을 지우되 집 바닥은 유지한다. 선택한 주방·복도·베란다 영역을 거실로
+ * 되돌린 뒤 잔여 바닥과 숨은 통로를 다시 계산한다.
+ */
+export function clearShellZone(plan: FloorPlan, roomId: string): FloorPlan | null {
+  const target = plan.blocks.find((block) => block.id === roomId && isRoom(block));
+  if (!target || !isRoom(target) || target.wallMode !== 'zone') return null;
+  if (target.roomKind === 'living') return plan;
+  const hasVisibleLiving = plan.blocks
+    .filter(isRoom)
+    .some((room) => room.id !== roomId && room.wallMode === 'zone' && room.roomKind === 'living' && room.showLabel !== false);
+  const changed: FloorPlan = {
+    ...plan,
+    blocks: plan.blocks.map((block) => block.id === roomId && isRoom(block)
+      ? { ...block, roomKind: 'living' as const, label: hasVisibleLiving ? '' : '거실', showLabel: !hasVisibleLiving }
+      : block),
+  };
+  return plan.shell ? reflowShellFloor(changed) : changed;
+}
+
 /** 독립실의 다음 사각형으로 공용 바닥을 무리 없이 다시 만들 수 있는가. */
 export function canReflowShellRoom(plan: FloorPlan, roomId: string, nextRect: Rect): boolean {
   if (!plan.shell) return false;

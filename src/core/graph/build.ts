@@ -27,7 +27,7 @@ import { cellKey, cellsOf, rectCentroid, rectsOverlap, step } from '../grid/geom
 export const ROOM_LABEL: Record<RoomBlock['roomKind'], string> = {
   bedroom: '방',
   living: '거실',
-  kitchen: '주방',
+  kitchen: '주방(부엌)',
   bath: '욕실',
   entry: '현관',
   balcony: '발코니',

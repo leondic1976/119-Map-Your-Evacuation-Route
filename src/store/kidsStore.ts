@@ -18,6 +18,7 @@ import type {
   HazardKindId,
   LayerId,
   OpeningKind,
+  OpeningSpan,
   PointKind,
   RoomKind,
   RoutePair,
@@ -47,7 +48,7 @@ import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { preparePlan, rotatePlan, type PlanRotation, type PreparePlanOptions } from '../core/plan/prepare';
 import { generateResidualPlan, type ResidualPlanRequest } from '../core/plan/residual';
-import { defineShellZone, reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
+import { clearShellZone, defineShellZone, reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
 import { shellOnlyPlan } from '../core/plan/shellSketch';
 import { loadKids, saveKids } from './storage';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
@@ -174,7 +175,7 @@ export interface KidsActions {
   renameRoom: (id: BlockId, label: string) => void;
   /** 개구부의 평소 상태를 뒤집는다 — 열어 둠 ↔ 닫아 둠 (설계서 v1.2 §2.4) */
   toggleOpening: (id: BlockId) => void;
-  resizeOpening: (id: BlockId, span: 1 | 2 | 3) => void;
+  resizeOpening: (id: BlockId, span: OpeningSpan) => void;
   removeBlock: (id: BlockId) => void;
   /** 온보딩 — 방을 눌러 내 자리를 정한다 */
   pickMyRoom: (cell: Cell) => boolean;
@@ -566,7 +567,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       const detail = options?.roomsOnly
         ? '방만 먼저 놓았다. 옮기고 늘린 뒤 문과 물건을 더하자.'
         : options?.openKitchen
-          ? '주방 쪽 벽이 트인 모양으로 불러왔다. 우리 집에 맞게 고쳐 보자.'
+          ? '주방(부엌) 쪽 벽이 트인 모양으로 불러왔다. 우리 집에 맞게 고쳐 보자.'
           : '우리 집에 맞게 고쳐 보자.';
       get().notify(`${eul(templateName(t, get().profile.gradeMode))} 불러왔다. ${detail}`);
       /* 화재 한 종만 다루므로 1층·반지하를 묻지 않는다 (설계서 v1.6 §2) */
@@ -584,7 +585,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       commit({ plan, routes: {} });
       set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
       get().countOp();
-      get().notify('방 상자를 놓고 남은 자리에 거실과 주방을 만들었다. 우리 집처럼 옮기고 늘려 보자.');
+      get().notify('방 상자를 놓고 남은 자리에 거실과 주방(부엌)을 만들었다. 우리 집처럼 옮기고 늘려 보자.');
       if (!get().onboarded) get().finishOnboarding(false);
       else get().setStep('spaces');
     },
@@ -630,7 +631,7 @@ export const useKids = create<KidsStore>()((set, get) => {
     placeZone: (roomKind, at, rect) => {
       const plan = get().plan;
       if (!plan.shell) {
-        get().notify('트인 주방은 집 모양을 먼저 만든 뒤 남은 바닥에 그려 주세요.', 'warn');
+        get().notify('트인 주방(부엌)은 집 모양을 먼저 만든 뒤 남은 바닥에 그려 주세요.', 'warn');
         return false;
       }
       const def = blockDef(roomKind);
@@ -649,14 +650,14 @@ export const useKids = create<KidsStore>()((set, get) => {
       if (!isRoom(zone)) return false;
       const next = defineShellZone(plan, zone);
       if (!next) {
-        get().notify('그곳에는 트인 주방을 그릴 수 없어요. 집 안의 방과 겹치지 않는 빈 바닥을 골라 주세요.', 'warn');
+        get().notify('그곳에는 트인 주방(부엌)을 그릴 수 없어요. 집 안의 방과 겹치지 않는 빈 바닥을 골라 주세요.', 'warn');
         return false;
       }
       commit({ plan: next });
       firstPlaced(roomKind);
       get().countOp();
       playTap();
-      get().notify(roomKind === 'kitchen' ? '트인 주방을 만들었어요. 다시 그리면 자리와 크기가 바뀌어요.' : `${zone.label} 구역을 만들었어요.`);
+      get().notify(roomKind === 'kitchen' ? '트인 주방(부엌)을 만들었어요. 다시 그리면 자리와 크기가 바뀌어요.' : `${zone.label} 구역을 만들었어요.`);
       return true;
     },
 
@@ -849,7 +850,8 @@ export const useKids = create<KidsStore>()((set, get) => {
       }
       commit({ plan: { ...plan, blocks: plan.blocks.map((block) => block.id === id && isOpening(block) ? { ...block, span } : block) } });
       get().countOp();
-      get().notify(`${span}칸 너비로 바꿨다.`);
+      const sliding = target.openingKind === 'sliding_door' || target.openingKind === 'sliding_window';
+      get().notify(`${span}칸 ${sliding ? '길이' : '너비'}로 바꿨다.`);
     },
 
     removeBlock: (id) => {
@@ -857,7 +859,19 @@ export const useKids = create<KidsStore>()((set, get) => {
       const b = plan.blocks.find((x) => x.id === id);
       if (!b) return;
       if (isRoom(b) && b.wallMode === 'zone') {
-        get().notify('열린 바닥은 지우지 않아도 된다. 독립실을 놓으면 남은 자리를 저절로 채운다.', 'warn');
+        if (b.roomKind === 'living') {
+          get().notify('거실 바닥은 집 안을 채우는 기본 공간이라 지우지 않는다. 다른 용도로 바꿀 수 있다.');
+          return;
+        }
+        const cleared = clearShellZone(plan, b.id);
+        if (!cleared) {
+          get().notify('이 열린 공간의 용도를 지울 수 없다.', 'warn');
+          return;
+        }
+        commit({ plan: cleared });
+        set({ selection: null, multi: [] });
+        get().countOp();
+        get().notify('공간 용도를 지우고 거실 바닥으로 되돌렸다.');
         return;
       }
       let blocks = plan.blocks.filter((x) => x.id !== id);

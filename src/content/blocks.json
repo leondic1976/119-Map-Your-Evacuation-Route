@@ -32,8 +32,8 @@
   {
     "id": "kitchen",
     "category": "room",
-    "label": "주방",
-    "easy": "부엌",
+    "label": "주방(부엌)",
+    "easy": "주방(부엌)",
     "size": {
       "w": 4,
       "h": 4

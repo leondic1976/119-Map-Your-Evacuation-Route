@@ -175,7 +175,7 @@ export default function Palette() {
 
       {armed && (
         <div className="k-armed" role="status">
-          {armed.category === 'room' ? armed.roomMode === 'zone' ? '빈 바닥에서 끌어 트인 주방 범위를 그려. 다시 그리면 자리와 크기가 바뀌어.' : '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
+          {armed.category === 'room' ? armed.roomMode === 'zone' ? '빈 바닥에서 끌어 트인 주방(부엌) 범위를 그려. 다시 그리면 자리와 크기가 바뀌어.' : '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
           {' '}
           <b>한 번에 하나씩 놓여.</b> 또 놓으려면 여기서 다시 고르자.
           <button type="button" className="k-link" onClick={() => arm(null)}>
@@ -246,6 +246,7 @@ function PaletteButton({
 }
 
 function hintFor(b: BlockDef, easy: boolean): string {
+  if (b.id === 'kitchen') return easy ? '벽과 문이 있는 주방(부엌)이야. 대부분의 집은 위쪽 트인 주방(부엌)을 골라.' : '벽과 문으로 나뉜 주방(부엌)입니다. 개방형은 빠른 추가에서 범위를 지정합니다.';
   if (b.category === 'room') return easy ? '도면을 누르면 방이 놓인다.' : '클릭하면 표준 크기로 놓이고, 드래그하면 그 크기로 놓인다.';
   if (b.id === 'door') return easy ? '앞뒤로 여는 문이다. 방의 벽을 누르자.' : '경첩으로 여는 방문이다. 방 경계선에 놓는다.';
   if (b.id === 'sliding_door') return easy ? '옆으로 미는 문이다. 방의 벽을 누르자.' : '옆으로 미는 방문이다. 방 경계선에 놓는다.';

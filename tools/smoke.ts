@@ -696,6 +696,7 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-cats .k-cat').count()) === 2, '실·문·창 단계의 방·문 팔레트가 아니다');
       const quickRooms = page.locator('[data-quick-room]');
       assert((await quickRooms.count()) === 4, '욕실·현관·발코니·트인 주방 바로 추가 단추 네 개가 없다');
+      assert((await page.locator('[data-quick-room="kitchen"]').innerText()).includes('트인 주방(부엌)'), '트인 주방(부엌) 표기가 빠졌다');
       for (const quick of [
         { id: 'bath', label: '욕실', x: 10, y: 3 },
         { id: 'entry', label: '현관', x: 16, y: 3 },
@@ -716,7 +717,7 @@ async function main(): Promise<void> {
       assert((await kitchenButton.getAttribute('data-room-mode')) === 'zone', '트인 주방이 벽 없는 구역 도구가 아니다');
       await kitchenButton.click();
       assert((await kitchenButton.getAttribute('aria-pressed')) === 'true', '트인 주방 단추가 선택되지 않았다');
-      assert((await page.locator('.k-build-copy').innerText()).includes('끌어 주방 크기'), '트인 주방 범위를 그리는 방법을 안내하지 않는다');
+      assert((await page.locator('.k-build-copy').innerText()).includes('끌어 주방(부엌) 크기'), '트인 주방(부엌) 범위를 그리는 방법을 안내하지 않는다');
       const kitchenPlan = await kidsPlan(page);
       await dragPlanCells(page, kitchenPlan, { x: 17, y: 8 }, { x: 20, y: 12 });
       await page.waitForTimeout(800);
@@ -725,7 +726,25 @@ async function main(): Promise<void> {
       assert(kitchenZones.length >= 1, '트인 주방 범위를 그려도 주방 구역이 생기지 않았다');
       assert(zonedPlan.blocks.some((block) => block.openingKind === 'open_passage' && (block as BrowserBlock & { hideInPlan?: boolean }).hideInPlan), '트인 주방과 거실 사이 열린 통로가 없다');
       assert((await kitchenButton.getAttribute('aria-pressed')) === 'false' && (await kitchenButton.innerText()).includes('다시'), '트인 주방을 만든 뒤 다시 그릴 수 있다는 표시가 없다');
-      assert((await page.locator('[data-block-id="kitchen"]').count()) === 1, '벽 있는 독립 주방을 놓는 왼쪽 부엌 도구가 없다');
+      const closedKitchenButton = page.locator('[data-block-id="kitchen"]');
+      assert((await closedKitchenButton.count()) === 1 && (await closedKitchenButton.innerText()).includes('주방(부엌)'), '벽 있는 독립 주방을 놓는 왼쪽 주방(부엌) 도구가 없다');
+      const kitchenZoneId = kitchenZones[0].id;
+      await page.locator(`.k-stage [data-block="${kitchenZoneId}"]`).click();
+      const deleteZone = page.locator('[data-delete-selected]');
+      assert(
+        (await deleteZone.innerText()).includes('삭제하기')
+          && (await deleteZone.getAttribute('aria-label')) === '공간 용도 삭제하기',
+        '트인 공간을 고른 뒤 화면 삭제 단추가 없다',
+      );
+      await deleteZone.click();
+      await page.waitForTimeout(700);
+      const clearedKitchenPlan = await kidsPlan(page);
+      assert(!clearedKitchenPlan.blocks.some((block) => block.kind === 'room' && block.roomKind === 'kitchen' && block.wallMode === 'zone'), '화면 삭제 단추로 트인 주방 용도가 지워지지 않았다');
+      assert(clearedKitchenPlan.blocks.some((block) => block.kind === 'room' && block.roomKind === 'living' && block.wallMode === 'zone'), '트인 주방 삭제 뒤 거실 바닥이 남지 않았다');
+      await kitchenButton.click();
+      await dragPlanCells(page, await kidsPlan(page), { x: 17, y: 8 }, { x: 20, y: 12 });
+      await page.waitForTimeout(700);
+      assert((await kidsPlan(page)).blocks.some((block) => block.kind === 'room' && block.roomKind === 'kitchen' && block.wallMode === 'zone'), '삭제한 트인 주방을 다시 만들지 못했다');
       const emptyPlan = await kidsPlan(page);
       const roomCell = await planPoint(page, emptyPlan, 4, 4);
       await page.locator('[data-block-id="bedroom"]').click();
@@ -750,11 +769,27 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-stage [data-opening-kind="sliding_window"]').count()) === 1, '미닫이창이 놓이지 않았다');
       await page.locator('.k-stage [data-opening-kind="sliding_window"]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'spaces', '문·창 너비를 바꾸려고 별도 단계로 이동했다');
-      assert((await page.locator('[data-opening-span]').count()) === 3, '실·문·창 단계 안에 문·창 너비 1·2·3칸 선택이 없다');
-      await page.locator('[data-opening-span="3"]').click();
+      assert((await page.locator('[data-opening-resize]').count()) === 2, '미닫이창을 고른 뒤 길이 줄이기·늘리기 단추가 없다');
+      assert((await page.locator('[data-opening-length]').innerText()).includes('1칸'), '미닫이창의 현재 길이가 보이지 않는다');
+      assert(await page.locator('[data-opening-resize="decrease"]').isDisabled(), '1칸 미닫이창에서 줄이기 단추가 켜져 있다');
+      await page.locator('[data-opening-resize="increase"]').click();
+      await page.locator('[data-opening-resize="increase"]').click();
       await page.waitForTimeout(700);
       const widePlan = await kidsPlan(page);
-      assert(widePlan.blocks.some((block) => block.openingKind === 'sliding_window' && (block as BrowserBlock & { span?: number }).span === 3), '미닫이창이 3칸 너비로 바뀌지 않았다');
+      assert(widePlan.blocks.some((block) => block.openingKind === 'sliding_window' && (block as BrowserBlock & { span?: number }).span === 3), '미닫이창이 늘리기 단추로 3칸 길이가 되지 않았다');
+      await page.locator('[data-opening-resize="decrease"]').click();
+      await page.waitForTimeout(750);
+      assert((await kidsPlan(page)).blocks.some((block) => block.openingKind === 'sliding_window' && (block as BrowserBlock & { span?: number }).span === 2), '미닫이창이 줄이기 단추로 2칸 길이가 되지 않았다');
+      await page.locator('[data-delete-selected]').click();
+      await page.waitForTimeout(500);
+      assert((await page.locator('.k-stage [data-opening-kind="sliding_window"]').count()) === 0, '화면 삭제 단추로 미닫이창이 지워지지 않았다');
+      await page.locator('[data-block-id="sliding_window"]').click();
+      await page.mouse.click(bedroomBox.x + bedroomBox.width * 0.14, bedroomBox.y + 2);
+      await page.waitForTimeout(500);
+      await page.locator('.k-stage [data-opening-kind="sliding_window"]').click();
+      await page.keyboard.press('Delete');
+      await page.waitForTimeout(500);
+      assert((await page.locator('.k-stage [data-opening-kind="sliding_window"]').count()) === 0, 'Delete 키로 미닫이창이 지워지지 않았다');
       await page.locator(`.k-stage [data-block="${newBedroom?.id}"]`).click();
       assert((await page.locator('[data-handle]').count()) === 8, '실·문·창 단계 안에서 방 크기 손잡이가 보이지 않는다');
       await page.locator('[data-build-next]').click();
@@ -1028,6 +1063,9 @@ async function main(): Promise<void> {
       await page.mouse.click(placedBox.x + placedBox.width / 2, placedBox.y + placedBox.height / 2);
       await page.waitForTimeout(250);
       assert((await placed.getAttribute('data-opening-state')) === 'open', '미닫이문을 눌러 열지 못했다');
+      assert((await page.locator('.k-opening-length > span').innerText()).includes('미닫이문 길이'), '일반 편집에서도 미닫이문 길이 조절기가 보이지 않는다');
+      assert((await page.locator('[data-opening-resize]').count()) === 2, '미닫이문 길이 줄이기·늘리기 단추가 없다');
+      assert((await page.locator('[data-delete-selected]').count()) === 1, '일반 편집에서 선택한 미닫이문 삭제 단추가 없다');
       await page.mouse.click(placedBox.x + placedBox.width / 2, placedBox.y + placedBox.height / 2);
       await page.waitForTimeout(250);
       assert((await placed.getAttribute('data-opening-state')) === 'closed', '미닫이문을 다시 닫지 못했다');

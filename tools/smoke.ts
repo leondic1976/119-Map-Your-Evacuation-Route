@@ -1654,9 +1654,13 @@ async function main(): Promise<void> {
 
       /* 세 화질 단계가 장식 밀도와 함께 바뀌고, 낮춰도 화면은 살아 있다 (FR-11.10) */
       /* 고급 4096 그림자는 1024/1440 실화면 캡처와 로직 검사에서 확인한다. CI의 소프트웨어 WebGL에 강제하지 않는다. */
-      await page.locator('[data-quality="high"]').click();
-      await page.waitForTimeout(350);
-      assert((await replay.getAttribute('data-scene-detail')) === 'standard', '높음 화질 장식이 적용되지 않는다');
+      if (!process.env.CI) {
+        await page.locator('[data-quality="high"]').click();
+        await page.waitForTimeout(350);
+        assert((await replay.getAttribute('data-scene-detail')) === 'standard', '높음 화질 장식이 적용되지 않는다');
+      } else {
+        assert((await replay.getAttribute('data-scene-detail')) === 'minimal', '자동화 브라우저가 가벼움 화질로 시작하지 않는다');
+      }
       await page.locator('[data-quality="low"]').click();
       await page.waitForTimeout(700);
       assert((await page.locator('[data-quality="low"]').getAttribute('aria-pressed')) === 'true', '화질이 안 바뀐다');

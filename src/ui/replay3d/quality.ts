@@ -14,6 +14,8 @@ export type Quality = 'ultra' | 'high' | 'low';
 /** 기기만 보고 첫 화질을 고른다. 재어 보기 전의 짐작이다 */
 export function guessQuality(): Quality {
   if (typeof navigator === 'undefined') return 'high';
+  /* GPU가 없는 Playwright/CI는 CPU 코어 수가 많아도 소프트웨어 렌더러다. */
+  if (navigator.webdriver) return 'low';
   const cores = navigator.hardwareConcurrency ?? 8;
   /* 움직임을 줄여 달라고 한 기기에서는 후처리도 덜어 준다 */
   if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'low';

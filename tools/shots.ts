@@ -79,11 +79,17 @@ async function main(): Promise<void> {
   await page.waitForTimeout(500);
   const stage = await page.locator('svg.k-stage').boundingBox();
   if (!stage) throw new Error('도면이 보이지 않는다.');
+  await page.locator('[data-quick-room="kitchen"]').click();
+  await page.mouse.move(stage.x + (15.5 / 24) * stage.width, stage.y + (8.5 / 16) * stage.height);
+  await page.mouse.down();
+  await page.mouse.move(stage.x + (20.5 / 24) * stage.width, stage.y + (12.5 / 16) * stage.height, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
   await page.locator('[data-block-id="bedroom"]').click();
   await page.mouse.click(stage.x + (4.5 / 24) * stage.width, stage.y + (4.5 / 16) * stage.height);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(dest, '2-spaces.png') });
-  await page.locator('[data-build-next]').click();
+  await page.locator('.k-stage [data-wall-mode="closed"]').first().click();
   await page.screenshot({ path: path.join(dest, '2a-room-adjust.png') });
   await page.locator('[data-build-next]').click();
   await page.screenshot({ path: path.join(dest, '2b-furniture-name.png') });

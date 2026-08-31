@@ -15,7 +15,7 @@ import {
   type Side8,
   validateResidualProjection,
 } from '../src/core/plan/residual';
-import { canReflowShellRoom, reflowShellZones } from '../src/core/plan/reflow';
+import { canDefineShellZone, canReflowShellRoom, defineShellZone, reflowShellFloor, reflowShellZones } from '../src/core/plan/reflow';
 import { completeShellSketch, preparedShellPlan } from '../src/core/plan/shellSketch';
 import { canResizeOpening } from '../src/core/grid/occupancy';
 import { CAMPAIGN_DEMO_RECORDS } from '../src/content/campaign-demo';
@@ -54,6 +54,43 @@ export function layoutTests(check: Check, assert: Assert): void {
       assert(plan.blocks.filter(isRoom).every((room) => room.wallMode === 'zone'), `${shell}에 미리 닫힌 방이 들어 있다.`);
       assert(!plan.blocks.some(isPoint), `${shell}에 가구나 표시가 미리 들어 있다.`);
     }
+  });
+
+  check('트인 주방은 남은 바닥 일부만 벽 없이 지정하고 다시 그리면 이전 범위를 거실로 되돌린다', () => {
+    const base = preparedShellPlan('wide');
+    const firstRect = { x: 12, y: 3, w: 4, h: 4 };
+    assert(canDefineShellZone(base, firstRect), '첫 트인 주방 범위를 지정할 수 없다.');
+    const first = defineShellZone(base, {
+      kind: 'room', id: 'zone_kitchen_test_1', layer: 'home', roomKind: 'kitchen', rect: firstRect,
+      label: '주방', showLabel: true, wallMode: 'zone',
+    });
+    assert(Boolean(first), '트인 주방을 만들지 못했다.');
+    if (!first) return;
+    const firstKitchen = new Set(first.blocks.filter(isRoom).filter((room) => room.wallMode === 'zone' && room.roomKind === 'kitchen').flatMap((room) => cellsOf(room.rect)).map(cellKey));
+    assert(firstKitchen.size === 16 && cellsOf(firstRect).every((cell) => firstKitchen.has(cellKey(cell))), `주방 범위가 ${firstKitchen.size}/16칸이다.`);
+    assert(first.blocks.some((block) => isRoom(block) && block.wallMode === 'zone' && block.roomKind === 'living'), '주방을 그린 뒤 남은 거실이 사라졌다.');
+    assert(first.blocks.some((block) => isOpening(block) && block.openingKind === 'open_passage' && block.hideInPlan), '거실과 주방 사이 숨은 열린 통로가 없다.');
+
+    const secondRect = { x: 16, y: 8, w: 4, h: 3 };
+    const second = defineShellZone(first, {
+      kind: 'room', id: 'zone_kitchen_test_2', layer: 'home', roomKind: 'kitchen', rect: secondRect,
+      label: '주방', showLabel: true, wallMode: 'zone',
+    });
+    assert(Boolean(second), '트인 주방을 다시 그리지 못했다.');
+    if (!second) return;
+    const secondKitchen = new Set(second.blocks.filter(isRoom).filter((room) => room.wallMode === 'zone' && room.roomKind === 'kitchen').flatMap((room) => cellsOf(room.rect)).map(cellKey));
+    assert(secondKitchen.size === 12 && cellsOf(secondRect).every((cell) => secondKitchen.has(cellKey(cell))), '다시 그린 주방 범위가 맞지 않는다.');
+    assert(cellsOf(firstRect).some((cell) => !secondKitchen.has(cellKey(cell))), '이전 주방 범위가 그대로 남았다.');
+
+    const closed = {
+      kind: 'room', id: 'closed-test', layer: 'home', roomKind: 'bath', rect: { x: 4, y: 4, w: 3, h: 3 },
+      label: '욕실', showLabel: true, wallMode: 'closed',
+    } as const;
+    const withClosed = reflowShellFloor({ ...second, blocks: second.blocks.concat(closed) });
+    assert(Boolean(withClosed), '주방 침범 검사용 욕실을 놓지 못했다.');
+    if (!withClosed) return;
+    assert(!canDefineShellZone(withClosed, { x: 5, y: 5, w: 3, h: 3 }), '트인 주방이 독립실을 침범한다.');
+    assert(!canDefineShellZone(withClosed, { x: 0, y: 0, w: 3, h: 3 }), '트인 주방이 집 외곽을 벗어난다.');
   });
 
   check('직각 외곽선은 내부 칸으로 바꾸고 너무 작은 외곽은 고칠 말을 돌려준다', () => {

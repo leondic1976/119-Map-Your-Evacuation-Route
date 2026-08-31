@@ -27,6 +27,39 @@ export function canInsertShellRoom(plan: FloorPlan, nextRect: Rect): boolean {
   return reflowShellFloor({ ...plan, blocks: plan.blocks.concat(probe) }) !== null;
 }
 
+/** 외곽의 남은 바닥 일부를 벽 없는 용도 구역으로 지정할 수 있는가. */
+export function canDefineShellZone(plan: FloorPlan, nextRect: Rect): boolean {
+  if (!plan.shell || nextRect.w < 2 || nextRect.h < 2) return false;
+  const shell = new Set(plan.shell.cells.map(cellKey));
+  const closed = new Set(
+    plan.blocks
+      .filter(isRoom)
+      .filter((room) => room.wallMode !== 'zone')
+      .flatMap((room) => cellsOf(room.rect))
+      .map(cellKey),
+  );
+  const wanted = cellsOf(nextRect);
+  return wanted.length > 0 && wanted.every((cell) => shell.has(cellKey(cell)) && !closed.has(cellKey(cell)));
+}
+
+/**
+ * 남은 바닥에 벽 없는 용도 구역을 그린다. 같은 종류의 기존 구역은 거실로 되돌린 뒤 새 범위로
+ * 교체하므로 `트인 주방 다시 그리기`가 위치·크기 조정 역할을 한다.
+ */
+export function defineShellZone(plan: FloorPlan, source: RoomBlock): FloorPlan | null {
+  if (source.wallMode !== 'zone' || !canDefineShellZone(plan, source.rect)) return null;
+  let hasVisibleLiving = plan.blocks
+    .filter(isRoom)
+    .some((room) => room.wallMode === 'zone' && room.roomKind === 'living' && room.showLabel !== false);
+  const reset = plan.blocks.map((block) => {
+    if (!isRoom(block) || block.wallMode !== 'zone' || block.roomKind !== source.roomKind) return block;
+    const showLabel = !hasVisibleLiving;
+    if (showLabel) hasVisibleLiving = true;
+    return { ...block, roomKind: 'living' as const, label: showLabel ? '거실' : '', showLabel };
+  });
+  return reflowShellFloor({ ...plan, blocks: reset.concat({ ...source, wallMode: 'zone' }) });
+}
+
 /** 독립실의 다음 사각형으로 공용 바닥을 무리 없이 다시 만들 수 있는가. */
 export function canReflowShellRoom(plan: FloorPlan, roomId: string, nextRect: Rect): boolean {
   if (!plan.shell) return false;

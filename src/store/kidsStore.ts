@@ -47,7 +47,7 @@ import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { preparePlan, rotatePlan, type PlanRotation, type PreparePlanOptions } from '../core/plan/prepare';
 import { generateResidualPlan, type ResidualPlanRequest } from '../core/plan/residual';
-import { reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
+import { defineShellZone, reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
 import { shellOnlyPlan } from '../core/plan/shellSketch';
 import { loadKids, saveKids } from './storage';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
@@ -59,6 +59,8 @@ const AUTOSAVE_MS = 600;
 export interface Armed {
   category: 'room' | 'opening' | 'safety' | 'furniture' | 'hazard' | 'marker';
   id: string;
+  /** room에서만 쓴다. 생략하면 실제 벽이 있는 독립실, zone이면 벽 없는 열린 용도 구역이다. */
+  roomMode?: 'closed' | 'zone';
 }
 
 export type KidsTool = 'place' | 'select' | 'route' | 'erase';
@@ -160,6 +162,8 @@ export interface KidsActions {
   loadShellPlan: (cells: Cell[]) => void;
   /** 표준 크기로 즉시 놓는다 (FR-7.1). rect 를 주면 끌어 만든 크기 */
   placeRoom: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;
+  /** 외곽 안 남은 바닥을 벽 없는 거실·주방 같은 용도 구역으로 지정한다. */
+  placeZone: (roomKind: RoomKind, at: Cell, rect?: { x: number; y: number; w: number; h: number }) => boolean;
   placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
   placePoint: (category: Armed['category'], subKind: PointKind, cell: Cell) => boolean;
   moveBlock: (id: BlockId, cell: Cell) => void;
@@ -620,6 +624,39 @@ export const useKids = create<KidsStore>()((set, get) => {
         return false;
       }
       addBlock({ kind: 'room', id: newBlockId('r'), layer: get().layer, roomKind, rect: r, label: autoLabel(plan, roomKind) });
+      return true;
+    },
+
+    placeZone: (roomKind, at, rect) => {
+      const plan = get().plan;
+      if (!plan.shell) {
+        get().notify('트인 주방은 집 모양을 먼저 만든 뒤 남은 바닥에 그려 주세요.', 'warn');
+        return false;
+      }
+      const def = blockDef(roomKind);
+      const size = def?.size ?? { w: 4, h: 4 };
+      const r = clampRect(plan.grid, rect ?? { x: at.x, y: at.y, w: size.w, h: size.h });
+      const zone: Block = {
+        kind: 'room',
+        id: newBlockId('z'),
+        layer: get().layer,
+        roomKind,
+        rect: r,
+        label: def?.label ?? def?.easy ?? '열린 공간',
+        showLabel: true,
+        wallMode: 'zone',
+      };
+      if (!isRoom(zone)) return false;
+      const next = defineShellZone(plan, zone);
+      if (!next) {
+        get().notify('그곳에는 트인 주방을 그릴 수 없어요. 집 안의 방과 겹치지 않는 빈 바닥을 골라 주세요.', 'warn');
+        return false;
+      }
+      commit({ plan: next });
+      firstPlaced(roomKind);
+      get().countOp();
+      playTap();
+      get().notify(roomKind === 'kitchen' ? '트인 주방을 만들었어요. 다시 그리면 자리와 크기가 바뀌어요.' : `${zone.label} 구역을 만들었어요.`);
       return true;
     },
 

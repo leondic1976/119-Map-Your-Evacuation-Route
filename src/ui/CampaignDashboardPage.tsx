@@ -270,7 +270,7 @@ export default function CampaignDashboardPage() {
         <section className="d-resources" id="resources" aria-labelledby="d-resources-title">
           <div className="d-section-title"><div><p>지도를 만들고 실제 행동으로 이어 가요</p><h2 id="d-resources-title"><BookOpenCheck aria-hidden="true" /> 캠페인 활동 자료</h2></div></div>
           <div className="d-resource-grid">
-            <Resource number="01" title="교실에서 지도 만들기" text="집 외곽부터 소화기, 내 위치, 만나는 곳까지 일곱 단계로 함께 만들어요." tag="교사 40분 활동" />
+            <Resource number="01" title="교실에서 지도 만들기" text="집 외곽부터 소화기, 내 위치, 만나는 곳까지 여섯 단계로 함께 만들어요." tag="교사 40분 활동" />
             <Resource number="02" title="가족과 실제 위치 확인" text="집에 돌아가 소화기와 현관, 막혔을 때 쓸 두 번째 길을 눈으로 확인해요." tag="가정 확인 활동" />
             <Resource number="03" title="2D 대피연습 해 보기" text="몸을 낮추고 문을 확인하며 안전한 밖까지 직접 움직여 연습해요." tag="어린이 게임 활동" />
             <Resource number="04" title="소방서와 안전 이야기" text="학급에서 자주 어려워한 항목을 모아 소방관과 질문하고 배워요." tag="캠페인 연계" />

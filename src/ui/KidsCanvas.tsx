@@ -20,7 +20,7 @@ import type { Direction } from '../types/game';
 import { roomAt, canPlaceRoom } from '../core/grid/occupancy';
 import { boundarySlots, lineCells, nearestSlot, rectFromDrag, sameCell, slotCenter } from '../core/grid/geometry';
 import { blocksInRect } from '../core/grid/occupancy';
-import { canInsertShellRoom, canReflowShellRoom } from '../core/plan/reflow';
+import { canDefineShellZone, canInsertShellRoom, canReflowShellRoom } from '../core/plan/reflow';
 import { suggestedRoute, useKids } from '../store/kidsStore';
 import { CS, PlanSvg, type GameLayer } from './PlanSvg';
 
@@ -79,7 +79,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
 
   const pair = routes[hazardId];
   const inGame = mode === 'game' && game;
-  const canAdjustRooms = step === 'structure' || step === 'edit' || step === 'ready';
+  const canAdjustRooms = step === 'spaces' || step === 'structure' || step === 'edit' || step === 'ready';
   const suggested = useMemo(
     () => (showHint && !inGame ? suggestedRoute({ plan, hazardId, routeSlot, profile, routes }) : null),
     [showHint, inGame, plan, hazardId, routeSlot, profile, routes],
@@ -279,7 +279,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     const mid = { x: c.x + 0.5, y: c.y + 0.5 };
     if (tool === 'place' && armed) {
       if (armed.category === 'room') {
-        if (s.placeRoom(armed.id as RoomKind, c)) disarm();
+        const placed = armed.roomMode === 'zone'
+          ? s.placeZone(armed.id as RoomKind, c)
+          : s.placeRoom(armed.id as RoomKind, c);
+        if (placed) disarm();
       }
       else if (armed.category === 'opening') {
         const slot = nearestSlot(slots, mid);
@@ -392,7 +395,12 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     switch (d.kind) {
       case 'room':
         /* 그냥 눌렀으면 표준 크기, 끌었으면 그 크기 (FR-7.1) */
-        if (armed && s.placeRoom(armed.id as RoomKind, d.start, d.moved && d.preview ? d.preview : undefined)) disarm();
+        if (armed) {
+          const placed = armed.roomMode === 'zone'
+            ? s.placeZone(armed.id as RoomKind, d.start, d.moved && d.preview ? d.preview : undefined)
+            : s.placeRoom(armed.id as RoomKind, d.start, d.moved && d.preview ? d.preview : undefined);
+          if (placed) disarm();
+        }
         setPreview(null);
         break;
       case 'move':
@@ -444,6 +452,11 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     ? (plan.shell
         ? canReflowShellRoom(plan, selectedRoom.id, { ...selectedRoom.rect, x: selectedRoom.rect.x + roomShift.dx, y: selectedRoom.rect.y + roomShift.dy })
         : canPlaceRoom(plan, { ...selectedRoom.rect, x: selectedRoom.rect.x + roomShift.dx, y: selectedRoom.rect.y + roomShift.dy }, selectedRoom.id))
+    : false;
+  const previewAllowed = preview
+    ? (armed?.roomMode === 'zone'
+        ? canDefineShellZone(plan, preview)
+        : (plan.shell ? canInsertShellRoom(plan, preview) : canPlaceRoom(plan, preview)))
     : false;
   const cursor = inGame
     ? 'pointer'
@@ -520,9 +533,9 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
               y={preview.y * CS}
               width={preview.w * CS}
               height={preview.h * CS}
-              fill={(plan.shell ? canInsertShellRoom(plan, preview) : canPlaceRoom(plan, preview)) ? '#7ea6ce' : '#d92142'}
+              fill={previewAllowed ? (armed?.roomMode === 'zone' ? '#f2a46f' : '#7ea6ce') : '#d92142'}
               fillOpacity={0.3}
-              stroke={(plan.shell ? canInsertShellRoom(plan, preview) : canPlaceRoom(plan, preview)) ? '#0f3d68' : '#c8102e'}
+              stroke={previewAllowed ? (armed?.roomMode === 'zone' ? '#a94816' : '#0f3d68') : '#c8102e'}
               strokeWidth={3}
               strokeDasharray="6 4"
               style={{ pointerEvents: 'none' }}
@@ -540,7 +553,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           )}
           {/* 표준 크기 미리보기 — 방을 장전하고 도면 위에 있을 때 */}
           {hover && !preview && !inGame && tool === 'place' && armed?.category === 'room' && (
-            <RoomGhost plan={plan} at={hover} kind={armed.id} />
+            <RoomGhost plan={plan} at={hover} kind={armed.id} mode={armed.roomMode} />
           )}
           {hover && !preview && !ghost && !inGame && (tool === 'route' || step === 'mySpot' || step === 'meeting' || (tool === 'place' && armed && armed.category !== 'room' && armed.category !== 'opening')) && (
             <rect x={hover.x * CS + 2} y={hover.y * CS + 2} width={CS - 4} height={CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.12} stroke="#0f3d68" strokeWidth={2} strokeDasharray="4 3" style={{ pointerEvents: 'none' }} />
@@ -622,7 +635,7 @@ function keyHint(step: string, tool: string, armed?: string): string {
 }
 
 /** 방을 놓기 전 표준 크기 미리보기 — 겹치면 붉게 (D4) */
-function RoomGhost({ plan, at, kind }: { plan: Parameters<typeof canPlaceRoom>[0]; at: Cell; kind: string }) {
+function RoomGhost({ plan, at, kind, mode }: { plan: Parameters<typeof canPlaceRoom>[0]; at: Cell; kind: string; mode?: 'closed' | 'zone' }) {
   const size = { bedroom: { w: 4, h: 4 }, living: { w: 6, h: 5 }, kitchen: { w: 4, h: 4 }, bath: { w: 3, h: 3 }, entry: { w: 3, h: 3 }, balcony: { w: 6, h: 2 }, utility: { w: 3, h: 2 }, corridor: { w: 5, h: 2 }, stair: { w: 3, h: 4 }, elevator_hall: { w: 3, h: 3 } }[kind] ?? { w: 4, h: 4 };
   const r = {
     x: Math.max(0, Math.min(plan.grid.width - size.w, at.x)),
@@ -630,16 +643,18 @@ function RoomGhost({ plan, at, kind }: { plan: Parameters<typeof canPlaceRoom>[0
     w: size.w,
     h: size.h,
   };
-  const ok = plan.shell ? canInsertShellRoom(plan, r) : canPlaceRoom(plan, r);
+  const ok = mode === 'zone' ? canDefineShellZone(plan, r) : plan.shell ? canInsertShellRoom(plan, r) : canPlaceRoom(plan, r);
+  const fill = mode === 'zone' ? '#f2a46f' : '#7ea6ce';
+  const stroke = mode === 'zone' ? '#a94816' : '#0f3d68';
   return (
     <rect
       x={r.x * CS}
       y={r.y * CS}
       width={r.w * CS}
       height={r.h * CS}
-      fill={ok ? '#7ea6ce' : '#d92142'}
+      fill={ok ? fill : '#d92142'}
       fillOpacity={0.22}
-      stroke={ok ? '#0f3d68' : '#c8102e'}
+      stroke={ok ? stroke : '#c8102e'}
       strokeWidth={2.5}
       strokeDasharray="6 4"
       style={{ pointerEvents: 'none' }}

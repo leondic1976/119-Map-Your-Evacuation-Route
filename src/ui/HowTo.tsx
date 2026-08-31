@@ -34,7 +34,7 @@ export default function HowTo() {
   const rows: Row[] = [];
 
   if (step === 'spaces') {
-    rows.push({ title: easy ? '공간부터 나누기' : '공간 설정', body: easy ? '닫힌 방과 벽 없는 바닥을 눌러 종류를 골라.' : '구획실·공용 구역의 용도를 정하고 문·창을 배치한다.' });
+    rows.push({ title: easy ? '놓고 바로 크기 맞추기' : '배치·크기 통합', body: easy ? '방은 놓은 뒤 바로 끌고 모서리 점으로 바꿔. 트인 주방은 빈 바닥에 범위를 그려.' : '구획실 배치·이동·8방향 크기 조정과 열린 주방 범위 지정을 한 단계에서 수행한다.' });
   } else if (step === 'structure') {
     rows.push({ title: easy ? '방 크기와 자리' : '독립실 조정', body: easy ? '닫힌 방을 끌어 옮기고, 테두리 점을 끌어 크기를 바꿔.' : '닫힌 독립실을 이동하고 8방향으로 크기를 바꾼다.' });
   } else if (step === 'furniture') {

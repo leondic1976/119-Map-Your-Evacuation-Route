@@ -98,7 +98,7 @@ export default function Palette() {
   const done = new Set(checklist(plan, REQUIRED_BLOCKS).filter((i) => i.present).map((i) => i.id));
 
   const pick = (b: BlockDef) => {
-    const on = armed?.id === b.id;
+    const on = armed?.id === b.id && armed.roomMode !== 'zone';
     arm(on ? null : { category: b.category, id: b.id });
   };
 
@@ -129,7 +129,7 @@ export default function Palette() {
 
       <div className="k-blocks k-basic" role="group" aria-label="기본 블록">
         {basics.map((b) => (
-          <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} />
+          <PaletteButton key={b.id} def={b} on={armed?.id === b.id && armed.roomMode !== 'zone'} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} />
         ))}
         {!stageCats && (
           <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
@@ -163,7 +163,7 @@ export default function Palette() {
                   <h3>{req ? (easy ? '꼭 있어야 하는 것' : '필수') : easy ? '있을 수 있는 것' : '선택'}</h3>
                   <div className="k-blocks">
                     {items.map((b) => (
-                      <PaletteButton key={b.id} def={b} on={armed?.id === b.id} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} common={b.tags.includes('common') && layer !== 'common'} />
+                      <PaletteButton key={b.id} def={b} on={armed?.id === b.id && armed.roomMode !== 'zone'} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} common={b.tags.includes('common') && layer !== 'common'} />
                     ))}
                   </div>
                 </section>
@@ -175,7 +175,7 @@ export default function Palette() {
 
       {armed && (
         <div className="k-armed" role="status">
-          {armed.category === 'room' ? '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
+          {armed.category === 'room' ? armed.roomMode === 'zone' ? '빈 바닥에서 끌어 트인 주방 범위를 그려. 다시 그리면 자리와 크기가 바뀌어.' : '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
           {' '}
           <b>한 번에 하나씩 놓여.</b> 또 놓으려면 여기서 다시 고르자.
           <button type="button" className="k-link" onClick={() => arm(null)}>

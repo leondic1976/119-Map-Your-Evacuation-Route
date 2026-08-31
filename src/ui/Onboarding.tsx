@@ -120,7 +120,7 @@ export default function Onboarding({ open, onClose }: Props) {
 
         {page === 'paths' && (
           <div className="k-onboard-body">
-            <p className="k-start-note">똑같은 집을 찾지 못해도 괜찮아. 완성 예시를 고치거나, 집 외곽부터 일곱 단계로 직접 만들 수 있어.</p>
+            <p className="k-start-note">똑같은 집을 찾지 못해도 괜찮아. 완성 예시를 고치거나, 집 외곽부터 여섯 단계로 직접 만들 수 있어.</p>
             <div className="k-start-paths">
               <button type="button" className="k-start-path recommended" data-start-path="template" onClick={() => setPage('gallery')}>
                 <span className="k-recommend">가장 빨라요</span>

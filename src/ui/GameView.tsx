@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
 import { safetyMissions } from '../core/game/missions';
 import { useKids } from '../store/kidsStore';
-import { playCrouch, playDetector, playDoor, playIntro, playStep, playVoice, unlockAudio } from './sound';
+import { playCrouch, playDetector, playDoor, playIntro, playStep, unlockAudio } from './sound';
 
 const TICK_MS = 250;
 
@@ -50,13 +50,10 @@ export default function GameView() {
     const was = useKids.getState().game?.state.player.posture;
     toggleRaw();
     playCrouch(was !== 'crouch');
-    /* 몸을 낮출 때만 말해 준다 — 일어설 때까지 말하면 잔소리가 된다 */
-    if (was !== 'crouch') playVoice('v-crouch');
   }, [toggleRaw]);
   const closeDoor = useCallback(() => {
     closeDoorRaw();
     playDoor(true);
-    playVoice('v-close');
   }, [closeDoorRaw]);
   const rang = useRef(false);
 
@@ -67,11 +64,8 @@ export default function GameView() {
     unlockAudio();
     playIntro();
     const detectorTimer = window.setTimeout(() => playDetector(), 480);
-    /* 감지기가 울린 뒤에 말한다 — 겹치면 둘 다 안 들린다 */
-    const voiceTimer = window.setTimeout(() => playVoice('v-start'), 2600);
     return () => {
       window.clearTimeout(detectorTimer);
-      window.clearTimeout(voiceTimer);
     };
   }, [status, soundOn]);
 
@@ -107,12 +101,10 @@ export default function GameView() {
         const was = s.game?.state.player.posture;
         s.gameToggle();
         playCrouch(was !== 'crouch');
-        if (was !== 'crouch') playVoice('v-crouch');
       } else if (k === 't') s.gameTouch();
       else if (k === 'c') {
         s.gameCloseDoor();
         playDoor(true);
-        playVoice('v-close');
       } else if (k === 'p') {
         if (s.game?.state.status === 'running') s.gamePause();
         else s.gameResume();

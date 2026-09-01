@@ -10,12 +10,11 @@
  *   C4 붉은 점멸은 여전히 금지 (화면 쪽 규칙)
  *   C5 소리는 부가 기능이다. 나지 않아도 모든 기능이 완결된다
  *
- * 감지기·조작 효과는 Web Audio 로 합성한다. 캐릭터 말은 웹 배포본에서 Juwonmom MP3를
- * 우선 쓰고, 파일이 없거나 단일 HTML이면 브라우저 음성합성으로 대체한다.
- * 둘 다 없으면 조용히 아무 일도 하지 않는다.
+ * 감지기·조작 효과는 Web Audio 로 합성한다. 캐릭터 말은 웹·오프라인 모두
+ * ElevenLabs Juwonmom MP3만 사용하며 브라우저 기계음으로 바꾸지 않는다.
  */
 
-import { guideVoiceFilename, VOICE_CLIPS, VOICE_LINES, type VoiceGradeMode, type VoiceId } from '../content/voice';
+import { guideVoiceFilename, type VoiceGradeMode } from '../content/voice';
 
 let ctx: AudioContext | null = null;
 let soundEpoch = 0;
@@ -227,16 +226,10 @@ export function playSuccess(): void {
   });
 }
 
-/** 성공 화음과 칭찬을 한 묶음으로 낸다. 화면이 곧 리포트로 바뀌어도 빠지지 않는다. */
+/** 성공 화음만 낸다. 칭찬 대사는 현재 가이드 이벤트의 Juwonmom MP3가 맡는다. */
 export function playSuccessCue(): void {
   if (!enabled || typeof window === 'undefined') return;
-  const epoch = soundEpoch;
   playSuccess();
-  const timer = window.setTimeout(() => {
-    pendingSoundTimers.delete(timer);
-    if (enabled && epoch === soundEpoch) playVoice('v-success');
-  }, 900);
-  pendingSoundTimers.add(timer);
 }
 
 /** 놓았을 때·눌렀을 때의 아주 짧은 확인음 */
@@ -248,88 +241,19 @@ export function playTap(): void {
 /* 말                                                                  */
 /* ------------------------------------------------------------------ */
 
-let voice: SpeechSynthesisVoice | null = null;
-let voiceChecked = false;
-let pendingSpeech: string | null = null;
-
-/** 한국어 음성을 찾는다. 없으면 말하지 않는다 (v1.0 §7.4 — TTS 는 부가 기능) */
-function pickVoice(): SpeechSynthesisVoice | null {
-  if (voiceChecked) return voice;
-  if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-  const list = window.speechSynthesis.getVoices();
-  if (list.length === 0) return null; // 아직 안 왔다. onvoiceschanged 뒤에 다시 본다
-  voiceChecked = true;
-  voice = list.find((v) => v.lang.startsWith('ko')) ?? null;
-  return voice;
-}
-
 /**
- * 캐릭터의 말을 읽어 준다. 피치를 올려 어린이에게 친근한 소리로 만든다.
- * 한국어 음성이 없으면 조용히 그만둔다 — 소리가 없어도 화면에 글이 그대로 있다.
- */
-export function speak(text: string): void {
-  if (!enabled || !text) return;
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
-  const v = pickVoice();
-  if (!v) {
-    /* 음성 목록이 늦게 도착하면 가장 최근 문장을 그때 한 번 읽는다 */
-    pendingSpeech = text;
-    return;
-  }
-  try {
-    pendingSpeech = null;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.voice = v;
-    u.lang = v.lang;
-    u.pitch = 1.35;
-    u.rate = 0.95;
-    u.volume = 0.9;
-    window.speechSynthesis.speak(u);
-  } catch {
-    /* 브라우저가 막으면 그냥 넘어간다 */
-  }
-}
-
-/** 음성 목록은 늦게 오는 브라우저가 있다. 오면 다시 찾아본다 */
-if (typeof window !== 'undefined' && window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    voiceChecked = false;
-    pickVoice();
-    const text = pendingSpeech;
-    if (text && enabled) speak(text);
-  };
-}
-
-/**
- * 사람 목소리를 먼저 틀고, 없으면 음성합성으로 넘어간다 (VOICE-SCRIPT.md §4).
- * 둘 다 없으면 조용히 넘어간다 — 소리가 없어도 화면에 글이 그대로 있다.
- */
-export function playVoice(id: VoiceId): void {
-  if (!enabled) return;
-  const clip = VOICE_CLIPS[id];
-  if (!clip) {
-    speak(VOICE_LINES[id]);
-    return;
-  }
-  playAudioClip(clip, VOICE_LINES[id]);
-}
-
-/**
- * 캐릭터 말풍선의 웹 MP3를 우선 재생한다. 단일 HTML은 외부 파일을 가질 수 없으므로
- * 브라우저 TTS를 쓰고, 웹에서도 파일 누락·재생 실패 시 같은 문장 TTS로 되돌아간다.
+ * 캐릭터 말풍선은 웹과 오프라인에서 모두 Juwonmom MP3만 재생한다.
+ * 파일이 빠졌거나 브라우저가 재생을 막으면 화면 글은 남기고 조용히 멈춘다.
  */
 export function playGuideVoice(ruleId: string, gradeMode: VoiceGradeMode, fallbackText: string): void {
   if (!fallbackText) return;
   /* 꺼진 동안에도 최신 대사를 기억해, 소리를 켜는 클릭에서 곧바로 다시 들려준다. */
   lastGuideVoice = { ruleId, gradeMode, fallbackText };
   if (!enabled) return;
-  if (process.env.NEXT_PUBLIC_OFFLINE === '1') {
-    speak(fallbackText);
-    return;
-  }
   const basePath = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/$/, '');
-  playAudioClip(`${basePath}/voice/${guideVoiceFilename(ruleId, gradeMode)}`, fallbackText);
+  const filename = guideVoiceFilename(ruleId, gradeMode);
+  const source = process.env.NEXT_PUBLIC_OFFLINE === '1' ? `voice/${filename}` : `${basePath}/voice/${filename}`;
+  playAudioClip(source);
 }
 
 let current: HTMLAudioElement | null = null;
@@ -341,28 +265,24 @@ export function replayLastGuideVoice(): void {
   playGuideVoice(lastGuideVoice.ruleId, lastGuideVoice.gradeMode, lastGuideVoice.fallbackText);
 }
 
-function playAudioClip(source: string, fallbackText: string): void {
+function playAudioClip(source: string): void {
   if (!enabled) return;
   try {
     stopSpeaking();
     stopVoice();
     const audio = new Audio(source);
-    let fellBack = false;
-    const fallback = (): void => {
-      if (fellBack || !enabled) return;
-      fellBack = true;
+    const failed = (): void => {
       if (current === audio) current = null;
-      speak(fallbackText);
     };
     audio.volume = 0.9;
-    audio.onerror = fallback;
+    audio.onerror = failed;
     audio.onended = () => {
       if (current === audio) current = null;
     };
     current = audio;
-    void audio.play().catch(fallback);
+    void audio.play().catch(failed);
   } catch {
-    speak(fallbackText);
+    /* MP3를 재생할 수 없어도 브라우저 기계음으로 바꾸지 않는다. */
   }
 }
 
@@ -382,9 +302,8 @@ export function stopVoice(): void {
 /**
  * 화면을 떠나면 소리를 끊는다.
  *
- * `speechSynthesis` 는 탭이 아니라 **브라우저가 쥐고 있는 기능**이다. 읽을 말이 큐에
- * 남은 채로 탭을 닫으면 창이 사라진 뒤에도 계속 읽는다 — 실제로 "브라우저를 닫았는데
- * 소리가 난다"는 지적을 받았다. 떠나기 전에 반드시 비운다.
+ * 현재 앱은 브라우저 음성합성을 재생하지 않지만, 이전 버전에서 남은 브라우저 큐까지
+ * 확실히 끊기도록 떠나기 전에 `speechSynthesis.cancel()`도 호출한다.
  *
  * 탭을 숨겼을 때도 멈춘다. 안 보이는 화면이 소리를 내면 어디서 나는지 알 수 없다.
  */
@@ -411,7 +330,6 @@ if (typeof window !== 'undefined') {
 }
 
 export function stopSpeaking(): void {
-  pendingSpeech = null;
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();

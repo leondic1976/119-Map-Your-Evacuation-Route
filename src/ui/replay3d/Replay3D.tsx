@@ -242,6 +242,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
       data-camera-pitch={orbit.pitch.toFixed(3)}
       data-camera-zoom={orbit.zoom.toFixed(3)}
       data-scene-detail={settings.detail}
+      data-player-count="1"
     >
       <CameraToolbar
         seconds={seconds}
@@ -291,7 +292,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
                 gl.setClearColor('#0b1118');
                 gl.outputColorSpace = THREE.SRGBColorSpace;
                 gl.toneMapping = THREE.AgXToneMapping;
-                gl.toneMappingExposure = 1.12;
+                gl.toneMappingExposure = quality === 'ultra' ? 1.18 : 1.12;
                 gl.shadowMap.type = THREE.PCFSoftShadowMap;
                 /* 집 전체 시점에서 벽을 허리께로 자르려면 켜야 한다 (설계서 v1.4 §2.1) */
                 gl.localClippingEnabled = true;
@@ -325,7 +326,10 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
         )}
         <div className="k-r-scene-hud" aria-live="polite">
           <p className="k-r-caption"><b>{seconds}초</b><span>{caption}</span></p>
-          <p className="k-r-mouse-hint">마우스로 끌기 · 휠로 확대 · 키보드 방향키</p>
+          <div className="k-r-scene-meta">
+            <p className="k-r-quality-badge" data-quality-badge={quality}>{quality === 'ultra' ? '고급 화질' : quality === 'high' ? '높음 화질' : '가벼움 화질'}</p>
+            <p className="k-r-mouse-hint">마우스로 끌기 · 휠로 확대 · 키보드 방향키</p>
+          </div>
         </div>
         {view === 'first' && <span className="k-r-reticle" aria-hidden="true" />}
       </div>

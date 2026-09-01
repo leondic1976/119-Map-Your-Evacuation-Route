@@ -810,7 +810,27 @@ async function main(): Promise<void> {
       const bedCell = await planPoint(page, namedPlan, bedGridCell.x, bedGridCell.y);
       await page.locator('[data-block-id="bed"]').click();
       await page.mouse.click(bedCell.x, bedCell.y);
+      await page.waitForTimeout(650);
       assert((await page.locator('.k-stage [data-kind="furniture"]').count()) === 1, '가구 단계에서 침대가 놓이지 않았다');
+      const bedElement = page.locator('.k-stage [data-point-kind="bed"]');
+      assert((await bedElement.getAttribute('data-point-width')) === '2' && (await bedElement.getAttribute('data-point-height')) === '3', '침대가 2×3칸 비율로 보이지 않는다');
+      const bedBeforeMove = await kidsPlan(page);
+      const bedBlock = bedBeforeMove.blocks.find((block) => block.kind === 'furniture' && block.subKind === 'bed');
+      assert(Boolean(bedBlock?.cell), '옮길 침대가 저장되지 않았다');
+      if (!bedBlock?.cell) throw new Error('옮길 침대가 없다');
+      const bedTarget = { x: bedroom.rect.x, y: bedroom.rect.y };
+      await dragPlanCells(page, bedBeforeMove, bedBlock.cell, bedTarget);
+      await page.waitForTimeout(650);
+      const movedBed = (await kidsPlan(page)).blocks.find((block) => block.id === bedBlock.id);
+      assert(movedBed?.cell?.x === bedTarget.x && movedBed.cell.y === bedTarget.y, '큰 침대를 잡아 끌어도 이동하지 않는다');
+
+      const sinkPlan = await kidsPlan(page);
+      await page.locator('[data-block-id="sink"]').click();
+      const sinkCell = await planPoint(page, sinkPlan, 17, 9);
+      await page.mouse.click(sinkCell.x, sinkCell.y);
+      await page.waitForTimeout(350);
+      const sinkElement = page.locator('.k-stage [data-point-kind="sink"]');
+      assert((await sinkElement.getAttribute('data-point-width')) === '3' && (await sinkElement.getAttribute('data-point-height')) === '1', '싱크대가 3×1칸 비율로 보이지 않는다');
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'safety', '가구 다음이 소화기 단계가 아니다');
       assert((await page.locator('.k-cats .k-cat').count()) === 1, '소화기 단계에 안전설비 외 갈래가 보인다');
@@ -891,6 +911,7 @@ async function main(): Promise<void> {
       await page.waitForTimeout(700);
       assert((await page.locator('.k-stage [data-game-layer]').count()) === 1, '게임 층이 없다');
       assert((await page.locator('.k-stage [data-player]').count()) === 1, '플레이어가 없다');
+      assert((await page.locator('.k-stage [data-point-kind="my_spot"]').count()) === 0, '게임에서 고정 내 위치와 움직이는 플레이어가 함께 보여 두 명이다');
       const before = await page.locator('.k-stage [data-player]').getAttribute('transform');
       await page.keyboard.press('ArrowDown');
       await page.waitForTimeout(150);
@@ -1062,15 +1083,58 @@ async function main(): Promise<void> {
       if (!placedBox) throw new Error('놓은 미닫이문 위치를 찾지 못했다');
       await page.mouse.click(placedBox.x + placedBox.width / 2, placedBox.y + placedBox.height / 2);
       await page.waitForTimeout(250);
-      assert((await placed.getAttribute('data-opening-state')) === 'open', '미닫이문을 눌러 열지 못했다');
-      assert((await page.locator('.k-opening-length > span').innerText()).includes('미닫이문 길이'), '일반 편집에서도 미닫이문 길이 조절기가 보이지 않는다');
+      assert((await placed.getAttribute('data-opening-state')) === 'closed', '미닫이문을 고르기만 했는데 평소 상태가 바뀌었다');
+      const lengthLabel = page.locator('.k-opening-length > span');
+      if ((await lengthLabel.count()) === 0) {
+        const debug = await page.evaluate(({ x, y }) => {
+          const hit = document.elementFromPoint(x, y);
+          const block = hit?.closest?.('[data-block]');
+          return {
+            step: document.querySelector('.k-app')?.getAttribute('data-step'),
+            tool: document.querySelector('.k-canvas')?.getAttribute('data-tool'),
+            hit: hit?.tagName,
+            hitBlock: block?.getAttribute('data-block'),
+            selectedOpenings: document.querySelectorAll('.k-stage [data-kind="opening"] rect[stroke="#0f3d68"]').length,
+          };
+        }, { x: placedBox.x + placedBox.width / 2, y: placedBox.y + placedBox.height / 2 });
+        throw new Error(`일반 편집에서도 미닫이문 길이 조절기가 보이지 않는다: ${JSON.stringify(debug)}`);
+      }
+      assert((await lengthLabel.innerText()).includes('미닫이문 길이'), '일반 편집에서도 미닫이문 길이 조절기가 보이지 않는다');
       assert((await page.locator('[data-opening-resize]').count()) === 2, '미닫이문 길이 줄이기·늘리기 단추가 없다');
       assert((await page.locator('[data-delete-selected]').count()) === 1, '일반 편집에서 선택한 미닫이문 삭제 단추가 없다');
-      await page.mouse.click(placedBox.x + placedBox.width / 2, placedBox.y + placedBox.height / 2);
+      const beforeMovePlan = await kidsPlan(page);
+      const placedId = await placed.getAttribute('data-block');
+      const beforeOpening = beforeMovePlan.blocks.find((block) => block.id === placedId);
+      assert(Boolean(beforeOpening?.cell && beforeOpening.side), '옮길 미닫이문 좌표가 없다');
+      if (!beforeOpening?.cell || !beforeOpening.side) throw new Error('옮길 미닫이문 좌표가 없다');
+      const stageBox = await page.locator('svg.k-stage').boundingBox();
+      assert(Boolean(stageBox), '문 이동용 도면이 없다');
+      if (!stageBox) throw new Error('문 이동용 도면이 없다');
+      const oneX = stageBox.width / beforeMovePlan.grid.width;
+      const oneY = stageBox.height / beforeMovePlan.grid.height;
+      const horizontalWall = beforeOpening.side === 'N' || beforeOpening.side === 'S';
+      for (const direction of [1, -1] as const) {
+        const box = await placed.boundingBox();
+        if (!box) break;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width / 2 + (horizontalWall ? oneX * direction : 0), box.y + box.height / 2 + (horizontalWall ? 0 : oneY * direction), { steps: 6 });
+        await page.mouse.up();
+        await page.waitForTimeout(750);
+        const moved = (await kidsPlan(page)).blocks.find((block) => block.id === beforeOpening.id);
+        if (moved?.cell && (moved.cell.x !== beforeOpening.cell.x || moved.cell.y !== beforeOpening.cell.y || moved.side !== beforeOpening.side)) break;
+      }
+      const afterMoveOpening = (await kidsPlan(page)).blocks.find((block) => block.id === beforeOpening.id);
+      assert(Boolean(afterMoveOpening?.cell && (afterMoveOpening.cell.x !== beforeOpening.cell.x || afterMoveOpening.cell.y !== beforeOpening.cell.y || afterMoveOpening.side !== beforeOpening.side)), '미닫이문을 벽을 따라 끌어도 이동하지 않는다');
+      await page.locator('button[data-opening-state]').click();
       await page.waitForTimeout(250);
-      assert((await placed.getAttribute('data-opening-state')) === 'closed', '미닫이문을 다시 닫지 못했다');
+      assert((await placed.getAttribute('data-opening-state')) === 'open', '미닫이문을 평소 상태 단추로 열지 못했다');
+      await page.locator('button[data-opening-state]').click();
+      await page.waitForTimeout(250);
+      assert((await placed.getAttribute('data-opening-state')) === 'closed', '미닫이문을 평소 상태 단추로 다시 닫지 못했다');
 
-      for (let i = 0; i < 3; i += 1) {
+      /* 교체·이동·열기·닫기 네 동작을 모두 되돌려 원래 여닫이문으로 복원한다. */
+      for (let i = 0; i < 4; i += 1) {
         await page.keyboard.press('Control+z');
         await page.waitForTimeout(150);
       }
@@ -1124,6 +1188,7 @@ async function main(): Promise<void> {
       const speaking = await page.evaluate(() => window.speechSynthesis?.speaking ?? false);
       assert(speaking === false, '껐는데 아직 읽고 있다');
       const afterOff = await readProbe();
+      assert(afterOff.speaks === beforeOff.speaks, '소리를 끄는 동안 브라우저 기계음이 호출됐다');
       assert(afterOff.cancels > beforeOff.cancels, '끄면서 읽던 말을 취소하지 않았다');
       assert(afterOff.suspends > beforeOff.suspends, '끄면서 AudioContext 를 멈추지 않았다');
       assert(afterOff.immediateStops > beforeOff.immediateStops, '현재·예약 효과음을 취소하지 않았다');
@@ -1144,6 +1209,7 @@ async function main(): Promise<void> {
       await btn.click();
       await page.waitForTimeout(700);
       const voiceAfterOn = await readProbe();
+      assert(voiceAfterOn.speaks === voiceBeforeOn.speaks, '최신 MP3 대신 브라우저 기계음이 호출됐다');
       assert(voiceAfterOn.voicePlayCalls > voiceBeforeOn.voicePlayCalls, '상단에서 소리를 켜도 최신 MP3를 부르지 않았다');
       assert(voiceAfterOn.voicePlayResolves > voiceBeforeOn.voicePlayResolves, '상단에서 다시 튼 MP3 play()가 실패했다');
       assert(voiceAfterOn.voicePlaying > voiceBeforeOn.voicePlaying, '상단에서 다시 튼 MP3가 playing 상태가 되지 않았다');
@@ -1203,15 +1269,27 @@ async function main(): Promise<void> {
 
       /* 고른 것 중 하나를 끌면 다 같이 간다 */
       const from = await kidsCell(page, 10, 4);
-      const to = await kidsCell(page, 10, 5);
-      await page.mouse.move(from.x, from.y);
-      await page.mouse.down();
-      await page.mouse.move(to.x, to.y, { steps: 6 });
-      await page.mouse.up();
-      await page.waitForTimeout(900);
+      /* 주변에 고정된 외부 문·창이 있으면 한 방향은 막힐 수 있다. 네 방향 가운데 실제로 안전한 쪽을 찾는다. */
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
+        const to = await kidsCell(page, 10 + dx, 4 + dy);
+        await page.mouse.move(from.x, from.y);
+        await page.mouse.down();
+        await page.mouse.move(to.x, to.y, { steps: 6 });
+        await page.mouse.up();
+        await page.waitForTimeout(900);
+        if ((await planPrint(page)) !== print0) break;
+      }
       const after = await kidsSave(page);
       assert(after.blocks === before.blocks, `옮기다 블록이 사라졌다 ${before.blocks} → ${after.blocks}`);
-      assert((await planPrint(page)) !== print0, '여럿을 골랐는데 아무것도 안 움직였다');
+      if ((await planPrint(page)) === print0) {
+        const debug = await page.evaluate(() => ({
+          toast: document.querySelector('.k-toast')?.textContent?.trim() ?? '',
+          selected: Array.from(document.querySelectorAll('.k-stage [data-block]')).filter((element) =>
+            Boolean(element.querySelector('[stroke-dasharray]')),
+          ).map((element) => element.getAttribute('data-block')),
+        }));
+        throw new Error(`여럿을 골랐는데 아무것도 안 움직였다: ${JSON.stringify(debug)}`);
+      }
 
       /* 되돌려 둔다 — 뒤 시나리오가 원래 도면을 그대로 봐야 한다 */
       await page.keyboard.press('Control+z');
@@ -1271,6 +1349,18 @@ async function main(): Promise<void> {
       assert((await kidsSave(page)).blocks === before + 1, '감지기가 안 놓였다');
       const bubble = await page.locator('.k-bubble').innerText().catch(() => '');
       assert(bubble.includes('감지기'), `캐릭터 말: ${bubble.slice(0, 40)}`);
+    });
+
+    await check('대피경로가 없으면 출력하지 않고 나가는 길 그리기를 안내한다 (설계서 v1.11 §5)', async () => {
+      const saved = await kidsSave(page);
+      assert(saved.primary === 0 && saved.alternate === 0, '경로 없는 출력 차단을 검사하기 전에 길이 이미 있다');
+      await page.locator('[data-coach="kids-print"]').click();
+      await page.waitForTimeout(250);
+      assert((await page.locator('.k-preview').count()) === 0, '대피경로가 없는데 인쇄 미리보기가 열렸다');
+      const toast = await page.locator('.k-toast').innerText();
+      assert(toast.includes('나가는 길') && toast.includes('뽑'), `경로 안내가 알맞지 않다: ${toast}`);
+      assert((await page.locator('.k-app').getAttribute('data-step')) === 'route', '출력 차단 뒤 주 경로 그리기로 이동하지 않았다');
+      assert((await page.locator('.k-app').getAttribute('data-tool')) === null || (await page.locator('.k-canvas').getAttribute('data-tool')) === 'route', '출력 차단 뒤 나가는 길 도구가 켜지지 않았다');
     });
 
     await check('주 경로를 끌어 그리면 캐릭터가 첫 지적을 말하고, 보조 경로도 따로 그려진다 (§3.2)', async () => {
@@ -1399,9 +1489,9 @@ async function main(): Promise<void> {
       await page.waitForTimeout(500);
     });
 
-    await check('문을 한 번 누르면 열리고 다시 누르면 닫힌다 (설계서 v1.2 §2.4)', async () => {
+    await check('문을 고르면 길이·안팎 방향·평소 상태를 화면 단추로 바꾼다 (설계서 v1.11 §3)', async () => {
       await page.locator('[data-coach="kids-tool-select"]').click();
-      const door = page.locator('.k-stage [data-kind="opening"]').first();
+      const door = page.locator('.k-stage [data-opening-kind="door"]').first();
       const id = await door.getAttribute('data-block');
       const state = async (): Promise<boolean> =>
         page.evaluate((blockId) => {
@@ -1415,12 +1505,25 @@ async function main(): Promise<void> {
       const bb = await door.boundingBox();
       assert(bb !== null, '개구부가 화면에 없다');
       await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(250);
+      assert((await page.locator('[data-opening-controls]').count()) === 1, '문을 골라도 조작부가 보이지 않는다');
+      assert((await page.locator('[data-opening-span]').count()) === 3, '여닫이문 1~3칸 너비 단추가 없다');
+      await page.locator('[data-opening-span="3"]').click();
+      await page.waitForTimeout(450);
+      assert((await door.getAttribute('data-opening-width')) === '3', '여닫이문 가로 길이가 3칸으로 늘어나지 않는다');
+      await page.locator('button[data-opening-swing="outward"]').click();
+      await page.waitForTimeout(300);
+      assert((await door.getAttribute('data-opening-swing')) === 'outward', '문이 방 바깥쪽으로 열리게 바뀌지 않는다');
+      await page.locator('button[data-opening-swing="inward"]').click();
+      await page.waitForTimeout(250);
+      assert((await door.getAttribute('data-opening-swing')) === 'inward', '문이 방 안쪽으로 다시 열리지 않는다');
+      await page.locator('button[data-opening-state]').click();
+      await page.waitForTimeout(650);
       const mid = await state();
-      assert(mid !== before, '한 번 눌렀는데 안 바뀐다');
-      await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
-      await page.waitForTimeout(800);
-      assert((await state()) === before, '다시 눌렀는데 안 돌아온다');
+      assert(mid !== before, '평소 상태 단추를 눌러도 열림·닫힘이 안 바뀐다');
+      await page.locator('button[data-opening-state]').click();
+      await page.waitForTimeout(650);
+      assert((await state()) === before, '평소 상태 단추를 다시 눌러도 돌아오지 않는다');
       await page.keyboard.press('Escape');
     });
 
@@ -1580,6 +1683,8 @@ async function main(): Promise<void> {
       assert((await page.locator('[data-look-direction]').count()) === 4, '상하좌우 방향 단추가 넷이 아니다');
       assert((await page.locator('[data-look-reset]').count()) === 1, '시점 정면 단추가 없다');
       assert((await page.locator('[data-quality]').count()) === 3, '화질 선택이 세 단계가 아니다');
+      assert((await replay.getAttribute('data-player-count')) === '1', '3D 리플레이의 주인공 수가 한 명이 아니다');
+      assert((await page.locator('[data-quality-badge]').count()) === 1, '3D 장면에 현재 화질 표시가 없다');
       const topbarBox = await page.locator('.k-r-topbar').boundingBox();
       const stageBox = await page.locator('.k-replay-stage').boundingBox();
       assert(Boolean(topbarBox && stageBox && topbarBox.y + topbarBox.height <= stageBox.y + 1), '상단 조작부가 3D 화면과 겹친다');

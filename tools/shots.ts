@@ -161,7 +161,22 @@ async function main(): Promise<void> {
   await page.waitForSelector('svg.k-stage');
   await page.waitForTimeout(500);
   await page.locator('[data-coach="kids-route-slot"] [data-slot="primary"]').click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
+  const editStage = await page.locator('svg.k-stage').boundingBox();
+  if (!editStage) throw new Error('나가는 길을 그릴 도면이 보이지 않는다.');
+  const route = [[10, 4], [10, 5], [10, 6], [10, 7], [11, 7], [12, 7], [13, 7], [14, 7], [14, 8], [14, 9], [14, 10], [15, 10], [16, 10]] as const;
+  const routePoint = ([x, y]: readonly [number, number]) => ({
+    x: editStage.x + ((x + 0.5) / 24) * editStage.width,
+    y: editStage.y + ((y + 0.5) / 16) * editStage.height,
+  });
+  await page.mouse.move(routePoint(route[0]).x, routePoint(route[0]).y);
+  await page.mouse.down();
+  for (const cell of route.slice(1)) {
+    const point = routePoint(cell);
+    await page.mouse.move(point.x, point.y, { steps: 2 });
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(dest, '6-edit.png') });
   await page.locator('[data-coach="kids-print"]').click();
   await page.waitForSelector('.k-preview svg.k-sheet');

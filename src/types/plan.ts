@@ -173,6 +173,8 @@ export interface OpeningBlock {
   side: Side;
   /** 벽을 따라 차지하는 길이. 예전 저장자료는 1칸으로 읽는다. */
   span?: OpeningSpan;
+  /** 여닫이문이 기준 셀의 안쪽으로 열리는지 바깥쪽으로 열리는지. 이전 자료는 inward다. */
+  swing?: OpeningSwing;
   closedByDefault: boolean;
   /** 통행 그래프에는 필요하지만 실제 벽이 없는 공용 구역 경계라 2D에는 그리지 않는다. */
   hideInPlan?: boolean;
@@ -180,6 +182,12 @@ export interface OpeningBlock {
 
 /** 미닫이문·미닫이창까지 표현할 수 있는 개구부 길이. */
 export type OpeningSpan = 1 | 2 | 3 | 4 | 5 | 6;
+export type OpeningSwing = 'inward' | 'outward';
+
+export interface BlockSize {
+  w: number;
+  h: number;
+}
 
 export interface PointBlock {
   kind: 'safety' | 'furniture' | 'hazard' | 'marker';
@@ -187,6 +195,8 @@ export interface PointBlock {
   layer: LayerId;
   subKind: PointKind;
   cell: Cell;
+  /** 도면에서 차지하는 표준 크기. 이전 자료는 콘텐츠 정의를 읽어 채운다. */
+  size?: BlockSize;
   rotation: 0 | 90 | 180 | 270;
 }
 
@@ -239,6 +249,12 @@ export interface RoutePair {
   alternate?: EvacRoute;
 }
 
+/** 인쇄·PNG에 실제로 그릴 수 있는 대피경로가 하나라도 있는가. */
+export function hasDrawableRoute(pair: RoutePair | undefined): boolean {
+  return Boolean(pair?.primary?.waypoints && pair.primary.waypoints.length > 1)
+    || Boolean(pair?.alternate?.waypoints && pair.alternate.waypoints.length > 1);
+}
+
 export type RouteSlot = 'primary' | 'alternate';
 
 export type RouteSet = Partial<Record<HazardKindId, RoutePair>>;
@@ -269,4 +285,10 @@ export function isOpening(b: Block): b is OpeningBlock {
 
 export function isPoint(b: Block): b is PointBlock {
   return b.kind === 'safety' || b.kind === 'furniture' || b.kind === 'hazard' || b.kind === 'marker';
+}
+
+/** 회전까지 반영한 점 블록의 도면 차지 크기다. */
+export function pointFootprint(b: Pick<PointBlock, 'size' | 'rotation'>): BlockSize {
+  const size = b.size ?? { w: 1, h: 1 };
+  return b.rotation === 90 || b.rotation === 270 ? { w: size.h, h: size.w } : { ...size };
 }

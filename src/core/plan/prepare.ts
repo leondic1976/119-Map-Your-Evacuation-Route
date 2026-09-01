@@ -5,7 +5,8 @@
  * 순서대로 적용한다. UI와 저장소 어느 쪽에도 좌표 계산을 흩뜨리지 않는다.
  */
 import type { Block, Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
-import { isOpening, isRoom } from '../../types/plan';
+import { isOpening, isRoom, pointFootprint } from '../../types/plan';
+import { openingCells } from '../grid/occupancy';
 import { cellKey, cellsOf, step } from '../grid/geometry';
 
 export type PlanRotation = 0 | 90 | 180 | 270;
@@ -147,15 +148,21 @@ export function rotatePlan(source: FloorPlan, rotation: PlanRotation): FloorPlan
     blocks = blocks.map((block): Block => {
       if (isRoom(block)) return { ...block, rect: rotateRect90(block.rect, old.height) };
       if (isOpening(block)) {
+        const side = rotateSide90(block.side);
+        const cells = openingCells(block).map((cell) => rotateCell90(cell, old.height));
+        const cell = side === 'N' || side === 'S'
+          ? cells.reduce((best, item) => item.x < best.x ? item : best)
+          : cells.reduce((best, item) => item.y < best.y ? item : best);
         return {
           ...block,
-          cell: rotateCell90(block.cell, old.height),
-          side: rotateSide90(block.side),
+          cell,
+          side,
         };
       }
+      const size = pointFootprint(block);
       return {
         ...block,
-        cell: rotateCell90(block.cell, old.height),
+        cell: { x: old.height - block.cell.y - size.h, y: block.cell.x },
         rotation: ((block.rotation + 90) % 360) as 0 | 90 | 180 | 270,
       };
     });

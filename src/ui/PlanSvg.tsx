@@ -9,7 +9,7 @@
  */
 import React, { useId } from 'react';
 import type { Cell, FloorPlan, OpeningBlock, PointBlock, RoomBlock, RoutePair, RouteSlot } from '../types/plan';
-import { isOpening, isPoint, isRoom } from '../types/plan';
+import { isOpening, isPoint, isRoom, pointFootprint } from '../types/plan';
 import type { HazardField } from '../types/hazard';
 import type { Posture } from '../types/game';
 import type { PlayerCharacter } from '../types/guide';
@@ -17,7 +17,7 @@ import { PLAYER_CHARACTERS } from '../types/guide';
 import { KidToken } from './KidCharacters';
 import { roomLabel } from '../core/graph/build';
 import { slotCenter } from '../core/grid/geometry';
-import { blockName } from '../content';
+import { blockDef, blockName } from '../content';
 import { OpeningArt, PointArt } from './BlockArt';
 import { PlayerSprite } from './Avatar';
 import type { Highlight } from '../store/kidsStore';
@@ -152,7 +152,8 @@ export function PlanSvg(props: PlanSvgProps) {
   const rooms = plan.blocks.filter(isRoom);
   const roomsForDrawing = rooms.slice().sort((a, b) => Number(a.wallMode !== 'zone') - Number(b.wallMode !== 'zone'));
   const openings = plan.blocks.filter(isOpening);
-  const points = plan.blocks.filter(isPoint);
+  /* 게임에서는 움직이는 플레이어가 따로 있으므로 고정 내 위치 그림을 겹쳐 그리지 않는다. */
+  const points = plan.blocks.filter(isPoint).filter((point) => !game || point.subKind !== 'my_spot');
 
   /* 고른 것 판정 — 하나만 골랐을 때도 selected 에 들어 있다 */
   const chosen = new Set(selected && selected.length ? selected : selection ? [selection] : []);
@@ -340,11 +341,15 @@ export function PlanSvg(props: PlanSvgProps) {
           const sel = isChosen(o.id);
           const isHl = matchesHl(o);
           /* 게임 중이면 지금 상태, 편집 중이면 평소 상태를 보인다 (설계서 v1.2 §2.3) */
-          const open = o.openingKind === 'open_passage' || (game ? game.doorState[o.id] !== 'closed' : !o.closedByDefault);
+          const swingDoor = o.openingKind === 'door' || o.openingKind === 'front_door' || o.openingKind === 'inner_door' || o.openingKind === 'emergency_exit';
+          /* 편집·인쇄에서는 실제 닫힘 상태보다 문짝이 어느 쪽으로 열리는지 보여 주는 것이 우선이다. */
+          const open = o.openingKind === 'open_passage' || (game ? game.doorState[o.id] !== 'closed' : swingDoor || !o.closedByDefault);
           return (
-            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-width={span} data-opening-state={open ? 'open' : 'closed'} data-plan-hidden={o.hideInPlan ? 'true' : undefined} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+            <g key={o.id} data-block={o.id} data-kind="opening" data-opening-kind={o.openingKind} data-opening-width={span} data-opening-swing={swingDoor ? (o.swing ?? 'inward') : undefined} data-opening-state={open ? 'open' : 'closed'} data-plan-hidden={o.hideInPlan ? 'true' : undefined} transform={`${nudge(o.id)} translate(${c.x * CS} ${c.y * CS}) rotate(${rot})`}>
+              {/* 선이 가는 문·창도 빈 가운데를 포함한 48px 가까운 면 전체를 잡을 수 있게 한다. */}
+              {!o.hideInPlan ? <rect x={-(CS * span) / 2} y={-CS * 0.48} width={CS * span} height={CS * 0.96} fill="transparent" /> : null}
               {/* 공용 구역 경계는 실제 벽이 아니므로 지우개 모양조차 그리지 않는다. */}
-              {!o.hideInPlan ? <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS * span + 4 : CS * span - 5} style={style} open={open} /> : null}
+              {!o.hideInPlan ? <OpeningArt kind={o.openingKind} len={o.openingKind === 'open_passage' ? CS * span + 4 : CS * span - 5} style={style} open={open} swing={o.swing ?? 'inward'} /> : null}
               {(sel || isHl) && (
                 <rect x={-(CS * span - 3) / 2} y={-CS * 0.42} width={CS * span - 3} height={CS * 0.84} rx={6} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} className={isHl ? 'kids-hl' : undefined} />
               )}
@@ -356,6 +361,18 @@ export function PlanSvg(props: PlanSvgProps) {
       {/* 물건·설비·표시 */}
       <g>
         {points.map((p) => {
+          const baseSize = p.size ?? blockDef(p.subKind)?.size ?? { w: 1, h: 1 };
+          const sized = { ...p, size: baseSize };
+          const footprint = pointFootprint(sized);
+          const artW = baseSize.w * CS;
+          const artH = baseSize.h * CS;
+          const turn = p.rotation === 90
+            ? `translate(${footprint.w * CS} 0) rotate(90)`
+            : p.rotation === 180
+              ? `translate(${footprint.w * CS} ${footprint.h * CS}) rotate(180)`
+              : p.rotation === 270
+                ? `translate(0 ${footprint.h * CS}) rotate(270)`
+                : '';
           const sel = isChosen(p.id);
           const isHl = matchesHl(p);
           const caption =
@@ -363,25 +380,27 @@ export function PlanSvg(props: PlanSvgProps) {
               ? blockName(p.subKind, 'easy')
               : null;
           return (
-            <g key={p.id} data-block={p.id} data-kind={p.kind} transform={`${nudge(p.id)} translate(${p.cell.x * CS} ${p.cell.y * CS})`}>
-              <g transform={`rotate(${p.rotation} ${CS / 2} ${CS / 2})`}>
+            <g key={p.id} data-block={p.id} data-kind={p.kind} data-point-kind={p.subKind} data-point-width={footprint.w} data-point-height={footprint.h} transform={`${nudge(p.id)} translate(${p.cell.x * CS} ${p.cell.y * CS})`}>
+              {/* 침대·싱크대처럼 큰 가구는 그림의 투명한 부분에서도 전체 면을 잡아 옮길 수 있다. */}
+              <rect width={footprint.w * CS} height={footprint.h * CS} fill="transparent" />
+              <g transform={turn || undefined}>
                 {/*
                   * 내 자리와 형·동생은 사람이다. 기호 대신 캐릭터로 그린다 (설계서 v1.5 §2 · §3).
                   * 내 자리는 내가 고른 캐릭터를 그대로 쓴다 — 게임에서 조작할 그 아이다.
                   */}
                 {p.subKind === 'my_spot' && playerCharacter ? (
-                  <KidToken id={playerCharacter} size={CS} posture="stand" facing="right" />
+                  <KidToken id={playerCharacter} size={Math.min(artW, artH)} posture="stand" facing="right" />
                 ) : p.subKind === 'sibling_older' || p.subKind === 'sibling_younger' ? (
-                  <KidToken id={siblingCharacter(p.subKind, playerCharacter)} size={CS} posture="stand" facing={p.subKind === 'sibling_older' ? 'left' : 'right'} />
+                  <KidToken id={siblingCharacter(p.subKind, playerCharacter)} size={Math.min(artW, artH)} posture="stand" facing={p.subKind === 'sibling_older' ? 'left' : 'right'} />
                 ) : (
-                  <PointArt subKind={p.subKind} w={CS} h={CS} style={style} />
+                  <PointArt subKind={p.subKind} w={artW} h={artH} style={style} />
                 )}
               </g>
               {/* 이름표는 절대 돌리지 않는다. 8px 이라 안 보인다는 지적을 받아 11.5px 굵게 올렸다 */}
               {caption && (
                 <text
-                  x={CS / 2}
-                  y={CS + 10}
+                  x={(footprint.w * CS) / 2}
+                  y={footprint.h * CS + 10}
                   textAnchor="middle"
                   fontSize={11.5}
                   fontWeight={700}
@@ -392,7 +411,7 @@ export function PlanSvg(props: PlanSvgProps) {
                 </text>
               )}
               {(sel || isHl) && (
-                <rect x={1} y={1} width={CS - 2} height={CS - 2} rx={5} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} strokeDasharray={sel ? '5 3' : undefined} className={isHl ? 'kids-hl' : undefined} />
+                <rect x={1} y={1} width={footprint.w * CS - 2} height={footprint.h * CS - 2} rx={5} fill={isHl ? '#ffd166' : 'none'} fillOpacity={0.3} stroke={isHl ? '#e0a100' : '#0f3d68'} strokeWidth={2.5} strokeDasharray={sel ? '5 3' : undefined} className={isHl ? 'kids-hl' : undefined} />
               )}
             </g>
           );

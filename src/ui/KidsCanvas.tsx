@@ -15,14 +15,15 @@
  */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import type { Cell, Rect, RoomKind, Side } from '../types/plan';
-import { isOpening, isPoint, isRoom } from '../types/plan';
+import { isOpening, isPoint, isRoom, pointFootprint } from '../types/plan';
 import type { Direction } from '../types/game';
-import { roomAt, canPlaceRoom } from '../core/grid/occupancy';
+import { roomAt, canPlaceOpening, canPlaceRoom } from '../core/grid/occupancy';
 import { boundarySlots, lineCells, nearestSlot, rectFromDrag, sameCell, slotCenter } from '../core/grid/geometry';
 import { blocksInRect } from '../core/grid/occupancy';
 import { canDefineShellZone, canInsertShellRoom, canReflowShellRoom } from '../core/plan/reflow';
 import { suggestedRoute, useKids } from '../store/kidsStore';
 import { CS, PlanSvg, type GameLayer } from './PlanSvg';
+import { blockDef } from '../content';
 
 type Handle = 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
 
@@ -30,7 +31,8 @@ type Drag =
   | { kind: 'room'; start: Cell; moved: boolean; preview: Rect | null }
   | { kind: 'band'; start: Cell; add: boolean; rect: Rect | null }
   | { kind: 'multiMove'; start: Cell; dx: number; dy: number }
-  | { kind: 'move'; id: string; start: Cell; cell: Cell }
+  | { kind: 'move'; id: string; start: Cell; cell: Cell; offset: Cell }
+  | { kind: 'openingMove'; id: string; start: { cell: Cell; side: Side }; slot: { cell: Cell; side: Side }; moved: boolean }
   | { kind: 'roomMove'; id: string; start: Cell; dx: number; dy: number }
   | { kind: 'resize'; id: string; handle: Handle; start: Cell; base: Rect; rect: Rect }
   | { kind: 'route'; last: Cell };
@@ -62,6 +64,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   const [ghost, setGhost] = useState<{ cell: Cell; side: Side } | null>(null);
   const [hover, setHover] = useState<Cell | null>(null);
   const [movePreview, setMovePreview] = useState<{ id: string; cell: Cell } | null>(null);
+  const [openingPreview, setOpeningPreview] = useState<{ id: string; cell: Cell; side: Side; allowed: boolean } | null>(null);
   const [roomShift, setRoomShift] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [resizePreview, setResizePreview] = useState<Rect | null>(null);
   /** 끌어서 두르는 네모 */
@@ -119,13 +122,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     [plan.grid.width, plan.grid.height],
   );
 
-  /** 무엇을 눌렀나 — 물건 > 문·창 > 방 */
+  /** 무엇을 눌렀나 — 벽의 가는 문·창 > 물건 > 방. 문선 밖에서는 큰 가구를 그대로 잡는다. */
   const hitTest = useCallback(
     (p: { x: number; y: number }): string | null => {
       const c = toCell(p);
-      /* 뒤에 그린 블록이 화면 위에 있다. 좌표만 쓸 때도 보이는 순서의 맨 위를 고른다. */
-      const pt = plan.blocks.slice().reverse().find((b) => isPoint(b) && sameCell(b.cell, c));
-      if (pt) return pt.id;
       for (const b of plan.blocks) {
         if (!isOpening(b) || b.hideInPlan) continue;
         const span = b.span ?? 1;
@@ -138,6 +138,13 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         const across = b.side === 'N' || b.side === 'S' ? Math.abs(sc.y - p.y) : Math.abs(sc.x - p.x);
         if (along <= span / 2 + 0.12 && across < 0.34) return b.id;
       }
+      /* 뒤에 그린 물건이 화면 위에 있다. 좌표만 쓸 때도 보이는 순서의 맨 위를 고른다. */
+      const pt = plan.blocks.slice().reverse().find((b) => {
+        if (!isPoint(b)) return false;
+        const size = pointFootprint({ ...b, size: b.size ?? blockDef(b.subKind)?.size });
+        return c.x >= b.cell.x && c.x < b.cell.x + size.w && c.y >= b.cell.y && c.y < b.cell.y + size.h;
+      });
+      if (pt) return pt.id;
       return roomAt(plan, c)?.id ?? null;
     },
     [plan, toCell],
@@ -181,8 +188,14 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     }
 
     const target = e.target as Element;
+    const exactId = target.closest?.('[data-block]')?.getAttribute('data-block') ?? null;
+    const geometricId = hitTest(p);
+    const geometricBlock = geometricId ? plan.blocks.find((block) => block.id === geometricId) : undefined;
+    /* 큰 가구가 문 위까지 덮여도 가는 문선 가까이를 누르면 문·창을 고른다. */
+    const hitId = geometricBlock && isOpening(geometricBlock) ? geometricId : exactId ?? geometricId;
     const handle = target.closest?.('[data-handle]')?.getAttribute('data-handle') as Handle | null;
-    if (tool === 'select' && canAdjustRooms && handle && selection) {
+    /* 크기 손잡이는 한 방만 골랐을 때만 작동해, 여러 블록의 전체 이동을 가로채지 않는다. */
+    if (tool === 'select' && canAdjustRooms && handle && selection && s.multi.length <= 1) {
       const room = plan.blocks.find((b) => b.id === selection);
       if (room && isRoom(room) && room.wallMode !== 'zone') {
         dragRef.current = { kind: 'resize', id: room.id, handle, start: c, base: room.rect, rect: room.rect };
@@ -212,8 +225,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       }
     } else if (tool === 'select') {
       /* 같은 칸에 침대와 내 위치가 겹쳐도 실제로 누른 SVG 블록을 먼저 고른다. */
-      const exactId = target.closest?.('[data-block]')?.getAttribute('data-block') ?? null;
-      const id = exactId ?? hitTest(p);
+      const id = hitId;
       const add = e.ctrlKey || e.metaKey;
 
       /* Ctrl+누르기 — 골라 둔 것에 더하거나 뺀다 (설계서 v1.5 §1) */
@@ -234,9 +246,12 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       s.select(id);
       if (id) {
         const b = plan.blocks.find((x) => x.id === id);
-        /* 문·창은 누를 때마다 열리고 닫힌다. 두 번 걸치는 조작을 만들지 않는다 (FR-7 우선) */
-        if (b && isOpening(b)) s.toggleOpening(b.id);
-        else if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: c, cell: c };
+        /* 문·창도 가구처럼 선택한 뒤 벽을 따라 끌어서 옮긴다. 상태·방향은 위 조작부에서 바꾼다. */
+        if (b && isOpening(b)) {
+          dragRef.current = { kind: 'openingMove', id, start: { cell: b.cell, side: b.side }, slot: { cell: b.cell, side: b.side }, moved: false };
+          setOpeningPreview({ id, cell: b.cell, side: b.side, allowed: true });
+        }
+        else if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: b.cell, cell: b.cell, offset: { x: c.x - b.cell.x, y: c.y - b.cell.y } };
         else if (b && isRoom(b) && canAdjustRooms) dragRef.current = { kind: 'roomMove', id, start: c, dx: 0, dy: 0 };
       } else {
         /* 빈 곳에서 끌면 네모로 두른다 */
@@ -296,7 +311,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       const id = hitTest(mid);
       s.select(id);
       const b = id ? plan.blocks.find((x) => x.id === id) : undefined;
-      if (b && isOpening(b)) s.toggleOpening(b.id);
+      /* Enter는 고르기만 한다. 문 상태와 열림 방향은 선택 조작부에서 바꾼다. */
     } else if (tool === 'route') {
       if (drafting) s.extendRoute(c);
       else s.startRoute(c);
@@ -350,9 +365,19 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         setPreview(d.preview);
         break;
       case 'move':
-        d.cell = c;
+        d.cell = { x: c.x - d.offset.x, y: c.y - d.offset.y };
         setMovePreview({ id: d.id, cell: d.cell });
         break;
+      case 'openingMove': {
+        const slot = nearestSlot(slots, p);
+        if (!slot) break;
+        const target = plan.blocks.find((block) => block.id === d.id);
+        if (!target || !isOpening(target)) break;
+        d.slot = slot;
+        d.moved = slot.side !== d.start.side || !sameCell(slot.cell, d.start.cell);
+        setOpeningPreview({ id: d.id, ...slot, allowed: canPlaceOpening(plan, { ...target, ...slot }) });
+        break;
+      }
       case 'roomMove':
         d.dx = c.x - d.start.x;
         d.dy = c.y - d.start.y;
@@ -406,6 +431,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       case 'move':
         if (!sameCell(d.cell, d.start)) s.moveBlock(d.id, d.cell);
         setMovePreview(null);
+        break;
+      case 'openingMove':
+        if (d.moved) s.moveOpening(d.id, d.slot.cell, d.slot.side);
+        setOpeningPreview(null);
         break;
       case 'roomMove':
         if (d.dx || d.dy) s.moveRoom(d.id, d.dx, d.dy);
@@ -556,7 +585,12 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
             <RoomGhost plan={plan} at={hover} kind={armed.id} mode={armed.roomMode} />
           )}
           {hover && !preview && !ghost && !inGame && (tool === 'route' || step === 'mySpot' || step === 'meeting' || (tool === 'place' && armed && armed.category !== 'room' && armed.category !== 'opening')) && (
-            <rect x={hover.x * CS + 2} y={hover.y * CS + 2} width={CS - 4} height={CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.12} stroke="#0f3d68" strokeWidth={2} strokeDasharray="4 3" style={{ pointerEvents: 'none' }} />
+            (() => {
+              const size = tool === 'place' && armed ? blockDef(armed.id)?.size ?? { w: 1, h: 1 } : { w: 1, h: 1 };
+              const x = Math.max(0, Math.min(plan.grid.width - size.w, hover.x));
+              const y = Math.max(0, Math.min(plan.grid.height - size.h, hover.y));
+              return <rect x={x * CS + 2} y={y * CS + 2} width={size.w * CS - 4} height={size.h * CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.12} stroke="#0f3d68" strokeWidth={2} strokeDasharray="4 3" style={{ pointerEvents: 'none' }} />;
+            })()
           )}
           {band && (
             <rect
@@ -573,7 +607,22 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
             />
           )}
           {movePreview && (
-            <rect x={movePreview.cell.x * CS + 2} y={movePreview.cell.y * CS + 2} width={CS - 4} height={CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.2} stroke="#0f3d68" strokeWidth={2} style={{ pointerEvents: 'none' }} />
+            (() => {
+              const point = plan.blocks.find((block) => block.id === movePreview.id);
+              const size = point && isPoint(point) ? pointFootprint({ ...point, size: point.size ?? blockDef(point.subKind)?.size }) : { w: 1, h: 1 };
+              return <rect x={movePreview.cell.x * CS + 2} y={movePreview.cell.y * CS + 2} width={size.w * CS - 4} height={size.h * CS - 4} rx={5} fill="#0f3d68" fillOpacity={0.2} stroke="#0f3d68" strokeWidth={2} style={{ pointerEvents: 'none' }} />;
+            })()
+          )}
+          {openingPreview && (
+            (() => {
+              const opening = plan.blocks.find((block) => block.id === openingPreview.id);
+              const span = opening && isOpening(opening) ? opening.span ?? 1 : 1;
+              const center = slotCenter(openingPreview.cell, openingPreview.side);
+              const x = (center.x + (openingPreview.side === 'N' || openingPreview.side === 'S' ? (span - 1) / 2 : 0)) * CS;
+              const y = (center.y + (openingPreview.side === 'E' || openingPreview.side === 'W' ? (span - 1) / 2 : 0)) * CS;
+              const horizontal = openingPreview.side === 'N' || openingPreview.side === 'S';
+              return <rect x={x - (horizontal ? span * CS / 2 : 7)} y={y - (horizontal ? 7 : span * CS / 2)} width={horizontal ? span * CS : 14} height={horizontal ? 14 : span * CS} rx={5} fill={openingPreview.allowed ? '#2b8a6e' : '#c8102e'} fillOpacity={0.28} stroke={openingPreview.allowed ? '#0f6f59' : '#c8102e'} strokeWidth={2.5} style={{ pointerEvents: 'none' }} />;
+            })()
           )}
           {roomShift && selectedRoom && isRoom(selectedRoom) && (
             <rect

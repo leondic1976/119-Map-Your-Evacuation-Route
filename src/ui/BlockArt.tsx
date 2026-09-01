@@ -482,12 +482,15 @@ export function OpeningArt({
   len,
   style,
   open,
+  swing = 'inward',
 }: {
   kind: string;
   len: number;
   style: ArtStyle;
   /** 지금 열려 있는가. 편집 화면에서는 '평소 상태'를 그린다 */
   open?: boolean;
+  /** 여닫이문 회전 호가 기준 셀 안쪽인지 바깥쪽인지 */
+  swing?: 'inward' | 'outward';
 }) {
   const t = 8;
   const stroke = style === 'kid' ? KID.ink : BP.line;
@@ -591,6 +594,7 @@ export function OpeningArt({
   const hinge = -len / 2;
   const doorColor = isFront ? '#0b6b43' : style === 'kid' ? '#9c6239' : stroke;
   const thick = isFront ? 8 : 6.4;
+  const swingY = swing === 'outward' ? -1 : 1;
 
   return (
     <g>
@@ -610,9 +614,9 @@ export function OpeningArt({
       {isOpen ? (
         <>
           {/* 열림 — 문짝이 안쪽으로 90도 돌아 서 있다 */}
-          <path d={`M${hinge + leaf} 0 A ${leaf} ${leaf} 0 0 1 ${hinge} ${leaf}`} fill="none" stroke={doorColor} strokeWidth={1.4} strokeDasharray="4 3" opacity={0.6} />
-          <path d={`M${hinge} 1 V${leaf}`} stroke={doorColor} strokeWidth={thick} strokeLinecap="round" />
-          <path d={`M${hinge} 1 V${leaf}`} stroke="#ffffff" strokeWidth={1.6} strokeLinecap="round" opacity={0.45} />
+          <path d={`M${hinge + leaf} 0 A ${leaf} ${leaf} 0 0 ${swingY > 0 ? 1 : 0} ${hinge} ${swingY * leaf}`} fill="none" stroke={doorColor} strokeWidth={1.4} strokeDasharray="4 3" opacity={0.68} />
+          <path d={`M${hinge} ${swingY} V${swingY * leaf}`} stroke={doorColor} strokeWidth={thick} strokeLinecap="round" />
+          <path d={`M${hinge} ${swingY} V${swingY * leaf}`} stroke="#ffffff" strokeWidth={1.6} strokeLinecap="round" opacity={0.45} />
           <circle cx={hinge} cy={0} r={3} fill={doorColor} />
         </>
       ) : (

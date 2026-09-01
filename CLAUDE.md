@@ -29,6 +29,11 @@ https://leondic1976.github.io/119-Map-Your-Evacuation-Route/ 로 배포된다.
 화면에만 보이고 소리 내어 읽지 않는 고정 문구는 MP3 대상이 아니다. `npm run verify`에서 음성 정본과
 매니페스트·파일이 다르면 실패하게 유지한다.
 
+실제 발화는 현재 가이드 이벤트에 대응하는 ElevenLabs MP3만 재생한다. 브라우저 TTS
+(`SpeechSynthesisUtterance`, `speechSynthesis.speak`)와 예전 핵심 대사 중복 호출은 금지한다.
+오프라인판도 `public/voice/` 전체를 `dist/voice/`에 복사해 MP3로만 재생한다. 파일 실패 시에는
+화면 글만 남기고 조용히 멈추며 기계음으로 대체하지 않는다(설계서 v1.12).
+
 - **`npm run verify` 를 통과한 뒤에 커밋한다.** 검증이 깨진 채로 푸시하지 않는다.
 - 푸시한 뒤 `gh run watch` 로 배포가 끝나는 것까지 확인한다. 실패하면 고쳐서 다시 푸시한다.
 - 배포된 주소에 실제로 접속해 동작을 확인한다. 워크플로가 초록불이어도 사이트가 깨질 수 있다.
@@ -141,8 +146,8 @@ app   →  ui
 ## 10. 절대 규칙
 
 설계서는 `docs/DESIGN-v1.0.md` 와 변경 명세 `docs/DESIGN-v1.1-changes.md`,
-`docs/DESIGN-v1.2-changes.md` 부터 `docs/DESIGN-v1.10-changes.md` 까지다.
-어긋나면 **뒤 문서가 이긴다**(v1.10 > v1.9 > v1.8 > v1.7 > v1.6 > v1.5 > v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
+`docs/DESIGN-v1.2-changes.md` 부터 `docs/DESIGN-v1.12-changes.md` 까지다.
+어긋나면 **뒤 문서가 이긴다**(v1.12 > v1.11 > v1.10 > v1.9 > v1.8 > v1.7 > v1.6 > v1.5 > v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
 구현과 어긋나는 결정을 하면 코드보다 설계서를 먼저 고친다.
 
 1. 런타임에 생성형 AI 를 부르지 않는다. 캐릭터의 말은 전부 `content/guide/*.json` 의 고정 문장이다.

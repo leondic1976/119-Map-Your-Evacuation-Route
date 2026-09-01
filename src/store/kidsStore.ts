@@ -19,6 +19,7 @@ import type {
   LayerId,
   OpeningKind,
   OpeningSpan,
+  OpeningSwing,
   PointKind,
   RoomKind,
   RoutePair,
@@ -26,7 +27,7 @@ import type {
   RouteSlot,
   Side,
 } from '../types/plan';
-import { emptyFloorPlan, emptyRoute, isOpening, isRoom, routeKey, splitKey } from '../types/plan';
+import { emptyFloorPlan, emptyRoute, isOpening, isPoint, isRoom, pointFootprint, routeKey, splitKey } from '../types/plan';
 import type { GuideBubble, GuideTrigger } from '../types/guide';
 import type { Report } from '../types/report';
 import type { RuleReport, RuleResult } from '../types/rules';
@@ -43,7 +44,7 @@ import { buildReport, highlightOf } from '../core/report/build';
 import { type Game, finishGame, pauseGame, quitGame, resumeGame, startGame, tick as gameTick } from '../core/game/loop';
 import { closeDoorBehind, move, togglePosture, touchDoor } from '../core/game/player';
 import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, isVerified, presetById, templateName } from '../content';
-import { bumpBlockIdSeq, canPlaceRoom, canResizeOpening, newBlockId, openingAt, pointOccupied, roomAt } from '../core/grid/occupancy';
+import { bumpBlockIdSeq, canPlaceOpening, canPlaceRoom, fitOpeningSpan, newBlockId, openingAt, openingCells, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
 import { preparePlan, rotatePlan, type PlanRotation, type PreparePlanOptions } from '../core/plan/prepare';
@@ -168,6 +169,8 @@ export interface KidsActions {
   placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
   placePoint: (category: Armed['category'], subKind: PointKind, cell: Cell) => boolean;
   moveBlock: (id: BlockId, cell: Cell) => void;
+  /** 선택한 문·창을 전체 길이 그대로 새 벽자리로 옮긴다. */
+  moveOpening: (id: BlockId, cell: Cell, side: Side) => boolean;
   moveRoom: (id: BlockId, dx: number, dy: number) => void;
   resizeRoom: (id: BlockId, rect: { x: number; y: number; w: number; h: number }) => void;
   /** 만들기 길잡이에서 독립실·공용 구역의 쓰임을 바꾼다. 벽 성격은 그대로 둔다. */
@@ -175,6 +178,8 @@ export interface KidsActions {
   renameRoom: (id: BlockId, label: string) => void;
   /** 개구부의 평소 상태를 뒤집는다 — 열어 둠 ↔ 닫아 둠 (설계서 v1.2 §2.4) */
   toggleOpening: (id: BlockId) => void;
+  /** 여닫이문의 안쪽/바깥쪽 열림 방향을 정한다. */
+  setOpeningSwing: (id: BlockId, swing: OpeningSwing) => void;
   resizeOpening: (id: BlockId, span: OpeningSpan) => void;
   removeBlock: (id: BlockId) => void;
   /** 온보딩 — 방을 눌러 내 자리를 정한다 */
@@ -269,6 +274,29 @@ function autoLabel(plan: FloorPlan, roomKind: RoomKind): string {
   if (roomKind !== 'bedroom') return '';
   const n = plan.blocks.filter((b) => isRoom(b) && b.roomKind === 'bedroom').length + 1;
   return `방 ${n}`;
+}
+
+const SWING_OPENINGS = new Set<OpeningKind>(['door', 'front_door', 'inner_door', 'emergency_exit']);
+
+/** 이전 저장자료를 현재 편집 모델로 채우고 내 위치는 마지막 한 개만 남긴다. */
+export function normalizeEditablePlan(plan: FloorPlan): FloorPlan {
+  let lastMySpot = -1;
+  plan.blocks.forEach((block, index) => {
+    if (isPoint(block) && block.subKind === 'my_spot') lastMySpot = index;
+  });
+  return {
+    ...plan,
+    blocks: plan.blocks
+      .filter((block, index) => !(isPoint(block) && block.subKind === 'my_spot' && index !== lastMySpot))
+      .map((block) => {
+        if (isPoint(block)) {
+          const size = block.size ?? blockDef(block.subKind)?.size ?? { w: 1, h: 1 };
+          return { ...block, size: { w: Math.max(1, size.w), h: Math.max(1, size.h) } };
+        }
+        if (isOpening(block) && SWING_OPENINGS.has(block.openingKind)) return { ...block, swing: block.swing ?? 'inward' };
+        return block;
+      }),
+  };
 }
 
 export const useKids = create<KidsStore>()((set, get) => {
@@ -386,13 +414,14 @@ export const useKids = create<KidsStore>()((set, get) => {
        */
       setSoundEnabled(saved ? saved.profile.soundOn : defaultProfile().soundOn);
       if (saved && saved.plan.blocks.length > 0) {
-        bumpBlockIdSeq(saved.plan);
+        const plan = normalizeEditablePlan(saved.plan);
+        bumpBlockIdSeq(plan);
         const seen = saved.progress.completedSteps.filter((s) => s.startsWith('card:')).map((s) => s.slice(5));
         const placed = saved.progress.completedSteps.filter((s) => s.startsWith('placed:')).map((s) => s.slice(7));
         set({
           ready: true,
           profile: saved.profile,
-          plan: saved.plan,
+          plan,
           routes: saved.routes,
           progress: saved.progress,
           missions: saved.progress.guardianMissions,
@@ -531,9 +560,18 @@ export const useKids = create<KidsStore>()((set, get) => {
             get().notify('그쪽으로는 옮길 수 없다. 다른 방과 겹친다.', 'warn');
             return;
           }
-        } else if (b.cell.x < 0 || b.cell.y < 0 || b.cell.x >= g.width || b.cell.y >= g.height) {
-          get().notify('도면 밖으로는 못 나간다.', 'warn');
-          return;
+        } else if (isOpening(b)) {
+          /* 고른 방의 벽에 붙어 함께 가는 문·창은 방과 같은 거리만큼 움직여 계속 그 벽에 붙는다. */
+          if (!carried.has(b.id) && !canPlaceOpening({ ...plan, blocks: nextBlocks }, b)) {
+            get().notify('문·창은 이어진 벽 위에서만 옮길 수 있다.', 'warn');
+            return;
+          }
+        } else {
+          const size = pointFootprint(b);
+          if (b.cell.x < 0 || b.cell.y < 0 || b.cell.x + size.w > g.width || b.cell.y + size.h > g.height) {
+            get().notify('도면 밖으로는 못 나간다.', 'warn');
+            return;
+          }
         }
       }
 
@@ -559,7 +597,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       const t = TEMPLATES.find((x) => x.id === id);
       if (!t) return;
       /* 템플릿은 완성 예시를 빠르게 불러오는 갈래다. 단계별 빈 평면은 직접 그리기에서만 쓴다. */
-      const plan = preparePlan(t.plan, options);
+      const plan = normalizeEditablePlan(preparePlan(normalizeEditablePlan(t.plan), options));
       bumpBlockIdSeq(plan);
       commit({ plan, routes: {} });
       set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
@@ -580,7 +618,7 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     loadResidualPlan: (request, rotation = 0) => {
       const generated = generateResidualPlan(request);
-      const plan = rotatePlan(generated.plan, rotation);
+      const plan = normalizeEditablePlan(rotatePlan(generated.plan, rotation));
       bumpBlockIdSeq(plan);
       commit({ plan, routes: {} });
       set({ selection: null, multi: [], drafting: null, armed: null, tool: 'select', report: null, game: null, mode: 'edit' });
@@ -673,6 +711,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         cell,
         side,
         span: 1,
+        swing: SWING_OPENINGS.has(kind) ? 'inward' : undefined,
         closedByDefault: kind !== 'inner_door' && kind !== 'open_passage',
       };
       commit({ plan: { ...plan, blocks: blocks.concat([b]) } });
@@ -684,7 +723,13 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     placePoint: (category, subKind, cell) => {
       const plan = get().plan;
-      if (pointOccupied(plan, cell, subKind)) {
+      const rawSize = blockDef(subKind)?.size ?? { w: 1, h: 1 };
+      const defSize = { w: Math.max(1, rawSize.w), h: Math.max(1, rawSize.h) };
+      const placedCell = {
+        x: Math.max(0, Math.min(plan.grid.width - defSize.w, cell.x)),
+        y: Math.max(0, Math.min(plan.grid.height - defSize.h, cell.y)),
+      };
+      if (pointOccupied(plan, placedCell, subKind)) {
         get().notify('여기에는 이미 같은 것이 있다.', 'warn');
         return false;
       }
@@ -698,7 +743,8 @@ export const useKids = create<KidsStore>()((set, get) => {
         id: newBlockId('p'),
         layer: get().layer,
         subKind,
-        cell,
+        cell: placedCell,
+        size: defSize,
         rotation: 0,
       };
       commit({ plan: { ...plan, blocks: blocks.concat([b]) } });
@@ -710,7 +756,7 @@ export const useKids = create<KidsStore>()((set, get) => {
     moveBlock: (id, cell) => {
       const plan = get().plan;
       const b = plan.blocks.find((x) => x.id === id);
-      if (!b || isRoom(b)) return;
+      if (!b || isRoom(b) || isOpening(b)) return;
       if (b.kind === 'marker' && b.subKind === 'my_spot' && !roomAt(plan, cell)) {
         get().notify('내 위치는 집 안의 방이나 열린 바닥에 놓자.', 'warn');
         return;
@@ -719,8 +765,28 @@ export const useKids = create<KidsStore>()((set, get) => {
         get().notify('만나는 장소는 집 밖 빈 곳에 놓자.', 'warn');
         return;
       }
+      const size = pointFootprint(b);
+      if (cell.x < 0 || cell.y < 0 || cell.x + size.w > plan.grid.width || cell.y + size.h > plan.grid.height) {
+        get().notify('물건 전체가 도면 안에 있어야 한다.', 'warn');
+        return;
+      }
       commit({ plan: { ...plan, blocks: plan.blocks.map((x) => (x.id === id ? { ...x, cell } : x)) } });
       get().countOp();
+    },
+
+    moveOpening: (id, cell, side) => {
+      const plan = get().plan;
+      const target = plan.blocks.find((block) => block.id === id && isOpening(block));
+      if (!target || !isOpening(target)) return false;
+      const moved = { ...target, cell, side };
+      if (!canPlaceOpening(plan, moved)) {
+        get().notify('문·창 전체가 이어진 벽 위에 있어야 한다.', 'warn');
+        return false;
+      }
+      commit({ plan: { ...plan, blocks: plan.blocks.map((block) => block.id === id ? moved : block) } });
+      get().countOp();
+      get().notify('문·창을 새 자리로 옮겼다.');
+      return true;
     },
 
     moveRoom: (id, dx, dy) => {
@@ -840,15 +906,25 @@ export const useKids = create<KidsStore>()((set, get) => {
       get().notify(target.closedByDefault ? '평소 열어 두는 것으로 바꿨다.' : '평소 닫아 두는 것으로 바꿨다.');
     },
 
+    setOpeningSwing: (id, swing) => {
+      const plan = get().plan;
+      const target = plan.blocks.find((block) => block.id === id);
+      if (!target || !isOpening(target) || !SWING_OPENINGS.has(target.openingKind)) return;
+      commit({ plan: { ...plan, blocks: plan.blocks.map((block) => block.id === id && isOpening(block) ? { ...block, swing } : block) } });
+      get().countOp();
+      get().notify(swing === 'inward' ? '문이 방 안쪽으로 열리게 바꿨다.' : '문이 방 바깥쪽으로 열리게 바꿨다.');
+    },
+
     resizeOpening: (id, span) => {
       const plan = get().plan;
       const target = plan.blocks.find((block) => block.id === id && isOpening(block));
       if (!target || !isOpening(target)) return;
-      if (!canResizeOpening(plan, target, span)) {
+      const fitted = fitOpeningSpan(plan, target, span);
+      if (!fitted) {
         get().notify('그쪽 벽에는 이만큼 넓힐 자리가 없다. 벽의 시작 쪽에 다시 놓거나 더 작은 폭을 골라 보자.', 'warn');
         return;
       }
-      commit({ plan: { ...plan, blocks: plan.blocks.map((block) => block.id === id && isOpening(block) ? { ...block, span } : block) } });
+      commit({ plan: { ...plan, blocks: plan.blocks.map((block) => block.id === id ? fitted : block) } });
       get().countOp();
       const sliding = target.openingKind === 'sliding_door' || target.openingKind === 'sliding_window';
       get().notify(`${span}칸 ${sliding ? '길이' : '너비'}로 바꿨다.`);
@@ -990,8 +1066,9 @@ export const useKids = create<KidsStore>()((set, get) => {
     },
 
     replace: (file) => {
-      bumpBlockIdSeq(file.plan);
-      commit({ plan: file.plan, routes: file.routes });
+      const plan = normalizeEditablePlan(file.plan);
+      bumpBlockIdSeq(plan);
+      commit({ plan, routes: file.routes });
       set({
         profile: file.profile,
         progress: file.progress,

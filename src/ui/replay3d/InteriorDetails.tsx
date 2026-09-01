@@ -70,7 +70,7 @@ function makePattern(kind: Surface, size: number): THREE.CanvasTexture {
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(3.5, 3.5);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = size >= 1024 ? 16 : 8;
   texture.needsUpdate = true;
   return texture;
 }

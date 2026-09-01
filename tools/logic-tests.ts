@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Cell, FloorPlan, RouteSlot } from '../src/types/plan';
-import { EXIT_KINDS, SCENARIO_KEYS, emptyFloorPlan, emptyRoute, routeKey, scenarioKey, splitKey } from '../src/types/plan';
+import { EXIT_KINDS, SCENARIO_KEYS, emptyFloorPlan, emptyRoute, hasDrawableRoute, pointFootprint, routeKey, scenarioKey, splitKey } from '../src/types/plan';
 import { DEFAULT_PASSABILITY, VN } from '../src/types/graph';
 import { defaultProfile, type UserProfile } from '../src/types/save';
 import type { PlayLog } from '../src/types/report';
@@ -23,7 +23,7 @@ import { findEscape, reachesGoal } from '../src/core/graph/pathfind';
 import { analyze } from '../src/core/graph/analyze';
 import { evaluate, severityOf } from '../src/core/rules/engine';
 import { EXTENSION_RULES, RULES } from '../src/core/rules/definitions';
-import { canPlaceRoom } from '../src/core/grid/occupancy';
+import { canPlaceRoom, fitOpeningSpan } from '../src/core/grid/occupancy';
 import { isAdjacent, step } from '../src/core/grid/geometry';
 import { doorlessRooms } from '../src/core/grid/doors';
 import { bedroomCount, preparePlan, rotatePlan } from '../src/core/plan/prepare';
@@ -42,7 +42,7 @@ import { eul, eun, i } from '../src/core/josa';
 import { ALL_STEPS, validateContent, validatePlan } from '../src/content/validate';
 import { SaveIncompatibleError, parseSave } from '../src/store/migrate';
 import { emptySave, serializeSave } from '../src/store/storage';
-import { ruleReportsFor } from '../src/store/kidsStore';
+import { normalizeEditablePlan, ruleReportsFor } from '../src/store/kidsStore';
 import { KIDS } from '../src/ui/KidCharacters';
 import { avatar3dIdentity } from '../src/ui/replay3d/Avatar3D';
 import { buildDoors } from '../src/ui/replay3d/geometry';
@@ -222,6 +222,50 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(move(game.state, game.ctx, direction), '게임에서 닫힌 미닫이문을 지나지 못한다');
     assert(game.state.doorState[gameDoor.id] === 'open', '게임에서 지나간 미닫이문이 열리지 않는다');
     assert(closeDoorBehind(game.state), '지나온 미닫이문을 닫지 못한다');
+  });
+
+  check('가구 표준 크기와 내 위치 한 명 원칙을 이전 저장자료에도 채운다 (설계서 v1.11 §2·§4)', () => {
+    const plan = normalizeEditablePlan({
+      ...emptyFloorPlan(),
+      blocks: [
+        { kind: 'furniture', id: 'bed-old', layer: 'home', subKind: 'bed', cell: { x: 2, y: 2 }, rotation: 0 },
+        { kind: 'furniture', id: 'sink-old', layer: 'home', subKind: 'sink', cell: { x: 6, y: 2 }, rotation: 0 },
+        { kind: 'marker', id: 'mine-old', layer: 'home', subKind: 'my_spot', cell: { x: 3, y: 3 }, rotation: 0 },
+        { kind: 'marker', id: 'mine-new', layer: 'home', subKind: 'my_spot', cell: { x: 4, y: 4 }, rotation: 0 },
+      ],
+    });
+    const bed = plan.blocks.find((block) => block.id === 'bed-old');
+    const sink = plan.blocks.find((block) => block.id === 'sink-old');
+    assert(Boolean(bed && bed.kind === 'furniture' && pointFootprint(bed).w === 2 && pointFootprint(bed).h === 3), '침대가 2×3칸이 아니다');
+    assert(Boolean(sink && sink.kind === 'furniture' && pointFootprint(sink).w === 3 && pointFootprint(sink).h === 1), '싱크대가 3×1칸이 아니다');
+    const mine = plan.blocks.filter((block) => block.kind === 'marker' && block.subKind === 'my_spot');
+    assert(mine.length === 1 && mine[0].id === 'mine-new', `내 위치가 ${mine.map((block) => block.id).join(',')}로 남았다`);
+  });
+
+  check('벽 끝의 문도 반대쪽 빈 벽을 찾아 3칸으로 늘리고 안팎 열림을 3D에 반영한다 (설계서 v1.11 §3)', () => {
+    const plan: FloorPlan = {
+      ...emptyFloorPlan(),
+      blocks: [
+        { kind: 'room', id: 'room', layer: 'home', roomKind: 'bedroom', rect: { x: 2, y: 2, w: 4, h: 4 }, label: '' },
+        { kind: 'opening', id: 'door-end', layer: 'home', openingKind: 'door', cell: { x: 5, y: 2 }, side: 'N', span: 1, swing: 'inward', closedByDefault: true },
+      ],
+    };
+    const door = plan.blocks[1];
+    if (door.kind !== 'opening') throw new Error('문이 없다');
+    const fitted = fitOpeningSpan(plan, door, 3);
+    assert(Boolean(fitted && fitted.cell.x === 3 && fitted.span === 3), `3칸 문 기준점이 ${fitted?.cell.x ?? '없음'}이다`);
+    const inward = buildDoors(plan, { 'door-end': 'open' });
+    const outward = buildDoors({ ...plan, blocks: plan.blocks.map((block) => block.id === 'door-end' && block.kind === 'opening' ? { ...block, swing: 'outward' } : block) }, { 'door-end': 'open' });
+    assert(inward.length > 0 && outward.length > 0, '열린 여닫이문 문짝이 3D에서 사라진다');
+    assert(inward.some((value, index) => Math.abs(value - outward[index]) > 0.001), '3D 문이 안팎 방향을 구분하지 않는다');
+  });
+
+  check('대피경로가 한 줄도 없으면 출력할 수 없고 한 줄을 그리면 출력할 수 있다 (설계서 v1.11 §5)', () => {
+    assert(!hasDrawableRoute(undefined) && !hasDrawableRoute({}), '빈 경로를 출력 가능으로 보았다');
+    const short = emptyRoute('fire', 'primary', { x: 2, y: 2 }, [{ x: 2, y: 2 }]);
+    assert(!hasDrawableRoute({ primary: short }), '점 하나를 대피경로로 보았다');
+    const route = emptyRoute('fire', 'primary', { x: 2, y: 2 }, [{ x: 2, y: 2 }, { x: 3, y: 2 }]);
+    assert(hasDrawableRoute({ primary: route }), '이어진 대피경로를 출력 불가로 보았다');
   });
 
   check('개방형 주방은 거실·복도 쪽 벽 전체가 트인 통로가 된다 (설계서 v1.6 §11.3)', () => {
@@ -662,6 +706,7 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(ultra.shadowMapSize > high.shadowMapSize && high.shadowMapSize > low.shadowMapSize, '그림자 해상도가 내려가지 않는다');
     assert(ultra.detail === 'full' && high.detail === 'standard' && low.detail === 'minimal', '장식 단계가 맞지 않는다');
     assert(ultra.textureSize > high.textureSize && high.textureSize > low.textureSize, '절차형 재질 크기가 내려가지 않는다');
+    assert(ultra.dpr[1] >= 2.5 && ultra.textureSize >= 1024, '고급 화질이 v1.11 고해상도 기준에 못 미친다');
     assert(lowerQuality('ultra') === 'high' && lowerQuality('high') === 'low' && lowerQuality('low') === 'low', '자동 화질 하향 순서가 다르다');
   });
 

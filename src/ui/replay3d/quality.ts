@@ -78,7 +78,7 @@ export interface QualitySettings {
   /** 주요 공간의 천장등과 실내 채움광 */
   interiorLights: boolean;
   /** 절차형 표면 무늬 한 변의 픽셀 수. 0이면 만들지 않는다 */
-  textureSize: 0 | 256 | 512;
+  textureSize: 0 | 256 | 512 | 1024;
   /** 태양 그림자 맵 한 변 */
   shadowMapSize: 1024 | 2048 | 4096;
   /** 화면 공간 접촉 그림자 세기 */
@@ -97,11 +97,11 @@ export function settingsFor(q: Quality): QualitySettings {
       scenery: true,
       detail: 'full',
       interiorLights: true,
-      textureSize: 512,
+      textureSize: 1024,
       shadowMapSize: 4096,
       aoIntensity: 1.55,
       bloomIntensity: 0.72,
-      dpr: [1.35, 2.25],
+      dpr: [1.5, 2.5],
     };
   }
   if (q === 'high') {

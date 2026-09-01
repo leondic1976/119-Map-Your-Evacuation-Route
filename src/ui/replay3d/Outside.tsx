@@ -63,6 +63,67 @@ function StreetLight({ at }: { at: [number, number, number] }) {
   );
 }
 
+/** Hology의 지형·커스텀 셰이더 표현을 참고한 코드형 잔디 지면이다. */
+function Terrain({ at, width, depth, full }: { at: [number, number, number]; width: number; depth: number; full: boolean }) {
+  return (
+    <mesh position={at} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[width, depth, full ? 64 : 18, full ? 64 : 18]} />
+      <shaderMaterial
+        vertexShader={`
+          varying vec2 vUv2;
+          varying float vRise;
+          void main(){
+            vUv2=uv;
+            vec3 p=position;
+            float broad=sin(p.x*.23)*cos(p.y*.19)*.045;
+            float fine=sin((p.x+p.y)*1.7)*.008;
+            p.z+=broad+fine;
+            vRise=broad;
+            gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
+          }
+        `}
+        fragmentShader={`
+          varying vec2 vUv2;
+          varying float vRise;
+          float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+          void main(){
+            float grain=hash(floor(vUv2*220.0));
+            float bands=sin(vUv2.x*48.0+sin(vUv2.y*29.0))*.5+.5;
+            vec3 low=vec3(.20,.36,.16);
+            vec3 high=vec3(.38,.56,.25);
+            vec3 color=mix(low,high,clamp(.38+grain*.32+bands*.12+vRise*2.2,0.,1.));
+            gl_FragColor=vec4(color,1.0);
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+function NeighborHouse({ at, color, turned = false }: { at: [number, number, number]; color: string; turned?: boolean }) {
+  return (
+    <group position={at} rotation={[0, turned ? Math.PI / 2 : 0, 0]}>
+      <mesh position={[0, 1.45, 0]} castShadow receiveShadow><boxGeometry args={[4.8, 2.9, 3.8]} /><meshStandardMaterial color={color} roughness={0.9} /></mesh>
+      <mesh position={[0, 3.18, 0]} rotation={[0, 0, Math.PI / 4]} castShadow><boxGeometry args={[3.18, 3.18, 4.05]} /><meshStandardMaterial color="#5f493c" roughness={0.88} /></mesh>
+      {[-1.35, 0, 1.35].map((x) => <mesh key={x} position={[x, 1.65, 1.92]}><boxGeometry args={[0.72, 0.88, 0.05]} /><meshStandardMaterial color="#9ed3e7" emissive="#6ba6bd" emissiveIntensity={0.12} roughness={0.22} metalness={0.08} /></mesh>)}
+      <mesh position={[0, 0.85, 1.97]}><boxGeometry args={[0.78, 1.7, 0.08]} /><meshStandardMaterial color="#65462f" roughness={0.74} /></mesh>
+    </group>
+  );
+}
+
+function GrassTufts({ extent }: { extent: Props['extent'] }) {
+  const tufts = useMemo(() => {
+    const rnd = seeded(119091);
+    return Array.from({ length: 54 }, (_, index) => {
+      const side = index % 2;
+      const x = side ? extent.minX - 2.1 - rnd() * 5.8 : extent.maxX + 2.1 + rnd() * 5.8;
+      const z = extent.minZ - 5 + rnd() * (extent.maxZ - extent.minZ + 9);
+      return { x, z, s: 0.16 + rnd() * 0.2, color: index % 3 === 0 ? '#8caf4f' : '#6f9b43' };
+    });
+  }, [extent]);
+  return <group>{tufts.map((t, index) => <mesh key={index} position={[t.x, t.s * 0.55, t.z]} castShadow><coneGeometry args={[t.s, t.s * 1.1, 4]} /><meshStandardMaterial color={t.color} roughness={1} /></mesh>)}</group>;
+}
+
 export default function Outside({ extent, scenery, detail }: Props) {
   const w = extent.maxX - extent.minX;
   const d = extent.maxZ - extent.minZ;
@@ -104,10 +165,7 @@ export default function Outside({ extent, scenery, detail }: Props) {
 
   return (
     <group>
-      <mesh position={[cx, -0.055, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[groundW, groundD]} />
-        <meshStandardMaterial color="#6c9559" roughness={1} />
-      </mesh>
+      <Terrain at={[cx, -0.065, cz]} width={groundW} depth={groundD} full={full} />
       <mesh position={[cx, -0.035, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w + 3.2, d + 3.2]} />
         <meshStandardMaterial color="#c5c2b9" roughness={0.95} />
@@ -133,6 +191,10 @@ export default function Outside({ extent, scenery, detail }: Props) {
       {bushes.map((at, i) => <Bush key={`bush-${i}`} at={at} scale={0.82 + (i % 3) * 0.08} />)}
       {scenery && full && (
         <>
+          <GrassTufts extent={extent} />
+          <NeighborHouse at={[extent.minX - 8.5, 0, extent.minZ + 1.5]} color="#c9b08b" turned />
+          <NeighborHouse at={[extent.maxX + 8.5, 0, extent.minZ + 3.8]} color="#b7c5ca" turned />
+          <NeighborHouse at={[extent.minX + 2.8, 0, extent.minZ - 10]} color="#d0b6aa" />
           <StreetLight at={[extent.minX - 3.3, 0, extent.maxZ + 4.1]} />
           <StreetLight at={[extent.maxX + 3.3, 0, extent.maxZ + 4.1]} />
         </>

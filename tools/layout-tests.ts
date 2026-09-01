@@ -17,7 +17,7 @@ import {
 } from '../src/core/plan/residual';
 import { canDefineShellZone, canReflowShellRoom, clearShellZone, defineShellZone, reflowShellFloor, reflowShellZones } from '../src/core/plan/reflow';
 import { completeShellSketch, preparedShellPlan } from '../src/core/plan/shellSketch';
-import { canResizeOpening } from '../src/core/grid/occupancy';
+import { canResizeOpening, fitOpeningSpan } from '../src/core/grid/occupancy';
 import { CAMPAIGN_DEMO_RECORDS } from '../src/content/campaign-demo';
 import { emptyCampaignFilters, filterCampaignRecords, summarizeCampaign } from '../src/core/campaign/dashboard';
 import { isOpening, isPoint, isRoom, type EvacRoute, type FloorPlan, type Rect, type Side } from '../src/types/plan';
@@ -119,12 +119,14 @@ export function layoutTests(check: Check, assert: Assert): void {
     const withSlidingDoor = { ...plan, blocks: plan.blocks.concat(slidingDoor) } as FloorPlan;
     assert(canResizeOpening(withSlidingDoor, slidingDoor, 6), '미닫이문을 6칸 길이로 늘릴 수 없다.');
     assert(canResizeOpening({ ...withSlidingDoor, blocks: withSlidingDoor.blocks.map((block) => block.id === slidingDoor.id ? { ...slidingDoor, span: 6 } : block) }, { ...slidingDoor, span: 6 }, 1), '미닫이문을 1칸 길이로 줄일 수 없다.');
-    const blocker = { ...opening, id: 'blocking-window', cell: { x: 9, y: 2 } };
-    const blocked = { ...plan, blocks: plan.blocks.concat([opening, blocker]) } as FloorPlan;
+    const blockerLeft = { ...opening, id: 'blocking-window-left', cell: { x: 3, y: 2 } };
+    const blockerRight = { ...opening, id: 'blocking-window-right', cell: { x: 9, y: 2 } };
+    const blocked = { ...plan, blocks: plan.blocks.concat([opening, blockerLeft, blockerRight]) } as FloorPlan;
     assert(!canResizeOpening(blocked, opening, 6), '다른 창과 겹치며 미닫이창이 늘어난다.');
     const edge = { ...opening, id: 'edge-window', cell: { x: 21, y: 2 } };
     const atEdge = { ...plan, blocks: plan.blocks.concat(edge) } as FloorPlan;
-    assert(!canResizeOpening(atEdge, edge, 2), '외곽 끝을 넘어 창이 늘어난다.');
+    const edgeFit = fitOpeningSpan(atEdge, edge, 2);
+    assert(Boolean(edgeFit && edgeFit.cell.x === 20), '외곽 끝의 창이 반대쪽 빈 벽으로 늘어나지 않는다.');
   });
 
   check('캠페인 지역·학교·학급 필터와 요약은 같은 학생 집합을 사용한다', () => {

@@ -139,11 +139,18 @@ if (leftovers.length) {
 fs.mkdirSync(distDir, { recursive: true });
 fs.writeFileSync(target, html, 'utf8');
 
+/* 9. 브라우저 기계음 대신 최신 Juwonmom MP3를 쓰도록 오프라인 음성 묶음을 함께 복사한다. */
+const voiceSource = path.join(root, 'public', 'voice');
+const voiceTarget = path.join(distDir, 'voice');
+if (!fs.existsSync(voiceSource)) fail('Juwonmom 음성 폴더를 찾지 못했다: public/voice');
+fs.cpSync(voiceSource, voiceTarget, { recursive: true, force: true });
+
 const size = Buffer.byteLength(html, 'utf8');
 process.stdout.write('\n  오프라인 배포본 생성\n');
 process.stdout.write(`    파일    ${path.relative(root, target)}\n`);
 process.stdout.write(`    크기    ${bytes(size)}  (CSS ${bytes(css)} · JS ${bytes(js)} · 그림 ${bytes(images)})\n`);
 process.stdout.write(`    외부 참조 ${leftovers.length}건\n`);
+process.stdout.write('    음성    dist/voice/ Juwonmom MP3 전체\n');
 
 /* 어린이 화면(게임·리포트)이 더해져 1MB 를 조금 넘는다. 상한은 4MB 다 (docs/DESIGN-v1.1-changes.md NFR-3) */
 if (size > 4 * 1024 * 1024) {

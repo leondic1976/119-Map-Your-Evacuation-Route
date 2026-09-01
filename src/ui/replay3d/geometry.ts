@@ -172,7 +172,7 @@ export function buildHouse(plan: FloorPlan): Float32Array {
     if (p.kind === 'marker') continue;
     const host = rooms.find((r) => inRect(r.rect, p.cell));
     if (!host) continue;
-    furniture(b, p.subKind, p.cell, p.rotation);
+    furniture(b, p.subKind, p.cell, p.rotation, p.size);
   }
 
   return b.toArray();
@@ -197,11 +197,17 @@ const M = {
  * 물건 하나를 세운다. 칸 한 변이 60cm 이므로 높이 1.0 = 60cm 다.
  * 회전값(0·90·180·270)에 맞춰 가로세로를 바꾼다.
  */
-function furniture(b: Builder, kind: string, cell: Cell, rotation: number): void {
+function furniture(b: Builder, kind: string, cell: Cell, rotation: number, size: { w: number; h: number } = { w: 1, h: 1 }): void {
   const turned = rotation === 90 || rotation === 270;
+  const baseW = Math.max(1, size.w);
+  const baseD = Math.max(1, size.h);
   /* 칸 안의 상자 하나 — (동서 폭, 남북 깊이, 높이) 를 회전에 맞춰 놓는다 */
   const put = (ox: number, oz: number, w: number, d: number, y0: number, y1: number, col: number[], top?: number[]): void => {
-    const [cx, cz, cw, cd] = turned ? [oz, ox, d, w] : [ox, oz, w, d];
+    const px = ox * baseW;
+    const pz = oz * baseD;
+    const pw = w * baseW;
+    const pd = d * baseD;
+    const [cx, cz, cw, cd] = turned ? [pz, px, pd, pw] : [px, pz, pw, pd];
     b.box(cell.x + cx, y0, cell.y + cz, cell.x + cx + cw, y1, cell.y + cz + cd, col, top);
   };
 
@@ -391,18 +397,28 @@ export function buildDoors(plan: FloorPlan, doorState: Record<string, 'open' | '
     if (!isOpening(o)) continue;
     if (o.openingKind === 'window' || o.openingKind === 'sliding_window' || o.openingKind === 'balcony_window' || o.openingKind === 'open_passage') continue;
     const closed = doorState[o.id] === 'closed';
-    /* 여닫이문은 열린 뒤 시야를 가리지 않게 숨기되, 미닫이문은 벽 옆에 포개진 문짝을 남긴다. */
-    if (!closed && o.openingKind !== 'sliding_door') continue;
     const horizontal = o.side === 'N' || o.side === 'S';
     const at = o.side === 'N' ? o.cell.y : o.side === 'S' ? o.cell.y + 1 : o.side === 'W' ? o.cell.x : o.cell.x + 1;
     const lo = (horizontal ? o.cell.x : o.cell.y) + 0.06;
     const hi = lo + (o.span ?? 1) - 0.12;
     const col = o.openingKind === 'front_door' || o.openingKind === 'emergency_exit' ? [0.16, 0.48, 0.31] : COLOR.door;
-    if (!closed) {
+    if (!closed && o.openingKind === 'sliding_door') {
       const foldedHi = lo + 0.38;
       /* 벽보다 조금 앞으로 빼서 같은 면에서 깜빡이지 않게 한다. */
       if (horizontal) b.box(lo - 0.32, 0.02, at + 0.09, foldedHi, 3.05, at + 0.15, col, col);
       else b.box(at + 0.09, 0.02, lo - 0.32, at + 0.15, 3.05, foldedHi, col, col);
+    } else if (!closed) {
+      /* 열린 여닫이문은 기준 셀 안/밖 방향으로 90도 세워 2D 도면의 회전 방향을 그대로 따른다. */
+      const inward = o.side === 'N' || o.side === 'W' ? 1 : -1;
+      const sign = (o.swing ?? 'inward') === 'inward' ? inward : -inward;
+      const leaf = Math.max(0.2, hi - lo);
+      if (horizontal) {
+        const z1 = at + sign * leaf;
+        b.box(lo - 0.05, 0.02, Math.min(at, z1), lo + 0.05, 3.05, Math.max(at, z1), col, col);
+      } else {
+        const x1 = at + sign * leaf;
+        b.box(Math.min(at, x1), 0.02, lo - 0.05, Math.max(at, x1), 3.05, lo + 0.05, col, col);
+      }
     } else if (horizontal) b.box(lo, 0.02, at - 0.05, hi, 3.05, at + 0.05, col, col);
     else b.box(at - 0.05, 0.02, lo, at + 0.05, 3.05, hi, col, col);
   }

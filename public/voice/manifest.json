@@ -7,8 +7,8 @@
     "src/content/voice.ts#VOICE_LINES"
   ],
   "strategy": {
-    "web": "정적 MP3 자산을 우선 재생하고 없으면 브라우저 TTS로 대체한다.",
-    "standalone": "핵심 8개만 data URI로 내장하고 나머지는 브라우저 TTS로 대체한다.",
+    "web": "현재 가이드 이벤트에 대응하는 Juwonmom 정적 MP3만 재생하며 브라우저 TTS는 사용하지 않는다.",
+    "standalone": "public/voice 전체를 dist/voice에 복사하고 상대 경로 MP3만 재생하며 브라우저 TTS는 사용하지 않는다.",
     "dynamic": "치환값이 있는 4개 변형은 화면은 개인화하고 음성은 일반화된 고정 MP3를 쓴다."
   },
   "summary": {

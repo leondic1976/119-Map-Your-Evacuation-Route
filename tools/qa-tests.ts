@@ -213,15 +213,20 @@ export function qaTests(check: Check, assert: Assert): void {
     }
 
     const sound = read(path.join(root, 'src', 'ui', 'sound.ts'));
+    const gameView = read(path.join(root, 'src', 'ui', 'GameView.tsx'));
     const bubble = read(path.join(root, 'src', 'ui', 'GuideBubble.tsx'));
     const baker = read(path.join(root, 'tools', 'voice-bake.ts'));
     assert(sound.includes('NEXT_PUBLIC_BASE_PATH') && sound.includes('/voice/'), '웹 음성 BASE_PATH 경로가 없다');
-    assert(sound.includes("NEXT_PUBLIC_OFFLINE === '1'") && sound.includes('speak(fallbackText)'), '오프라인 TTS 대체가 없다');
-    assert(sound.includes('audio.onerror = fallback') && sound.includes('stopVoice()'), 'MP3 실패·음소거 중단 처리가 없다');
+    assert(sound.includes("NEXT_PUBLIC_OFFLINE === '1'") && sound.includes('`voice/${filename}`'), '오프라인 MP3 상대 경로가 없다');
+    assert(!sound.includes('new SpeechSynthesisUtterance') && !sound.includes('speechSynthesis.speak'), '브라우저 기계음 폴백이 남아 있다');
+    assert(!sound.includes('export function playVoice') && !gameView.includes('playVoice('), '예전 핵심 대사 중복 재생 경로가 남아 있다');
+    assert(sound.includes('audio.onerror = failed') && sound.includes('stopVoice()'), 'MP3 실패·음소거 중단 처리가 없다');
     assert(sound.includes('replayLastGuideVoice'), '최근 MP3를 다시 듣는 재생 경로가 없다');
     assert(bubble.includes('playGuideVoice(bubble.ruleId, profile.gradeMode'), '말풍선이 규칙·수준별 MP3를 쓰지 않는다');
     assert(bubble.includes('data-coach="kids-voice-replay"'), '말풍선에 MP3 다시 듣기 단추가 없다');
     assert(/path\.join\(root, 'public', 'voice'\)/.test(baker), '핵심 음원 굽기가 public/voice를 읽지 않는다');
+    const standalone = read(path.join(root, 'tools', 'standalone.ts'));
+    assert(standalone.includes("path.join(root, 'public', 'voice')") && standalone.includes('fs.cpSync(voiceSource, voiceTarget'), '오프라인 Juwonmom MP3 복사가 없다');
   });
 
   /* -------------------------------------------------- 인터넷에 보내지 않는다 */

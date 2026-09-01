@@ -6,7 +6,7 @@
  *   배포  — 출처 미검수도 실패한다. 검수 전 문장이 배포에 섞이는 것을 구조로 막는다.
  */
 import type { Block, FloorPlan, OpeningKind, RoomKind } from '../types/plan';
-import { SCENARIO_KEYS, isOpening, isRoom } from '../types/plan';
+import { SCENARIO_KEYS, isOpening, isPoint, isRoom, pointFootprint } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { SPECIAL_RULES } from '../core/hazard/rules';
 import { cellKey, cellsOf, rectsOverlap, step } from '../core/grid/geometry';
@@ -253,12 +253,15 @@ export function validatePlan(plan: FloorPlan): string[] {
       }
       const across = occ.get(cellKey(step(b.cell, b.side)));
       if (across === host) errors.push(`${b.id}: 개구부가 같은 방 안쪽에 있다`);
-    } else if (!isRoom(b)) {
+    } else if (isPoint(b)) {
       const p = b as Extract<Block, { cell: unknown }>;
-      if (p.cell.x < 0 || p.cell.y < 0 || p.cell.x >= plan.grid.width || p.cell.y >= plan.grid.height) {
+      const size = pointFootprint({ ...b, size: b.size ?? BLOCKS.find((item) => item.id === b.subKind)?.size });
+      if (p.cell.x < 0 || p.cell.y < 0 || p.cell.x + size.w > plan.grid.width || p.cell.y + size.h > plan.grid.height) {
         errors.push(`${b.id}: 표시가 도면 밖에 있다`);
       }
     }
   }
+  const mySpots = plan.blocks.filter((block) => isPoint(block) && block.subKind === 'my_spot');
+  if (mySpots.length > 1) errors.push(`내 위치가 ${mySpots.length}개다`);
   return errors;
 }

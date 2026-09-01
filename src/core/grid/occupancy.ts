@@ -5,7 +5,7 @@
  * 이 제약이 인접 판정을 결정론적으로 만들고 아이의 조작 난이도도 낮춘다.
  */
 import type { Block, BlockId, Cell, FloorPlan, OpeningBlock, OpeningSpan, Rect, RoomBlock, Side } from '../../types/plan';
-import { isRoom } from '../../types/plan';
+import { isRoom, pointFootprint } from '../../types/plan';
 import { cellKey, cellsOf, rectsOverlap } from './geometry';
 
 export type Occupancy = Map<string, BlockId>;
@@ -84,7 +84,11 @@ export function openingAt(plan: FloorPlan, cell: Cell, side: string, ignoreId?: 
 
 /** 선택한 문·창을 같은 벽 방향으로 span칸 늘릴 수 있는지 확인한다. */
 export function canResizeOpening(plan: FloorPlan, opening: OpeningBlock, span: OpeningSpan): boolean {
-  const probe: OpeningBlock = { ...opening, span };
+  return fitOpeningSpan(plan, opening, span) !== null;
+}
+
+/** 개구부 전체 길이가 실제 벽 위에 있고 다른 개구부와 겹치지 않는지 확인한다. */
+export function canPlaceOpening(plan: FloorPlan, opening: OpeningBlock): boolean {
   const boundary = new Set<string>();
   for (const room of rooms(plan).filter((candidate) => candidate.wallMode !== 'zone')) {
     const r = room.rect;
@@ -107,10 +111,34 @@ export function canResizeOpening(plan: FloorPlan, opening: OpeningBlock, span: O
       }
     }
   }
-  return openingCells(probe).every((cell) =>
+  return openingCells(opening).every((cell) =>
     cell.x >= 0 && cell.y >= 0 && cell.x < plan.grid.width && cell.y < plan.grid.height
     && boundary.has(`${cell.x},${cell.y},${opening.side}`)
     && !openingAt(plan, cell, opening.side, opening.id));
+}
+
+/**
+ * 현재 문·창의 중심과 가장 가까운 연속 벽을 찾아 길이를 맞춘다.
+ * 기존 구현처럼 기준점의 오른쪽/아래쪽만 보지 않아 벽 끝에 놓인 문도 반대쪽으로 늘어난다.
+ */
+export function fitOpeningSpan(plan: FloorPlan, opening: OpeningBlock, span: OpeningSpan): OpeningBlock | null {
+  const horizontal = opening.side === 'N' || opening.side === 'S';
+  const oldSpan = opening.span ?? 1;
+  const current = horizontal ? opening.cell.x : opening.cell.y;
+  const center = current + (oldSpan - 1) / 2;
+  const ideal = Math.round(center - (span - 1) / 2);
+  const limit = horizontal ? plan.grid.width : plan.grid.height;
+  /* 새 구간이 현재 구간과 한 칸 이상 겹치는 가까운 후보만 본다. 벽 반대편으로 순간이동하지 않는다. */
+  const minStart = Math.max(0, current - span + 1);
+  const maxStart = Math.min(limit - span, current + oldSpan - 1);
+  const starts = Array.from({ length: Math.max(0, maxStart - minStart + 1) }, (_, index) => minStart + index)
+    .sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal) || a - b);
+  for (const start of starts) {
+    const cell = horizontal ? { ...opening.cell, x: start } : { ...opening.cell, y: start };
+    const probe: OpeningBlock = { ...opening, cell, span };
+    if (canPlaceOpening(plan, probe)) return probe;
+  }
+  return null;
 }
 
 let seq = 0;
@@ -141,9 +169,12 @@ export function blocksInRect(plan: FloorPlan, r: Rect): BlockId[] {
     if (isRoom(b)) {
       const hit = b.rect.x < r.x + r.w && r.x < b.rect.x + b.rect.w && b.rect.y < r.y + r.h && r.y < b.rect.y + b.rect.h;
       if (hit) out.push(b.id);
+    } else if (b.kind === 'opening') {
+      if (openingCells(b).some((c) => c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h)) out.push(b.id);
     } else {
-      const c = b.cell;
-      if (c.x >= r.x && c.x < r.x + r.w && c.y >= r.y && c.y < r.y + r.h) out.push(b.id);
+      const size = pointFootprint(b);
+      const hit = b.cell.x < r.x + r.w && r.x < b.cell.x + size.w && b.cell.y < r.y + r.h && r.y < b.cell.y + size.h;
+      if (hit) out.push(b.id);
     }
   }
   return out;

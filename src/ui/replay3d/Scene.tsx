@@ -271,20 +271,21 @@ export default function Scene({
       <Markers plan={plan} fireCells={fireCells} exitCells={exitCells} />
       {layers.hazard && <Hazard grid={plan.grid} frame={frame} />}
 
-      <Avatar3D
-        cell={frame.cell}
-        character={character}
-        crouch={frame.posture === 'crouch'}
-        heading={heading}
-        moving={moving}
-        shadows={quality.shadows}
-        visible={view !== 'first'}
-      />
-      {view === 'first' && (
+      {/* 한 시점에는 플레이어 표현을 하나만 만든다. 숨긴 전신과 1인칭 몸을 함께 두지 않는다 (v1.14 §1). */}
+      {view === 'first' ? (
         <FirstPersonHands3D
           character={character}
           crouch={frame.posture === 'crouch'}
           moving={moving}
+        />
+      ) : (
+        <Avatar3D
+          cell={frame.cell}
+          character={character}
+          crouch={frame.posture === 'crouch'}
+          heading={heading}
+          moving={moving}
+          shadows={quality.shadows}
         />
       )}
     </>

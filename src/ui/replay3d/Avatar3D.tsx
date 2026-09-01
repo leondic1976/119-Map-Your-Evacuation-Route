@@ -21,7 +21,6 @@ interface Props {
   heading: { x: number; y: number };
   moving: boolean;
   shadows: boolean;
-  visible?: boolean;
 }
 
 interface FirstPersonProps {
@@ -323,7 +322,7 @@ export function FirstPersonHands3D({ character, crouch, moving }: FirstPersonPro
     if (!root.current) return;
     root.current.quaternion.copy(camera.quaternion);
     /* 손 전체가 시야 아래 1/3에 들어오도록 카메라 바로 앞에 둔다. */
-    offset.current.set(0, crouch ? -0.36 : -0.3, -0.78).applyQuaternion(camera.quaternion);
+    offset.current.set(0, crouch ? -0.5 : -0.44, -0.82).applyQuaternion(camera.quaternion);
     root.current.position.copy(camera.position).add(offset.current);
     const phase = moving && !reduced ? Math.sin(clock.elapsedTime * 9) : 0;
     const settle = 1 - Math.exp(-12 * delta);
@@ -332,15 +331,25 @@ export function FirstPersonHands3D({ character, crouch, moving }: FirstPersonPro
   });
 
   const arm = (side: -1 | 1, ref: React.RefObject<THREE.Group | null>) => (
-    <group ref={ref} position={[side * 0.31, 0.08, 0]} rotation={[-0.5, 0, side * -0.24]}>
-      {/* 소매는 화면 아래, 손은 진행 방향 쪽에 보여 1인칭 팔처럼 읽히게 한다. */}
-      <mesh position={[0, -0.2, 0]} renderOrder={100}>
-        <capsuleGeometry args={[0.09, 0.34, 5, 10]} />
+    <group ref={ref} position={[side * 0.34, -0.05, 0]} rotation={[-0.94, side * 0.14, side * -0.5]}>
+      {/* 두 팔이 화면 아래에서 한 몸 쪽으로 이어져 작은 사람 둘처럼 서 보이지 않게 한다. */}
+      <mesh position={[0, -0.23, 0.01]} renderOrder={100}>
+        <capsuleGeometry args={[0.105, 0.4, 6, 12]} />
         <meshStandardMaterial color={side < 0 ? k.topShade : k.top} roughness={0.6} depthTest={false} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0.06, -0.015]} scale={[1, 1.12, 0.9]} renderOrder={101}>
-        <capsuleGeometry args={[0.1, 0.08, 5, 10]} />
+      <mesh position={[0, 0.065, -0.025]} scale={[0.9, 1.02, 0.62]} renderOrder={101}>
+        <sphereGeometry args={[0.105, 14, 10]} />
         <meshStandardMaterial color={k.skin} roughness={0.68} depthTest={false} depthWrite={false} />
+      </mesh>
+      {([-0.054, -0.018, 0.018, 0.054] as const).map((x) => (
+        <mesh key={x} position={[x, 0.14, -0.035]} scale={[0.88, 1.12, 0.72]} renderOrder={102}>
+          <sphereGeometry args={[0.028, 8, 6]} />
+          <meshStandardMaterial color={k.skin} roughness={0.7} depthTest={false} depthWrite={false} />
+        </mesh>
+      ))}
+      <mesh position={[-side * 0.068, 0.045, -0.07]} scale={[0.72, 1.08, 0.68]} renderOrder={102}>
+        <sphereGeometry args={[0.048, 10, 8]} />
+        <meshStandardMaterial color={k.skinShade} roughness={0.7} depthTest={false} depthWrite={false} />
       </mesh>
       <mesh position={[0, -0.075, 0.078]} renderOrder={102}>
         <boxGeometry args={[0.14, 0.035, 0.025]} />
@@ -356,14 +365,23 @@ export function FirstPersonHands3D({ character, crouch, moving }: FirstPersonPro
   );
 
   return (
-    <group ref={root} name={`first-person-${k.id}`} scale={0.46}>
+    <group ref={root} name={`player-${k.id}`} userData={{ character: k.id, style: k.style, representation: 'first-person-body' }} scale={0.56}>
+      {/* 어깨와 상체가 양팔을 하나의 주인공으로 연결한다. */}
+      <mesh position={[0, -0.42, 0.15]} scale={[1.7, 0.7, 0.82]} renderOrder={99}>
+        <capsuleGeometry args={[0.2, 0.3, 6, 14]} />
+        <meshStandardMaterial color={k.top} roughness={0.64} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, -0.2, 0.04]} scale={[1.35, 0.42, 0.7]} renderOrder={100}>
+        <capsuleGeometry args={[0.13, 0.18, 5, 12]} />
+        <meshStandardMaterial color={k.topShade} roughness={0.68} depthTest={false} depthWrite={false} />
+      </mesh>
       {arm(-1, left)}
       {arm(1, right)}
     </group>
   );
 }
 
-export default function Avatar3D({ cell, character, crouch, heading, moving, shadows, visible = true }: Props) {
+export default function Avatar3D({ cell, character, crouch, heading, moving, shadows }: Props) {
   const k = useMemo(() => kidOf(character), [character]);
   const root = useRef<THREE.Group>(null);
   const pose = useRef<THREE.Group>(null);
@@ -411,7 +429,7 @@ export default function Avatar3D({ cell, character, crouch, heading, moving, sha
   });
 
   return (
-    <group ref={root} visible={visible} name={`player-${k.id}`} userData={{ character: k.id, style: k.style }}>
+    <group ref={root} name={`player-${k.id}`} userData={{ character: k.id, style: k.style, representation: 'full-avatar' }}>
       {/* 주인공을 놓치지 않게 하는 고정형 안내 링. 점멸하지 않는다. */}
       <mesh position={[0, 0.035, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 7, 28]} />

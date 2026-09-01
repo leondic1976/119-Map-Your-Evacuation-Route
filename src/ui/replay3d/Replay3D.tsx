@@ -85,7 +85,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     () => plan.blocks.filter((block) => isPoint(block) && block.subKind === 'my_spot').length,
     [plan],
   );
-  /* 리플레이의 주인공은 아래 Avatar3D 한 명뿐이다. 시작점 표시는 장면 입력에서 아예 제거한다. */
+  /* 리플레이의 주인공은 시점에 맞는 3D 표현 하나뿐이다. 시작점 표시는 장면 입력에서 아예 제거한다. */
   const replayPlan = useMemo<FloorPlan>(
     () => ({ ...plan, blocks: plan.blocks.filter((block) => !(isPoint(block) && block.subKind === 'my_spot')) }),
     [plan],
@@ -252,6 +252,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
       data-camera-zoom={orbit.zoom.toFixed(3)}
       data-scene-detail={settings.detail}
       data-player-count="1"
+      data-player-representation={view === 'first' ? 'first-person-body' : 'full-avatar'}
       data-source-my-spot-count={sourceMySpotCount}
       data-replay-my-spot-count="0"
     >

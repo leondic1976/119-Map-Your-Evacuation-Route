@@ -1723,6 +1723,7 @@ async function main(): Promise<void> {
       assert((await page.locator('[data-look-reset]').count()) === 1, '시점 정면 단추가 없다');
       assert((await page.locator('[data-quality]').count()) === 3, '화질 선택이 세 단계가 아니다');
       assert((await replay.getAttribute('data-player-count')) === '1', '3D 리플레이의 주인공 수가 한 명이 아니다');
+      assert((await replay.getAttribute('data-player-representation')) === 'first-person-body', '1인칭에 연결된 한 사람 몸 대신 다른 주인공 표현이 함께 있다');
       assert(Number(await replay.getAttribute('data-source-my-spot-count')) <= 1, '3D 리플레이 입력에 내 위치가 여러 개 남았다');
       assert((await replay.getAttribute('data-replay-my-spot-count')) === '0', '3D 장면에 고정 내 위치 표시가 들어갔다');
       assert((await page.locator('[data-quality-badge]').count()) === 1, '3D 장면에 현재 화질 표시가 없다');
@@ -1778,9 +1779,11 @@ async function main(): Promise<void> {
       await page.locator('[data-view="follow"]').click();
       await page.waitForTimeout(200);
       assert((await replay.getAttribute('data-camera-view')) === 'follow', '뒤에서 시점이 안 바뀐다');
+      assert((await replay.getAttribute('data-player-representation')) === 'full-avatar', '뒤에서 보기에 전신 캐릭터 하나만 남지 않았다');
       await page.locator('[data-view="dollhouse"]').click();
       await page.waitForTimeout(300);
       assert((await page.locator('[data-view="dollhouse"]').getAttribute('aria-pressed')) === 'true', '집 전체 시점이 안 바뀐다');
+      assert((await replay.getAttribute('data-player-representation')) === 'full-avatar', '집 전체 보기에 전신 캐릭터 하나만 남지 않았다');
       await page.locator('[data-coach="kids-replay-play"]').click();
       await page.waitForTimeout(200);
 

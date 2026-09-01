@@ -77,6 +77,8 @@ export function qaTests(check: Check, assert: Assert): void {
     const shell = read(path.join(root, 'src/ui/KidsShell.tsx'));
     const store = read(path.join(root, 'src/store/kidsStore.ts'));
     const replay = read(path.join(root, 'src/ui/replay3d/Replay3D.tsx'));
+    const scene = read(path.join(root, 'src/ui/replay3d/Scene.tsx'));
+    const avatar = read(path.join(root, 'src/ui/replay3d/Avatar3D.tsx'));
     const furniture = BLOCKS.filter((block) => block.category === 'furniture');
     assert(furniture.every((block) => Boolean(block.minSize && block.maxSize)), '크기 조절 범위가 없는 가구가 있다');
     assert(BLOCKS.find((block) => block.id === 'gas_range')?.category === 'furniture', '가스불이 가구 갈래가 아니다');
@@ -84,6 +86,8 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(shell.includes('data-opening-resize="decrease"') && shell.includes('data-opening-resize="increase"') && shell.includes("'현관문 너비'"), '문·현관문 너비 조절 화면이 없다');
     assert(store.includes('resizePoint: (id, footprint) =>') && store.includes("block.subKind === 'gas_range' ? 'furniture'"), '가구 크기 저장 또는 이전 가스불 이동 경로가 없다');
     assert(replay.includes("block.subKind === 'my_spot'" ) && replay.includes('data-replay-my-spot-count="0"'), '3D 리플레이에서 고정 내 위치를 제거하지 않는다');
+    assert(replay.includes('data-player-representation=') && scene.includes("view === 'first' ? (") && !scene.includes("visible={view !== 'first'}"), '3D 시점마다 주인공 표현을 하나만 생성하지 않는다');
+    assert(avatar.includes("representation: 'first-person-body'") && avatar.includes('어깨와 상체가 양팔을 하나의 주인공으로 연결한다'), '1인칭 양팔이 한 사람의 몸으로 연결되지 않았다');
   });
 
   const srcFiles = sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css', '.json']);

@@ -48,8 +48,8 @@ jobs:
       - name: 산출물 보관
         uses: actions/upload-artifact@v4
         with:
-          name: standalone-html
-          path: dist/home-escape-map.html
+          name: offline-classroom-bundle
+          path: dist/
 
       # 프로젝트 페이지는 하위 경로에 게시되므로 기준 경로를 주어 다시 내보낸다.
       - name: 배포용 정적 내보내기

@@ -227,6 +227,8 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(/path\.join\(root, 'public', 'voice'\)/.test(baker), '핵심 음원 굽기가 public/voice를 읽지 않는다');
     const standalone = read(path.join(root, 'tools', 'standalone.ts'));
     assert(standalone.includes("path.join(root, 'public', 'voice')") && standalone.includes('fs.cpSync(voiceSource, voiceTarget'), '오프라인 Juwonmom MP3 복사가 없다');
+    const workflow = read(path.join(root, '.github', 'workflows', 'deploy.yml'));
+    assert(/name: offline-classroom-bundle[\s\S]*?path: dist\//.test(workflow), '배포 산출물이 오프라인 음성 폴더를 빠뜨린다');
   });
 
   /* -------------------------------------------------- 인터넷에 보내지 않는다 */

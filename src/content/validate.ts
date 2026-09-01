@@ -191,7 +191,16 @@ export function validateContent(strict = false): ValidationReport {
     if (!b.easy?.trim()) errors.push(`블록 ${b.id}: 초등용 이름이 없다`);
     if (!b.label?.trim()) errors.push(`블록 ${b.id}: 이름이 없다`);
     if (b.size.w < 1 || b.size.h < 1) errors.push(`블록 ${b.id}: 크기가 이상하다`);
+    if (b.category === 'furniture') {
+      if (!b.minSize || !b.maxSize) errors.push(`가구 ${b.id}: 크기 조절 범위가 없다`);
+      else if (
+        b.minSize.w < 1 || b.minSize.h < 1
+        || b.minSize.w > b.size.w || b.minSize.h > b.size.h
+        || b.maxSize.w < b.size.w || b.maxSize.h < b.size.h
+      ) errors.push(`가구 ${b.id}: 기본·최소·최대 크기 순서가 이상하다`);
+    } else if (b.minSize || b.maxSize) errors.push(`가구가 아닌 ${b.id}에 크기 조절 범위가 있다`);
   }
+  if (BLOCKS.find((b) => b.id === 'gas_range')?.category !== 'furniture') errors.push('가스불이 가구 갈래에 없다');
   for (const k of ROOM_KINDS) {
     if (!BLOCKS.some((b) => b.category === 'room' && b.id === k)) errors.push(`팔레트에 방 종류가 빠졌다 — ${k}`);
   }

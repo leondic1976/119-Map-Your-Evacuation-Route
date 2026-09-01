@@ -117,6 +117,7 @@ export type SafetyKind =
 
 export type FurnitureKind =
   | 'bed'
+  | 'gas_range'
   | 'sofa'
   | 'desk'
   | 'wardrobe'
@@ -129,7 +130,7 @@ export type FurnitureKind =
   | 'washing_machine'
   | 'dryer';
 
-export type HazardKind = 'gas_range' | 'boiler' | 'power_strip' | 'heater' | 'candle';
+export type HazardKind = 'boiler' | 'power_strip' | 'heater' | 'candle';
 
 /** 밖으로 나가는 곳. 화재는 아래로 나가는 것이 원칙이고 옥상은 아래가 막혔을 때다 (설계서 v1.2 §3.1) */
 export type ExitKind = 'ground_exit' | 'roof_exit' | 'basement_exit';

@@ -430,6 +430,8 @@
       "w": 2,
       "h": 3
     },
+    "minSize": { "w": 1, "h": 2 },
+    "maxSize": { "w": 4, "h": 6 },
     "fuel": 0.9,
     "tags": [
       "combustible"
@@ -445,6 +447,8 @@
       "w": 3,
       "h": 1
     },
+    "minSize": { "w": 2, "h": 1 },
+    "maxSize": { "w": 6, "h": 2 },
     "fuel": 0.9,
     "tags": [
       "combustible"
@@ -460,6 +464,8 @@
       "w": 2,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 4, "h": 2 },
     "fuel": 0.7,
     "tags": [
       "combustible",
@@ -476,6 +482,8 @@
       "w": 2,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 4, "h": 2 },
     "fuel": 0.8,
     "tags": [
       "combustible",
@@ -492,6 +500,8 @@
       "w": 2,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 4, "h": 2 },
     "fuel": 0.9,
     "tags": [
       "combustible",
@@ -508,6 +518,8 @@
       "w": 2,
       "h": 2
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 4, "h": 4 },
     "fuel": 0.6,
     "tags": [
       "combustible",
@@ -524,6 +536,8 @@
       "w": 1,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 2, "h": 2 },
     "fuel": 0.3,
     "tags": [
       "topple"
@@ -539,6 +553,8 @@
       "w": 2,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 4, "h": 2 },
     "fuel": 0.4,
     "tags": [
       "topple"
@@ -554,6 +570,8 @@
       "w": 3,
       "h": 1
     },
+    "minSize": { "w": 2, "h": 1 },
+    "maxSize": { "w": 6, "h": 2 },
     "fuel": 0.15,
     "tags": [],
     "required": false
@@ -567,6 +585,8 @@
       "w": 1,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 3, "h": 2 },
     "fuel": 0.4,
     "tags": [],
     "required": false
@@ -580,6 +600,8 @@
       "w": 1,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 2, "h": 2 },
     "fuel": 0.2,
     "tags": [
       "topple"
@@ -595,6 +617,8 @@
       "w": 1,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 2, "h": 2 },
     "fuel": 0.25,
     "tags": [
       "topple"
@@ -603,13 +627,15 @@
   },
   {
     "id": "gas_range",
-    "category": "hazard",
+    "category": "furniture",
     "label": "가스레인지",
     "easy": "가스불",
     "size": {
       "w": 1,
       "h": 1
     },
+    "minSize": { "w": 1, "h": 1 },
+    "maxSize": { "w": 3, "h": 2 },
     "fuel": 1,
     "tags": [
       "ignition"

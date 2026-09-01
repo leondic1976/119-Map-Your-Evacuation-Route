@@ -10,11 +10,11 @@
  * 재난 탭은 프리셋 수만큼 생긴다. 기본판은 화재 1종이므로 탭이 없다 (FR-2.1 개정).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockName } from '../content';
+import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockDef, blockName } from '../content';
 import { checklist, missingOf } from '../core/checklist';
 import { doorlessRooms } from '../core/grid/doors';
 import { eul, i } from '../core/josa';
-import { hasDrawableRoute, isOpening, isRoom, type OpeningBlock, type OpeningSpan, type RoomKind } from '../types/plan';
+import { hasDrawableRoute, isOpening, isPoint, isRoom, pointFootprint, type OpeningBlock, type OpeningSpan, type PointBlock, type RoomBlock, type RoomKind } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
 import { firstIssue, ruleReportsFor, useKids } from '../store/kidsStore';
@@ -247,6 +247,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const selectedClosedRoom = selectedBlock && isRoom(selectedBlock) && selectedBlock.wallMode !== 'zone' ? selectedBlock : null;
   const selectedOpenZone = selectedBlock && isRoom(selectedBlock) && selectedBlock.wallMode === 'zone' ? selectedBlock : null;
   const selectedRoom = selectedBlock && isRoom(selectedBlock) ? selectedBlock : null;
+  const selectedFurniture = selectedBlock && isPoint(selectedBlock) && selectedBlock.kind === 'furniture' ? selectedBlock : null;
   const required = useMemo(() => checklist(plan, REQUIRED_BLOCKS), [plan]);
   const missing = missingOf(required);
   const roomsWithoutDoor = useMemo(() => doorlessRooms(plan), [plan]);
@@ -478,6 +479,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                       onClick={() => useKids.getState().removeBlock(selectedBlock.id)}
                     >삭제하기</button>
                   )}
+                  {step === 'spaces' && selectedRoom && <RoomSizeControl room={selectedRoom} />}
                   {step === 'spaces' && selectedClosedRoom && (
                     <div className="k-build-choices" role="group" aria-label="고른 독립실의 종류">
                       {CLOSED_ROOM_KINDS.map((item) => (
@@ -507,6 +509,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                       />
                     </label>
                   )}
+                  {step === 'furniture' && selectedFurniture && <FurnitureSizeControl furniture={selectedFurniture} easy={easy} />}
                   {(step === 'spaces' || step === 'structure') && selectedOpening && !selectedOpening.hideInPlan && (
                     <OpeningSizeControl opening={selectedOpening} />
                   )}
@@ -558,6 +561,8 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                   >삭제하기</button>
                 )}
                 {selectedOpening && !selectedOpening.hideInPlan && <OpeningSizeControl opening={selectedOpening} />}
+                {selectedRoom && <RoomSizeControl room={selectedRoom} />}
+                {selectedFurniture && <FurnitureSizeControl furniture={selectedFurniture} easy={easy} />}
                 <span className="k-spacer" />
                 <label className="k-chk" title="계산으로 찾은 가장 짧은 길을 회색 점선으로 보여 준다">
                   <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
@@ -851,45 +856,114 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   );
 }
 
+function RoomSizeControl({ room }: { room: RoomBlock }) {
+  if (room.wallMode === 'zone' && room.roomKind === 'living') return null;
+  const resize = (axis: 'w' | 'h', delta: -1 | 1) => {
+    useKids.getState().resizeRoom(room.id, { ...room.rect, [axis]: room.rect[axis] + delta });
+  };
+  const name = blockName(room.roomKind, 'easy');
+  return (
+    <div className="k-size-controls" data-room-size-controls data-room-kind-size={room.roomKind}>
+      <span>{name} 크기</span>
+      <DimensionControl
+        label="가로"
+        value={room.rect.w}
+        min={2}
+        max={useKids.getState().plan.grid.width}
+        dataName="room-width"
+        onChange={(delta) => resize('w', delta)}
+      />
+      <DimensionControl
+        label="세로"
+        value={room.rect.h}
+        min={2}
+        max={useKids.getState().plan.grid.height}
+        dataName="room-height"
+        onChange={(delta) => resize('h', delta)}
+      />
+    </div>
+  );
+}
+
+function FurnitureSizeControl({ furniture, easy }: { furniture: PointBlock; easy: boolean }) {
+  const def = blockDef(furniture.subKind);
+  if (!def || def.category !== 'furniture') return null;
+  const footprint = pointFootprint(furniture);
+  const turned = furniture.rotation === 90 || furniture.rotation === 270;
+  const minBase = def.minSize ?? { w: 1, h: 1 };
+  const maxBase = def.maxSize ?? def.size;
+  const min = turned ? { w: minBase.h, h: minBase.w } : minBase;
+  const max = turned ? { w: maxBase.h, h: maxBase.w } : maxBase;
+  const resize = (axis: 'w' | 'h', delta: -1 | 1) => {
+    useKids.getState().resizePoint(furniture.id, { ...footprint, [axis]: footprint[axis] + delta });
+  };
+  return (
+    <div className="k-size-controls k-furniture-size" data-furniture-size-controls data-furniture-kind={furniture.subKind}>
+      <span>{easy ? def.easy : def.label} 크기</span>
+      <DimensionControl label="가로" value={footprint.w} min={min.w} max={max.w} dataName="furniture-width" onChange={(delta) => resize('w', delta)} />
+      <DimensionControl label="세로" value={footprint.h} min={min.h} max={max.h} dataName="furniture-height" onChange={(delta) => resize('h', delta)} />
+    </div>
+  );
+}
+
+function DimensionControl({
+  label,
+  value,
+  min,
+  max,
+  dataName,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  dataName: string;
+  onChange: (delta: -1 | 1) => void;
+}) {
+  return (
+    <div className="k-dimension" role="group" aria-label={`${label} 크기 조절`}>
+      <small>{label}</small>
+      <button type="button" disabled={value <= min} data-size-control={`${dataName}-decrease`} aria-label={`${label} 줄이기`} onClick={() => onChange(-1)}>−</button>
+      <output data-size-value={dataName} aria-live="polite">{value}칸</output>
+      <button type="button" disabled={value >= max} data-size-control={`${dataName}-increase`} aria-label={`${label} 늘리기`} onClick={() => onChange(1)}>＋</button>
+    </div>
+  );
+}
+
 function OpeningSizeControl({ opening }: { opening: OpeningBlock }) {
   const span = opening.span ?? 1;
   const sliding = opening.openingKind === 'sliding_door' || opening.openingKind === 'sliding_window';
   const swingDoor = opening.openingKind === 'door' || opening.openingKind === 'front_door' || opening.openingKind === 'inner_door' || opening.openingKind === 'emergency_exit';
-  if (sliding) {
-    const name = opening.openingKind === 'sliding_door' ? '미닫이문' : '미닫이창';
-    return (
-      <div className="k-opening-controls" data-opening-controls>
-        <div className="k-opening-size k-opening-length" role="group" aria-label={`${name} 길이 조절`}>
-          <span>{name} 길이</span>
-          <button
-            type="button"
-            disabled={span <= 1}
-            data-opening-resize="decrease"
-            aria-label="길이 줄이기"
-            onClick={() => useKids.getState().resizeOpening(opening.id, Math.max(1, span - 1) as OpeningSpan)}
-          ><b aria-hidden="true">−</b><small>줄이기</small></button>
-          <output data-opening-length aria-live="polite">{span}칸</output>
-          <button
-            type="button"
-            disabled={span >= 6}
-            data-opening-resize="increase"
-            aria-label="길이 늘리기"
-            onClick={() => useKids.getState().resizeOpening(opening.id, Math.min(6, span + 1) as OpeningSpan)}
-          ><b aria-hidden="true">＋</b><small>늘리기</small></button>
-        </div>
-        <button type="button" className="k-opening-state" data-opening-state onClick={() => useKids.getState().toggleOpening(opening.id)}>
-          {opening.closedByDefault ? '평소 닫힘' : '평소 열림'}
-        </button>
-      </div>
-    );
-  }
+  const max = sliding ? 6 : 3;
+  const name = opening.openingKind === 'front_door'
+    ? '현관문 너비'
+    : opening.openingKind === 'sliding_door'
+      ? '미닫이문 길이'
+      : opening.openingKind === 'sliding_window'
+        ? '미닫이창 길이'
+        : opening.openingKind === 'window' || opening.openingKind === 'balcony_window'
+          ? '창문 너비'
+          : '여닫이문 너비';
   return (
     <div className="k-opening-controls" data-opening-controls>
-      <div className="k-opening-size" role="group" aria-label="고른 문 또는 창의 너비">
-        <span>문·창 너비</span>
-        {([1, 2, 3] as const).map((candidate) => (
-          <button key={candidate} type="button" aria-pressed={span === candidate} data-opening-span={candidate} onClick={() => useKids.getState().resizeOpening(opening.id, candidate)}>{candidate}칸</button>
-        ))}
+      <div className="k-opening-size k-opening-length" role="group" aria-label={`${name} 조절`}>
+        <span>{name}</span>
+        <button
+          type="button"
+          disabled={span <= 1}
+          data-opening-resize="decrease"
+          aria-label={`${name} 줄이기`}
+          onClick={() => useKids.getState().resizeOpening(opening.id, Math.max(1, span - 1) as OpeningSpan)}
+        ><b aria-hidden="true">−</b><small>줄이기</small></button>
+        <output data-opening-length aria-live="polite">{span}칸</output>
+        <button
+          type="button"
+          disabled={span >= max}
+          data-opening-resize="increase"
+          aria-label={`${name} 늘리기`}
+          onClick={() => useKids.getState().resizeOpening(opening.id, Math.min(max, span + 1) as OpeningSpan)}
+        ><b aria-hidden="true">＋</b><small>늘리기</small></button>
       </div>
       {swingDoor && (
         <div className="k-opening-size k-opening-swing" role="group" aria-label="문이 열리는 방향">

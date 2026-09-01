@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FloorPlan } from '../src/types/plan';
-import { GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, fuelOf } from '../src/content';
+import { BLOCKS, GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, fuelOf } from '../src/content';
 import { guideVoiceFilename, VOICE_LINES } from '../src/content/voice';
 import { buildGraph } from '../src/core/graph/build';
 import { buildContext } from '../src/core/hazard/transfer';
@@ -73,6 +73,19 @@ function mp3FrameLength(data: Buffer, offset: number): number {
 }
 
 export function qaTests(check: Check, assert: Assert): void {
+  check('[점검] inst.md의 크기 조절·가구 분류·한 명 리플레이가 소스와 콘텐츠에 모두 연결됐다', () => {
+    const shell = read(path.join(root, 'src/ui/KidsShell.tsx'));
+    const store = read(path.join(root, 'src/store/kidsStore.ts'));
+    const replay = read(path.join(root, 'src/ui/replay3d/Replay3D.tsx'));
+    const furniture = BLOCKS.filter((block) => block.category === 'furniture');
+    assert(furniture.every((block) => Boolean(block.minSize && block.maxSize)), '크기 조절 범위가 없는 가구가 있다');
+    assert(BLOCKS.find((block) => block.id === 'gas_range')?.category === 'furniture', '가스불이 가구 갈래가 아니다');
+    assert(shell.includes('data-furniture-size-controls') && shell.includes('data-room-size-controls'), '가구·현관 크기 조절 화면이 없다');
+    assert(shell.includes('data-opening-resize="decrease"') && shell.includes('data-opening-resize="increase"') && shell.includes("'현관문 너비'"), '문·현관문 너비 조절 화면이 없다');
+    assert(store.includes('resizePoint: (id, footprint) =>') && store.includes("block.subKind === 'gas_range' ? 'furniture'"), '가구 크기 저장 또는 이전 가스불 이동 경로가 없다');
+    assert(replay.includes("block.subKind === 'my_spot'" ) && replay.includes('data-replay-my-spot-count="0"'), '3D 리플레이에서 고정 내 위치를 제거하지 않는다');
+  });
+
   const srcFiles = sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css', '.json']);
 
   /* -------------------------------------------------- 음성 대본 정본 */

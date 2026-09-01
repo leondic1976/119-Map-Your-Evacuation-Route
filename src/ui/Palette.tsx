@@ -215,6 +215,7 @@ function PaletteButton({
       className={`k-block${on ? ' on' : ''}${hl ? ' k-hl' : ''}${def.required ? ' k-req' : ''}`}
       aria-pressed={on}
       data-block-id={def.id}
+      data-block-category={def.category}
       data-required={def.required ? (placed ? 'done' : 'todo') : undefined}
       title={def.required ? `${hintFor(def, easy)} 꼭 있어야 하는 것이다.${placed ? ' 이미 놓았다.' : ''}` : hintFor(def, easy)}
       disabled={disabled}

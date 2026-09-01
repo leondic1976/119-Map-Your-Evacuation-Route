@@ -20,6 +20,7 @@ import type {
   OpeningKind,
   OpeningSpan,
   OpeningSwing,
+  BlockSize,
   PointKind,
   RoomKind,
   RoutePair,
@@ -43,7 +44,7 @@ import { selectGuide, toBubble } from '../core/guide/runner';
 import { buildReport, highlightOf } from '../core/report/build';
 import { type Game, finishGame, pauseGame, quitGame, resumeGame, startGame, tick as gameTick } from '../core/game/loop';
 import { closeDoorBehind, move, togglePosture, touchDoor } from '../core/game/player';
-import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, fuelOf, isVerified, presetById, templateName } from '../content';
+import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, blockName, fuelOf, isVerified, presetById, templateName } from '../content';
 import { bumpBlockIdSeq, canPlaceOpening, canPlaceRoom, fitOpeningSpan, newBlockId, openingAt, openingCells, pointOccupied, roomAt } from '../core/grid/occupancy';
 import { eul } from '../core/josa';
 import { clampRect, dedupeRun, isAdjacent, rectCentroid, sameCell } from '../core/grid/geometry';
@@ -169,6 +170,8 @@ export interface KidsActions {
   placeOpening: (kind: OpeningKind, cell: Cell, side: Side) => boolean;
   placePoint: (category: Armed['category'], subKind: PointKind, cell: Cell) => boolean;
   moveBlock: (id: BlockId, cell: Cell) => void;
+  /** 선택한 가구의 화면상 가로·세로 칸 수를 바꾼다. */
+  resizePoint: (id: BlockId, footprint: BlockSize) => void;
   /** 선택한 문·창을 전체 길이 그대로 새 벽자리로 옮긴다. */
   moveOpening: (id: BlockId, cell: Cell, side: Side) => boolean;
   moveRoom: (id: BlockId, dx: number, dy: number) => void;
@@ -290,8 +293,19 @@ export function normalizeEditablePlan(plan: FloorPlan): FloorPlan {
       .filter((block, index) => !(isPoint(block) && block.subKind === 'my_spot' && index !== lastMySpot))
       .map((block) => {
         if (isPoint(block)) {
-          const size = block.size ?? blockDef(block.subKind)?.size ?? { w: 1, h: 1 };
-          return { ...block, size: { w: Math.max(1, size.w), h: Math.max(1, size.h) } };
+          const def = blockDef(block.subKind);
+          const size = block.size ?? def?.size ?? { w: 1, h: 1 };
+          const min = def?.minSize ?? { w: 1, h: 1 };
+          const max = def?.maxSize ?? { w: Number.MAX_SAFE_INTEGER, h: Number.MAX_SAFE_INTEGER };
+          return {
+            ...block,
+            /* 예전 저장자료의 가스불도 조심 탭이 아니라 가구로 옮긴다. 위험성은 subKind·태그로 유지한다. */
+            kind: block.subKind === 'gas_range' ? 'furniture' as const : block.kind,
+            size: {
+              w: Math.max(min.w, Math.min(max.w, Math.round(size.w))),
+              h: Math.max(min.h, Math.min(max.h, Math.round(size.h))),
+            },
+          };
         }
         if (isOpening(block) && SWING_OPENINGS.has(block.openingKind)) return { ...block, swing: block.swing ?? 'inward' };
         return block;
@@ -774,6 +788,38 @@ export const useKids = create<KidsStore>()((set, get) => {
       get().countOp();
     },
 
+    resizePoint: (id, footprint) => {
+      const plan = get().plan;
+      const target = plan.blocks.find((block) => block.id === id);
+      if (!target || !isPoint(target) || target.kind !== 'furniture') return;
+      const def = blockDef(target.subKind);
+      if (!def) return;
+      const turned = target.rotation === 90 || target.rotation === 270;
+      /* 화면에서 보이는 가로·세로를 그대로 받되 저장할 때만 회전 전 크기로 되돌린다. */
+      const nextSize = turned
+        ? { w: Math.round(footprint.h), h: Math.round(footprint.w) }
+        : { w: Math.round(footprint.w), h: Math.round(footprint.h) };
+      const min = def.minSize ?? { w: 1, h: 1 };
+      const max = def.maxSize ?? def.size;
+      if (nextSize.w < min.w || nextSize.h < min.h || nextSize.w > max.w || nextSize.h > max.h) {
+        get().notify(`${def.easy} 크기는 가로 ${min.w}~${max.w}칸, 세로 ${min.h}~${max.h}칸 안에서 바꿀 수 있어.`, 'warn');
+        return;
+      }
+      const nextFootprint = pointFootprint({ size: nextSize, rotation: target.rotation });
+      if (target.cell.x + nextFootprint.w > plan.grid.width || target.cell.y + nextFootprint.h > plan.grid.height) {
+        get().notify('가구 전체가 도면 안에 들어오도록 옮긴 뒤 크기를 바꾸자.', 'warn');
+        return;
+      }
+      commit({
+        plan: {
+          ...plan,
+          blocks: plan.blocks.map((block) => block.id === id && isPoint(block) ? { ...block, size: nextSize } : block),
+        },
+      });
+      get().countOp();
+      get().notify(`${def.easy} 크기를 가로 ${nextFootprint.w}칸, 세로 ${nextFootprint.h}칸으로 바꿨다.`);
+    },
+
     moveOpening: (id, cell, side) => {
       const plan = get().plan;
       const target = plan.blocks.find((block) => block.id === id && isOpening(block));
@@ -823,7 +869,28 @@ export const useKids = create<KidsStore>()((set, get) => {
       const room = plan.blocks.find((b) => b.id === id);
       if (!room || !isRoom(room)) return;
       if (room.wallMode === 'zone') {
-        get().notify('열린 바닥은 독립실의 모양에 맞춰 저절로 채워진다.', 'warn');
+        if (room.roomKind === 'living') {
+          get().notify('거실은 다른 공간을 빼고 남은 바닥을 저절로 채운다.', 'warn');
+          return;
+        }
+        const r = clampRect(plan.grid, rect);
+        if (r.w < 2 || r.h < 2) {
+          get().notify('열린 공간은 가로와 세로가 두 칸 이상이어야 한다.', 'warn');
+          return;
+        }
+        /* 같은 id를 다시 넣으면 잔여공간 소유자가 겹친다. 새 id로 범위를 다시 지정한다. */
+        const source = { ...room, id: newBlockId('z'), rect: r };
+        const next = defineShellZone(plan, source);
+        if (!next) {
+          get().notify('그 크기로는 바꿀 수 없다. 집 안의 빈 바닥 범위로 맞춰 보자.', 'warn');
+          return;
+        }
+        commit({ plan: next });
+        const selected = next.blocks.find((block) => isRoom(block) && block.id === source.id)
+          ?? next.blocks.find((block) => isRoom(block) && block.wallMode === 'zone' && block.roomKind === room.roomKind);
+        set({ selection: selected?.id ?? null, multi: selected ? [selected.id] : [] });
+        get().countOp();
+        get().notify(`${room.label || blockName(room.roomKind, get().profile.gradeMode)} 크기를 가로 ${r.w}칸, 세로 ${r.h}칸으로 바꿨다.`);
         return;
       }
       const r = clampRect(plan.grid, rect);
@@ -1178,15 +1245,17 @@ export const useKids = create<KidsStore>()((set, get) => {
       const s = get();
       const preset = presetById(s.hazardId);
       if (!preset || s.plan.blocks.length === 0) return;
-      const graph = buildGraph(s.plan);
-      const startId = startNodeId(s.plan, graph);
+      /* 저장자료·되돌리기·직접 조작 어느 경로에서 와도 게임 직전에 내 위치를 다시 한 개로 만든다. */
+      const plan = normalizeEditablePlan(s.plan);
+      const graph = buildGraph(plan);
+      const startId = startNodeId(plan, graph);
       if (!startId) {
         get().notify('먼저 방을 하나 만들자.', 'warn');
         return;
       }
-      const startCell = myCell(s.plan) ?? graph.nodeById[startId].centroid ?? { x: 0, y: 0 };
+      const startCell = myCell(plan) ?? graph.nodeById[startId].centroid ?? { x: 0, y: 0 };
       const game = startGame({
-        plan: s.plan,
+        plan,
         graph,
         profile: s.profile,
         config: { hazardId: s.hazardId, seed: seed ?? Math.floor(Math.random() * 1e9), timed: s.timed, gradeMode: s.profile.gradeMode },
@@ -1194,7 +1263,7 @@ export const useKids = create<KidsStore>()((set, get) => {
         startCell,
         fuelOf,
       });
-      set({ game, mode: 'game', report: null, drafting: null, armed: null, selection: null, multi: [], highlight: null, bubble: null });
+      set({ plan, game, mode: 'game', report: null, drafting: null, armed: null, selection: null, multi: [], highlight: null, bubble: null });
       get().setStep('game');
       get().fire({ on: 'gameStart' });
       get().countOp();

@@ -37,6 +37,10 @@ export interface BlockDef {
   /** 초등용 쉬운 이름 */
   easy: string;
   size: { w: number; h: number };
+  /** 이용자가 화면에서 줄일 수 있는 가장 작은 크기. 가구에만 둔다. */
+  minSize?: { w: number; h: number };
+  /** 이용자가 화면에서 늘릴 수 있는 가장 큰 크기. 가구에만 둔다. */
+  maxSize?: { w: number; h: number };
   /** 연소하중 0~1 */
   fuel: number;
   tags: string[];

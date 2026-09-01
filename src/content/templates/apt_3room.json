@@ -402,7 +402,7 @@
         "rotation": 0
       },
       {
-        "kind": "hazard",
+        "kind": "furniture",
         "id": "h1",
         "layer": "home",
         "subKind": "gas_range",

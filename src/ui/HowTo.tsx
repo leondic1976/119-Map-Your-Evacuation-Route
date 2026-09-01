@@ -35,10 +35,11 @@ export default function HowTo() {
 
   if (step === 'spaces') {
     rows.push({ title: easy ? '놓고 바로 크기 맞추기' : '배치·크기 통합', body: easy ? '방은 놓은 뒤 바로 끌고 모서리 점으로 바꿔. 트인 주방(부엌)은 빈 바닥에 범위를 그려.' : '구획실 배치·이동·8방향 크기 조정과 트인 주방(부엌) 범위 지정을 한 단계에서 수행한다.' });
+    rows.push({ title: easy ? '문과 현관 크기' : '문·현관 크기', body: easy ? '문과 현관을 눌러. 위쪽 줄이기·늘리기로 바로 바꿔.' : '선택한 문 너비와 현관 공간의 가로·세로를 상단 조작부에서 변경한다.' });
   } else if (step === 'structure') {
     rows.push({ title: easy ? '방 크기와 자리' : '독립실 조정', body: easy ? '닫힌 방을 끌어 옮기고, 테두리 점을 끌어 크기를 바꿔.' : '닫힌 독립실을 이동하고 8방향으로 크기를 바꾼다.' });
   } else if (step === 'furniture') {
-    rows.push({ title: easy ? '가구와 이름' : '가구·이름', body: easy ? '침대·책상을 놓고 공간을 눌러 이름을 바꿔.' : '가구·위험원을 놓고 선택한 공간 이름을 수정한다.' });
+    rows.push({ title: easy ? '가구와 이름' : '가구·이름', body: easy ? '가구를 누르면 위에서 크기를 바꿀 수 있어. 공간 이름도 붙여.' : '가구를 선택해 가로·세로 크기를 조절하고 공간 이름을 수정한다.' });
   } else if (step === 'mySpot') {
     rows.push({ title: easy ? '네 방을 눌러 줘' : '내 자리 정하기', body: easy ? '네가 잠자는 방 안을 한 번 누르면 돼.' : '취침하는 방 안의 칸을 누른다.' });
   } else if (step === 'meeting') {

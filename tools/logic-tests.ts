@@ -42,7 +42,7 @@ import { eul, eun, i } from '../src/core/josa';
 import { ALL_STEPS, validateContent, validatePlan } from '../src/content/validate';
 import { SaveIncompatibleError, parseSave } from '../src/store/migrate';
 import { emptySave, serializeSave } from '../src/store/storage';
-import { normalizeEditablePlan, ruleReportsFor } from '../src/store/kidsStore';
+import { normalizeEditablePlan, ruleReportsFor, useKids } from '../src/store/kidsStore';
 import { KIDS } from '../src/ui/KidCharacters';
 import { avatar3dIdentity } from '../src/ui/replay3d/Avatar3D';
 import { buildDoors } from '../src/ui/replay3d/geometry';
@@ -230,16 +230,46 @@ export function logicTests(check: Check, assert: Assert): void {
       blocks: [
         { kind: 'furniture', id: 'bed-old', layer: 'home', subKind: 'bed', cell: { x: 2, y: 2 }, rotation: 0 },
         { kind: 'furniture', id: 'sink-old', layer: 'home', subKind: 'sink', cell: { x: 6, y: 2 }, rotation: 0 },
+        { kind: 'hazard', id: 'gas-old', layer: 'home', subKind: 'gas_range', cell: { x: 10, y: 2 }, rotation: 0 },
         { kind: 'marker', id: 'mine-old', layer: 'home', subKind: 'my_spot', cell: { x: 3, y: 3 }, rotation: 0 },
         { kind: 'marker', id: 'mine-new', layer: 'home', subKind: 'my_spot', cell: { x: 4, y: 4 }, rotation: 0 },
       ],
     });
     const bed = plan.blocks.find((block) => block.id === 'bed-old');
     const sink = plan.blocks.find((block) => block.id === 'sink-old');
+    const gas = plan.blocks.find((block) => block.id === 'gas-old');
     assert(Boolean(bed && bed.kind === 'furniture' && pointFootprint(bed).w === 2 && pointFootprint(bed).h === 3), '침대가 2×3칸이 아니다');
     assert(Boolean(sink && sink.kind === 'furniture' && pointFootprint(sink).w === 3 && pointFootprint(sink).h === 1), '싱크대가 3×1칸이 아니다');
+    assert(Boolean(gas && gas.kind === 'furniture' && gas.subKind === 'gas_range'), '예전 가스불이 가구 갈래로 옮겨지지 않았다');
     const mine = plan.blocks.filter((block) => block.kind === 'marker' && block.subKind === 'my_spot');
     assert(mine.length === 1 && mine[0].id === 'mine-new', `내 위치가 ${mine.map((block) => block.id).join(',')}로 남았다`);
+  });
+
+  check('모든 가구에 사실적인 조절 범위가 있고 선택한 가구·현관 크기를 실제로 바꾼다 (설계서 v1.13 §2·§3)', () => {
+    const furniture = BLOCKS.filter((block) => block.category === 'furniture');
+    assert(furniture.length >= 13, `가구가 ${furniture.length}종뿐이다`);
+    assert(furniture.every((block) => Boolean(block.minSize && block.maxSize)), '크기 조절 범위가 없는 가구가 있다');
+    assert(BLOCKS.find((block) => block.id === 'gas_range')?.category === 'furniture', '가스불이 가구 갈래가 아니다');
+
+    const plan: FloorPlan = {
+      ...emptyFloorPlan(),
+      blocks: [
+        { kind: 'room', id: 'entry', layer: 'home', roomKind: 'entry', rect: { x: 1, y: 1, w: 3, h: 3 }, label: '현관' },
+        { kind: 'room', id: 'bedroom', layer: 'home', roomKind: 'bedroom', rect: { x: 5, y: 1, w: 8, h: 8 }, label: '내 방' },
+        { kind: 'furniture', id: 'bed', layer: 'home', subKind: 'bed', cell: { x: 6, y: 2 }, size: { w: 2, h: 3 }, rotation: 0 },
+      ],
+    };
+    useKids.setState({ plan, past: [], future: [], selection: 'bed', multi: ['bed'] });
+    useKids.getState().resizePoint('bed', { w: 3, h: 4 });
+    const grownBed = useKids.getState().plan.blocks.find((block) => block.id === 'bed');
+    assert(Boolean(grownBed && grownBed.kind === 'furniture' && pointFootprint(grownBed).w === 3 && pointFootprint(grownBed).h === 4), '침대 가로·세로가 바뀌지 않았다');
+    useKids.getState().resizePoint('bed', { w: 5, h: 7 });
+    const rejectedBed = useKids.getState().plan.blocks.find((block) => block.id === 'bed');
+    assert(Boolean(rejectedBed && rejectedBed.kind === 'furniture' && pointFootprint(rejectedBed).w === 3 && pointFootprint(rejectedBed).h === 4), '침대 최대 범위를 넘어 늘어났다');
+
+    useKids.getState().resizeRoom('entry', { x: 1, y: 1, w: 4, h: 3 });
+    const entry = useKids.getState().plan.blocks.find((block) => block.id === 'entry');
+    assert(Boolean(entry && entry.kind === 'room' && entry.rect.w === 4 && entry.rect.h === 3), '현관 공간 가로 크기가 바뀌지 않았다');
   });
 
   check('벽 끝의 문도 반대쪽 빈 벽을 찾아 3칸으로 늘리고 안팎 열림을 3D에 반영한다 (설계서 v1.11 §3)', () => {
@@ -389,7 +419,7 @@ export function logicTests(check: Check, assert: Assert): void {
       blocks: [
         { kind: 'room', id: 'a', layer: 'home', roomKind: 'living', rect: { x: 2, y: 2, w: 4, h: 3 }, label: '' },
         { kind: 'opening', id: 'd', layer: 'home', openingKind: 'front_door', cell: { x: 5, y: 3 }, side: 'E', closedByDefault: true },
-        { kind: 'hazard', id: 'h', layer: 'home', subKind: 'gas_range', cell: { x: 5, y: 2 }, rotation: 0 },
+        { kind: 'furniture', id: 'h', layer: 'home', subKind: 'gas_range', cell: { x: 5, y: 2 }, rotation: 0 },
         { kind: 'marker', id: 'm', layer: 'home', subKind: 'my_spot', cell: { x: 2, y: 3 }, rotation: 0 },
       ],
     };

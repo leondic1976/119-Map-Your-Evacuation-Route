@@ -100,6 +100,7 @@ interface BrowserBlock {
   openingKind?: string;
   side?: 'N' | 'E' | 'S' | 'W';
   span?: number;
+  size?: { w: number; h: number };
   cell?: { x: number; y: number };
   rect?: BrowserRect;
 }
@@ -710,8 +711,22 @@ async function main(): Promise<void> {
         await page.mouse.click(point.x, point.y);
         await page.waitForTimeout(800);
         const placedPlan = await kidsPlan(page);
-        assert(placedPlan.blocks.some((block) => block.kind === 'room' && block.roomKind === quick.id && block.wallMode !== 'zone'), `${quick.label}이 벽 있는 공간으로 놓이지 않았다`);
+        const placedRoom = placedPlan.blocks.find((block) => block.kind === 'room' && block.roomKind === quick.id && block.wallMode !== 'zone');
+        assert(Boolean(placedRoom), `${quick.label}이 벽 있는 공간으로 놓이지 않았다`);
         assert((await button.getAttribute('aria-pressed')) === 'false', `${quick.label}을 한 번 놓은 뒤 추가 도구가 해제되지 않았다`);
+        if (quick.id === 'entry' && placedRoom?.rect) {
+          await page.locator(`.k-stage [data-block="${placedRoom.id}"]`).click();
+          assert((await page.locator('[data-room-size-controls][data-room-kind-size="entry"]').count()) === 1, '현관을 골라도 크기 조절부가 보이지 않는다');
+          assert((await page.locator('[data-size-value="room-width"]').innerText()).includes(`${placedRoom.rect.w}칸`), '현관의 현재 가로 크기가 보이지 않는다');
+          await page.locator('[data-size-control="room-width-increase"]').click();
+          await page.waitForTimeout(650);
+          const grownEntry = (await kidsPlan(page)).blocks.find((block) => block.id === placedRoom.id);
+          assert(grownEntry?.rect?.w === placedRoom.rect.w + 1, '현관 가로 늘리기 단추가 작동하지 않는다');
+          await page.locator('[data-size-control="room-width-decrease"]').click();
+          await page.waitForTimeout(650);
+          const restoredEntry = (await kidsPlan(page)).blocks.find((block) => block.id === placedRoom.id);
+          assert(restoredEntry?.rect?.w === placedRoom.rect.w, '현관 가로 줄이기 단추가 작동하지 않는다');
+        }
       }
       const kitchenButton = page.locator('[data-quick-room="kitchen"]');
       assert((await kitchenButton.getAttribute('data-room-mode')) === 'zone', '트인 주방이 벽 없는 구역 도구가 아니다');
@@ -795,6 +810,8 @@ async function main(): Promise<void> {
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'furniture', '실·문·창·크기 다음이 바로 가구 단계가 아니다');
       assert((await page.locator('.k-cats .k-cat').count()) === 2, '가구 단계에 가구·위험 갈래가 없다');
+      assert((await page.locator('[data-block-id="bed"][data-block-category="furniture"]').count()) === 1, '침대가 가구 갈래에 없다');
+      assert((await page.locator('[data-block-id="gas_range"][data-block-category="furniture"]').count()) === 1, '가스불이 가구 갈래에 없다');
       const buildPlan = await kidsPlan(page);
       const bedroom = buildPlan.blocks.find((block) => block.kind === 'room' && block.roomKind === 'bedroom' && block.rect);
       assert(Boolean(bedroom?.rect), '침대를 놓을 침실이 없다');
@@ -814,6 +831,16 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-stage [data-kind="furniture"]').count()) === 1, '가구 단계에서 침대가 놓이지 않았다');
       const bedElement = page.locator('.k-stage [data-point-kind="bed"]');
       assert((await bedElement.getAttribute('data-point-width')) === '2' && (await bedElement.getAttribute('data-point-height')) === '3', '침대가 2×3칸 비율로 보이지 않는다');
+      await bedElement.click();
+      assert((await page.locator('[data-furniture-size-controls][data-furniture-kind="bed"]').count()) === 1, '침대를 골라도 가로·세로 크기 조절부가 보이지 않는다');
+      await page.locator('[data-size-control="furniture-width-increase"]').click();
+      await page.waitForTimeout(650);
+      assert((await bedElement.getAttribute('data-point-width')) === '3' && (await bedElement.getAttribute('data-point-height')) === '3', '침대 가로 늘리기 단추가 작동하지 않는다');
+      const resizedBed = (await kidsPlan(page)).blocks.find((block) => block.subKind === 'bed');
+      assert(resizedBed?.size?.w === 3 && resizedBed.size.h === 3, '바꾼 침대 크기가 저장되지 않았다');
+      await page.locator('[data-size-control="furniture-width-decrease"]').click();
+      await page.waitForTimeout(650);
+      assert((await bedElement.getAttribute('data-point-width')) === '2', '침대 가로 줄이기 단추가 작동하지 않는다');
       const bedBeforeMove = await kidsPlan(page);
       const bedBlock = bedBeforeMove.blocks.find((block) => block.kind === 'furniture' && block.subKind === 'bed');
       assert(Boolean(bedBlock?.cell), '옮길 침대가 저장되지 않았다');
@@ -1507,8 +1534,10 @@ async function main(): Promise<void> {
       await page.mouse.click(bb!.x + bb!.width / 2, bb!.y + bb!.height / 2);
       await page.waitForTimeout(250);
       assert((await page.locator('[data-opening-controls]').count()) === 1, '문을 골라도 조작부가 보이지 않는다');
-      assert((await page.locator('[data-opening-span]').count()) === 3, '여닫이문 1~3칸 너비 단추가 없다');
-      await page.locator('[data-opening-span="3"]').click();
+      assert((await page.locator('[data-opening-resize]').count()) === 2, '여닫이문 줄이기·늘리기 단추가 없다');
+      assert((await page.locator('[data-opening-length]').innerText()).includes('1칸'), '여닫이문의 현재 너비가 보이지 않는다');
+      await page.locator('[data-opening-resize="increase"]').click();
+      await page.locator('[data-opening-resize="increase"]').click();
       await page.waitForTimeout(450);
       assert((await door.getAttribute('data-opening-width')) === '3', '여닫이문 가로 길이가 3칸으로 늘어나지 않는다');
       await page.locator('button[data-opening-swing="outward"]').click();
@@ -1524,6 +1553,16 @@ async function main(): Promise<void> {
       await page.locator('button[data-opening-state]').click();
       await page.waitForTimeout(650);
       assert((await state()) === before, '평소 상태 단추를 다시 눌러도 돌아오지 않는다');
+      const frontDoor = page.locator('.k-stage [data-opening-kind="front_door"]').first();
+      const frontBox = await frontDoor.boundingBox();
+      assert(Boolean(frontBox), '현관문이 도면에 없다');
+      await page.mouse.click(frontBox!.x + frontBox!.width / 2, frontBox!.y + frontBox!.height / 2);
+      await page.waitForTimeout(250);
+      assert((await page.locator('[data-opening-controls]').innerText()).includes('현관문 너비'), '현관문을 골라도 현관문 크기 조절이라고 알려 주지 않는다');
+      const frontBefore = Number(await frontDoor.getAttribute('data-opening-width'));
+      await page.locator('[data-opening-resize="increase"]').click();
+      await page.waitForTimeout(450);
+      assert(Number(await frontDoor.getAttribute('data-opening-width')) === frontBefore + 1, '현관문 너비 늘리기가 작동하지 않는다');
       await page.keyboard.press('Escape');
     });
 
@@ -1684,6 +1723,8 @@ async function main(): Promise<void> {
       assert((await page.locator('[data-look-reset]').count()) === 1, '시점 정면 단추가 없다');
       assert((await page.locator('[data-quality]').count()) === 3, '화질 선택이 세 단계가 아니다');
       assert((await replay.getAttribute('data-player-count')) === '1', '3D 리플레이의 주인공 수가 한 명이 아니다');
+      assert(Number(await replay.getAttribute('data-source-my-spot-count')) <= 1, '3D 리플레이 입력에 내 위치가 여러 개 남았다');
+      assert((await replay.getAttribute('data-replay-my-spot-count')) === '0', '3D 장면에 고정 내 위치 표시가 들어갔다');
       assert((await page.locator('[data-quality-badge]').count()) === 1, '3D 장면에 현재 화질 표시가 없다');
       const topbarBox = await page.locator('.k-r-topbar').boundingBox();
       const stageBox = await page.locator('.k-replay-stage').boundingBox();

@@ -14,7 +14,7 @@ import { Canvas } from '@react-three/fiber';
 import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { ReplayFrame } from '../../types/game';
-import type { Cell, FloorPlan, RoutePair } from '../../types/plan';
+import { isPoint, type Cell, type FloorPlan, type RoutePair } from '../../types/plan';
 import type { PlayerCharacter } from '../../types/guide';
 import { PlanSvg } from '../PlanSvg';
 import Scene, { type Layers, type ViewMode } from './Scene';
@@ -81,6 +81,15 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const closeRef = useRef(onClose);
   const frame = frames[Math.min(i, frames.length - 1)];
   const avatar = useMemo(() => avatar3dIdentity(character), [character]);
+  const sourceMySpotCount = useMemo(
+    () => plan.blocks.filter((block) => isPoint(block) && block.subKind === 'my_spot').length,
+    [plan],
+  );
+  /* 리플레이의 주인공은 아래 Avatar3D 한 명뿐이다. 시작점 표시는 장면 입력에서 아예 제거한다. */
+  const replayPlan = useMemo<FloorPlan>(
+    () => ({ ...plan, blocks: plan.blocks.filter((block) => !(isPoint(block) && block.subKind === 'my_spot')) }),
+    [plan],
+  );
 
   /* 기기를 보고 첫 화질을 고른다 */
   useEffect(() => {
@@ -168,7 +177,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     return out;
   }, [routes]);
 
-  const caption = useMemo(() => captionOf(frame, outcome, i === frames.length - 1, plan, frames[i]), [frame, outcome, i, frames, plan]);
+  const caption = useMemo(() => captionOf(frame, outcome, i === frames.length - 1, replayPlan, frames[i]), [frame, outcome, i, frames, replayPlan]);
 
   const jump = useCallback((v: number) => {
     setPlaying(false);
@@ -243,6 +252,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
       data-camera-zoom={orbit.zoom.toFixed(3)}
       data-scene-detail={settings.detail}
       data-player-count="1"
+      data-source-my-spot-count={sourceMySpotCount}
+      data-replay-my-spot-count="0"
     >
       <CameraToolbar
         seconds={seconds}
@@ -257,7 +268,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
         {gone ? (
           <div className="k-replay-2d" data-fallback="2d">
             <PlanSvg
-              plan={plan}
+              plan={replayPlan}
               showSlots={[]}
               style="kid"
               gradeMode="easy"
@@ -301,7 +312,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
             >
               {!autoLowered && <Watchdog onSlow={onSlow} />}
               <Scene
-                plan={plan}
+                plan={replayPlan}
                 frame={frame}
                 ahead={ahead}
                 trail={trail}

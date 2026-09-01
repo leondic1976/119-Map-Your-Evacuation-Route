@@ -77,7 +77,8 @@ export function buildGraph(plan: FloorPlan): PlanGraph {
   for (const r of roomList) {
     const cells = cellsOf(r.rect);
     const inside = new Set(cells.map(cellKey));
-    const hazards = points.filter((p) => p.kind === 'hazard' && inside.has(cellKey(p.cell))).map((p) => p.subKind);
+    /* 가스불은 아이가 찾는 갈래는 가구지만 안전 판정에서는 계속 위험원이다. */
+    const hazards = points.filter((p) => (p.kind === 'hazard' || p.subKind === 'gas_range') && inside.has(cellKey(p.cell))).map((p) => p.subKind);
     const hasWindow = openings.some(
       (o) => inside.has(cellKey(o.cell)) && (o.openingKind === 'window' || o.openingKind === 'sliding_window' || o.openingKind === 'balcony_window'),
     );

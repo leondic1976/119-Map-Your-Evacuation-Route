@@ -244,16 +244,32 @@ function validShellInsertRect(plan: BrowserPlan, rect: BrowserRect): boolean {
   );
 }
 
-async function kidsSave(page: Page): Promise<{ blocks: number; primary: number; alternate: number; attempts: number }> {
+async function kidsSave(page: Page): Promise<{
+  blocks: number;
+  primary: number;
+  alternate: number;
+  attempts: number;
+  schemaVersion: number;
+  badges: number;
+  stampWeeks: number;
+  practiceRecords: number;
+  lastSeeds: number[];
+}> {
   return page.evaluate(() => {
     const raw = window.localStorage.getItem('evac-kids-v1');
-    if (!raw) return { blocks: 0, primary: 0, alternate: 0, attempts: 0 };
+    if (!raw) return { blocks: 0, primary: 0, alternate: 0, attempts: 0, schemaVersion: 0, badges: 0, stampWeeks: 0, practiceRecords: 0, lastSeeds: [] };
     const f = JSON.parse(raw);
+    const records = f.progress?.practiceRecords ?? [];
     return {
       blocks: (f.plan?.blocks ?? []).length as number,
       primary: (f.routes?.fire?.primary?.waypoints ?? []).length as number,
       alternate: (f.routes?.fire?.alternate?.waypoints ?? []).length as number,
       attempts: (f.progress?.attempts ?? 0) as number,
+      schemaVersion: (f.schemaVersion ?? 0) as number,
+      badges: (f.progress?.earnedBadgeIds ?? []).length as number,
+      stampWeeks: (f.progress?.practiceWeekKeys ?? []).length as number,
+      practiceRecords: records.length as number,
+      lastSeeds: records.slice(-2).map((record: { seed?: number }) => Number(record.seed ?? -1)),
     };
   });
 }
@@ -929,6 +945,8 @@ async function main(): Promise<void> {
       const rooms = await page.locator('.k-stage [data-kind="room"]').count();
       assert(rooms >= 2, `방 ${rooms}개`);
       assert((await page.locator('.k-game-missions [data-mission]').count()) === 4, '안전 행동 미션이 네 가지가 아니다');
+      assert((await page.locator('.k-game-difficulty').getAttribute('data-difficulty')) === 'guided', '첫 연습이 차근차근 단계가 아니다');
+      assert((await page.locator('.k-game-missions [data-target="true"]').count()) === 2, '첫 연습 목표가 두 가지가 아니다');
       assert((await page.locator('[data-mission="crouch"]').getAttribute('data-done')) === 'false', '시작 전에 몸 낮추기가 끝나 있다');
     });
 
@@ -960,9 +978,22 @@ async function main(): Promise<void> {
       const cols = await page.locator('.k-report-col').allInnerTexts();
       assert(cols[0].includes('잘한 점'), '잘한 점이 먼저 오지 않는다 (FR-10.5)');
       assert(!/점수|등급|순위/.test(await page.locator('.k-report-view').innerText()), '점수·등급이 있다 (FR-10.10)');
+      assert((await page.locator('.k-report-reward .k-great-stamp').count()) >= 1, '결과 화면에 참 잘했어요 도장이 없다');
+      assert((await page.locator('.k-report-reward').getAttribute('data-new-stamp')) === 'true', '첫 연습의 새 주간 도장이 기록되지 않았다');
+      assert((await page.locator('.k-report-reward [data-badge][data-earned="true"]').count()) >= 1, '첫 연습 안전 배지가 보이지 않는다');
+      await page.locator('[data-coach="kids-report-notebook"]').click();
+      await page.waitForSelector('[data-coach="kids-safety-notebook"]');
+      const notebook = page.locator('[data-coach="kids-safety-notebook"]');
+      assert((await notebook.locator('.k-stamp-calendar [data-week]').count()) === 4, '4주 안전 약속표가 네 칸이 아니다');
+      assert((await notebook.locator('.k-stamp-calendar [data-stamped="true"]').count()) === 1, '첫 주 도장이 일정표에 없다');
+      assert((await notebook.locator('.k-badge-shelf:not(.compact) [data-badge]').count()) === 8, '안전 배지 도감이 여덟 칸이 아니다');
+      assert(!/점수|등급|순위/.test(await notebook.innerText()), '안전 수첩에 경쟁 표현이 있다');
+      await page.keyboard.press('Escape');
+      await page.waitForSelector('[data-coach="kids-safety-notebook"]', { state: 'detached' });
       await page.waitForTimeout(300);
       const save = await kidsSave(page);
       assert(save.attempts === 1, `시도 기록 ${save.attempts}`);
+      assert(save.schemaVersion === 3 && save.badges >= 2 && save.stampWeeks === 1 && save.practiceRecords === 1, `반복 연습 저장 v${save.schemaVersion}, 배지 ${save.badges}, 도장 ${save.stampWeeks}, 기록 ${save.practiceRecords}`);
     });
 
     await check('리포트 — [왜?] 는 자리에서 펼쳐지고, 지도 고치기는 편집으로 돌아간다', async () => {
@@ -1442,20 +1473,30 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-stage [data-kind="room"]').count()) >= 8, '복원된 방이 적다');
     });
 
-    await check('다시 해보기 — 같은 지도, 새 판. 시도 횟수가 는다', async () => {
+    await check('같은 상황 다시와 새로운 상황은 시드를 구분하고 시도 기록을 이어 간다', async () => {
       await page.locator('[data-coach="kids-start-game"]').click();
       await page.waitForSelector('.k-game');
       await page.waitForTimeout(500);
       await page.locator('[data-coach="kids-quit"]').click();
       await page.waitForSelector('.k-report-view');
+      const beforeSame = await kidsSave(page);
       await page.locator('[data-coach="kids-replay"]').click();
       await page.waitForSelector('.k-game');
       await page.waitForTimeout(300);
       await page.locator('[data-coach="kids-quit"]').click();
       await page.waitForSelector('.k-report-view');
       await page.waitForTimeout(300);
+      const afterSame = await kidsSave(page);
+      assert(afterSame.lastSeeds.length === 2 && afterSame.lastSeeds[0] === afterSame.lastSeeds[1], `같은 상황 시드 ${afterSame.lastSeeds.join(',')}`);
+      await page.locator('[data-coach="kids-new-situation"]').click();
+      await page.waitForSelector('.k-game');
+      await page.waitForTimeout(300);
+      await page.locator('[data-coach="kids-quit"]').click();
+      await page.waitForSelector('.k-report-view');
       const save = await kidsSave(page);
-      assert(save.attempts >= 3, `시도 ${save.attempts}`);
+      assert(save.attempts >= beforeSame.attempts + 2, `시도 ${beforeSame.attempts} → ${save.attempts}`);
+      assert(save.lastSeeds.length === 2 && save.lastSeeds[0] !== save.lastSeeds[1], `새로운 상황 시드 ${save.lastSeeds.join(',')}`);
+      assert(save.stampWeeks === 1, `같은 주 도장이 ${save.stampWeeks}개다`);
       await page.locator('[data-coach="kids-edit-plan"]').click();
       await page.waitForSelector('svg.k-stage');
     });

@@ -35,6 +35,7 @@ import { KIDS, KidPortrait } from './KidCharacters';
 import { PLAYER_CHARACTERS } from '../types/guide';
 import { playDoor, playTap, replayLastGuideVoice, stopSpeaking, unlockAudio } from './sound';
 import type { StudentInfo } from './ProfileSetup';
+import SafetyNotebook from './SafetyNotebook';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
@@ -108,6 +109,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   /** 필수가 빠졌을 때 시작 직전에 한 번만 묻는다 (설계서 v1.2 §1.4) */
   const [askMissing, setAskMissing] = useState<string[] | null>(null);
   const [pickChar, setPickChar] = useState(false);
+  const [showNotebook, setShowNotebook] = useState(false);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const doorlessNoticeRef = useRef(false);
@@ -217,6 +219,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
         setConfirmReset(false);
         setAskMissing(null);
         setBadFile(null);
+        setShowNotebook(false);
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection) {
@@ -652,6 +655,9 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
           <button type="button" className="k-tb" onClick={() => withPrintableRoute(() => setPreview(true))} data-coach="kids-print">
             <PrintIcon /> {easy ? '뽑기' : '인쇄'}
           </button>
+          <button type="button" className="k-tb k-notebook-open" onClick={() => setShowNotebook(true)} title="4주 안전 약속표와 모은 배지를 본다" data-coach="kids-notebook-open">
+            <NotebookIcon /> 안전 수첩
+          </button>
           <button type="button" className="k-tb" onClick={saveFile} title="파일로 저장 (Ctrl+S)">
             파일 저장
           </button>
@@ -852,7 +858,17 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
       )}
 
       {help && <HelpModal easy={easy} onClose={() => setHelp(false)} />}
+      {showNotebook && <SafetyNotebook progress={progress} easy={easy} onClose={() => setShowNotebook(false)} />}
     </>
+  );
+}
+
+function NotebookIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+      <path d="M8 4v16M11 9h5M11 13h5" />
+    </svg>
   );
 }
 
@@ -1002,7 +1018,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['3. 방 고치기', '방을 끌어 옮기고, 모서리를 끌어 크기를 바꾼다. 문이 없는 방은 캐릭터가 알려 준다. 왼쪽에서 “문”을 고르고 방의 벽을 누른다.'],
         ['4. 나가는 길', '“나가는 길”을 누르고 내 방부터 현관까지 끌어서 잇는다. 못 나갈 때 갈 길도 그려 두면 좋다.'],
         ['5. 대피 연습', '“대피 연습 시작!”을 누르면 불이 난다. 화살표로 움직이고, 연기가 오면 “낮게!”'],
-        ['6. 결과', '잘한 점과 고칠 점을 본다. “다시 해보기”나 “지도 고치기”를 누른다.'],
+        ['6. 결과', '잘한 점과 고칠 점, 참 잘했어요 도장과 새 배지를 본다. “같은 상황 다시”나 “새로운 상황”으로 또 연습할 수 있다.'],
         ['7. 뽑기', '한 장으로 뽑아 잘 보이는 곳에 붙인다.'],
         ['마우스가 없어도', 'Tab 을 눌러 도면으로 들어가고, 방향키로 칸을 옮긴 다음 Enter 를 누르면 된다.'],
       ]

@@ -32,9 +32,9 @@ import { emptyFloorPlan, emptyRoute, isOpening, isPoint, isRoom, pointFootprint,
 import type { GuideBubble, GuideTrigger } from '../types/guide';
 import type { Report } from '../types/report';
 import type { RuleReport, RuleResult } from '../types/rules';
-import type { GuardianMission, SaveFile, SaveProgress, UserProfile } from '../types/save';
+import type { GuardianMission, SafetyBadgeId, SaveFile, SaveProgress, UserProfile } from '../types/save';
 import { SCHEMA_VERSION, defaultProfile, emptyProgress } from '../types/save';
-import type { Direction } from '../types/game';
+import type { Direction, PracticeDifficulty } from '../types/game';
 
 import { buildGraph, startNodeId } from '../core/graph/build';
 import { findEscape } from '../core/graph/pathfind';
@@ -43,6 +43,8 @@ import { RULES } from '../core/rules/definitions';
 import { selectGuide, toBubble } from '../core/guide/runner';
 import { buildReport, highlightOf } from '../core/report/build';
 import { type Game, finishGame, pauseGame, quitGame, resumeGame, startGame, tick as gameTick } from '../core/game/loop';
+import { completePractice, recommendedDifficulty } from '../core/game/progress';
+import { safetyMissions } from '../core/game/missions';
 import { closeDoorBehind, move, togglePosture, touchDoor } from '../core/game/player';
 import { GUIDE_RULES, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, blockDef, blockName, fuelOf, isVerified, presetById, templateName } from '../content';
 import { bumpBlockIdSeq, canPlaceOpening, canPlaceRoom, fitOpeningSpan, newBlockId, openingAt, openingCells, pointOccupied, roomAt } from '../core/grid/occupancy';
@@ -113,6 +115,9 @@ export interface KidsState {
   placedKinds: string[];
   missions: GuardianMission[];
   progress: SaveProgress;
+  /** 방금 끝난 판에서 새로 받은 보상. 저장하지 않고 결과 화면에만 쓴다. */
+  newBadgeIds: SafetyBadgeId[];
+  newStamp: boolean;
 
   game: Game | null;
   report: Report | null;
@@ -210,7 +215,7 @@ export interface KidsActions {
   /** 규칙을 다시 평가해 첫 지적을 말한다 */
   runChecks: (speak?: boolean) => RuleReport[];
 
-  startGameNow: (seed?: number) => void;
+  startGameNow: (seed?: number, difficulty?: PracticeDifficulty) => void;
   gameTickNow: () => void;
   gameMove: (d: Direction) => void;
   gameToggle: () => void;
@@ -253,6 +258,8 @@ function initialState(): KidsState {
     placedKinds: [],
     missions: [],
     progress: emptyProgress(),
+    newBadgeIds: [],
+    newStamp: false,
     game: null,
     report: null,
     timed: false,
@@ -396,7 +403,7 @@ export const useKids = create<KidsStore>()((set, get) => {
       log.outcome === 'success'
         ? Math.min(s.progress.bestTicks ?? Number.POSITIVE_INFINITY, g.state.tick)
         : s.progress.bestTicks;
-    const progress: SaveProgress = {
+    const baseProgress: SaveProgress = {
       ...s.progress,
       attempts: attemptNo,
       successes: s.progress.successes + (log.outcome === 'success' ? 1 : 0),
@@ -404,9 +411,35 @@ export const useKids = create<KidsStore>()((set, get) => {
       pendingFixIds: report.fix.map((i) => i.id),
       bestTicks: Number.isFinite(best) ? best : undefined,
     };
+    const now = new Date();
+    const dateKey = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
+    const completedMissionIds = safetyMissions(g, s.profile.gradeMode === 'easy')
+      .filter((mission) => mission.done)
+      .map((mission) => mission.id);
+    const reward = completePractice(baseProgress, {
+      practicedAt: now.toISOString(),
+      dateKey,
+      difficulty: g.state.config.difficulty ?? 'challenge',
+      outcome: log.outcome,
+      missionIds: completedMissionIds,
+      seed: g.state.config.seed,
+      playLog: log,
+    });
+    const progress = reward.progress;
     /* GameView 는 바로 결과 화면으로 교체되므로 성공 소리는 교체 전에 시작한다. */
     if (log.outcome === 'success') playSuccessCue();
-    set({ report, progress, mode: 'report', game: { ...g } });
+    set({
+      report,
+      progress,
+      newBadgeIds: reward.newBadgeIds,
+      newStamp: reward.newStamp,
+      mode: 'report',
+      game: { ...g },
+    });
     /* 시도 기록은 바로 남긴다 — 결과 화면에서 창을 닫아도 잃지 않게 */
     const ok = saveKids(get().toSaveFile());
     set({ savedAt: ok ? Date.now() : get().savedAt, saveError: !ok });
@@ -1128,7 +1161,7 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     resetAll: () => {
       commit({ plan: emptyFloorPlan(), routes: {} });
-      set({ selection: null, multi: [], drafting: null, armed: null, highlight: null, missions: [], report: null, game: null, mode: 'edit', placedKinds: [] });
+      set({ selection: null, multi: [], drafting: null, armed: null, highlight: null, missions: [], report: null, game: null, mode: 'edit', placedKinds: [], newBadgeIds: [], newStamp: false });
       get().notify('처음부터 다시 시작한다. 되돌리기를 누르면 되살릴 수 있다.');
     },
 
@@ -1241,7 +1274,7 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     /* -------------------------------------------------- 게임 */
 
-    startGameNow: (seed) => {
+    startGameNow: (seed, difficulty) => {
       const s = get();
       const preset = presetById(s.hazardId);
       if (!preset || s.plan.blocks.length === 0) return;
@@ -1258,12 +1291,18 @@ export const useKids = create<KidsStore>()((set, get) => {
         plan,
         graph,
         profile: s.profile,
-        config: { hazardId: s.hazardId, seed: seed ?? Math.floor(Math.random() * 1e9), timed: s.timed, gradeMode: s.profile.gradeMode },
+        config: {
+          hazardId: s.hazardId,
+          seed: seed ?? Math.floor(Math.random() * 1e9),
+          timed: s.timed,
+          gradeMode: s.profile.gradeMode,
+          difficulty: difficulty ?? recommendedDifficulty(s.progress),
+        },
         preset,
         startCell,
         fuelOf,
       });
-      set({ plan, game, mode: 'game', report: null, drafting: null, armed: null, selection: null, multi: [], highlight: null, bubble: null });
+      set({ plan, game, mode: 'game', report: null, drafting: null, armed: null, selection: null, multi: [], highlight: null, bubble: null, newBadgeIds: [], newStamp: false });
       get().setStep('game');
       get().fire({ on: 'gameStart' });
       get().countOp();
@@ -1342,7 +1381,8 @@ export const useKids = create<KidsStore>()((set, get) => {
 
     replay: (sameSeed = false) => {
       const seed = sameSeed ? get().game?.state.config.seed : undefined;
-      get().startGameNow(seed);
+      const difficulty = sameSeed ? get().game?.state.config.difficulty : undefined;
+      get().startGameNow(seed, difficulty);
     },
 
     editFromReport: (which) => {

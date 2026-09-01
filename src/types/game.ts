@@ -8,6 +8,8 @@ import type { PlayLog } from './report';
 export type GameStatus = 'ready' | 'running' | 'paused' | 'success' | 'failed';
 export type Posture = 'stand' | 'crouch';
 export type Direction = 'up' | 'down' | 'left' | 'right';
+/** 경쟁 등급이 아니라 이번 판의 위험 진행 속도와 목표 수를 정하는 연습 단계다. */
+export type PracticeDifficulty = 'guided' | 'varied' | 'challenge';
 
 export interface PlayerState {
   cell: Cell;
@@ -30,6 +32,8 @@ export interface GameConfig {
   /** false = 연습 모드 (기본값, FR-8.2) */
   timed: boolean;
   gradeMode: 'easy' | 'normal';
+  /** 저장된 내 연습 기록으로 자동 선택한다 (설계서 v1.15 §3). */
+  difficulty?: PracticeDifficulty;
 }
 
 /**

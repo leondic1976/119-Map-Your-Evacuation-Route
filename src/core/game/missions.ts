@@ -4,6 +4,7 @@
  */
 import type { Game } from './loop';
 import { isDoorKind } from '../hazard/transfer';
+import { PRACTICE_DIFFICULTIES } from './progress';
 
 export type SafetyMissionId = 'crouch' | 'touch-door' | 'close-door' | 'reach-exit';
 
@@ -13,6 +14,8 @@ export interface SafetyMission {
   done: boolean;
   available: boolean;
   sourceIds: string[];
+  /** 이번 자동 난이도에서 먼저 해 볼 목표. 나머지도 언제든 할 수 있다. */
+  target: boolean;
 }
 
 export function safetyMissions(game: Game, easy: boolean): SafetyMission[] {
@@ -21,6 +24,7 @@ export function safetyMissions(game: Game, easy: boolean): SafetyMission[] {
   const checkedDoor = game.state.log.events.checkedDoorHeat > 0;
   const closedDoor = game.state.log.events.closedDoorBehind > 0;
   const escaped = game.state.status === 'success';
+  const targetIds = new Set(PRACTICE_DIFFICULTIES[game.state.config?.difficulty ?? 'challenge'].targetMissionIds);
 
   return [
     {
@@ -29,6 +33,7 @@ export function safetyMissions(game: Game, easy: boolean): SafetyMission[] {
       done: crouched,
       available: true,
       sourceIds: ['nfa-fire-manual'],
+      target: targetIds.has('crouch'),
     },
     {
       id: 'touch-door',
@@ -36,6 +41,7 @@ export function safetyMissions(game: Game, easy: boolean): SafetyMission[] {
       done: checkedDoor,
       available: hasDoor,
       sourceIds: ['safekorea-fire'],
+      target: targetIds.has('touch-door'),
     },
     {
       id: 'close-door',
@@ -43,6 +49,7 @@ export function safetyMissions(game: Game, easy: boolean): SafetyMission[] {
       done: closedDoor,
       available: hasDoor,
       sourceIds: ['nfa-fire-manual'],
+      target: targetIds.has('close-door'),
     },
     {
       id: 'reach-exit',
@@ -50,6 +57,7 @@ export function safetyMissions(game: Game, easy: boolean): SafetyMission[] {
       done: escaped,
       available: true,
       sourceIds: ['nfa-fire-manual'],
+      target: targetIds.has('reach-exit'),
     },
   ];
 }

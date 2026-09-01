@@ -137,6 +137,11 @@ async function main(): Promise<void> {
   await page.waitForSelector('.k-report-view');
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(dest, '5-report.png') });
+  await page.locator('[data-coach="kids-report-notebook"]').click();
+  await page.waitForSelector('[data-coach="kids-safety-notebook"]');
+  await page.screenshot({ path: path.join(dest, '5-notebook.png') });
+  await page.locator('[data-coach="kids-safety-notebook"] .k-x').click();
+  await page.waitForSelector('[data-coach="kids-safety-notebook"]', { state: 'detached' });
   await page.locator('[data-coach="kids-replay3d-open"]').click();
   await page.waitForSelector('.k-replay-canvas[data-character="girl_braid"][data-character-style="braid"]');
   await page.locator('[data-quality="ultra"]').click();

@@ -259,6 +259,48 @@
   color: var(--k-safe);
 }
 
+.k-game-difficulty {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 5px;
+  min-width: 112px;
+  padding: 4px 9px;
+  border: 1px solid #8db6d1;
+  border-radius: 11px;
+  background: #edf7fd;
+  color: #244f6d;
+  line-height: 1.1;
+}
+
+.k-game-difficulty span,
+.k-game-difficulty small {
+  font-size: 9.5px;
+  font-weight: 750;
+}
+
+.k-game-difficulty b {
+  font-size: 12px;
+}
+
+.k-game-difficulty small {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  color: #53748b;
+}
+
+.k-game-difficulty[data-difficulty='guided'] {
+  border-color: #85bf9b;
+  background: #eef9f1;
+  color: #205f39;
+}
+
+.k-game-difficulty[data-difficulty='challenge'] {
+  border-color: #d5ad55;
+  background: #fff8df;
+  color: #75500a;
+}
+
 /* 우리집 시계 — 늘어나는 시각 (설계서 v1.2 §4.1) */
 .k-clock {
   display: inline-flex;
@@ -318,6 +360,27 @@
   border-color: #79bb91;
   background: #e8f7ed;
   color: #23613a;
+}
+
+.k-game-missions li.target:not(.done) {
+  border-width: 2px;
+  border-color: #5e9ac1;
+  background: #eef7fc;
+}
+
+.k-game-missions li.extra:not(.done) {
+  opacity: 0.72;
+}
+
+.k-game-missions li span {
+  display: grid;
+  gap: 1px;
+}
+
+.k-game-missions li span small {
+  color: #2d739e;
+  font-size: 8.5px;
+  font-weight: 900;
 }
 
 .k-game-missions li.not-needed {
@@ -488,7 +551,7 @@
   overflow: hidden;
   padding: 12px 14px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 10px;
   background: var(--k-bg);
 }
@@ -517,13 +580,83 @@
   color: var(--k-dim);
 }
 
-.k-master {
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #ffd166;
-  color: #5a3d00;
-  font-weight: 800;
+
+.k-report-reward {
+  display: grid;
+  grid-template-columns: auto minmax(210px, 1fr) minmax(320px, 1.6fr) minmax(160px, 0.7fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 104px;
+  padding: 9px 14px;
+  border: 2px solid #e1b94d;
+  border-radius: 16px;
+  background: linear-gradient(105deg, #fff9dd 0%, #fffdf3 52%, #eff8f2 100%);
+  overflow: hidden;
+}
+
+.k-report-reward-copy {
+  min-width: 0;
+}
+
+.k-report-reward-copy p,
+.k-report-reward-copy h3,
+.k-report-reward-copy span {
+  margin: 0;
+  word-break: keep-all;
+}
+
+.k-report-reward-copy p {
+  color: #8a6510;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.k-report-reward-copy h3 {
+  margin-top: 2px;
+  color: #704b00;
+  font-size: 16px;
+}
+
+.k-report-reward-copy span {
+  display: block;
+  margin: 3px 0 2px;
+  color: #58636c;
+  font-size: 11.5px;
+}
+
+.k-report-reward-copy .k-link {
+  min-height: var(--k-hit);
+  padding: 2px 0;
+  font-size: 11.5px;
+}
+
+.k-great-stamp {
+  flex: none;
+  overflow: visible;
+  color: #b92f2c;
+  transform: rotate(-6deg);
+  filter: drop-shadow(0 2px 1px rgba(126, 35, 32, 0.12));
+}
+
+.k-great-stamp circle,
+.k-great-stamp path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-great-stamp text {
+  fill: currentColor;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.k-report-mini-calendar {
+  min-width: 0;
 }
 
 .k-report-cols {
@@ -584,10 +717,10 @@
   background: #fff8e8;
 }
 
-/* 단추 넷 — 다시 해보기 · 지도 고치기 · 3D · 뽑기 */
+/* 같은 상황 · 새로운 상황 · 지도 고치기 · 3D · 뽑기 */
 .k-report-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
 }
 
@@ -600,6 +733,413 @@
 @media (min-width: 1400px) {
   .k-report-view {
     padding: 14px 6%;
+  }
+}
+
+@media (max-width: 1279px) {
+  .k-report-reward {
+    grid-template-columns: auto minmax(190px, 1fr) minmax(290px, 1.5fr);
+  }
+
+  .k-report-reward > .k-badge-shelf {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------- 안전 수첩 · 도장 일정표 */
+.k-notebook-open {
+  color: #5a3c00 !important;
+  border-color: #bd8f16 !important;
+  background: #fffdf4 !important;
+}
+
+.k-notebook-open svg {
+  flex: none;
+}
+
+.k-notebook-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(13, 31, 44, 0.72);
+}
+
+.k-notebook {
+  width: min(1120px, 96vw);
+  max-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, auto) minmax(0, 1fr);
+  gap: 13px;
+  padding: 18px;
+  overflow: hidden;
+  border: 4px solid #f2cb5c;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 5% 4%, rgba(255, 220, 109, 0.25) 0 70px, transparent 71px),
+    linear-gradient(150deg, #fffdf3 0%, #f5fbff 58%, #eef8f1 100%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+  color: var(--k-ink);
+}
+
+.k-notebook > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.k-notebook > header p,
+.k-notebook > header h2 {
+  margin: 0;
+}
+
+.k-notebook > header p {
+  color: #5f7888;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.k-notebook > header h2 {
+  font-size: 25px;
+  letter-spacing: -0.03em;
+}
+
+.k-notebook > header .k-x {
+  margin-left: auto;
+}
+
+.k-notebook-mark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: #1f78ad;
+  color: #fff;
+  transform: rotate(-3deg);
+}
+
+.k-notebook-mark svg {
+  width: 38px;
+  height: 38px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-notebook-summary {
+  display: grid;
+  grid-template-columns: 0.65fr 0.8fr 0.8fr 2fr;
+  gap: 9px;
+}
+
+.k-notebook-summary > div {
+  min-height: 67px;
+  display: grid;
+  align-content: center;
+  padding: 8px 12px;
+  border: 1px solid #cbdbe5;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.k-notebook-summary span,
+.k-notebook-summary small {
+  color: #627987;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.k-notebook-summary b {
+  margin-top: 2px;
+  color: #22597a;
+  font-size: 18px;
+}
+
+.k-notebook-summary .difficulty {
+  grid-template-columns: auto 1fr;
+  column-gap: 9px;
+}
+
+.k-notebook-summary .difficulty b {
+  margin: 0;
+}
+
+.k-notebook-summary .difficulty small {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  word-break: keep-all;
+}
+
+.k-notebook-section {
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid #d9e4ea;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.k-notebook-section.badges {
+  overflow-y: auto;
+}
+
+.k-notebook-heading {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 9px;
+}
+
+.k-notebook-heading > span {
+  margin-left: auto;
+  color: #607886;
+  font-size: 11.5px;
+  word-break: keep-all;
+}
+
+.k-notebook-heading p,
+.k-notebook-heading h3 {
+  margin: 0;
+}
+
+.k-notebook-heading p {
+  color: #8a6b17;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.k-notebook-heading h3 {
+  font-size: 17px;
+}
+
+.k-stamp-calendar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-stamp-calendar li {
+  position: relative;
+  min-height: 104px;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  justify-items: center;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+  overflow: hidden;
+  border: 2px dashed #c9d7df;
+  border-radius: 14px;
+  background: #f9fbfc;
+  text-align: center;
+}
+
+.k-stamp-calendar li.current {
+  border-style: solid;
+  border-color: #e0b642;
+  background: #fff9e2;
+}
+
+.k-stamp-calendar li.stamped {
+  border-style: solid;
+  border-color: #e89a93;
+  background: #fff8f4;
+}
+
+.k-stamp-calendar small {
+  color: #687e8c;
+  font-size: 9.5px;
+  font-weight: 750;
+}
+
+.k-stamp-calendar b {
+  color: #304c5d;
+  font-size: 12px;
+  word-break: keep-all;
+}
+
+.k-stamp-space {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 2px dotted #c5d0d7;
+  border-radius: 50%;
+  color: #526a78;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.k-stamp-calendar.compact {
+  gap: 5px;
+}
+
+.k-stamp-calendar.compact li {
+  min-height: 78px;
+  padding: 5px;
+}
+
+.k-stamp-calendar.compact li > small {
+  display: none;
+}
+
+.k-stamp-calendar.compact li > b {
+  font-size: 9.5px;
+}
+
+.k-stamp-calendar.compact .k-great-stamp,
+.k-stamp-calendar.compact .k-stamp-space {
+  width: 38px;
+  height: 38px;
+}
+
+.k-badge-shelf {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-badge-shelf li {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 68px;
+  padding: 7px 9px;
+  border: 1px solid #d8e1e7;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.k-badge-shelf li.locked {
+  background: #f2f5f7;
+  color: #87959e;
+}
+
+.k-badge-shelf li.earned {
+  border-color: #e1b751;
+  background: #fffaf0;
+}
+
+.k-badge-shelf li > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.k-badge-shelf b {
+  font-size: 12px;
+  word-break: keep-all;
+}
+
+.k-badge-shelf small {
+  color: #6c7d88;
+  font-size: 9.5px;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+
+.k-badge-symbol {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  overflow: visible;
+  fill: none;
+  stroke: #8c9ba4;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-badge-symbol .face {
+  fill: #e6ecef;
+}
+
+.k-badge-symbol .medal {
+  fill: #d8e1e6;
+}
+
+.k-badge-symbol[data-earned='true'] {
+  stroke: #775311;
+}
+
+.k-badge-symbol[data-earned='true'] .face {
+  fill: #ffd96c;
+}
+
+.k-badge-symbol[data-earned='true'] .medal {
+  fill: #e85c58;
+}
+
+.k-badge-shelf.compact {
+  display: flex;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.k-badge-shelf.compact li {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.k-badge-shelf.compact li span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.k-badge-shelf.compact .k-badge-symbol {
+  width: 38px;
+  height: 38px;
+}
+
+.k-badge-shelf.compact .empty {
+  color: #6b7c85;
+  font-size: 10px;
+  word-break: keep-all;
+}
+
+@media (max-height: 820px) {
+  .k-notebook {
+    gap: 9px;
+    padding: 13px;
+  }
+
+  .k-notebook-summary > div {
+    min-height: 56px;
+  }
+
+  .k-stamp-calendar li {
+    min-height: 88px;
+  }
+
+  .k-notebook-section {
+    padding: 9px;
+  }
+
+  .k-badge-shelf li {
+    min-height: 58px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .k-report-reward > .k-badge-shelf.compact {
+    display: none;
   }
 }
 

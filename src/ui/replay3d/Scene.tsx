@@ -53,8 +53,9 @@ interface Props {
 }
 
 /** 한 칸을 60cm 로 보므로 아이 눈높이는 대략 이 값이다 */
-const EYE_STAND = 2.1;
-const EYE_CROUCH = 1.1;
+/** v1.16: 초등학생 전신 높이에 맞춘 눈높이. */
+export const CHILD_EYE_STAND = 1.72;
+export const CHILD_EYE_CROUCH = 0.92;
 
 /**
  * 집 지오메트리 — 도면이 바뀔 때만 다시 만든다.
@@ -144,7 +145,7 @@ function Rig({ plan, frame, ahead, view, orbit }: { plan: FloorPlan; frame: Repl
 
   useFrame((_, delta) => {
     const me = new THREE.Vector3(frame.cell.x + 0.5, 0, frame.cell.y + 0.5);
-    const eye = frame.posture === 'crouch' ? EYE_CROUCH : EYE_STAND;
+    const eye = frame.posture === 'crouch' ? CHILD_EYE_CROUCH : CHILD_EYE_STAND;
     const cx = (extent.minX + extent.maxX) / 2;
     const cz = (extent.minZ + extent.maxZ) / 2;
     const span = Math.max(extent.maxX - extent.minX, extent.maxZ - extent.minZ);
@@ -156,8 +157,8 @@ function Rig({ plan, frame, ahead, view, orbit }: { plan: FloorPlan; frame: Repl
     } else if (view === 'follow') {
       /* 캐릭터 전신과 주변 길이 함께 보이는 3인칭 게임 거리. 벽은 아래 장면에서 컷어웨이한다. */
       const back = turnedHeading.multiplyScalar(-4 / orbit.zoom);
-      want.current.set(me.x + back.x, 3.05 + orbit.pitch * 1.75, me.z + back.z);
-      target.current.copy(me).setY(1.25);
+      want.current.set(me.x + back.x, 2.72 + orbit.pitch * 1.65, me.z + back.z);
+      target.current.copy(me).setY(0.98);
     } else {
       /*
        * 집 전체 — 45° 비스듬히 내려다본다 (설계서 v1.4 §2.1).

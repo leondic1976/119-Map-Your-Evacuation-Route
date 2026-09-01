@@ -15,7 +15,7 @@ import path from 'node:path';
 import type { Cell, FloorPlan, RouteSlot } from '../src/types/plan';
 import { EXIT_KINDS, SCENARIO_KEYS, emptyFloorPlan, emptyRoute, hasDrawableRoute, pointFootprint, routeKey, scenarioKey, splitKey } from '../src/types/plan';
 import { DEFAULT_PASSABILITY, VN } from '../src/types/graph';
-import { defaultProfile, type UserProfile } from '../src/types/save';
+import { defaultProfile, emptyProgress, type SafetyBadgeId, type UserProfile } from '../src/types/save';
 import type { PlayLog } from '../src/types/report';
 import type { GuideRule } from '../src/types/guide';
 import { buildGraph, goalNodeIds, startNodeId } from '../src/core/graph/build';
@@ -30,7 +30,8 @@ import { bedroomCount, preparePlan, rotatePlan } from '../src/core/plan/prepare'
 import { buildContext, isDoorKind, transfer, walkable } from '../src/core/hazard/transfer';
 import { createField, ignite, spread } from '../src/core/hazard/field';
 import { aheadTicks, gameGoalCells, hasSurvivablePath, pickIgnition, rng, simulateAhead } from '../src/core/hazard/ignition';
-import { finishGame, startGame, tick, tick as gameTick } from '../src/core/game/loop';
+import { effectivePreset, finishGame, startGame, tick, tick as gameTick } from '../src/core/game/loop';
+import { buildPracticeCalendar, completePractice, recommendedDifficulty } from '../src/core/game/progress';
 import { closeDoorBehind, move, togglePosture } from '../src/core/game/player';
 import { emptyLog } from '../src/core/game/playlog';
 import { buildReport } from '../src/core/report/build';
@@ -44,7 +45,8 @@ import { SaveIncompatibleError, parseSave } from '../src/store/migrate';
 import { emptySave, serializeSave } from '../src/store/storage';
 import { normalizeEditablePlan, ruleReportsFor, useKids } from '../src/store/kidsStore';
 import { KIDS } from '../src/ui/KidCharacters';
-import { avatar3dIdentity } from '../src/ui/replay3d/Avatar3D';
+import { avatar3dIdentity, CHILD_BODY_SCALE, CHILD_HEAD_SCALE, CHILD_NAME_MARK_Y } from '../src/ui/replay3d/Avatar3D';
+import { CHILD_EYE_CROUCH, CHILD_EYE_STAND } from '../src/ui/replay3d/Scene';
 import { buildDoors } from '../src/ui/replay3d/geometry';
 import { lowerQuality, settingsFor } from '../src/ui/replay3d/quality';
 
@@ -689,12 +691,13 @@ export function logicTests(check: Check, assert: Assert): void {
       progress: { completedSteps: ['a'], guardianMissions: [{ id: 'extinguisher', done: false }], simAttempts: 2, simCleared: false },
     };
     const f = parseSave(JSON.stringify(v1));
-    assert(f.schemaVersion === 2, `판 ${f.schemaVersion}`);
+    assert(f.schemaVersion === 3, `판 ${f.schemaVersion}`);
     assert(f.routes.fire?.primary?.key === 'fire_exit_available', '주 경로 키');
     assert(f.routes.fire?.alternate?.key === 'fire_exit_blocked', '보조 경로 키');
     assert(f.routes.gas?.primary?.key === 'gas', '확장 경로');
     assert(f.profile.playerCharacter === 'boy_cap' && f.profile.lowFloor === true, '프로필');
     assert(f.progress.attempts === 0 && f.progress.guardianMissions.length === 1, '진행');
+    assert(f.progress.earnedBadgeIds.length === 0 && f.progress.practiceWeekKeys.length === 0 && f.progress.practiceRecords.length === 0, 'v3 반복 연습 기본값');
 
     const s = emptySave();
     s.plan = template('apt_2room');
@@ -715,6 +718,73 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(threw2 instanceof SaveIncompatibleError, '깨진 JSON');
   });
 
+  check('자동 난이도는 성공 경험으로 천천히 오르고 최근 두 판이 어려우면 한 단계 내려간다 (v1.15 §3)', () => {
+    const empty = emptyProgress();
+    assert(recommendedDifficulty(empty) === 'guided', '첫 판이 차근차근이 아니다');
+    const varied = { ...empty, attempts: 1, successes: 1 };
+    assert(recommendedDifficulty(varied) === 'varied', '첫 성공 뒤 새로운 상황으로 가지 않는다');
+    const challenge = { ...varied, attempts: 5, successes: 3, earnedBadgeIds: ['first-practice', 'first-escape', 'low-posture', 'door-check'] as SafetyBadgeId[] };
+    assert(recommendedDifficulty(challenge) === 'challenge', '충분히 연습해도 안전 행동 도전으로 가지 않는다');
+    const struggling = {
+      ...challenge,
+      practiceRecords: [
+        { id: 'a', practicedAt: '2026-08-31T00:00:00.000Z', weekOf: '2026-08-31', difficulty: 'challenge' as const, outcome: 'fail' as const, missionIds: [], seed: 1 },
+        { id: 'b', practicedAt: '2026-09-01T00:00:00.000Z', weekOf: '2026-08-31', difficulty: 'challenge' as const, outcome: 'fail' as const, missionIds: [], seed: 2 },
+      ],
+    };
+    assert(recommendedDifficulty(struggling) === 'varied', '연속으로 어려워해도 한 단계 내려가지 않는다');
+
+    const guidedPreset = effectivePreset(FIRE, 'normal', 'guided');
+    const variedPreset = effectivePreset(FIRE, 'normal', 'varied');
+    const challengePreset = effectivePreset(FIRE, 'normal', 'challenge');
+    assert(guidedPreset.primarySpread < variedPreset.primarySpread && variedPreset.primarySpread < challengePreset.primarySpread, '단계별 확산이 오르지 않는다');
+    assert(guidedPreset.visionBase > variedPreset.visionBase && variedPreset.visionBase > challengePreset.visionBase, '차근차근의 시야가 더 넓지 않다');
+  });
+
+  check('참 잘했어요 도장은 같은 주에 한 번만 찍고 4주 일정과 안전 배지를 채운다 (v1.15 §4·§5)', () => {
+    const log = emptyLog(7, { x: 1, y: 1 });
+    log.outcome = 'success';
+    log.events.matchedDrawnRoute = 0.7;
+    let progress = emptyProgress();
+    const dates = ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22'];
+    for (let index = 0; index < dates.length; index += 1) {
+      const base = { ...progress, attempts: progress.attempts + 1, successes: progress.successes + 1 };
+      const result = completePractice(base, {
+        practicedAt: `${dates[index]}T09:00:00.000Z`, dateKey: dates[index], difficulty: index === 0 ? 'guided' : 'varied', outcome: 'success',
+        missionIds: ['crouch', 'touch-door', 'close-door', 'reach-exit'], seed: index + 1, playLog: log,
+      });
+      assert(result.newStamp, `${index + 1}주 도장이 찍히지 않았다`);
+      progress = result.progress;
+    }
+    const calendar = buildPracticeCalendar(progress.practiceWeekKeys, '2026-09-22');
+    assert(calendar.completed && calendar.stampedCount === 4, `4주 일정 ${calendar.stampedCount}/4`);
+    assert(progress.earnedBadgeIds.includes('four-week'), '네 주 약속 배지가 없다');
+    for (const id of ['first-practice', 'first-escape', 'low-posture', 'door-check', 'door-close', 'route-follow', 'keep-going']) {
+      assert(progress.earnedBadgeIds.includes(id as never), `${id} 배지가 없다`);
+    }
+    const sameWeek = completePractice({ ...progress, attempts: progress.attempts + 1 }, {
+      practicedAt: '2026-09-24T09:00:00.000Z', dateKey: '2026-09-24', difficulty: 'challenge', outcome: 'success',
+      missionIds: ['reach-exit'], seed: 99, playLog: log,
+    });
+    assert(!sameWeek.newStamp && sameWeek.progress.practiceWeekKeys.length === 4, '같은 주에 도장이 중복됐다');
+    assert(new Set(sameWeek.progress.earnedBadgeIds).size === sameWeek.progress.earnedBadgeIds.length, '배지가 중복됐다');
+  });
+
+  check('최근 연습 기록은 오래 반복해도 40판까지만 저장한다 (v1.15 §6)', () => {
+    const log = emptyLog(1, { x: 1, y: 1 });
+    let progress = emptyProgress();
+    for (let index = 0; index < 45; index += 1) {
+      const base = { ...progress, attempts: progress.attempts + 1 };
+      progress = completePractice(base, {
+        practicedAt: `2026-09-${String((index % 28) + 1).padStart(2, '0')}T09:00:00.000Z`,
+        dateKey: `2026-09-${String((index % 28) + 1).padStart(2, '0')}`,
+        difficulty: 'guided', outcome: 'fail', missionIds: [], seed: index, playLog: log,
+      }).progress;
+    }
+    assert(progress.practiceRecords.length === 40, `최근 기록 ${progress.practiceRecords.length}/40`);
+    assert(progress.practiceRecords[0].seed === 5 && progress.practiceRecords[39].seed === 44, '오래된 기록을 앞에서 버리지 않았다');
+  });
+
   /* ---------------------------------------------------------- 설계서 v1.2 */
 
   check('3D 주인공 열 명이 2D 캐릭터의 피부·머리·옷·소품을 그대로 쓴다 (설계서 v1.7 §1)', () => {
@@ -726,6 +796,14 @@ export function logicTests(check: Check, assert: Assert): void {
       assert(a.top === k.top && a.bottom === k.bottom, `${k.id}: 옷 색이 다르다`);
       assert(Boolean(a.glasses) === Boolean(k.glasses) && a.accent === k.accent, `${k.id}: 소품이 다르다`);
     }
+  });
+
+  check('3D 주인공은 문보다 충분히 작고 머리가 큰 초등학생 체형과 낮은 눈높이를 쓴다 (v1.16)', () => {
+    assert(CHILD_BODY_SCALE >= 0.78 && CHILD_BODY_SCALE <= 0.82, `전신 배율 ${CHILD_BODY_SCALE}`);
+    assert(CHILD_HEAD_SCALE > 1 && CHILD_HEAD_SCALE <= 1.12, `머리 배율 ${CHILD_HEAD_SCALE}`);
+    assert(CHILD_NAME_MARK_Y < 2.4, `이름표 높이 ${CHILD_NAME_MARK_Y}`);
+    assert(CHILD_EYE_STAND >= 1.6 && CHILD_EYE_STAND <= 1.8, `선 눈높이 ${CHILD_EYE_STAND}`);
+    assert(CHILD_EYE_CROUCH < 1 && CHILD_EYE_CROUCH < CHILD_EYE_STAND * 0.6, `낮춘 눈높이 ${CHILD_EYE_CROUCH}`);
   });
 
   check('3D 화질 세 단계는 해상도·그림자·장식을 함께 조절하고 한 단계씩만 낮춘다 (설계서 v1.10 §4)', () => {

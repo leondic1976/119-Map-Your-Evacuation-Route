@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { adjacentDoor } from '../core/game/player';
 import { safetyMissions } from '../core/game/missions';
+import { PRACTICE_DIFFICULTIES } from '../core/game/progress';
 import { useKids } from '../store/kidsStore';
 import { playCrouch, playDetector, playDoor, playIntro, playStep, unlockAudio } from './sound';
 
@@ -127,6 +128,8 @@ export default function GameView() {
   const canClose = Boolean(p.lastDoorId && st.doorState[p.lastDoorId] !== 'closed');
   const stuck = st.tick < p.stuckUntil;
   const missions = safetyMissions(game, easy);
+  const difficulty = PRACTICE_DIFFICULTIES[st.config.difficulty ?? 'challenge'];
+  const targetCount = missions.filter((mission) => mission.available && mission.target).length;
 
   return (
     <div className="k-game" data-coach="kids-game" data-status={st.status}>
@@ -146,9 +149,12 @@ export default function GameView() {
           </div>
         ) : (
           <div className="k-gauge k-practice">
-            <span>{easy ? '연습 모드 — 천천히 해도 돼' : '연습 모드 (시간제한 없음)'}</span>
+            <span>{easy ? '연습 모드' : '시간제한 없는 연습'}</span>
           </div>
         )}
+        <div className="k-game-difficulty" data-difficulty={difficulty.id} title={easy ? difficulty.easyDescription : difficulty.normalDescription}>
+          <span>이번 연습</span><b>{difficulty.label}</b><small>먼저 할 목표 {targetCount}개</small>
+        </div>
         {/* 우리집 시계 — 늘어나는 시각이다. 넘겨도 지지 않는다 */}
         <div className="k-clock" data-coach="kids-clock" title="집을 나가기까지 걸린 시간. 넘겨도 지지 않는다">
           <ClockIcon />
@@ -162,9 +168,9 @@ export default function GameView() {
         </div>
         <ol className="k-game-missions" aria-label={easy ? '이번 대피 연습에서 해 볼 것' : '안전 행동 미션'}>
           {missions.map((mission) => (
-            <li key={mission.id} className={mission.done ? 'done' : mission.available ? '' : 'not-needed'} data-mission={mission.id} data-done={mission.done}>
+            <li key={mission.id} className={`${mission.done ? 'done' : mission.available ? '' : 'not-needed'}${mission.target ? ' target' : ' extra'}`} data-mission={mission.id} data-done={mission.done} data-target={mission.target}>
               <MissionMark done={mission.done} available={mission.available} />
-              <span>{mission.label}</span>
+              <span>{mission.label}{mission.target && <small>이번 목표</small>}</span>
             </li>
           ))}
         </ol>

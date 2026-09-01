@@ -12,6 +12,8 @@ import { cardById, presetById } from '../content';
 import { useKids } from '../store/kidsStore';
 import { Avatar } from './Avatar';
 import Replay3D from './replay3d/Replay3D';
+import SafetyNotebook, { BadgeShelf, GreatJobStamp, ScheduleStrip } from './SafetyNotebook';
+import { SAFETY_BADGES } from '../core/game/progress';
 
 interface Props {
   onPrint: () => void;
@@ -26,6 +28,9 @@ export default function ReportView({ onPrint }: Props) {
   const markCardSeen = useKids((s) => s.markCardSeen);
   const [open, setOpen] = useState<string | null>(null);
   const [show3d, setShow3d] = useState(false);
+  const [showNotebook, setShowNotebook] = useState(false);
+  const newBadgeIds = useKids((s) => s.newBadgeIds);
+  const newStamp = useKids((s) => s.newStamp);
   const plan = useKids((s) => s.plan);
   const game = useKids((s) => s.game);
   const hazardId = useKids((s) => s.hazardId);
@@ -34,7 +39,9 @@ export default function ReportView({ onPrint }: Props) {
   const frames = game?.frames ?? [];
   const tickSeconds = presetById(hazardId)?.tickSeconds ?? 1;
   const easy = profile.gradeMode === 'easy';
-  const master = progress.successes >= 3 || progress.earnedGoodIds.length >= 5;
+  const newBadgeNames = newBadgeIds
+    .map((id) => SAFETY_BADGES.find((badge) => badge.id === id)?.label)
+    .filter((label): label is string => Boolean(label));
   const why = (id: string, cardId?: string) => {
     if (!cardId) return null;
     const isOpen = open === id;
@@ -74,10 +81,21 @@ export default function ReportView({ onPrint }: Props) {
           <small>
             {report.attemptNo}번째 연습 · {report.playLog.elapsedTicks}틱
             {report.playLog.failReason === 'quit' ? ' · 중간에 그만둠' : ''}
-            {master && <span className="k-master"> 우리집 대피 박사</span>}
           </small>
         </div>
       </header>
+
+      <section className="k-report-reward" data-new-stamp={newStamp} aria-label="이번 연습 보상">
+        <GreatJobStamp />
+        <div className="k-report-reward-copy">
+          <p>이번 연습 보상</p>
+          <h3>{newStamp ? '이번 주 참 잘했어요 도장을 받았어!' : '이번 주 도장이 안전 수첩에 있어!'}</h3>
+          <span>{newBadgeNames.length > 0 ? `새 안전 배지: ${newBadgeNames.join(', ')}` : '같은 주에 다시 해도 안전 행동 기록은 계속 쌓여.'}</span>
+          <button type="button" className="k-link" onClick={() => setShowNotebook(true)} data-coach="kids-report-notebook">4주 일정과 배지 모두 보기</button>
+        </div>
+        <div className="k-report-mini-calendar"><ScheduleStrip progress={progress} compact /></div>
+        <BadgeShelf progress={progress} easy={easy} compact />
+      </section>
 
       <div className="k-report-cols">
         <div className="k-report-col good">
@@ -114,8 +132,11 @@ export default function ReportView({ onPrint }: Props) {
       </div>
 
       <footer className="k-report-actions">
-        <button type="button" className="k-big" onClick={() => replay(false)} data-coach="kids-replay">
-          다시 해보기
+        <button type="button" className="k-big" onClick={() => replay(true)} data-coach="kids-replay">
+          같은 상황 다시
+        </button>
+        <button type="button" className="k-big" onClick={() => replay(false)} data-coach="kids-new-situation">
+          새로운 상황
         </button>
         <button type="button" className="k-big" onClick={() => editFromReport(report.fix.some((f) => f.action?.type === 'editRoute') && !report.fix.some((f) => f.action?.type === 'editPlan') ? 'route' : 'plan')} data-coach="kids-edit-plan">
           지도 고치기
@@ -142,6 +163,7 @@ export default function ReportView({ onPrint }: Props) {
           onClose={() => setShow3d(false)}
         />
       )}
+      {showNotebook && <SafetyNotebook progress={progress} easy={easy} onClose={() => setShowNotebook(false)} />}
     </section>
   );
 }

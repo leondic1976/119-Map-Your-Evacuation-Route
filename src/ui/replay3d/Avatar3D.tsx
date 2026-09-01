@@ -29,6 +29,12 @@ interface FirstPersonProps {
   moving: boolean;
 }
 
+/** 문 높이(3.35)에 비해 약 60%가 되도록 맞춘 초등학생 전신 비율. */
+export const CHILD_BODY_SCALE = 0.8;
+/** 같은 키에서도 머리가 조금 크게 보여 성인 실루엣이 되지 않게 한다. */
+export const CHILD_HEAD_SCALE = 1.1;
+export const CHILD_NAME_MARK_Y = 2.08;
+
 /** 테스트와 화면이 같은 정본을 읽는지 확인할 수 있는 작은 직렬화 값 */
 export function avatar3dIdentity(character: string): Pick<KidSpec, 'id' | 'name' | 'skin' | 'hair' | 'style' | 'top' | 'bottom' | 'glasses' | 'accent'> {
   const k = kidOf(character);
@@ -274,12 +280,12 @@ function Face({ k }: { k: KidSpec }) {
 
 function Arm({ side, k, limbRef, shadows }: { side: -1 | 1; k: KidSpec; limbRef: React.RefObject<THREE.Group | null>; shadows: boolean }) {
   return (
-    <group ref={limbRef} position={[side * 0.32, 1.55, 0]} rotation={[0, 0, side * -0.08]}>
-      <mesh position={[0, -0.27, 0]} castShadow={shadows}>
-        <capsuleGeometry args={[0.085, 0.38, 5, 9]} />
+    <group ref={limbRef} position={[side * 0.3, 1.34, 0]} rotation={[0, 0, side * -0.08]}>
+      <mesh position={[0, -0.2, 0]} castShadow={shadows}>
+        <capsuleGeometry args={[0.085, 0.26, 5, 9]} />
         <meshStandardMaterial color={side < 0 ? k.topShade : k.top} roughness={0.7} />
       </mesh>
-      <mesh position={[0, -0.53, 0.01]} castShadow={shadows}>
+      <mesh position={[0, -0.41, 0.01]} castShadow={shadows}>
         <sphereGeometry args={[0.095, 11, 8]} />
         <meshStandardMaterial color={k.skin} roughness={0.7} />
       </mesh>
@@ -289,16 +295,16 @@ function Arm({ side, k, limbRef, shadows }: { side: -1 | 1; k: KidSpec; limbRef:
 
 function Leg({ side, k, limbRef, shadows }: { side: -1 | 1; k: KidSpec; limbRef: React.RefObject<THREE.Group | null>; shadows: boolean }) {
   return (
-    <group ref={limbRef} position={[side * 0.14, 0.89, 0]}>
-      <mesh position={[0, -0.31, 0]} castShadow={shadows}>
-        <capsuleGeometry args={[0.105, 0.42, 5, 9]} />
+    <group ref={limbRef} position={[side * 0.14, 0.74, 0]}>
+      <mesh position={[0, -0.22, 0]} castShadow={shadows}>
+        <capsuleGeometry args={[0.11, 0.28, 5, 9]} />
         <meshStandardMaterial color={side < 0 ? k.bottom : k.bottom} roughness={0.78} />
       </mesh>
-      <mesh position={[0, -0.64, 0.075]} scale={[1, 0.72, 1.65]} castShadow={shadows}>
+      <mesh position={[0, -0.49, 0.075]} scale={[1, 0.65, 1.55]} castShadow={shadows}>
         <capsuleGeometry args={[0.11, 0.11, 4, 9]} />
         <meshStandardMaterial color="#172230" roughness={0.64} />
       </mesh>
-      <mesh position={[0, -0.69, 0.155]} scale={[0.8, 0.35, 1.15]}>
+      <mesh position={[0, -0.54, 0.155]} scale={[0.8, 0.35, 1.15]}>
         <boxGeometry args={[0.23, 0.08, 0.3]} />
         <meshStandardMaterial color="#f1f5f9" roughness={0.48} />
       </mesh>
@@ -365,7 +371,7 @@ export function FirstPersonHands3D({ character, crouch, moving }: FirstPersonPro
   );
 
   return (
-    <group ref={root} name={`player-${k.id}`} userData={{ character: k.id, style: k.style, representation: 'first-person-body' }} scale={0.56}>
+    <group ref={root} name={`player-${k.id}`} userData={{ character: k.id, style: k.style, representation: 'first-person-body', bodyScale: CHILD_BODY_SCALE }} scale={0.52}>
       {/* 어깨와 상체가 양팔을 하나의 주인공으로 연결한다. */}
       <mesh position={[0, -0.42, 0.15]} scale={[1.7, 0.7, 0.82]} renderOrder={99}>
         <capsuleGeometry args={[0.2, 0.3, 6, 14]} />
@@ -422,14 +428,14 @@ export default function Avatar3D({ cell, character, crouch, heading, moving, sha
     setX(rightArm, -swing);
     setX(leftLeg, -swing * 0.72 + (crouch ? -0.42 : 0));
     setX(rightLeg, swing * 0.72 + (crouch ? -0.42 : 0));
-    pose.current.position.y = THREE.MathUtils.lerp(pose.current.position.y, (crouch ? -0.24 : 0) + bounce, settle);
-    pose.current.scale.y = THREE.MathUtils.lerp(pose.current.scale.y, crouch ? 0.78 : 1, settle);
+    pose.current.position.y = THREE.MathUtils.lerp(pose.current.position.y, (crouch ? -0.2 : 0) + bounce, settle);
+    pose.current.scale.y = THREE.MathUtils.lerp(pose.current.scale.y, crouch ? CHILD_BODY_SCALE * 0.78 : CHILD_BODY_SCALE, settle);
     pose.current.rotation.x = THREE.MathUtils.lerp(pose.current.rotation.x, crouch ? -0.18 : 0, settle);
     if (torso.current) torso.current.rotation.z = active ? Math.sin(phase * 0.5) * 0.025 : 0;
   });
 
   return (
-    <group ref={root} name={`player-${k.id}`} userData={{ character: k.id, style: k.style, representation: 'full-avatar' }}>
+    <group ref={root} name={`player-${k.id}`} userData={{ character: k.id, style: k.style, representation: 'full-avatar', bodyScale: CHILD_BODY_SCALE }}>
       {/* 주인공을 놓치지 않게 하는 고정형 안내 링. 점멸하지 않는다. */}
       <mesh position={[0, 0.035, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 7, 28]} />
@@ -440,25 +446,25 @@ export default function Avatar3D({ cell, character, crouch, heading, moving, sha
         <meshBasicMaterial color="#07130f" transparent opacity={0.28} depthWrite={false} />
       </mesh>
 
-      <group ref={pose}>
+      <group ref={pose} scale={[CHILD_BODY_SCALE, CHILD_BODY_SCALE, CHILD_BODY_SCALE]}>
         <Leg side={-1} k={k} limbRef={leftLeg} shadows={shadows} />
         <Leg side={1} k={k} limbRef={rightLeg} shadows={shadows} />
 
         <group ref={torso}>
-          <mesh position={[0, 1.3, 0]} scale={[1, 1.15, 0.72]} castShadow={shadows}>
+          <mesh position={[0, 1.1, 0]} scale={[1, 0.98, 0.72]} castShadow={shadows}>
             <capsuleGeometry args={[0.275, 0.42, 6, 12]} />
             <meshStandardMaterial color={k.top} roughness={0.63} />
           </mesh>
           {/* 옷의 그늘과 반사 띠가 작은 화면에서도 실루엣을 또렷하게 만든다. */}
-          <mesh position={[-0.235, 1.3, -0.025]} scale={[0.25, 0.9, 0.6]} castShadow={shadows}>
+          <mesh position={[-0.235, 1.1, -0.025]} scale={[0.25, 0.76, 0.6]} castShadow={shadows}>
             <capsuleGeometry args={[0.12, 0.35, 5, 9]} />
             <meshStandardMaterial color={k.topShade} roughness={0.7} />
           </mesh>
-          <mesh position={[0, 1.23, 0.224]}>
+          <mesh position={[0, 1.04, 0.224]}>
             <boxGeometry args={[0.43, 0.045, 0.025]} />
             <meshStandardMaterial color={k.accent ?? '#e7f8ef'} emissive={k.accent ?? '#9ce5c4'} emissiveIntensity={0.22} roughness={0.48} />
           </mesh>
-          <mesh position={[0, 1.48, 0.23]} rotation={[0, 0, Math.PI / 4]}>
+          <mesh position={[0, 1.3, 0.23]} rotation={[0, 0, Math.PI / 4]}>
             <octahedronGeometry args={[0.075, 0]} />
             <meshStandardMaterial color={k.accent ?? '#ffffff'} roughness={0.42} metalness={0.06} />
           </mesh>
@@ -467,14 +473,19 @@ export default function Avatar3D({ cell, character, crouch, heading, moving, sha
         <Arm side={-1} k={k} limbRef={leftArm} shadows={shadows} />
         <Arm side={1} k={k} limbRef={rightArm} shadows={shadows} />
 
-        <mesh position={[0, 1.73, 0]} castShadow={shadows}>
+        <mesh position={[0, 1.55, 0]} castShadow={shadows}>
           <cylinderGeometry args={[0.09, 0.105, 0.18, 10]} />
           <meshStandardMaterial color={k.skinShade} roughness={0.72} />
         </mesh>
-        <Face k={k} />
+        {/* 머리를 몸보다 조금 크게 유지해 짧은 몸통·다리와 함께 초등학생 체형으로 보이게 한다. */}
+        <group position={[0, 1.73, 0]} scale={CHILD_HEAD_SCALE}>
+          <group position={[0, -1.98, 0]}>
+            <Face k={k} />
+          </group>
+        </group>
       </group>
 
-      <mesh position={[0, 2.72, 0]} rotation={[0, Math.PI / 4, 0]}>
+      <mesh position={[0, CHILD_NAME_MARK_Y, 0]} rotation={[0, Math.PI / 4, 0]}>
         <octahedronGeometry args={[0.105, 0]} />
         <meshStandardMaterial color="#7fffd0" emissive="#20b878" emissiveIntensity={1.25} roughness={0.25} />
       </mesh>

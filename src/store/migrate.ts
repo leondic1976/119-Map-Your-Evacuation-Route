@@ -44,6 +44,17 @@ const migrations: Record<number, (data: Raw) => Raw> = {
       },
     };
   },
+  /** 2 → 3: 반복 연습 배지·도장·최근 기록을 더한다. 기존 지도와 진행은 그대로 둔다. */
+  2: (d) => ({
+    ...d,
+    schemaVersion: 3,
+    progress: {
+      ...(d.progress ?? {}),
+      earnedBadgeIds: d.progress?.earnedBadgeIds ?? [],
+      practiceWeekKeys: d.progress?.practiceWeekKeys ?? [],
+      practiceRecords: d.progress?.practiceRecords ?? [],
+    },
+  }),
 };
 
 export class SaveIncompatibleError extends Error {
@@ -88,6 +99,9 @@ function fillDefaults(d: Raw): SaveFile {
       pendingFixIds: Array.isArray(d.progress?.pendingFixIds) ? d.progress.pendingFixIds : [],
       guardianMissions: Array.isArray(d.progress?.guardianMissions) ? d.progress.guardianMissions : [],
       completedSteps: Array.isArray(d.progress?.completedSteps) ? d.progress.completedSteps : [],
+      earnedBadgeIds: Array.isArray(d.progress?.earnedBadgeIds) ? d.progress.earnedBadgeIds : [],
+      practiceWeekKeys: Array.isArray(d.progress?.practiceWeekKeys) ? d.progress.practiceWeekKeys : [],
+      practiceRecords: Array.isArray(d.progress?.practiceRecords) ? d.progress.practiceRecords.slice(-40) : [],
     },
   };
 }

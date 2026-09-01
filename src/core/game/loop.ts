@@ -7,7 +7,7 @@
  */
 import type { Cell, EvacRoute, FloorPlan } from '../../types/plan';
 import type { HazardPreset } from '../../types/hazard';
-import type { GameConfig, GameState, ReplayFrame } from '../../types/game';
+import type { GameConfig, GameState, PracticeDifficulty, ReplayFrame } from '../../types/game';
 import type { PlanGraph } from '../../types/graph';
 import type { UserProfile } from '../../types/save';
 import { goalNodeIds } from '../graph/build';
@@ -67,21 +67,31 @@ export function snapshotFrame(game: Game): ReplayFrame {
   };
 }
 
-/** 학년에 맞춘 프리셋 사본 */
-export function effectivePreset(preset: HazardPreset, gradeMode: 'easy' | 'normal'): HazardPreset {
-  if (gradeMode !== 'easy') return preset;
+/** 학년과 자동 연습 단계에 맞춘 프리셋 사본. 연습 단계는 경쟁 등급이 아니다. */
+export function effectivePreset(
+  preset: HazardPreset,
+  gradeMode: 'easy' | 'normal',
+  difficulty: PracticeDifficulty = 'challenge',
+): HazardPreset {
+  const gradeFactor = gradeMode === 'easy' ? 0.7 : 1;
+  const difficultyFactor = difficulty === 'guided' ? 0.65 : difficulty === 'varied' ? 0.84 : 1;
+  const exposureFactor = difficulty === 'guided' ? 0.72 : difficulty === 'varied' ? 0.88 : 1;
+  const visionFactor = difficulty === 'guided' ? 1.3 : difficulty === 'varied' ? 1.12 : 1;
+  const timeFactor = (gradeMode === 'easy' ? 1.5 : 1) * (difficulty === 'guided' ? 1.35 : difficulty === 'varied' ? 1.15 : 1);
   return {
     ...preset,
-    primarySpread: preset.primarySpread * 0.7,
-    secondarySpread: preset.secondarySpread * 0.7,
-    primaryGrowth: preset.primaryGrowth * 0.7,
-    secondaryEmission: preset.secondaryEmission * 0.7,
-    timeLimitTicks: Math.round(preset.timeLimitTicks * 1.5),
+    primarySpread: preset.primarySpread * gradeFactor * difficultyFactor,
+    secondarySpread: preset.secondarySpread * gradeFactor * difficultyFactor,
+    primaryGrowth: preset.primaryGrowth * gradeFactor * difficultyFactor,
+    secondaryEmission: preset.secondaryEmission * gradeFactor * difficultyFactor,
+    exposureRate: preset.exposureRate * exposureFactor,
+    visionBase: preset.visionBase * visionFactor,
+    timeLimitTicks: Math.round(preset.timeLimitTicks * timeFactor),
   };
 }
 
 export function startGame(setup: GameSetup): Game {
-  const preset = effectivePreset(setup.preset, setup.config.gradeMode);
+  const preset = effectivePreset(setup.preset, setup.config.gradeMode, setup.config.difficulty ?? 'challenge');
   const ctx = buildContext(setup.plan, setup.graph);
   const pick = pickIgnition(setup.plan, ctx, preset, setup.profile, setup.config.seed, setup.startCell, setup.fuelOf);
   const field = createField(setup.plan, ctx, setup.fuelOf);

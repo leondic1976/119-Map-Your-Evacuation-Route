@@ -6,6 +6,7 @@
  */
 import type { FloorPlan, RouteSet } from './plan';
 import type { PlayerCharacter } from './guide';
+import type { PracticeDifficulty } from './game';
 
 export interface UserProfile {
   /** 학교 수업에서 쓰는 기본정보. 서버로 전송하지 않고 이 브라우저의 저장 자료에만 둔다. */
@@ -39,11 +40,32 @@ export function defaultProfile(): UserProfile {
   };
 }
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface GuardianMission {
   id: string;
   done: boolean;
+}
+
+export type SafetyBadgeId =
+  | 'first-practice'
+  | 'first-escape'
+  | 'low-posture'
+  | 'door-check'
+  | 'door-close'
+  | 'route-follow'
+  | 'keep-going'
+  | 'four-week';
+
+/** 저장되는 최근 한 판. 리플레이 프레임은 넣지 않아 파일 크기를 제한한다. */
+export interface PracticeRecord {
+  id: string;
+  practicedAt: string;
+  weekOf: string;
+  difficulty: PracticeDifficulty;
+  outcome: 'success' | 'fail';
+  missionIds: string[];
+  seed: number;
 }
 
 export interface SaveProgress {
@@ -58,10 +80,26 @@ export interface SaveProgress {
   completedSteps: string[];
   /** 가장 빠르게 나간 기록(틱). 없으면 아직 성공한 적이 없다 (설계서 v1.2 §4.1) */
   bestTicks?: number;
+  /** 실제 행동으로 받은 수집 배지. 점수나 등급으로 환산하지 않는다. */
+  earnedBadgeIds: SafetyBadgeId[];
+  /** 연습을 마친 주의 월요일(YYYY-MM-DD). 같은 주는 한 번만 담는다. */
+  practiceWeekKeys: string[];
+  /** 가장 최근 40판만 보존한다. */
+  practiceRecords: PracticeRecord[];
 }
 
 export function emptyProgress(): SaveProgress {
-  return { attempts: 0, successes: 0, earnedGoodIds: [], pendingFixIds: [], guardianMissions: [], completedSteps: [] };
+  return {
+    attempts: 0,
+    successes: 0,
+    earnedGoodIds: [],
+    pendingFixIds: [],
+    guardianMissions: [],
+    completedSteps: [],
+    earnedBadgeIds: [],
+    practiceWeekKeys: [],
+    practiceRecords: [],
+  };
 }
 
 export interface SaveFile {

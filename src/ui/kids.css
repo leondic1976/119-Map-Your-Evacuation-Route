@@ -55,6 +55,62 @@
     linear-gradient(90deg, rgba(255, 255, 255, 0) 38%, rgba(235, 248, 255, 0.2) 58%, rgba(255, 251, 234, 0.45) 100%);
 }
 
+.k-welcome-dashboard {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  right: clamp(18px, 2.5vw, 40px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 54px;
+  padding: 0 16px 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 17px;
+  background: rgba(7, 45, 73, 0.88);
+  box-shadow: 0 12px 30px rgba(10, 43, 67, 0.22);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 850;
+  text-decoration: none;
+  backdrop-filter: blur(14px) saturate(1.08);
+  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.k-welcome-dashboard > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #fff;
+  color: #c8102e;
+}
+
+.k-welcome-dashboard svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-welcome-dashboard > svg { width: 18px; }
+
+.k-welcome-dashboard:hover {
+  background: #092f4e;
+  box-shadow: 0 15px 34px rgba(10, 43, 67, 0.28);
+  transform: translateY(-1px);
+}
+
+.k-welcome-dashboard:focus-visible {
+  outline: 4px solid #ffd54a;
+  outline-offset: 4px;
+}
+
 .k-welcome-card {
   position: absolute;
   top: 50%;
@@ -328,7 +384,8 @@
     animation: none;
   }
 
-  .k-welcome-start {
+  .k-welcome-start,
+  .k-welcome-dashboard {
     transition: none;
   }
 }

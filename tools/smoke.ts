@@ -631,6 +631,12 @@ async function main(): Promise<void> {
       );
       assert(images.length === 3 && images.every((img) => img.loaded), `소개 그림을 못 읽었다: ${JSON.stringify(images)}`);
       assert(images.some((img) => img.alt?.includes('영이, 일구, 웅이')), '공식 캐릭터 대체 글이 없다');
+      const dashboardLink = page.locator('[data-coach="kids-welcome-dashboard"]');
+      const dashboardLinkBox = await dashboardLink.boundingBox();
+      const dashboardLinkHref = await dashboardLink.getAttribute('href');
+      const viewport = page.viewportSize();
+      assert(Boolean(dashboardLinkHref?.endsWith('/dashboard/')), `첫 화면 대시보드 주소가 아니다: ${dashboardLinkHref}`);
+      assert(Boolean(dashboardLinkBox && viewport && dashboardLinkBox.height >= 48 && dashboardLinkBox.y <= 24 && dashboardLinkBox.x + dashboardLinkBox.width >= viewport.width - 48), `대시보드 바로가기가 우측 상단에 있지 않다: ${JSON.stringify(dashboardLinkBox)}`);
       const start = page.locator('[data-coach="kids-welcome-start"]');
       const box = await start.boundingBox();
       assert(box !== null && box.height >= 72 && box.width >= 300, `시작 단추가 작다: ${JSON.stringify(box)}`);

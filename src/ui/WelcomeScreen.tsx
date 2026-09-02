@@ -11,6 +11,7 @@ interface Props {
 }
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+const dashboardAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
 const welcomeAssets = {
   background: `${basePath}/images/welcome-evacuation.jpg`,
   characters: `${basePath}/images/nfa-characters.png`,
@@ -28,6 +29,23 @@ export default function WelcomeScreen({ onStart }: Props) {
         fetchPriority="high"
       />
       <div className="k-welcome-shade" aria-hidden="true" />
+
+      {dashboardAvailable && (
+        <a className="k-welcome-dashboard" href={`${basePath}/dashboard/`} data-coach="kids-welcome-dashboard">
+          <span aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="2" />
+              <rect x="14" y="3" width="7" height="7" rx="2" />
+              <rect x="3" y="14" width="7" height="7" rx="2" />
+              <rect x="14" y="14" width="7" height="7" rx="2" />
+            </svg>
+          </span>
+          대시보드 바로가기
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h13M13 6l6 6-6 6" />
+          </svg>
+        </a>
+      )}
 
       <section className="k-welcome-card">
         <img

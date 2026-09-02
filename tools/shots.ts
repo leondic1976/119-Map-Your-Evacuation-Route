@@ -202,6 +202,23 @@ async function main(): Promise<void> {
   }
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(dest, '8b-outline-drawn.png') });
+
+  /* 수업용 40초 자동 설계의 가구 배치 중 화면과 최종 두 경로를 따로 남긴다. */
+  const automationPage = await browser.newPage({ viewport });
+  automationPage.on('pageerror', (e) => errors.push(e.message));
+  await automationPage.goto(url, { waitUntil: 'networkidle' });
+  await automationPage.locator('[data-coach="kids-welcome-start"]').click();
+  await automationPage.waitForSelector('.k-profile');
+  await automationPage.locator('[data-profile="school"]').fill('부평초등학교');
+  await automationPage.locator('[data-profile="grade"]').selectOption('1');
+  await automationPage.locator('[data-profile="class"]').fill('119반');
+  await automationPage.locator('[data-profile="name"]').fill('자동화');
+  await automationPage.locator('[data-coach="kids-profile-start"]').click();
+  await automationPage.waitForSelector('[data-automation-phase="5"]', { timeout: 23_000 });
+  await automationPage.screenshot({ path: path.join(dest, '9-automation-furniture.png') });
+  await automationPage.waitForSelector('[data-automation-state="done"]', { timeout: 23_000 });
+  await automationPage.screenshot({ path: path.join(dest, '9a-automation-complete.png') });
+  await automationPage.close();
   process.stdout.write(`preview footer: ${footer.join(' | ')}
 `);
   process.stdout.write(`errors: ${errors.length}\n${errors.slice(0, 5).join('\n')}\n`);

@@ -49,6 +49,7 @@ import { avatar3dIdentity, CHILD_BODY_SCALE, CHILD_HEAD_SCALE, CHILD_NAME_MARK_Y
 import { CHILD_EYE_CROUCH, CHILD_EYE_STAND } from '../src/ui/replay3d/Scene';
 import { buildDoors } from '../src/ui/replay3d/geometry';
 import { lowerQuality, settingsFor } from '../src/ui/replay3d/quality';
+import { isSchoolAutomationProfile, SCHOOL_AUTOMATION_DURATION_MS, SCHOOL_AUTOMATION_PROFILE } from '../src/core/schoolAutomation';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (cond: boolean, msg: string) => void;
@@ -95,6 +96,15 @@ function myCell(plan: FloorPlan): Cell {
 
 export function logicTests(check: Check, assert: Assert): void {
   /* ---------------------------------------------------------- 콘텐츠 */
+
+  check('부평초등학교 수업용 자동화는 네 입력이 정확히 맞을 때만 40초로 켜진다', () => {
+    assert(isSchoolAutomationProfile(SCHOOL_AUTOMATION_PROFILE), '정확한 자동화 프로필을 찾지 못한다');
+    assert(SCHOOL_AUTOMATION_DURATION_MS === 40_000, `자동화 시간이 ${SCHOOL_AUTOMATION_DURATION_MS}ms다`);
+    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, schoolName: '부평소방서' }), '이전 학교 이름에도 자동화가 켜진다');
+    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, schoolGrade: 2 }), '다른 학년에도 자동화가 켜진다');
+    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, className: '119 반' }), '공백이 다른 반에도 자동화가 켜진다');
+    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, studentName: '자동화 학생' }), '다른 이름에도 자동화가 켜진다');
+  });
 
   check('콘텐츠 검증 — 개발 모드 오류 0건', () => {
     const r = validateContent(false);

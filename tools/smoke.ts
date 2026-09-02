@@ -2073,6 +2073,54 @@ async function main(): Promise<void> {
       assert(result.minDuration >= 0.4, `가장 짧은 MP3가 ${result.minDuration}초다`);
     });
 
+    await check('부평초등학교 1학년 119반 자동화가 40초에 집과 두 대피경로를 완성한다', async () => {
+      const automationContext = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
+      const automationPage = await automationContext.newPage();
+      const errors: string[] = [];
+      automationPage.on('pageerror', (error) => errors.push(error.message));
+      await automationPage.goto(server.url, { waitUntil: 'networkidle' });
+      await automationPage.locator('[data-coach="kids-welcome-start"]').click();
+      await automationPage.waitForSelector('.k-profile');
+      await automationPage.locator('[data-profile="school"]').fill('부평초등학교');
+      await automationPage.locator('[data-profile="grade"]').selectOption('1');
+      await automationPage.locator('[data-profile="class"]').fill('119반');
+      await automationPage.locator('[data-profile="name"]').fill('자동화');
+      const startedAt = Date.now();
+      await automationPage.locator('[data-coach="kids-profile-start"]').click();
+      await automationPage.waitForSelector('[data-automation-state="running"]', { timeout: 5000 });
+      await automationPage.waitForSelector('[data-automation-state="done"]', { timeout: 45_000 });
+      const elapsed = Date.now() - startedAt;
+      assert(elapsed >= 39_500 && elapsed <= 43_000, `완료 시간이 ${elapsed}ms다`);
+      await automationPage.waitForTimeout(900);
+      const saved = await automationPage.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}')) as {
+        plan?: BrowserPlan;
+        routes?: Record<string, { primary?: { key: string; waypoints: Array<{ x: number; y: number }> }; alternate?: { key: string; waypoints: Array<{ x: number; y: number }> } }>;
+      };
+      const blocks = saved.plan?.blocks ?? [];
+      const roomKinds = new Set(blocks.filter((block) => block.kind === 'room').map((block) => block.roomKind));
+      const furniture = blocks.filter((block) => block.kind === 'furniture');
+      const safety = blocks.filter((block) => block.kind === 'safety');
+      const markers = new Set(blocks.filter((block) => block.kind === 'marker').map((block) => block.subKind));
+      const resizedRoom = blocks.find((block) => block.id === 'r1');
+      const pair = saved.routes?.fire;
+      assert((saved.plan?.shell?.cells.length ?? 0) >= 100, '집 외곽이 충분히 그려지지 않았다');
+      for (const kind of ['bedroom', 'bath', 'living', 'kitchen', 'entry', 'balcony']) assert(roomKinds.has(kind), `${kind} 공간이 없다`);
+      assert(resizedRoom?.rect?.w === 4 && resizedRoom.rect.h === 4, '내 방 크기 조절이 반영되지 않았다');
+      assert(furniture.length >= 9, `가구가 ${furniture.length}개뿐이다`);
+      assert(safety.length >= 4, `안전설비가 ${safety.length}개뿐이다`);
+      assert(markers.has('my_spot') && markers.has('meeting_point'), '내 위치 또는 만나는 곳이 없다');
+      assert((pair?.primary?.waypoints.length ?? 0) >= 10, '주 대피경로가 짧거나 없다');
+      assert((pair?.alternate?.waypoints.length ?? 0) >= 8, '보조 대피경로가 짧거나 없다');
+      assert(pair?.primary?.key === 'fire_exit_available', `주 경로 키가 ${pair?.primary?.key}다`);
+      assert(pair?.alternate?.key === 'fire_exit_blocked', `보조 경로 키가 ${pair?.alternate?.key}다`);
+      const primaryEnd = pair?.primary?.waypoints.at(-1);
+      const alternateEnd = pair?.alternate?.waypoints.at(-1);
+      assert(primaryEnd?.x !== alternateEnd?.x || primaryEnd?.y !== alternateEnd?.y, '주 경로와 보조 경로의 끝이 같다');
+      assert((await automationPage.locator('[data-automation-state="done"]').innerText()).includes('모든 과정 완료'), '완료 안내가 없다');
+      assert(errors.length === 0, errors.slice(0, 2).join(' | '));
+      await automationContext.close();
+    });
+
     await check('1024px 미만 화면도 소개를 먼저 보여 준 뒤 PC 안내에서 앱 실행을 막는다', async () => {
       const narrow = await browser!.newContext({ viewport: { width: 900, height: 844 }, locale: 'ko-KR' });
       const p = await narrow.newPage();

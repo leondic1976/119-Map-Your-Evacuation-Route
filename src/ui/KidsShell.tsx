@@ -36,6 +36,8 @@ import { PLAYER_CHARACTERS } from '../types/guide';
 import { playDoor, playTap, replayLastGuideVoice, stopSpeaking, unlockAudio } from './sound';
 import type { StudentInfo } from './ProfileSetup';
 import SafetyNotebook from './SafetyNotebook';
+import SchoolAutomation from './SchoolAutomation';
+import { isSchoolAutomationProfile } from '../core/schoolAutomation';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
@@ -110,6 +112,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const [askMissing, setAskMissing] = useState<string[] | null>(null);
   const [pickChar, setPickChar] = useState(false);
   const [showNotebook, setShowNotebook] = useState(false);
+  const closeOnboarding = useCallback(() => setOnboard(false), []);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const doorlessNoticeRef = useRef(false);
@@ -157,8 +160,8 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   /* 온보딩 1·2단계는 모달로 */
   useEffect(() => {
     if (!ready) return;
-    setOnboard(step === 'template');
-  }, [ready, step]);
+    setOnboard(step === 'template' && !isSchoolAutomationProfile(studentInfo));
+  }, [ready, step, studentInfo]);
 
   useEffect(() => {
     if (!toast) return;
@@ -688,6 +691,8 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
       </div>
 
       {toast && <div className={`k-toast${toast.kind === 'warn' ? ' warn' : ''}`}>{toast.text}</div>}
+
+      <SchoolAutomation studentInfo={studentInfo} ready={ready} onStart={closeOnboarding} />
 
       <Onboarding open={onboard} onClose={() => setOnboard(false)} />
 

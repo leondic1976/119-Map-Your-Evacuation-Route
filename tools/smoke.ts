@@ -1011,7 +1011,7 @@ async function main(): Promise<void> {
       assert((await page.locator('svg.k-stage').count()) === 1, '도면이 없다');
     });
 
-    await check('독립 캠페인 대시보드는 지역·학교·학급별 안전 준비를 같은 집합으로 보여 준다', async () => {
+    await check('통합 캠페인 포털은 세 역할과 지역·학교·학급별 안전 준비를 한 체계로 보여 준다', async () => {
       const usage = page.locator('.k-top .k-tb', { hasText: '사용법' });
       const dashboardButton = page.locator('[data-coach="kids-dashboard"]');
       const usageBox = await usage.boundingBox();
@@ -1030,9 +1030,20 @@ async function main(): Promise<void> {
       const storedName = await dashboardPage.evaluate(() => {
         try { return JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.studentName ?? ''; } catch { return ''; }
       });
-      for (const word of ['소방서', '학교·선생님', '가족', '캠페인 안전 현황', '부평초등학교']) assert(text.includes(word), `대시보드에 ${word}가 없다 (저장 이름: ${storedName || '없음'}, 오류: ${dashboardErrors.join(' / ') || '없음'})`);
+      for (const word of ['소방기관', '교육기관', '가정', '학교·선생님', '통합 안전 관제센터', '부평초등학교']) assert(text.includes(word), `대시보드에 ${word}가 없다 (저장 이름: ${storedName || '없음'}, 오류: ${dashboardErrors.join(' / ') || '없음'})`);
       assert((await dashboardPage.locator('[data-dashboard-filter]').count()) === 6, '시도·시군구·읍면동·학교·학년·반 필터가 여섯 개가 아니다');
       assert((await dashboardPage.locator('.d-kpi').count()) === 5, '안전 준비 핵심 지표가 다섯 개가 아니다');
+      assert((await dashboardPage.locator('[data-role-hub]').count()) === 3, '소방기관·교육기관·가정 역할 허브가 세 개가 아니다');
+      assert((await dashboardPage.locator('.d-system-flow-item').count()) === 4, '교육 설계부터 결과 환류까지 통합 순환이 네 단계가 아니다');
+      assert((await dashboardPage.locator('.d-learning-step').count()) === 4, '표준 안전교육과정이 네 단계가 아니다');
+      assert((await dashboardPage.locator('.d-resource').count()) === 6, '역할별 통합 교육자료가 여섯 개가 아니다');
+      for (const width of [1024, 1280, 1440, 1920]) {
+        await dashboardPage.setViewportSize({ width, height: 900 });
+        await dashboardPage.waitForTimeout(80);
+        const overflow = await dashboardPage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        assert(overflow <= 1, `${width}px 대시보드에 가로 넘침 ${overflow}px가 생겼다`);
+      }
+      await dashboardPage.setViewportSize({ width: 1440, height: 900 });
       await dashboardPage.locator('[data-dashboard-filter="학교·어린이집"]').selectOption({ label: '부평초등학교' });
       await dashboardPage.locator('[data-dashboard-filter="학년·연령"]').selectOption('3학년');
       await dashboardPage.locator('[data-dashboard-filter="반"]').selectOption('2반');
@@ -1040,7 +1051,7 @@ async function main(): Promise<void> {
       await dashboardPage.waitForTimeout(200);
       const tableText = await dashboardPage.locator('.d-table-wrap tbody').innerText();
       assert(tableText.includes('안전이') && tableText.includes('이 PC'), '현재 PC 학생 기록이 복합 필터 결과에 없다');
-      assert((await dashboardPage.locator('.d-data-notice').innerText()).includes('서버로 보내지 않습니다'), '정적 체험판 데이터 경계가 없다');
+      assert((await dashboardPage.locator('.d-data-notice').innerText()).includes('서버로 보내지 않는다'), '정적 체험판 데이터 경계가 없다');
       assert(!/1위|2위|3위|순위/.test(await dashboardPage.locator('.d-students').innerText()), '학생 순위가 표시된다');
       await dashboardPage.close();
 

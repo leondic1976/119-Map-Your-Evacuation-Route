@@ -269,7 +269,7 @@ function initialState(): KidsState {
     saveError: false,
     toast: null,
     onboarded: false,
-    howTo: true,
+    howTo: false,
     createdAt: now,
     ops: 0,
     startedAt: 0,

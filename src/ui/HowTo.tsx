@@ -35,7 +35,7 @@ export default function HowTo() {
 
   if (step === 'spaces') {
     rows.push({ title: easy ? '놓고 바로 크기 맞추기' : '배치·크기 통합', body: easy ? '방은 놓은 뒤 바로 끌고 모서리 점으로 바꿔. 트인 주방(부엌)은 빈 바닥에 범위를 그려.' : '구획실 배치·이동·8방향 크기 조정과 트인 주방(부엌) 범위 지정을 한 단계에서 수행한다.' });
-    rows.push({ title: easy ? '문과 현관 크기' : '문·현관 크기', body: easy ? '문과 현관을 눌러. 위쪽 줄이기·늘리기로 바로 바꿔.' : '선택한 문 너비와 현관 공간의 가로·세로를 상단 조작부에서 변경한다.' });
+    rows.push({ title: easy ? '문과 방 크기' : '문·실 크기', body: easy ? '문은 위쪽 줄이기·늘리기로 바꿔. 방과 현관실은 캔버스의 테두리 점을 마우스로 끌어.' : '문 너비는 상단 증감 단추로 바꾸고, 실과 현관실은 캔버스의 8방향 손잡이를 마우스로 끌어 조정한다.' });
   } else if (step === 'structure') {
     rows.push({ title: easy ? '방 크기와 자리' : '독립실 조정', body: easy ? '닫힌 방을 끌어 옮기고, 테두리 점을 끌어 크기를 바꿔.' : '닫힌 독립실을 이동하고 8방향으로 크기를 바꾼다.' });
   } else if (step === 'furniture') {
@@ -70,7 +70,7 @@ export default function HowTo() {
   });
 
   if (sel && isRoom(sel)) {
-    rows.push({ title: easy ? '고른 방' : '선택한 방', body: easy ? '끌어서 옮기고, 화면의 삭제하기나 Delete 키로 지운다.' : '드래그로 이동하고 화면 단추 또는 Delete 키로 삭제한다.' });
+    rows.push({ title: easy ? '고른 방' : '선택한 방', body: easy ? '안쪽을 끌어 옮기고 테두리 점을 끌어 크기를 바꿔. 삭제하기나 Delete 키로 지울 수 있어.' : '내부를 끌어 이동하고 8방향 손잡이로 크기를 바꾼다. 화면 단추 또는 Delete 키로 삭제한다.' });
   } else if (sel && isOpening(sel)) {
     rows.push(
       sel.openingKind === 'open_passage'

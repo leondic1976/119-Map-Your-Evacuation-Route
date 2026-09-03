@@ -14,7 +14,7 @@ import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockDef, blockName } from '..
 import { checklist, missingOf } from '../core/checklist';
 import { doorlessRooms } from '../core/grid/doors';
 import { eul, i } from '../core/josa';
-import { hasDrawableRoute, isOpening, isPoint, isRoom, pointFootprint, type OpeningBlock, type OpeningSpan, type PointBlock, type RoomBlock, type RoomKind } from '../types/plan';
+import { hasDrawableRoute, isOpening, isPoint, isRoom, pointFootprint, type OpeningBlock, type OpeningSpan, type PointBlock, type RoomKind } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
 import { firstIssue, ruleReportsFor, useKids } from '../store/kidsStore';
@@ -485,7 +485,6 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                       onClick={() => useKids.getState().removeBlock(selectedBlock.id)}
                     >삭제하기</button>
                   )}
-                  {step === 'spaces' && selectedRoom && <RoomSizeControl room={selectedRoom} />}
                   {step === 'spaces' && selectedClosedRoom && (
                     <div className="k-build-choices" role="group" aria-label="고른 독립실의 종류">
                       {CLOSED_ROOM_KINDS.map((item) => (
@@ -567,7 +566,6 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                   >삭제하기</button>
                 )}
                 {selectedOpening && !selectedOpening.hideInPlan && <OpeningSizeControl opening={selectedOpening} />}
-                {selectedRoom && <RoomSizeControl room={selectedRoom} />}
                 {selectedFurniture && <FurnitureSizeControl furniture={selectedFurniture} easy={easy} />}
                 <span className="k-spacer" />
                 <label className="k-chk" title="계산으로 찾은 가장 짧은 길을 회색 점선으로 보여 준다">
@@ -877,35 +875,6 @@ function NotebookIcon() {
   );
 }
 
-function RoomSizeControl({ room }: { room: RoomBlock }) {
-  if (room.wallMode === 'zone' && room.roomKind === 'living') return null;
-  const resize = (axis: 'w' | 'h', delta: -1 | 1) => {
-    useKids.getState().resizeRoom(room.id, { ...room.rect, [axis]: room.rect[axis] + delta });
-  };
-  const name = blockName(room.roomKind, 'easy');
-  return (
-    <div className="k-size-controls" data-room-size-controls data-room-kind-size={room.roomKind}>
-      <span>{name} 크기</span>
-      <DimensionControl
-        label="가로"
-        value={room.rect.w}
-        min={2}
-        max={useKids.getState().plan.grid.width}
-        dataName="room-width"
-        onChange={(delta) => resize('w', delta)}
-      />
-      <DimensionControl
-        label="세로"
-        value={room.rect.h}
-        min={2}
-        max={useKids.getState().plan.grid.height}
-        dataName="room-height"
-        onChange={(delta) => resize('h', delta)}
-      />
-    </div>
-  );
-}
-
 function FurnitureSizeControl({ furniture, easy }: { furniture: PointBlock; easy: boolean }) {
   const def = blockDef(furniture.subKind);
   if (!def || def.category !== 'furniture') return null;
@@ -1090,10 +1059,10 @@ function buildHelp(step: string, easy: boolean, selected: boolean, openZone?: Ro
     ? '벽 없는 바닥이야. 위 단추로 종류를 바꾸거나 독립실을 놓으면 남은 모양이 저절로 바뀌어.'
     : '열린 바닥은 용도를 바꾸거나 독립실 배치에 따라 자동 재구성됩니다.';
   if (step === 'spaces') return selected
-    ? (easy ? '방은 끌거나 테두리 점으로 바꿔. 미닫이문·창은 줄이기·늘리기로 길이를 맞출 수 있어.' : '실은 이동·8방향 크기 조정, 미닫이문·창은 1~6칸 길이 조정이 가능합니다.')
+    ? (easy ? '방을 누른 뒤 테두리 점을 마우스로 끌어 크기를 바꿔. 방 안쪽을 끌면 옮길 수 있어.' : '실을 선택한 뒤 도면의 8방향 손잡이를 마우스로 끌어 크기를 조정하고, 내부를 끌어 이동한다.')
     : (easy ? '방과 트인 주방(부엌)을 놓고, 실제 벽에는 여닫이문·미닫이문·창문을 붙여.' : '구획실과 트인 주방(부엌)을 배치하고 문·창을 실제 경계에 놓으세요.');
   if (step === 'structure') return selected
-    ? (easy ? '방은 끌거나 테두리 점으로 바꾸고, 미닫이문·창은 줄이기·늘리기로 길이를 맞춰.' : '실은 드래그/8방향 핸들, 미닫이문·창은 1~6칸 길이로 조정합니다.')
+    ? (easy ? '방을 누른 뒤 테두리 점을 마우스로 끌어 크기를 바꿔. 방 안쪽을 끌면 옮길 수 있어.' : '실을 선택한 뒤 도면의 8방향 손잡이를 마우스로 끌어 크기를 조정하고, 내부를 끌어 이동한다.')
     : (easy ? '방이나 문·창을 먼저 눌러 줘.' : '닫힌 실 또는 문·창을 선택해 크기와 위치를 조정하세요.');
   if (step === 'furniture') return easy ? '침대·소파·옷장·싱크대·냉장고·TV·세탁기·건조기처럼 실제로 있는 것을 놓아.' : '가구·가전·위험원을 실제 위치에 놓고 선택한 공간 이름을 수정하세요.';
   if (step === 'safety') return easy ? '실제 소화기를 찾아 왼쪽에서 골라 놓아. 모르면 부모님이나 선생님과 같이 찾아보자.' : '실제 소화기 위치를 보호자·교사와 확인한 뒤 배치하세요.';

@@ -394,7 +394,7 @@
   --k-pal-w: 300px;
   --k-howto-w: 268px;
   display: grid;
-  grid-template-rows: 60px 1fr 60px;
+  grid-template-rows: 52px 1fr 52px;
   grid-template-columns: minmax(0, 1fr);
   height: 100vh;
   background: var(--k-bg);
@@ -426,8 +426,8 @@
 .k-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 6px;
+  padding: 0 8px;
   background: var(--k-accent);
   color: #fff;
   overflow-x: auto;
@@ -754,7 +754,7 @@
 
 /* 도면 — 막대 · 도면 · 고정 높이 해설 칸 · 점검 한 줄 */
 .k-center {
-  --k-guide-h: 118px;
+  --k-guide-h: 92px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) var(--k-guide-h) auto;
   min-height: 0;
@@ -765,8 +765,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 69px;
-  min-height: 69px;
+  height: 54px;
+  min-height: 54px;
   box-sizing: border-box;
   padding: 6px 10px;
   border-bottom: 1px solid var(--k-line);
@@ -776,9 +776,9 @@
 
 /* 집 모양 뒤에는 실·문·창·크기 → 가구 → 안전 → 두 표시를 한 번에 하나씩 끝낸다 (v1.9 §15). */
 .k-build-bar {
-  min-height: 118px;
+  min-height: 104px;
   display: grid;
-  grid-template-rows: 48px minmax(64px, auto);
+  grid-template-rows: 40px minmax(58px, auto);
   border-bottom: 1px solid var(--k-line);
   background: #f7fbff;
 }
@@ -854,7 +854,7 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  padding: 6px 10px 8px;
+  padding: 4px 8px 6px;
   border-top: 1px solid #dce8f3;
   overflow-x: auto;
 }
@@ -1199,7 +1199,7 @@
   position: absolute;
   inset: 0;
   overflow: auto;
-  padding: 12px;
+  padding: 6px;
 }
 
 .k-canvas.k-gray {
@@ -1264,13 +1264,13 @@
 .k-report {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 0 10px;
   border-top: 1px solid var(--k-line);
   background: #eef6ef;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  min-height: 60px;
+  min-height: 50px;
 }
 
 .k-report.warn {
@@ -1372,8 +1372,8 @@
 .k-bottom {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 6px;
+  padding: 0 8px;
   border-top: 1px solid var(--k-line);
   background: var(--k-panel);
   overflow-x: auto;

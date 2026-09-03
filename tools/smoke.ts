@@ -738,16 +738,8 @@ async function main(): Promise<void> {
         assert((await button.getAttribute('aria-pressed')) === 'false', `${quick.label}을 한 번 놓은 뒤 추가 도구가 해제되지 않았다`);
         if (quick.id === 'entry' && placedRoom?.rect) {
           await page.locator(`.k-stage [data-block="${placedRoom.id}"]`).click();
-          assert((await page.locator('[data-room-size-controls][data-room-kind-size="entry"]').count()) === 1, '현관을 골라도 크기 조절부가 보이지 않는다');
-          assert((await page.locator('[data-size-value="room-width"]').innerText()).includes(`${placedRoom.rect.w}칸`), '현관의 현재 가로 크기가 보이지 않는다');
-          await page.locator('[data-size-control="room-width-increase"]').click();
-          await page.waitForTimeout(650);
-          const grownEntry = (await kidsPlan(page)).blocks.find((block) => block.id === placedRoom.id);
-          assert(grownEntry?.rect?.w === placedRoom.rect.w + 1, '현관 가로 늘리기 단추가 작동하지 않는다');
-          await page.locator('[data-size-control="room-width-decrease"]').click();
-          await page.waitForTimeout(650);
-          const restoredEntry = (await kidsPlan(page)).blocks.find((block) => block.id === placedRoom.id);
-          assert(restoredEntry?.rect?.w === placedRoom.rect.w, '현관 가로 줄이기 단추가 작동하지 않는다');
+          assert((await page.locator('[data-room-size-controls]').count()) === 0, '현관을 고르면 상단에 방 크기 조절부가 나타난다');
+          assert((await page.locator('[data-handle]').count()) === 8, '현관을 골라도 도면에 8방향 크기 손잡이가 보이지 않는다');
         }
       }
       const kitchenButton = page.locator('[data-quick-room="kitchen"]');
@@ -829,6 +821,36 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-stage [data-opening-kind="sliding_window"]').count()) === 0, 'Delete 키로 미닫이창이 지워지지 않았다');
       await page.locator(`.k-stage [data-block="${newBedroom?.id}"]`).click();
       assert((await page.locator('[data-handle]').count()) === 8, '실·문·창 단계 안에서 방 크기 손잡이가 보이지 않는다');
+      for (const viewport of [
+        { width: 1024, height: 768 },
+        { width: 1440, height: 900 },
+        { width: 1920, height: 1080 },
+      ]) {
+        await page.setViewportSize(viewport);
+        await page.waitForTimeout(120);
+        const layout = await page.evaluate(() => {
+          const top = document.querySelector('.k-top')?.getBoundingClientRect();
+          const bottom = document.querySelector('.k-bottom')?.getBoundingClientRect();
+          const guide = document.querySelector('.k-guide-slot')?.getBoundingClientRect();
+          const stage = document.querySelector('svg.k-stage')?.getBoundingClientRect();
+          const howTo = document.querySelector('.k-howto.collapsed')?.getBoundingClientRect();
+          return {
+            top: top?.height ?? 0,
+            bottom: bottom?.height ?? 0,
+            guide: guide?.height ?? 0,
+            stageWidth: stage?.width ?? 0,
+            stageHeight: stage?.height ?? 0,
+            howTo: howTo?.width ?? 0,
+            overflow: document.documentElement.scrollWidth - window.innerWidth,
+          };
+        });
+        assert(layout.top <= 53 && layout.bottom <= 53, `${viewport.width}px 고정 막대가 크다: ${JSON.stringify(layout)}`);
+        assert(layout.guide <= 93, `${viewport.width}px 캔버스 아래 해설 칸이 크다: ${JSON.stringify(layout)}`);
+        assert(layout.howTo <= 61, `${viewport.width}px 접힌 사용법 칸이 크다: ${JSON.stringify(layout)}`);
+        assert(layout.stageWidth >= viewport.width * 0.5 && layout.stageHeight >= viewport.height * 0.45, `${viewport.width}px 캔버스가 충분히 크지 않다: ${JSON.stringify(layout)}`);
+        assert(layout.overflow <= 1, `${viewport.width}px 편집 화면에 가로 넘침 ${layout.overflow}px가 생겼다`);
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'furniture', '실·문·창·크기 다음이 바로 가구 단계가 아니다');
       assert((await page.locator('.k-cats .k-cat').count()) === 2, '가구 단계에 가구·위험 갈래가 없다');

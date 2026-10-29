@@ -44,6 +44,10 @@ async function main(): Promise<void> {
     });
     page.on('pageerror', (error) => errors.push(error.message));
     await page.waitForSelector('.k-welcome', { timeout: 30_000 });
+    /* 지난 실행의 저장 자료가 Electron 프로필에 남아 있다 — 처음 켠 PC 처럼 비우고 다시 연다 */
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
+    await page.waitForSelector('.k-welcome', { timeout: 30_000 });
     assert((await page.title()).includes('우리집 대피지도'), `창 제목이 다르다: ${await page.title()}`);
     assert((await page.locator('[data-coach="kids-welcome-install"]').count()) === 0, '데스크톱 앱에 설치 안내 링크가 보인다');
     const size = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));

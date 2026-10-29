@@ -5,9 +5,15 @@
  * 네트워크 없이 도는 것이 검증돼 있어 Host 를 갈아 끼우지 않는다. 저장은 Electron 프로필의
  * localStorage 에 남고, 파일 저장은 저장 대화상자로 받는다. 바깥 주소로는 나가지 않는다.
  */
-const { app, BrowserWindow, Menu, dialog } = require('electron');
+const { app, BrowserWindow, Menu, dialog, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+
+/* 앱이 PC 전용으로 보는 최소 화면 — 본문의 1024px 판정과 같다 */
+const CONTENT_MIN_WIDTH = 1024;
+const CONTENT_MIN_HEIGHT = 700;
+const CONTENT_WIDTH = 1280;
+const CONTENT_HEIGHT = 800;
 
 const APP_ID = 'io.github.leondic1976.home-escape-map';
 const appDir = app.isPackaged ? path.join(process.resourcesPath, 'app') : path.join(__dirname, '..', 'dist');
@@ -26,11 +32,18 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function createWindow() {
+  /*
+   * 크기는 창틀이 아니라 본문 기준이다(useContentSize). 1024×768 교실 모니터처럼 작은 화면에서는
+   * 창을 최대화해 본문 너비가 1024px 에 닿게 한다 — 그래야 앱의 PC 판정을 통과한다.
+   */
+  const work = screen.getPrimaryDisplay().workAreaSize;
+  const small = work.width < CONTENT_WIDTH + 16 || work.height < CONTENT_HEIGHT + 40;
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1024,
-    minHeight: 700,
+    width: Math.min(CONTENT_WIDTH, work.width),
+    height: Math.min(CONTENT_HEIGHT, work.height),
+    minWidth: CONTENT_MIN_WIDTH,
+    minHeight: CONTENT_MIN_HEIGHT,
+    useContentSize: true,
     title: '우리집 대피지도',
     backgroundColor: '#eef3f7',
     autoHideMenuBar: true,
@@ -66,6 +79,7 @@ function createWindow() {
     }
   });
 
+  if (small) win.maximize();
   win.loadFile(indexFile);
   return win;
 }

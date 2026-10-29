@@ -90,7 +90,7 @@ body {
   font-size: 14px;
 }
 
-/* 소개 뒤, 지도 만들기 전에 쓰는 학교 정보 이름표. PC 화면에서만 마운트한다. */
+/* 소개 뒤, 지도 만들기 전에 쓰는 이름표 — 이름(선택)과 학년뿐이다 (설계서 v1.18 §3). PC 화면에서만 마운트한다. */
 .k-profile {
   min-height: 100vh;
   display: grid;
@@ -161,8 +161,7 @@ body {
 
 .k-profile form {
   display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr;
-  gap: 14px;
+  gap: 16px;
 }
 
 .k-profile label {
@@ -173,43 +172,83 @@ body {
   font-weight: 850;
 }
 
-.k-profile-school {
-  grid-column: span 2;
+.k-profile-name {
+  width: min(420px, 100%);
 }
 
-.k-profile input,
-.k-profile select {
+.k-profile input {
   width: 100%;
-  min-height: 54px;
-  padding: 0 14px;
+  min-height: 56px;
+  padding: 0 16px;
   border: 2px solid #cbdbe7;
-  border-radius: 13px;
+  border-radius: 14px;
   background: #fff;
   color: #213243;
   font: inherit;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
 }
 
-.k-profile input:focus,
-.k-profile select:focus {
+.k-profile input:focus {
   border-color: #176aa3;
   outline: 3px solid rgba(23, 106, 163, 0.17);
 }
 
-.k-profile-error,
-.k-profile-privacy,
-.k-profile-start {
-  grid-column: 1 / -1;
+.k-profile-grades {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
 }
 
-.k-profile-error {
-  margin: 0;
-  padding: 10px 13px;
-  border-radius: 10px;
-  background: #fff0f1;
-  color: #a9172e;
-  font-weight: 750;
+.k-profile-grades legend {
+  padding: 0 0 8px;
+  color: #25394a;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.k-profile-grades div {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.k-profile-grades button {
+  min-height: 60px;
+  border: 2px solid #cbdbe7;
+  border-radius: 16px;
+  background: #fff;
+  color: #213243;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.k-profile-grades button:hover {
+  border-color: #8fb6d4;
+  transform: translateY(-1px);
+}
+
+.k-profile-grades button:focus-visible {
+  outline: 3px solid #ffd54a;
+  outline-offset: 2px;
+}
+
+.k-profile-grades button.on {
+  border-color: #176aa3;
+  background: #176aa3;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(23, 106, 163, 0.28);
+}
+
+.k-profile-grades small {
+  display: block;
+  margin-top: 9px;
+  color: #536575;
+  font-size: 14px;
 }
 
 .k-profile-privacy {

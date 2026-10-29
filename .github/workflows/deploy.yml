@@ -29,16 +29,21 @@ jobs:
       - name: 타입 검사
         run: npm run typecheck
 
-      - name: 연산 로직 검증
-        run: npm test
+      - name: 콘텐츠 검증
+        run: npm run validate
 
       # 오프라인 배포본은 out/ 을 오프라인 모드로 다시 내보낸다.
-      # 그래서 배포용 내보내기보다 반드시 먼저 돌려야 한다.
+      # 그래서 배포용 내보내기보다 반드시 먼저 돌려야 한다. HTML·음성·꾸러미 ZIP 을 dist/ 에 만든다.
       - name: 오프라인 배포본
         run: npx tsx tools/standalone.ts
 
+      # next build 뒤 tools/pack.ts 가 매니페스트·서비스 워커·꾸러미 복사를 마감한다.
       - name: 정적 내보내기 (검증용)
         run: npm run build
+
+      # 산출물(오프라인 HTML 4MB · 선캐시 · 꾸러미)까지 함께 보려고 빌드 뒤에 돌린다.
+      - name: 연산 로직 · 배포 전 점검
+        run: npm test
 
       - name: 브라우저 시나리오 검증
         run: |

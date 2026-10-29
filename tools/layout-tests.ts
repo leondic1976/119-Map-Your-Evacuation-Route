@@ -1,7 +1,6 @@
 /** 외곽 + 독립실 + 공용 바닥 생성기와 안전 미션의 순수 연산 시험 — 설계서 v1.9 §6. */
 import { buildGraph } from '../src/core/graph/build';
 import { openingBetween } from '../src/core/graph/build';
-import { campaignScore } from '../src/core/campaign/score';
 import { safetyMissions } from '../src/core/game/missions';
 import type { Game } from '../src/core/game/loop';
 import { cellKey, cellsOf, step } from '../src/core/grid/geometry';
@@ -18,11 +17,8 @@ import {
 import { canDefineShellZone, canReflowShellRoom, clearShellZone, defineShellZone, reflowShellFloor, reflowShellZones } from '../src/core/plan/reflow';
 import { completeShellSketch, preparedShellPlan } from '../src/core/plan/shellSketch';
 import { canResizeOpening, fitOpeningSpan } from '../src/core/grid/occupancy';
-import { CAMPAIGN_DEMO_RECORDS } from '../src/content/campaign-demo';
-import { emptyCampaignFilters, filterCampaignRecords, summarizeCampaign } from '../src/core/campaign/dashboard';
-import { isOpening, isPoint, isRoom, type EvacRoute, type FloorPlan, type Rect, type Side } from '../src/types/plan';
+import { isOpening, isPoint, isRoom, type FloorPlan, type Rect, type Side } from '../src/types/plan';
 import { VN } from '../src/types/graph';
-import { emptyProgress } from '../src/types/save';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (condition: boolean, message: string) => void;
@@ -127,16 +123,6 @@ export function layoutTests(check: Check, assert: Assert): void {
     const atEdge = { ...plan, blocks: plan.blocks.concat(edge) } as FloorPlan;
     const edgeFit = fitOpeningSpan(atEdge, edge, 2);
     assert(Boolean(edgeFit && edgeFit.cell.x === 20), '외곽 끝의 창이 반대쪽 빈 벽으로 늘어나지 않는다.');
-  });
-
-  check('캠페인 지역·학교·학급 필터와 요약은 같은 학생 집합을 사용한다', () => {
-    const filters = { ...emptyCampaignFilters(), sidoCode: '28', sigunguCode: '28237', schoolId: 'demo-bupyeong-es', grade: '3학년', className: '2반' };
-    const filtered = filterCampaignRecords(CAMPAIGN_DEMO_RECORDS, filters);
-    assert(filtered.length > 0, '복합 필터 결과가 없다.');
-    assert(filtered.every((record) => record.region.sidoCode === '28' && record.school.id === 'demo-bupyeong-es' && record.grade === '3학년' && record.className === '2반'), '복합 필터 밖의 학생이 섞였다.');
-    const summary = summarizeCampaign(filtered);
-    assert(summary.participants === filtered.length, '요약 참여 인원과 표의 인원이 다르다.');
-    assert(summary.ready <= summary.participants, '준비 완료 인원이 참여 인원보다 많다.');
   });
 
   check('테두리 8종 × 방 수 × 주방 × 방 위치 512가지를 모두 만든다', () => {
@@ -347,28 +333,6 @@ export function layoutTests(check: Check, assert: Assert): void {
     assert(optional.find((mission) => mission.id === 'close-door')?.available === false, '문 없는 판에서 문 닫기를 요구한다.');
   });
 
-  check('캠페인 안전 완성도는 구조 20·안전 25·경로 30·연습 25로만 합산한다', () => {
-    const base = generateResidualPlan({ shell: 'wide', bedrooms: 2, bedroomSides: ['NW', 'NE'], kitchenClosed: false }).plan;
-    const plan = {
-      ...base,
-      blocks: base.blocks.concat([
-        { kind: 'safety', id: 'score_extinguisher', layer: 'home', subKind: 'extinguisher', cell: { x: 10, y: 8 }, rotation: 0 },
-        { kind: 'safety', id: 'score_detector', layer: 'home', subKind: 'detector', cell: { x: 11, y: 8 }, rotation: 0 },
-        { kind: 'marker', id: 'score_my_spot', layer: 'home', subKind: 'my_spot', cell: { x: 5, y: 4 }, rotation: 0 },
-        { kind: 'marker', id: 'score_meeting', layer: 'home', subKind: 'meeting_point', cell: { x: 1, y: 1 }, rotation: 0 },
-      ]),
-    } as FloorPlan;
-    const route: EvacRoute = { key: 'fire_exit_available', disaster: 'fire', scenario: 'exit_available', startCell: { x: 5, y: 4 }, waypoints: [{ x: 5, y: 4 }] };
-    const score = campaignScore(
-      plan,
-      { fire: { primary: route, alternate: { ...route, key: 'fire_exit_blocked', scenario: 'exit_blocked' } } },
-      { ...emptyProgress(), attempts: 1, successes: 1 },
-    );
-    assert(score.structure === 20, `구조 점수가 ${score.structure}/20이다.`);
-    assert(score.safety === 25, `안전 위치 점수가 ${score.safety}/25이다.`);
-    assert(score.routes === 30, `경로 점수가 ${score.routes}/30이다.`);
-    assert(score.practice === 25 && score.total === 100, `연습/합계가 ${score.practice}/25, ${score.total}/100이다.`);
-  });
 }
 
 function firstValidRect(plan: FloorPlan, roomId: string, candidates: Rect[]): Rect | null {

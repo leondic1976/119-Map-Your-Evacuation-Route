@@ -8,11 +8,12 @@ import type { FloorPlan, RouteSet } from './plan';
 import type { PlayerCharacter } from './guide';
 import type { PracticeDifficulty } from './game';
 
+export type SchoolGrade = 1 | 2 | 3 | 4 | 5 | 6;
+
 export interface UserProfile {
-  /** 학교 수업에서 쓰는 기본정보. 서버로 전송하지 않고 이 브라우저의 저장 자료에만 둔다. */
-  schoolName: string;
-  schoolGrade: 1 | 2 | 3 | 4 | 5 | 6;
-  className: string;
+  /** 이름표 — 학년과 이름뿐이다. 서버로 보내지 않고 이 기기의 저장 자료에만 둔다 (설계서 v1.18 §3) */
+  schoolGrade: SchoolGrade;
+  /** 비워도 된다. 비우면 화면에는 `나`로 보인다 */
   studentName: string;
   /** 1층·반지하 거주 여부. 침수 규칙 분기의 유일한 입력. 기본판에서도 계속 묻는다 */
   lowFloor: boolean;
@@ -27,9 +28,7 @@ export interface UserProfile {
 
 export function defaultProfile(): UserProfile {
   return {
-    schoolName: '',
     schoolGrade: 1,
-    className: '',
     studentName: '',
     lowFloor: false,
     gradeMode: 'easy',
@@ -40,7 +39,17 @@ export function defaultProfile(): UserProfile {
   };
 }
 
-export const SCHEMA_VERSION = 3;
+/** 이름표의 학년이 정하는 무난한 기본 수준 — 1~3학년은 쉬움, 4~6학년은 보통 (설계서 v1.18 §3) */
+export function gradeModeForGrade(grade: SchoolGrade): UserProfile['gradeMode'] {
+  return grade <= 3 ? 'easy' : 'normal';
+}
+
+/** 화면에 보이는 이름 — 비워 두면 `나` */
+export function displayName(profile: Pick<UserProfile, 'studentName'>): string {
+  return profile.studentName.trim() || '나';
+}
+
+export const SCHEMA_VERSION = 4;
 
 export interface GuardianMission {
   id: string;

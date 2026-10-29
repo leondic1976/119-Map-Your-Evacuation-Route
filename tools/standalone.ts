@@ -10,11 +10,14 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { OFFLINE_BUNDLE_DIR, OFFLINE_ZIP_NAME } from '../src/content/release';
+import { zipBuffer, type ZipEntry } from './zip';
 
 const root = path.resolve(process.cwd());
 const outDir = path.join(root, 'out');
 const distDir = path.join(root, 'dist');
 const target = path.join(distDir, 'home-escape-map.html');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { version: string };
 
 function fail(msg: string): never {
   process.stderr.write(`\n  실패: ${msg}\n\n`);
@@ -145,17 +148,54 @@ const voiceTarget = path.join(distDir, 'voice');
 if (!fs.existsSync(voiceSource)) fail('Juwonmom 음성 폴더를 찾지 못했다: public/voice');
 fs.cpSync(voiceSource, voiceTarget, { recursive: true, force: true });
 
+/*
+ * 10. 내려받아 쓰는 오프라인 꾸러미 ZIP (설계서 v1.18 §5.2).
+ * HTML 과 음성 폴더를 한 폴더에 담는다. 아이가 압축을 풀고 HTML 을 두 번 누르면 끝이다.
+ * 읽어주세요.txt 는 메모장에서 바로 읽히게 BOM 과 CRLF 로 쓴다.
+ */
+const readme = [
+  '우리집 대피지도 - 오프라인 꾸러미',
+  '================================',
+  '',
+  `1. 이 폴더(${OFFLINE_BUNDLE_DIR})를 통째로 둔다. home-escape-map.html 과 voice 폴더가 같은 곳에 있어야 캐릭터 목소리가 난다.`,
+  '2. home-escape-map.html 을 두 번 누르면 Chrome, Edge, Whale 에서 열린다. 인터넷이 없어도 된다.',
+  '3. PC 화면(너비 1024px 이상)에서 쓴다. 소리는 화면 위의 소리 단추로 켜고 끈다.',
+  '4. 그린 지도는 이 PC 의 브라우저 안에만 저장된다. 서버로 보내지 않는다.',
+  '   다른 PC 로 옮기려면 화면 아래 [파일 저장]으로 .json 파일을 내려받고, 그 PC 에서 [불러오기]로 연다.',
+  '5. A4 한 장으로 뽑으려면 [뽑기]를 누른다.',
+  '',
+  'USB 에 이 폴더를 복사해 다른 PC 에서 열어도 된다.',
+  '',
+  `판: ${pkg.version} · 만든 곳: 부평소방서 어린이 화재안전교육`,
+  '',
+].join('\r\n');
+const bundleEntries: ZipEntry[] = [
+  { name: `${OFFLINE_BUNDLE_DIR}/읽어주세요.txt`, data: Buffer.from(`﻿${readme}`, 'utf8') },
+  { name: `${OFFLINE_BUNDLE_DIR}/home-escape-map.html`, data: Buffer.from(html, 'utf8') },
+];
+for (const name of fs.readdirSync(voiceSource).sort()) {
+  if (!/\.(mp3|json)$/i.test(name)) continue;
+  bundleEntries.push({ name: `${OFFLINE_BUNDLE_DIR}/voice/${name}`, data: fs.readFileSync(path.join(voiceSource, name)), store: /\.mp3$/i.test(name) });
+}
+const zipTarget = path.join(distDir, OFFLINE_ZIP_NAME);
+const zip = zipBuffer(bundleEntries);
+fs.writeFileSync(zipTarget, zip);
+
 const size = Buffer.byteLength(html, 'utf8');
 process.stdout.write('\n  오프라인 배포본 생성\n');
 process.stdout.write(`    파일    ${path.relative(root, target)}\n`);
 process.stdout.write(`    크기    ${bytes(size)}  (CSS ${bytes(css)} · JS ${bytes(js)} · 그림 ${bytes(images)})\n`);
 process.stdout.write(`    외부 참조 ${leftovers.length}건\n`);
 process.stdout.write('    음성    dist/voice/ Juwonmom MP3 전체\n');
+process.stdout.write(`    꾸러미  ${path.relative(root, zipTarget)}  ${bytes(zip.length)} · ${bundleEntries.length}개 파일\n`);
 
-/* 어린이 화면(게임·리포트)이 더해져 1MB 를 조금 넘는다. 상한은 4MB 다 (docs/DESIGN-v1.1-changes.md NFR-3) */
+/*
+ * 상한은 4MB 다 (docs/DESIGN-v1.1-changes.md NFR-3). 여기서 바로 실패시킨다 — npm test 는 이 단계보다
+ * 먼저 돌아 지난 배포본만 재기 때문이다. 넘었다면 그림이 몇 번 실렸는지부터 본다(og:image 처럼
+ * 같은 그림을 여러 자리에 넣는 메타가 가장 흔한 원인이다).
+ */
 if (size > 4 * 1024 * 1024) {
-  process.stdout.write('\n  주의: 4MB 를 넘었다. 배경 이미지나 큰 자산이 섞이지 않았는지 확인한다.\n');
-} else {
-  process.stdout.write('    4MB 미만 — 배포 기준 충족\n');
+  fail(`오프라인 배포본이 ${bytes(size)} 로 4MB 를 넘었다. 배경 이미지나 큰 자산이 여러 번 섞이지 않았는지 확인한다.`);
 }
+process.stdout.write('    4MB 미만 — 배포 기준 충족\n');
 process.stdout.write('\n  USB 로 복사해 브라우저에서 더블클릭하면 열린다.\n\n');

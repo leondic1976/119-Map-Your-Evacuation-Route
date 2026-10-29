@@ -55,7 +55,7 @@
     linear-gradient(90deg, rgba(255, 255, 255, 0) 38%, rgba(235, 248, 255, 0.2) 58%, rgba(255, 251, 234, 0.45) 100%);
 }
 
-.k-welcome-dashboard {
+.k-welcome-install {
   position: absolute;
   z-index: 6;
   top: 12px;
@@ -78,7 +78,7 @@
   transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
 }
 
-.k-welcome-dashboard > span {
+.k-welcome-install > span {
   display: grid;
   place-items: center;
   width: 36px;
@@ -88,7 +88,7 @@
   color: #c8102e;
 }
 
-.k-welcome-dashboard svg {
+.k-welcome-install svg {
   width: 19px;
   height: 19px;
   fill: none;
@@ -98,15 +98,15 @@
   stroke-linejoin: round;
 }
 
-.k-welcome-dashboard > svg { width: 18px; }
+.k-welcome-install > svg { width: 18px; }
 
-.k-welcome-dashboard:hover {
+.k-welcome-install:hover {
   background: #092f4e;
   box-shadow: 0 15px 34px rgba(10, 43, 67, 0.28);
   transform: translateY(-1px);
 }
 
-.k-welcome-dashboard:focus-visible {
+.k-welcome-install:focus-visible {
   outline: 4px solid #ffd54a;
   outline-offset: 4px;
 }
@@ -385,7 +385,7 @@
   }
 
   .k-welcome-start,
-  .k-welcome-dashboard {
+  .k-welcome-install {
     transition: none;
   }
 }
@@ -1461,6 +1461,21 @@
   border-top: 1px solid var(--k-line);
 }
 
+/* 사용법 아래 판 번호 — 왼쪽에 작게 */
+.k-modal footer .k-version {
+  align-self: center;
+  margin-right: auto;
+  color: #5a6b7b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-modal footer a.k-tb {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .k-modal button {
   font: inherit;
   cursor: pointer;
@@ -2092,155 +2107,521 @@
   background: var(--k-warn);
 }
 
-/* 부평초등학교 수업용 40초 자동 설계 진행판 */
-.k-school-automation {
+/* ------------------------------------------------------------ 넓고 좁음 */
+/* ------------------------------------------------------------ 새 판 알림 (설계서 v1.18 §5.1) */
+.k-update {
   position: fixed;
-  inset: 0;
-  z-index: 70;
-  background: rgba(7, 26, 43, 0.08);
-  pointer-events: auto;
-}
-
-.k-school-automation.done,
-.k-school-automation.error {
-  inset: auto 24px 24px auto;
-  background: none;
-  pointer-events: none;
-}
-
-.k-school-automation-card {
-  position: absolute;
-  top: 96px;
-  right: 24px;
-  width: min(430px, calc(100vw - 48px));
-  overflow: hidden;
-  padding: 18px 20px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.86);
-  border-radius: 22px;
-  background: rgba(10, 37, 61, 0.96);
-  box-shadow: 0 20px 55px rgba(5, 25, 42, 0.3);
-  color: #fff;
-  backdrop-filter: blur(16px) saturate(1.1);
-}
-
-.k-school-automation.done .k-school-automation-card,
-.k-school-automation.error .k-school-automation-card {
-  position: relative;
-  inset: auto;
-}
-
-.k-school-automation.done .k-school-automation-card {
-  background: rgba(10, 91, 63, 0.96);
-}
-
-.k-school-automation.error .k-school-automation-card {
-  background: rgba(123, 49, 32, 0.96);
-}
-
-.k-school-automation-head {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  z-index: 80;
+  left: 50%;
+  bottom: 76px;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 10px 8px 18px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  background: rgba(10, 37, 61, 0.96);
+  box-shadow: 0 18px 44px rgba(5, 25, 42, 0.3);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 750;
+  word-break: keep-all;
 }
 
-.k-school-automation-head > span {
+.k-update-apply,
+.k-update-later {
+  min-height: var(--k-hit);
+  min-width: var(--k-hit);
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.k-update-apply {
+  background: #ffd54a;
+  color: #0b2f51;
+}
+
+.k-update-later {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.k-update-apply:focus-visible,
+.k-update-later:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ 오류 경계 (설계서 v1.18 §7) */
+.k-crash {
+  min-height: 100vh;
   display: grid;
-  width: 48px;
-  height: 48px;
   place-items: center;
-  border-radius: 15px;
+  padding: 32px;
+  background: #eef3f7;
+  color: #22303a;
+  word-break: keep-all;
+}
+
+.k-crash-card {
+  width: min(560px, 100%);
+  padding: 36px 34px 28px;
+  border: 2px solid #d6e0e8;
+  border-radius: 22px;
   background: #fff;
-  color: #d71920;
+  box-shadow: 0 18px 48px rgba(16, 47, 75, 0.12);
 }
 
-.k-school-automation.done .k-school-automation-head > span {
-  color: var(--k-safe);
+.k-crash-card h1 {
+  margin: 0 0 10px;
+  color: #0f3d68;
+  font-size: 26px;
 }
 
-.k-school-automation-head svg {
-  width: 27px;
-  height: 27px;
+.k-crash-card p {
+  margin: 0 0 14px;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.k-crash-card details {
+  margin: 0 0 18px;
+  color: #5a6b7b;
+  font-size: 13px;
+}
+
+.k-crash-card pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 10px;
+  background: #f4f6f2;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.k-crash-card footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.k-crash-save,
+.k-crash-reload {
+  min-height: 52px;
+  padding: 0 18px;
+  border: 2px solid #0b2f51;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.k-crash-save {
+  background: #fff;
+  color: #0b2f51;
+}
+
+.k-crash-reload {
+  background: #0b2f51;
+  color: #fff;
+}
+
+/* 없는 주소 — 첫 화면으로 */
+.k-nf-home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 0 24px;
+  border-radius: 14px;
+  background: #0b2f51;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------ PC에 설치하기 (설계서 v1.18 §6) */
+.k-dl {
+  min-height: 100vh;
+  color: #183249;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(255, 213, 74, 0.26), transparent 26%),
+    radial-gradient(circle at 90% 85%, rgba(78, 160, 220, 0.2), transparent 30%),
+    linear-gradient(160deg, #eef7ff 0%, #f8fbf3 60%, #fff7e8 100%);
+  font-family: var(--font-sans, 'Pretendard Variable', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif);
+  word-break: keep-all;
+}
+
+.k-dl-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px clamp(16px, 5vw, 64px) 0;
+}
+
+.k-dl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--k-hit);
+  color: #0b2f51;
+  font-size: 18px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.k-dl-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--k-hit);
+  padding: 0 18px 0 14px;
+  border-radius: 14px;
+  background: #0b2f51;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.k-dl-home svg {
+  width: 20px;
+  height: 20px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.6;
+  stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.k-school-automation-head div {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
+.k-dl-hero {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px clamp(16px, 5vw, 64px) 6px;
 }
 
-.k-school-automation-head small {
-  overflow: hidden;
-  color: #bdd6e8;
-  font-size: 11px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.k-dl-kicker {
+  margin: 0 0 8px;
+  color: #c6202f;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
 }
 
-.k-school-automation-head b {
+.k-dl-hero h1 {
+  margin: 0 0 12px;
+  color: #0b2f51;
+  font-size: clamp(30px, 3.6vw, 44px);
+  line-height: 1.2;
+}
+
+.k-dl-hero > p {
+  max-width: 720px;
+  margin: 0;
+  color: #3b5063;
   font-size: 18px;
-  line-height: 1.3;
-  word-break: keep-all;
+  line-height: 1.65;
 }
 
-.k-school-automation-head strong {
-  min-width: 54px;
-  color: #7bd5ff;
-  font-size: 17px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+.k-dl-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  max-width: 1180px;
+  margin: 26px auto 0;
+  padding: 12px clamp(16px, 5vw, 64px) 0;
 }
 
-.k-school-automation.done .k-school-automation-head strong {
-  color: #9ff2c8;
-}
-
-.k-school-automation-card > p {
-  min-height: 38px;
-  margin: 13px 0 12px;
-  color: #e2edf5;
-  font-size: 13px;
-  line-height: 1.5;
-  word-break: keep-all;
-}
-
-.k-school-automation-progress {
-  height: 9px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.17);
-}
-
-.k-school-automation-progress i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #32bdf2, #7be2ff);
-  box-shadow: 0 0 16px rgba(83, 204, 248, 0.55);
-  transition: width 180ms linear;
-}
-
-.k-school-automation.done .k-school-automation-progress i {
-  background: #79edb6;
-}
-
-.k-school-automation-foot {
+.k-dl-card {
+  position: relative;
   display: flex;
-  justify-content: space-between;
-  margin-top: 7px;
-  color: #bdd6e8;
-  font-size: 11px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 26px 24px 22px;
+  border: 2px solid #d9e5ee;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(16, 47, 75, 0.1);
+}
+
+.k-dl-card.recommended {
+  border-color: #176aa3;
+  box-shadow: 0 22px 54px rgba(23, 106, 163, 0.18);
+}
+
+.k-dl-badge {
+  position: absolute;
+  top: -13px;
+  left: 22px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #176aa3;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.k-dl-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: #e9f4ff;
+  color: #176aa3;
+}
+
+.k-dl-icon svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-dl-card h2 {
+  margin: 2px 0 0;
+  color: #0f3d68;
+  font-size: 23px;
+}
+
+.k-dl-card > p {
+  margin: 0;
+  color: #3b5063;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.k-dl-steps {
+  display: grid;
+  gap: 9px;
+  margin: 2px 0 4px;
+  padding: 0;
+  list-style: none;
+  counter-reset: dl-step;
+}
+
+/* 번호(::before)와 글(span) 두 칸뿐이다 — 글 안의 <b> 가 따로 칸이 되지 않게 span 으로 감싼다 */
+.k-dl-steps li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: #25394a;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.k-dl-steps li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.k-dl-steps li::before {
+  counter-increment: dl-step;
+  content: counter(dl-step);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0b2f51;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.k-dl-steps b {
+  color: #0b2f51;
+}
+
+.k-dl-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.k-dl-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 58px;
+  margin-top: auto;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f04438, #c6202f);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(198, 32, 47, 0.24);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.k-dl-actions .k-dl-action {
+  margin-top: 0;
+}
+
+.k-dl-action:hover {
+  transform: translateY(-1px);
+}
+
+.k-dl-action:focus-visible {
+  outline: 4px solid #ffd54a;
+  outline-offset: 3px;
+}
+
+.k-dl-action.secondary {
+  background: #0b2f51;
+  box-shadow: 0 10px 24px rgba(11, 47, 81, 0.22);
+}
+
+.k-dl-action.ghost {
+  border: 2px solid #0b2f51;
+  background: #fff;
+  color: #0b2f51;
+  box-shadow: none;
+}
+
+.k-dl-action svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-dl-action.secondary svg path[d^='M8 5'] {
+  fill: currentColor;
+}
+
+.k-dl-size {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
+  opacity: 0.9;
 }
 
-/* ------------------------------------------------------------ 넓고 좁음 */
+.k-dl-status {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #edf8f2;
+  color: #276044;
+  font-size: 14.5px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.k-dl-note {
+  margin: 0;
+  color: #5a6b7b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.k-dl-guardian {
+  max-width: 1180px;
+  margin: 30px auto 0;
+  padding: 0 clamp(16px, 5vw, 64px);
+}
+
+.k-dl-guardian h2 {
+  margin: 0 0 14px;
+  color: #0f3d68;
+  font-size: 21px;
+}
+
+.k-dl-guardian dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 22px;
+  margin: 0;
+  padding: 22px 26px;
+  border: 2px solid #e2ebf2;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.k-dl-guardian dt {
+  margin: 0 0 4px;
+  color: #0b2f51;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.k-dl-guardian dd {
+  margin: 0;
+  color: #3b5063;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.k-dl-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--k-hit);
+  margin: 2px 10px 0 0;
+  padding: 0 14px;
+  border: 2px solid #cbdbe7;
+  border-radius: 12px;
+  background: #fff;
+  color: #0b2f51;
+  font-size: 14px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.k-dl-link:focus-visible {
+  outline: 3px solid #ffd54a;
+  outline-offset: 2px;
+}
+
+.k-dl-foot {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 26px clamp(16px, 5vw, 64px) 40px;
+  color: #5a6b7b;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 1023px) {
+  .k-dl-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .k-dl-guardian dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-dl-action {
+    transition: none;
+  }
+}
+
 /* ------------------------------------------------------------ 인쇄 */
 .k-print-root {
   display: none;
@@ -2249,8 +2630,7 @@
 @media print {
   body.kids-mode .k-app,
   body.kids-mode .k-modal-back,
-  body.kids-mode .k-toast,
-  body.kids-mode .k-school-automation {
+  body.kids-mode .k-toast {
     display: none !important;
   }
 

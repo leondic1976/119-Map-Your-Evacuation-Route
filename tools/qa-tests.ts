@@ -96,6 +96,28 @@ export function qaTests(check: Check, assert: Assert): void {
 
   const srcFiles = sourceFiles(path.join(root, 'src'), ['.ts', '.tsx', '.css', '.json']);
 
+  /* -------------------------------------------------- 되살리지 않는 것 */
+
+  /**
+   * 소방서-학교 플랫폼은 v1.18 에서 걷어냈다 (설계서 v1.18 §2). 캠페인 대시보드·학교 자동 시연·
+   * 학교/반 입력이 다시 생기면 실패한다. 중고생용 화면을 되살리지 않는 것과 같은 방지선이다.
+   */
+  check('[점검] 소방서-학교 플랫폼의 잔재가 없다 (설계서 v1.18 §2)', () => {
+    const bad: string[] = [];
+    const banned = /dashboard|campaign|schoolAutomation|SchoolAutomation|schoolName|className:\s*string|부평초등학교|119반/;
+    for (const f of srcFiles) {
+      /* 저장 이행만은 버리는 키의 이름을 적어야 한다 */
+      if (rel(f) === 'src/store/migrate.ts') continue;
+      const src = read(f);
+      const m = banned.exec(src);
+      if (m) bad.push(`${rel(f)}:${src.slice(0, m.index).split('\n').length} ${m[0]}`);
+    }
+    for (const gone of ['src/app/dashboard', 'src/ui/CampaignDashboardPage.tsx', 'src/ui/SchoolAutomation.tsx', 'src/core/campaign', 'src/platform/campaign.ts']) {
+      if (fs.existsSync(path.join(root, gone))) bad.push(`${gone} 가 다시 생겼다`);
+    }
+    assert(bad.length === 0, `플랫폼 잔재: ${bad.slice(0, 4).join(' | ')}`);
+  });
+
   /* -------------------------------------------------- 음성 대본 정본 */
 
   check('[점검] VOICE-SCRIPT.md가 실제 콘텐츠와 ElevenLabs 제작본에 맞는다', () => {
@@ -260,7 +282,14 @@ export function qaTests(check: Check, assert: Assert): void {
    *   - 웹폰트 — 정적 웹 배포본에서만 부르고, 오프라인 배포본은 layout.tsx 가 아예 렌더하지 않는다
    *     (tools/standalone.ts 가 NEXT_PUBLIC_OFFLINE=1 로 다시 내보낸다)
    */
-  const ALLOWED_URLS = [/^https?:\/\/(www\.)?w3\.org\//, /^https:\/\/cdn\.jsdelivr\.net(\/gh\/orioncactus\/pretendard|$)/];
+  const ALLOWED_URLS = [
+    /^https?:\/\/(www\.)?w3\.org\//,
+    /^https:\/\/cdn\.jsdelivr\.net(\/gh\/orioncactus\/pretendard|$)/,
+    /* 설치 파일 Releases 와 오류 신고로 가는 이동 링크다. 요청을 보내지는 않는다 (설계서 v1.18 §6) */
+    /^https:\/\/github\.com\/leondic1976\/119-Map-Your-Evacuation-Route(\/|$)/,
+    /* 공유용 메타(og:image)의 절대 주소 기준 — 웹 배포에서만 렌더하고 요청은 없다 */
+    /^https:\/\/leondic1976\.github\.io(\/|$)/,
+  ];
 
   check('[점검] 코드가 이용자의 것을 밖으로 보내지 않는다 (NFR-1 · NFR-7)', () => {
     const bad: string[] = [];
@@ -310,6 +339,104 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(bad.length === 0, `외부 자원 ${bad.join(', ')}`);
   });
 
+  /* -------------------------------------------------- 설치 — 브라우저 · 꾸러미 · 데스크톱 */
+
+  check('[점검] 서비스 워커·설치 묻기는 platform 에서만 다룬다 (설계서 v1.18 §5.1)', () => {
+    const bad: string[] = [];
+    for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])) {
+      if (rel(f).startsWith('src/platform/')) continue;
+      const src = read(f);
+      for (const m of src.matchAll(/serviceWorker|beforeinstallprompt|\bcaches\./g)) {
+        const line = src.slice(0, m.index ?? 0).split('\n').pop() ?? '';
+        if (/^\s*(\*|\/\/)/.test(line)) continue;
+        bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[0]}`);
+      }
+    }
+    assert(bad.length === 0, `platform 밖에서 만진다: ${bad.slice(0, 4).join(' | ')} — platform/host.ts 의 installer 를 쓴다`);
+    const hostSrc = read(path.join(root, 'src/platform/host.ts'));
+    assert(hostSrc.includes("window.location.protocol === 'file:'") && hostSrc.includes("NEXT_PUBLIC_OFFLINE === '1'"), '오프라인 HTML 에서 서비스 워커 등록을 막지 않는다');
+    assert(hostSrc.includes('skip-waiting') && hostSrc.includes('controllerchange'), '새 판 적용 경로가 없다');
+  });
+
+  check('[점검] 서비스 워커 틀은 밖에서 받아오지 않고 꾸러미·음성을 선캐시하지 않는다 (설계서 v1.18 §5.1)', () => {
+    const sw = read(path.join(root, 'tools', 'sw.template.js'));
+    assert(!/https?:\/\//.test(sw), '서비스 워커 틀에 바깥 주소가 있다');
+    for (const marker of ['__CACHE_NAME__', '__SCOPE__', '__PRECACHE__', '__VOICE__']) assert(sw.includes(marker), `자리표가 없다: ${marker}`);
+    assert(sw.includes("url.pathname.endsWith('.zip')") && sw.includes('skip-waiting') && sw.includes('warmVoice'), '꾸러미 제외·새 판 대기·배경 음성 캐시 중 빠진 것이 있다');
+    const pack = read(path.join(root, 'tools', 'pack.ts'));
+    assert(pack.includes("rel.startsWith('voice/') || rel.endsWith('.zip')"), '선캐시에서 꾸러미·음성을 빼지 않는다');
+    assert(pack.includes('manifest.webmanifest') && pack.includes('icons/maskable-512.png'), '매니페스트·아이콘 생성이 없다');
+    for (const icon of ['icon-192.png', 'icon-512.png', 'maskable-512.png']) assert(fs.existsSync(path.join(root, 'public', 'icons', icon)), `아이콘이 없다: public/icons/${icon}`);
+    const layout = read(path.join(root, 'src/app/layout.tsx'));
+    assert(/rel="manifest"/.test(layout) && /!offline/.test(layout), 'layout 이 웹에서만 매니페스트를 건다는 분기가 없다');
+  });
+
+  check('[점검] 내보내기 마감 산출물 — 선캐시 파일이 모두 있고 꾸러미가 실렸다 (설계서 v1.18 §5)', () => {
+    const swFile = path.join(root, 'out', 'sw.js');
+    if (!fs.existsSync(swFile)) return; // npm run build 뒤에만 본다
+    const sw = read(swFile);
+    const scope = /const SCOPE = '([^']*)'/.exec(sw)?.[1] ?? '';
+    const precache = JSON.parse(/const PRECACHE = (\[[^\n]*\]);/.exec(sw)?.[1] ?? '[]') as string[];
+    const voice = JSON.parse(/const VOICE = (\[[^\n]*\]);/.exec(sw)?.[1] ?? '[]') as string[];
+    assert(scope.endsWith('/'), `범위가 /로 끝나지 않는다: ${scope}`);
+    assert(precache.includes(scope) && precache.includes(`${scope}download/`), '첫 화면·설치 안내가 선캐시에 없다');
+    assert(precache.every((url) => url.startsWith(scope)), '범위 밖 주소가 선캐시에 있다');
+    assert(!precache.some((url) => url.endsWith('.mp3') || url.endsWith('.zip')), '음성·꾸러미가 선캐시에 들어갔다');
+    assert(voice.length === 176, `배경 음성 목록이 ${voice.length}개다`);
+    const missing = precache.filter((url) => {
+      const rel = url.slice(scope.length);
+      const file = path.join(root, 'out', rel.endsWith('/') || rel === '' ? `${rel}index.html` : rel);
+      return !fs.existsSync(file);
+    });
+    assert(missing.length === 0, `선캐시 파일이 없다: ${missing.slice(0, 3).join(', ')}`);
+    const manifest = JSON.parse(read(path.join(root, 'out', 'manifest.webmanifest'))) as { start_url: string; scope: string; icons: Array<{ src: string }> };
+    assert(manifest.start_url === scope && manifest.scope === scope, '매니페스트 범위가 다르다');
+    for (const icon of manifest.icons) assert(fs.existsSync(path.join(root, 'out', icon.src.slice(scope.length))), `매니페스트 아이콘이 없다: ${icon.src}`);
+    const zip = path.join(root, 'dist', 'home-escape-map-offline.zip');
+    if (fs.existsSync(zip)) {
+      assert(fs.existsSync(path.join(root, 'out', 'download', 'home-escape-map-offline.zip')), '꾸러미가 out/download/ 에 실리지 않았다');
+    }
+  });
+
+  check('[점검] 오프라인 꾸러미 안에 HTML·읽어주세요·음성 176개가 있다 (설계서 v1.18 §5.2)', () => {
+    const zipFile = path.join(root, 'dist', 'home-escape-map-offline.zip');
+    if (!fs.existsSync(zipFile)) return; // npm run build:standalone 뒤에만 본다
+    const data = fs.readFileSync(zipFile);
+    /* 되읽기는 중앙 목록만 훑는다 — 20MB 라도 빠르다 */
+    const eocd = data.readUInt32LE(data.length - 22);
+    assert(eocd === 0x06054b50, 'ZIP 끝 기록이 없다');
+    const count = data.readUInt16LE(data.length - 22 + 10);
+    let at = data.readUInt32LE(data.length - 22 + 16);
+    const names: string[] = [];
+    for (let n = 0; n < count; n += 1) {
+      const nameLen = data.readUInt16LE(at + 28);
+      const extraLen = data.readUInt16LE(at + 30);
+      const commentLen = data.readUInt16LE(at + 32);
+      names.push(data.subarray(at + 46, at + 46 + nameLen).toString('utf8'));
+      at += 46 + nameLen + extraLen + commentLen;
+    }
+    assert(names.includes('우리집 대피지도/home-escape-map.html') && names.includes('우리집 대피지도/읽어주세요.txt'), 'HTML 또는 읽어주세요가 없다');
+    assert(names.filter((name) => /^우리집 대피지도\/voice\/.+\.mp3$/.test(name)).length === 176, '음성 176개가 아니다');
+    assert(names.includes('우리집 대피지도/voice/manifest.json'), '음성 매니페스트가 없다');
+    assert(data.length > 10 * 1024 * 1024 && data.length < 40 * 1024 * 1024, `꾸러미 크기가 이상하다: ${(data.length / 1024 / 1024).toFixed(1)}MB`);
+  });
+
+  check('[점검] 데스크톱 껍데기는 오프라인 HTML 만 싣고 바깥으로 나가지 않는다 (설계서 v1.18 §5.3)', () => {
+    const pkg = JSON.parse(read(path.join(root, 'package.json'))) as { main: string; build: { files: string[]; extraResources: Array<{ from: string; to: string }>; nsis: { artifactName: string }; portable: { artifactName: string } } };
+    assert(pkg.main === 'desktop/main.cjs', 'package.json main 이 데스크톱 껍데기가 아니다');
+    assert(pkg.build.files.includes('!node_modules/**'), 'node_modules 가 설치 파일에 딸려 들어간다');
+    assert(pkg.build.extraResources.some((r) => r.from === 'dist' && r.to === 'app'), '오프라인 HTML·음성을 싣지 않는다');
+    assert(pkg.build.nsis.artifactName.startsWith('HomeEscapeMap-Setup-') && pkg.build.portable.artifactName.startsWith('HomeEscapeMap-Portable-'), '산출물 이름이 release.ts 와 다르다');
+    const main = read(path.join(root, 'desktop', 'main.cjs'));
+    assert(main.includes("setWindowOpenHandler(() => ({ action: 'deny' }))") && main.includes("if (!url.startsWith('file:')) event.preventDefault()"), '새 창·바깥 이동을 막지 않는다');
+    assert(main.includes('will-download') && main.includes('setSaveDialogOptions'), '파일 저장 대화상자가 없다');
+    assert(main.includes('nodeIntegration: false') && main.includes('contextIsolation: true') && main.includes('sandbox: true'), '렌더러 격리가 꺼져 있다');
+    assert(!/https?:\/\//.test(main), '데스크톱 껍데기에 바깥 주소가 있다');
+    assert(fs.existsSync(path.join(root, 'desktop', 'icon.png')), 'desktop/icon.png 이 없다');
+    const workflow = read(path.join(root, '.github', 'workflows', 'desktop.yml'));
+    assert(workflow.includes('windows-latest') && workflow.includes('desktop:build') && workflow.includes('desktop:check'), '데스크톱 워크플로가 빌드·검증을 돌리지 않는다');
+  });
+
   check('[점검] 런타임에 생성형 AI 를 부르지 않는다 (CON-1)', () => {
     const bad: string[] = [];
     for (const f of srcFiles.filter((f) => /\.tsx?$/.test(f))) {
@@ -330,8 +457,8 @@ export function qaTests(check: Check, assert: Assert): void {
           bad.push(`${rel(f)} textarea`);
           continue;
         }
-        // 파일 고르기·체크상자, 이용자가 명시 요청한 학생 이름표·공간 이름은 자유 대화가 아니다
-        if (!/type=["'](file|checkbox|radio|range)["']/.test(tag) && !/data-allowed-free-text=["'](student-profile|room-name|dashboard-search)["']/.test(tag)) bad.push(`${rel(f)} ${tag.slice(0, 40)}`);
+        // 파일 고르기·체크상자, 이용자가 명시 요청한 이름표·공간 이름은 자유 대화가 아니다
+        if (!/type=["'](file|checkbox|radio|range)["']/.test(tag) && !/data-allowed-free-text=["'](student-profile|room-name)["']/.test(tag)) bad.push(`${rel(f)} ${tag.slice(0, 40)}`);
       }
     }
     assert(bad.length === 0, `자유 입력 ${bad.join(' | ')}`);

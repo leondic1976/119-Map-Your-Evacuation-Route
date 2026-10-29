@@ -36,10 +36,12 @@ import { PLAYER_CHARACTERS } from '../types/guide';
 import { playDoor, playTap, replayLastGuideVoice, stopSpeaking, unlockAudio } from './sound';
 import type { StudentInfo } from './ProfileSetup';
 import SafetyNotebook from './SafetyNotebook';
-import SchoolAutomation from './SchoolAutomation';
-import { isSchoolAutomationProfile } from '../core/schoolAutomation';
+import { displayName, gradeModeForGrade } from '../types/save';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '';
+/* 오프라인 HTML·데스크톱 앱에서는 설치 안내로 가는 길이 없다 (설계서 v1.18 §6) */
+const installAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
 
 const BUILD_STEPS = [
   ['template', '집 모양'],
@@ -112,7 +114,6 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const [askMissing, setAskMissing] = useState<string[] | null>(null);
   const [pickChar, setPickChar] = useState(false);
   const [showNotebook, setShowNotebook] = useState(false);
-  const closeOnboarding = useCallback(() => setOnboard(false), []);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const doorlessNoticeRef = useRef(false);
@@ -137,7 +138,14 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   useEffect(() => {
     /* 소리 켬/끔은 boot() 안에서 저장을 읽자마자 맞춘다 (설계서 v1.6 §3) */
     useKids.getState().boot();
-    if (studentInfo) useKids.getState().setProfile(studentInfo);
+    if (studentInfo) {
+      /*
+       * 이름표는 매번 새로 쓴다. 이용 수준은 처음 올 때만 학년이 정하고,
+       * 그리던 지도가 있으면 아이가 골라 둔 수준을 그대로 둔다 (설계서 v1.18 §3).
+       */
+      const hadSave = useKids.getState().onboarded;
+      useKids.getState().setProfile(hadSave ? studentInfo : { ...studentInfo, gradeMode: gradeModeForGrade(studentInfo.schoolGrade) });
+    }
     document.body.classList.add('kids-mode');
     const style = document.createElement('style');
     style.id = 'k-page';
@@ -160,8 +168,8 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   /* 온보딩 1·2단계는 모달로 */
   useEffect(() => {
     if (!ready) return;
-    setOnboard(step === 'template' && !isSchoolAutomationProfile(studentInfo));
-  }, [ready, step, studentInfo]);
+    setOnboard(step === 'template');
+  }, [ready, step]);
 
   useEffect(() => {
     if (!toast) return;
@@ -340,7 +348,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
           <div className="k-brand">
             <BrandMark />
             <span>
-              우리집 대피지도 <small>{profile.studentName ? `${profile.schoolGrade}학년 ${profile.className} ${profile.studentName}` : easy ? '초등학생' : '초등 고학년'}</small>
+              우리집 대피지도 <small data-coach="kids-name-tag">{`${profile.schoolGrade}학년 ${displayName(profile)}`}</small>
             </span>
           </div>
 
@@ -424,9 +432,6 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
           <button type="button" className="k-tb" onClick={() => setHelp(true)} title="사용법 (?)">
             사용법
           </button>
-          <a className="k-tb k-dashboard-open" href={`${basePath}/dashboard/`} title="지역·학교·학급별 캠페인 현황을 새 페이지에서 본다" data-coach="kids-dashboard">
-            대시보드
-          </a>
         </header>
 
         {/* 가운데 */}
@@ -689,8 +694,6 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
       </div>
 
       {toast && <div className={`k-toast${toast.kind === 'warn' ? ' warn' : ''}`}>{toast.text}</div>}
-
-      <SchoolAutomation studentInfo={studentInfo} ready={ready} onStart={closeOnboarding} />
 
       <Onboarding open={onboard} onClose={() => setOnboard(false)} />
 
@@ -1029,9 +1032,15 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
           <span className="k-kbd">Ctrl</span>+<span className="k-kbd">P</span> 인쇄
         </p>
         <p className="k-note">
-          이 앱은 인터넷에 아무것도 보내지 않는다. 학교·학년·반·이름은 이 PC 브라우저의 대피지도에만 저장된다. 캐릭터의 말은 미리 적어 둔 문장이며, “검수 대기” 표시가 있는 문장은 아직 소방청 1차 자료와 대조하지 않았다.
+          이 앱은 인터넷에 아무것도 보내지 않는다. 이름표와 지도는 이 PC 안에만 저장된다. 캐릭터의 말은 미리 적어 둔 문장이며, “검수 대기” 표시가 있는 문장은 아직 소방청 1차 자료와 대조하지 않았다.
         </p>
         <footer>
+          <span className="k-version" data-coach="kids-version">우리집 대피지도 {APP_VERSION}</span>
+          {installAvailable && (
+            <a className="k-tb" href={`${basePath}/download/`} data-coach="kids-help-install">
+              PC에 설치하기
+            </a>
+          )}
           <button type="button" className="k-tb primary" onClick={onClose}>
             닫기
           </button>

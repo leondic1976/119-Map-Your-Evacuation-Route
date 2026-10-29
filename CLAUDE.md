@@ -8,7 +8,7 @@
 Codex를 포함한 모든 작업 도구는 작업이 끝나면 물어보지 말고 바로 커밋 → 푸시 → 배포까지 한다. 이용자가 상시 승인해 둔 사항이다.
 
 ```bash
-npm run verify      # 타입 검사 → 콘텐츠 → 로직 → 오프라인 배포본 → 빌드 → 브라우저 시나리오
+npm run verify      # 타입 검사 → 콘텐츠 → 오프라인 배포본(+ZIP) → 빌드(+마감) → 로직·배포 전 점검 → 브라우저 시나리오
 git add -A
 git commit          # 메시지는 한국어. 무엇을 왜 바꿨는지 적는다
 git push            # main 푸시가 곧 배포다
@@ -111,12 +111,26 @@ app   →  ui
 
 ## 6. 배포에서 조심할 점
 
-`tools/standalone.ts` 는 `out/` 을 **오프라인 모드로 다시 내보낸다**(웹폰트 없음, 기준 경로 없음).
-그래서 워크플로에서 이 단계는 배포용 내보내기보다 **반드시 앞에** 와야 한다.
+배포 형태는 셋이다(설계서 v1.18 §5). **웹(+브라우저 설치)** · **오프라인 꾸러미 ZIP** · **윈도우 설치 파일**.
+어느 것이든 인터넷 없이 돌아야 하고 서버로 아무것도 보내지 않는다.
+
+`tools/standalone.ts` 는 `out/` 을 **오프라인 모드로 다시 내보낸다**(웹폰트·매니페스트 없음, 기준 경로 없음)
+하고 `dist/` 에 HTML·음성·ZIP 을 만든다. 그래서 워크플로에서 이 단계는 배포용 내보내기보다 **반드시 앞에** 와야 한다.
+`npm run build` 는 `next build` 뒤에 `tools/pack.ts` 를 돌려 기준 경로가 든 `manifest.webmanifest`·`sw.js` 를
+만들고 `dist/` 의 ZIP 을 `out/download/` 로 옮긴다. 둘을 따로 돌리지 않는다.
 
 ```
-오프라인 배포본 → 검증용 내보내기 → 브라우저 검증 → 배포용 내보내기(BASE_PATH) → Pages 업로드
+오프라인 배포본(+ZIP) → 검증용 내보내기(+마감) → 브라우저 검증 → 배포용 내보내기(BASE_PATH, +마감) → Pages 업로드
 ```
+
+- 서비스 워커 선캐시는 **앱 껍데기뿐**이다. MP3 는 활성화 뒤 배경에서 받고, ZIP 은 캐시하지 않는다.
+  새 판은 화면이 `skip-waiting` 을 보낼 때만 넘어간다 — 그리던 도중에 바뀌지 않게.
+- 서비스 워커·설치 묻기(`beforeinstallprompt`)는 `platform/host.ts` 의 `installer` 에서만 다룬다. `file://` 과
+  오프라인 HTML 에서는 등록하지 않는다. `npm test` 가 경계를 지킨다.
+- 윈도우 설치 파일은 `.github/workflows/desktop.yml`(windows 러너)이 만들어 Release `desktop` 태그에 덮어쓴다.
+  Pages 배포를 막지 않는다. `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
+  산출물 이름은 `src/content/release.ts` 한 곳에서 정한다 — 안내 페이지와 빌드가 같은 이름을 써야 한다.
+- 런타임 의존성 목록(설계서 v1.4 §1.1)은 그대로다. `electron`·`electron-builder` 는 개발 의존성이다.
 
 ## 7. 검증 없이는 끝난 것이 아니다
 
@@ -129,6 +143,7 @@ app   →  ui
 | `tools/qa-tests.ts` | 배포 전 점검 — 소스와 산출물만 보고 판정하는 것 |
 | `tools/smoke.ts` | Chromium 실조작 — 실제로 눌러 본다 |
 | `tools/validate.ts` | 콘텐츠 게이트 (`npm run validate`) |
+| `tools/desktop-check.ts` | Electron 껍데기 실행 — windows 러너와 로컬에서 (`npm run desktop:check`) |
 
 숫자를 README 에도 맞춰 고친다. 화면을 바꿨으면 `npm run shots` 로 찍어 눈으로 확인한다.
 
@@ -146,13 +161,13 @@ app   →  ui
 ## 10. 절대 규칙
 
 설계서는 `docs/DESIGN-v1.0.md` 와 변경 명세 `docs/DESIGN-v1.1-changes.md`,
-`docs/DESIGN-v1.2-changes.md` 부터 `docs/DESIGN-v1.17-changes.md` 까지다.
-어긋나면 **뒤 문서가 이긴다**(v1.17 > v1.16 > v1.15 > v1.14 > v1.13 > v1.12 > v1.11 > v1.10 > v1.9 > v1.8 > v1.7 > v1.6 > v1.5 > v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
+`docs/DESIGN-v1.2-changes.md` 부터 `docs/DESIGN-v1.18-changes.md` 까지다.
+어긋나면 **뒤 문서가 이긴다**(v1.18 > v1.17 > v1.16 > v1.15 > v1.14 > v1.13 > v1.12 > v1.11 > v1.10 > v1.9 > v1.8 > v1.7 > v1.6 > v1.5 > v1.4 > v1.3 > v1.2 > v1.1 > v1.0).
 구현과 어긋나는 결정을 하면 코드보다 설계서를 먼저 고친다.
 
 1. 런타임에 생성형 AI 를 부르지 않는다. 캐릭터의 말은 전부 `content/guide/*.json` 의 고정 문장이다.
-2. **챗봇·자유 대화 입력·검색을 만들지 않는다.** 대사는 트리거(`GuideTrigger`) 기반이다. 이용자가
-   명시 요청한 학교·반·이름과 공간 이름처럼 용도·길이·저장 범위가 고정된 필드는 예외다.
+2. **챗봇·자유 대화 입력·검색을 만들지 않는다.** 대사는 트리거(`GuideTrigger`) 기반이다. 이름표의 이름과
+   공간 이름처럼 용도·길이·저장 범위가 고정된 필드는 예외다.
 3. **에디터·게임·인쇄에 3D 를 만들지 않는다.** 그 셋의 그래픽은 전부 SVG 이고 `ui/PlanSvg.tsx` 하나를 쓴다.
    3D 는 **리플레이 화면(`ui/replay3d/`)에만** 허용한다(설계서 v1.2 §8). `three` 를 `ui/replay3d/**`
    밖에서 부르면 `npm test` 가 실패한다.
@@ -176,7 +191,10 @@ app   →  ui
     `drei` 의 `<Environment preset=...>`(HDRI)와 `<Text>`(글꼴)는 **쓰지 않는다** — CDN 을 부른다.
     3D 안의 글자는 HTML 겹판으로 얹고, 자산은 파일로 두지 않고 코드로 만든다.
 14. **이용자를 고르는 화면을 되살리지 않는다.** 화면은 하나뿐이다. 새 탭에서 열면 교육 목적과
-    시작 단추만 있는 소개 화면을 한 번 거친 뒤 초등학생용 온보딩으로 간다(설계서 v1.6 §8).
+    시작 단추만 있는 소개 화면을 한 번 거친 뒤 이름표(이름·학년)와 초등학생용 온보딩으로 간다(설계서 v1.6 §8 · v1.18 §3).
+    `/download/` 는 앱 화면이 아니라 설치 안내 페이지다.
+15. **소방서-학교 플랫폼을 되살리지 않는다**(설계서 v1.18 §2). 캠페인 대시보드·학교 자동 시연·학교/반 입력·
+    안전 완성도 점수는 걷어냈다. 이 앱은 한 아이의 개인용 학습 도구다. `npm test` 가 잔재 0건을 지킨다.
 
 콘텐츠를 더하면 `npm run validate` 를 돌린다. 규칙을 더하면 `content/ruleMessages.json` 에
 `reportHeadline`·`praise` 두 문장(각 easy·normal)과 `content/guide/rules.json` 의 `ruleFail` 대사를 함께 더한다.

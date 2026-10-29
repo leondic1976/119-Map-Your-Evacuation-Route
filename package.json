@@ -1,22 +1,73 @@
 {
   "name": "home-escape-map",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": false,
   "license": "MIT",
-  "description": "우리집 대피지도 — 초등학생용 재난안전 학습 웹 앱. 집을 블록으로 만들고 대피할 길을 그린 뒤, 불이 난 집에서 직접 빠져나와 본다",
+  "description": "우리집 대피지도 — 초등학생용 재난안전 학습 프로그램. 집을 블록으로 만들고 대피할 길을 그린 뒤, 불이 난 집에서 직접 빠져나와 본다. 브라우저 설치·오프라인 꾸러미·윈도우 설치 파일로 내려받아 인터넷 없이 쓴다",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && tsx tools/pack.ts",
+    "pack": "tsx tools/pack.ts",
     "start": "tsx tools/serve.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx tools/test.ts",
     "smoke": "tsx tools/smoke.ts",
     "build:standalone": "tsx tools/standalone.ts",
-    "verify": "npm run typecheck && npm run validate && npm test && npm run build:standalone && npm run build && npm run smoke",
+    "verify": "npm run typecheck && npm run validate && npm run build:standalone && npm run build && npm test && npm run smoke",
     "validate": "tsx tools/validate.ts",
     "validate:strict": "tsx tools/validate.ts --strict",
     "shots": "tsx tools/shots.ts",
-    "voice": "tsx tools/voice-bake.ts"
+    "icons": "tsx tools/icons.ts",
+    "voice": "tsx tools/voice-bake.ts",
+    "desktop:check": "tsx tools/desktop-check.ts",
+    "desktop:build": "tsx tools/desktop-build.ts"
+  },
+  "build": {
+    "appId": "io.github.leondic1976.home-escape-map",
+    "productName": "우리집 대피지도",
+    "copyright": "MIT · 부평소방서 어린이 화재안전교육",
+    "asar": true,
+    "compression": "normal",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "electronLanguages": ["ko", "en-US"],
+    "directories": {
+      "output": "release",
+      "buildResources": "desktop"
+    },
+    "files": [
+      "desktop/main.cjs",
+      "desktop/icon.png",
+      "package.json",
+      "!node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "app",
+        "filter": ["home-escape-map.html", "voice/**"]
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "desktop/icon.png",
+      "executableName": "HomeEscapeMap"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "우리집 대피지도",
+      "uninstallDisplayName": "우리집 대피지도",
+      "language": "1042",
+      "artifactName": "HomeEscapeMap-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "HomeEscapeMap-Portable-${version}.${ext}"
+    }
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -36,6 +87,8 @@
     "@types/node": "22.15.3",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.18.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "tsx": "4.20.3",

@@ -49,7 +49,9 @@ import { avatar3dIdentity, CHILD_BODY_SCALE, CHILD_HEAD_SCALE, CHILD_NAME_MARK_Y
 import { CHILD_EYE_CROUCH, CHILD_EYE_STAND } from '../src/ui/replay3d/Scene';
 import { buildDoors } from '../src/ui/replay3d/geometry';
 import { lowerQuality, settingsFor } from '../src/ui/replay3d/quality';
-import { isSchoolAutomationProfile, SCHOOL_AUTOMATION_DURATION_MS, SCHOOL_AUTOMATION_PROFILE } from '../src/core/schoolAutomation';
+import { gradeModeForGrade, displayName } from '../src/types/save';
+import { desktopAssetNames, desktopAssetUrls, humanBytes } from '../src/content/release';
+import { unzipBuffer, zipBuffer } from './zip';
 
 type Check = (name: string, fn: () => void) => void;
 type Assert = (cond: boolean, msg: string) => void;
@@ -97,13 +99,13 @@ function myCell(plan: FloorPlan): Cell {
 export function logicTests(check: Check, assert: Assert): void {
   /* ---------------------------------------------------------- 콘텐츠 */
 
-  check('부평초등학교 수업용 자동화는 네 입력이 정확히 맞을 때만 40초로 켜진다', () => {
-    assert(isSchoolAutomationProfile(SCHOOL_AUTOMATION_PROFILE), '정확한 자동화 프로필을 찾지 못한다');
-    assert(SCHOOL_AUTOMATION_DURATION_MS === 40_000, `자동화 시간이 ${SCHOOL_AUTOMATION_DURATION_MS}ms다`);
-    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, schoolName: '부평소방서' }), '이전 학교 이름에도 자동화가 켜진다');
-    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, schoolGrade: 2 }), '다른 학년에도 자동화가 켜진다');
-    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, className: '119 반' }), '공백이 다른 반에도 자동화가 켜진다');
-    assert(!isSchoolAutomationProfile({ ...SCHOOL_AUTOMATION_PROFILE, studentName: '자동화 학생' }), '다른 이름에도 자동화가 켜진다');
+  check('이름표 — 1~3학년은 쉬움, 4~6학년은 보통으로 시작하고 빈 이름은 `나`다 (설계서 v1.18 §3)', () => {
+    assert(gradeModeForGrade(1) === 'easy' && gradeModeForGrade(3) === 'easy', '저학년이 쉬움으로 시작하지 않는다');
+    assert(gradeModeForGrade(4) === 'normal' && gradeModeForGrade(6) === 'normal', '고학년이 보통으로 시작하지 않는다');
+    assert(displayName({ studentName: '' }) === '나' && displayName({ studentName: '  ' }) === '나', '빈 이름이 `나`로 보이지 않는다');
+    assert(displayName({ studentName: ' 안전이 ' }) === '안전이', '이름 앞뒤 공백이 남는다');
+    const keys = Object.keys(defaultProfile());
+    assert(!keys.includes('schoolName') && !keys.includes('className'), '프로필에 학교·반이 남아 있다');
   });
 
   check('콘텐츠 검증 — 개발 모드 오류 0건', () => {
@@ -701,13 +703,79 @@ export function logicTests(check: Check, assert: Assert): void {
       progress: { completedSteps: ['a'], guardianMissions: [{ id: 'extinguisher', done: false }], simAttempts: 2, simCleared: false },
     };
     const f = parseSave(JSON.stringify(v1));
-    assert(f.schemaVersion === 3, `판 ${f.schemaVersion}`);
+    assert(f.schemaVersion === 4, `판 ${f.schemaVersion}`);
     assert(f.routes.fire?.primary?.key === 'fire_exit_available', '주 경로 키');
     assert(f.routes.fire?.alternate?.key === 'fire_exit_blocked', '보조 경로 키');
     assert(f.routes.gas?.primary?.key === 'gas', '확장 경로');
     assert(f.profile.playerCharacter === 'boy_cap' && f.profile.lowFloor === true, '프로필');
     assert(f.progress.attempts === 0 && f.progress.guardianMissions.length === 1, '진행');
     assert(f.progress.earnedBadgeIds.length === 0 && f.progress.practiceWeekKeys.length === 0 && f.progress.practiceRecords.length === 0, 'v3 반복 연습 기본값');
+
+    /* 3 → 4: 학교·반은 버리고 학년·이름·지도·진행은 그대로다 (설계서 v1.18 §4) */
+    const v3 = {
+      schemaVersion: 3,
+      createdAt: 'x',
+      updatedAt: 'x',
+      profile: { ...defaultProfile(), schoolName: '부평초', schoolGrade: 5, className: '2반', studentName: '안전이', gradeMode: 'normal', soundOn: false },
+      plan: template('apt_3room'),
+      routes: {},
+      progress: { ...emptyProgress(), attempts: 2, successes: 1, earnedBadgeIds: ['first-practice'], practiceWeekKeys: ['2026-09-01'] },
+    };
+    const g = parseSave(JSON.stringify(v3));
+    assert(g.schemaVersion === 4, `v3 → ${g.schemaVersion}`);
+    assert(!('schoolName' in g.profile) && !('className' in g.profile), '학교·반 키가 남아 있다');
+    assert(g.profile.schoolGrade === 5 && g.profile.studentName === '안전이' && g.profile.gradeMode === 'normal' && g.profile.soundOn === false, '학년·이름·수준·소리가 보존되지 않았다');
+    assert(g.plan.blocks.length === v3.plan.blocks.length && g.progress.attempts === 2 && g.progress.earnedBadgeIds[0] === 'first-practice', '지도·진행 기록이 보존되지 않았다');
+    const h = parseSave(JSON.stringify({ ...v3, schemaVersion: 4, profile: { ...v3.profile, extraKey: 1 } }));
+    assert(!('extraKey' in h.profile) && !('schoolName' in h.profile), 'v4 파일의 알 수 없는 프로필 키가 실려 다닌다');
+  });
+
+  /* ---------------------------------------------------------- 오프라인 꾸러미 */
+
+  check('ZIP 쓰기·되읽기 — 한글 이름, 압축·저장 혼용, CRC 검사 (설계서 v1.18 §5.2)', () => {
+    const text = Buffer.from('우리집 대피지도 '.repeat(2000), 'utf8');
+    const binary = Buffer.from(Array.from({ length: 4096 }, (_, i) => (i * 7919) % 256));
+    const entries = [
+      { name: '우리집 대피지도/읽어주세요.txt', data: text },
+      { name: '우리집 대피지도/voice/guide-step-edit-easy.mp3', data: binary, store: true },
+      { name: '우리집 대피지도/home-escape-map.html', data: Buffer.from('<!doctype html><title>x</title>', 'utf8') },
+    ];
+    const zip = zipBuffer(entries);
+    assert(zip.readUInt32LE(0) === 0x04034b50 && zip.readUInt32LE(zip.length - 22) === 0x06054b50, 'ZIP 서명이 없다');
+    assert(zip.length < text.length, '글이 압축되지 않았다');
+    const back = unzipBuffer(zip);
+    assert(back.length === 3, `되읽은 항목이 ${back.length}개다`);
+    for (const entry of entries) {
+      const found = back.find((item) => item.name === entry.name);
+      assert(found !== undefined, `항목이 없다: ${entry.name}`);
+      assert(found!.data.equals(entry.data), `내용이 다르다: ${entry.name}`);
+      assert(found!.method === (entry.store ? 0 : 8), `압축 방식이 다르다: ${entry.name}`);
+    }
+    const broken = Buffer.from(zip);
+    broken[30 + Buffer.byteLength(entries[0].name) + 3] ^= 0xff;
+    let threw = false;
+    try {
+      unzipBuffer(broken);
+    } catch {
+      threw = true;
+    }
+    assert(threw, '깨진 항목을 통과시킨다');
+    let dup = false;
+    try {
+      zipBuffer([entries[0], entries[0]]);
+    } catch {
+      dup = true;
+    }
+    assert(dup, '겹친 이름을 받아들인다');
+  });
+
+  check('배포 산출물 이름은 영문이고 Releases 주소가 한 태그를 가리킨다 (설계서 v1.18 §5.3)', () => {
+    const names = desktopAssetNames('2.0.0');
+    assert(names.setup === 'HomeEscapeMap-Setup-2.0.0.exe' && names.portable === 'HomeEscapeMap-Portable-2.0.0.exe', `이름이 다르다: ${JSON.stringify(names)}`);
+    const urls = desktopAssetUrls('2.0.0');
+    assert(urls.setup.endsWith('/releases/download/desktop/HomeEscapeMap-Setup-2.0.0.exe'), `설치판 주소: ${urls.setup}`);
+    assert(/^[\x20-\x7e]+$/.test(urls.setup + urls.portable + urls.releases), '주소에 영문 밖 글자가 섞였다');
+    assert(humanBytes(20.3 * 1024 * 1024) === '20.3MB' && humanBytes(900 * 1024) === '900KB' && humanBytes(0) === '', '크기 표기가 다르다');
 
     const s = emptySave();
     s.plan = template('apt_2room');

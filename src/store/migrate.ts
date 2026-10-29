@@ -55,7 +55,22 @@ const migrations: Record<number, (data: Raw) => Raw> = {
       practiceRecords: d.progress?.practiceRecords ?? [],
     },
   }),
+  /** 3 → 4: 학교 이름·반을 버린다. 이름표에는 학년과 이름만 남는다 (설계서 v1.18 §4). */
+  3: (d) => {
+    const { schoolName: _school, className: _klass, ...profile } = (d.profile ?? {}) as Raw;
+    return { ...d, schemaVersion: 4, profile };
+  },
 };
+
+/** 프로필은 정의된 키만 싣는다 — 지난 판의 키가 저장 파일에 계속 실려 다니지 않게 */
+function pickProfile(raw: Raw | undefined): Raw {
+  const src = raw ?? {};
+  const out: Raw = {};
+  for (const key of Object.keys(defaultProfile())) {
+    if (key in src) out[key] = src[key];
+  }
+  return out;
+}
 
 export class SaveIncompatibleError extends Error {
   constructor(
@@ -89,7 +104,7 @@ function fillDefaults(d: Raw): SaveFile {
     schemaVersion: SCHEMA_VERSION,
     createdAt: typeof d.createdAt === 'string' ? d.createdAt : now,
     updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : now,
-    profile: { ...defaultProfile(), ...(d.profile ?? {}), playerCharacter: migratePlayerCharacter(d.profile?.playerCharacter) },
+    profile: { ...defaultProfile(), ...pickProfile(d.profile), playerCharacter: migratePlayerCharacter(d.profile?.playerCharacter) },
     plan: d.plan && Array.isArray(d.plan.blocks) ? d.plan : emptyFloorPlan(),
     routes: d.routes && typeof d.routes === 'object' ? d.routes : {},
     progress: {

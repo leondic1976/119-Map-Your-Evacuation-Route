@@ -17,3 +17,6 @@ playwright-report/
 # ElevenLabs Playwright 로그인 프로필·진단 자료의 저장소 내 유입 방지
 .elevenlabs-playwright/
 elevenlabs-diagnostics/
+
+# 데스크톱 설치 파일 빌드 산출물
+release/

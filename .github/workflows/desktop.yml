@@ -1,0 +1,63 @@
+name: desktop installer
+
+# 윈도우 설치 파일 (설계서 v1.18 §5.3).
+# Pages 배포(deploy.yml)와 따로 돈다 — 설치 파일 빌드가 늦거나 실패해도 사이트 배포를 막지 않는다.
+# 산출물은 GitHub Release `desktop` 태그에 덮어쓰기로 올린다. 안내 페이지가 그 주소를 가리킨다.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 오프라인 배포본 (HTML · 음성 · 꾸러미)
+        run: npx tsx tools/standalone.ts
+
+      - name: 윈도우 설치 파일 빌드
+        run: npm run desktop:build
+
+      - name: 빌드본 실행 검증 (소개 → 이름표 → 편집 → 저장 · 바깥 요청 0건)
+        run: npm run desktop:check -- --packaged
+
+      - name: 산출물 보관
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            release/*.exe
+
+      - name: Release `desktop` 에 덮어쓰기
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TITLE="우리집 대피지도 윈도우 설치 파일 ${VERSION}"
+          NOTES=$(printf '설치판 HomeEscapeMap-Setup-%s.exe 와 무설치판 HomeEscapeMap-Portable-%s.exe 다.\n\n처음 실행할 때 SmartScreen 경고가 뜨면 「추가 정보 → 실행」을 누른다. 서명 비용을 내지 않은 무료 프로그램이라 뜨는 창이다.\n\n이 프로그램은 인터넷에 아무것도 보내지 않는다. 그린 지도는 이 PC 안에만 저장된다.' "$VERSION" "$VERSION")
+          if gh release view desktop >/dev/null 2>&1; then
+            gh release edit desktop --title "$TITLE" --notes "$NOTES" --target "$GITHUB_SHA"
+          else
+            gh release create desktop --title "$TITLE" --notes "$NOTES" --target "$GITHUB_SHA" --latest=false
+          fi
+          gh release upload desktop release/*.exe --clobber

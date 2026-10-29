@@ -11,7 +11,8 @@ interface Props {
 }
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
-const dashboardAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
+/* 오프라인 HTML·데스크톱 앱에서는 받을 곳이 없으므로 설치 안내로 가는 길을 보이지 않는다 (설계서 v1.18 §6) */
+const installAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
 const welcomeAssets = {
   background: `${basePath}/images/welcome-evacuation.jpg`,
   characters: `${basePath}/images/nfa-characters.png`,
@@ -30,17 +31,15 @@ export default function WelcomeScreen({ onStart }: Props) {
       />
       <div className="k-welcome-shade" aria-hidden="true" />
 
-      {dashboardAvailable && (
-        <a className="k-welcome-dashboard" href={`${basePath}/dashboard/`} data-coach="kids-welcome-dashboard">
+      {installAvailable && (
+        <a className="k-welcome-install" href={`${basePath}/download/`} data-coach="kids-welcome-install" title="브라우저에 설치하거나 PC에 내려받아 인터넷 없이 쓴다">
           <span aria-hidden="true">
             <svg viewBox="0 0 24 24">
-              <rect x="3" y="3" width="7" height="7" rx="2" />
-              <rect x="14" y="3" width="7" height="7" rx="2" />
-              <rect x="3" y="14" width="7" height="7" rx="2" />
-              <rect x="14" y="14" width="7" height="7" rx="2" />
+              <path d="M12 3v11M7.5 9.5 12 14l4.5-4.5" />
+              <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
             </svg>
           </span>
-          대시보드 바로가기
+          PC에 설치하기
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12h13M13 6l6 6-6 6" />
           </svg>

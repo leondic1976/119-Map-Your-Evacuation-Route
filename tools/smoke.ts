@@ -29,8 +29,18 @@ const MIME: Record<string, string> = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-function serve(dir: string): Promise<{ url: string; close: () => Promise<void> }> {
+function serve(dir: string): Promise<{ url: string; close: () => Promise<void>; setOffline: (on: boolean) => void }> {
+  /*
+   * 오프라인 흉내는 서버 쪽에서 한다. Playwright 의 context.setOffline 은 서비스 워커가 보내는
+   * 요청에는 닿지 않아, 캐시가 비어 있어도 통과해 버린다. 서버가 503 을 돌려주면 워커도 못 받는다.
+   */
+  let offline = false;
   const server = http.createServer((req, res) => {
+    if (offline) {
+      res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+      res.end('offline');
+      return;
+    }
     const raw = decodeURIComponent((req.url || '/').split('?')[0]);
     let file = path.join(dir, raw);
     if (raw.endsWith('/')) file = path.join(file, 'index.html');
@@ -53,6 +63,9 @@ function serve(dir: string): Promise<{ url: string; close: () => Promise<void> }
       resolve({
         url: `http://127.0.0.1:${port}/`,
         close: () => new Promise((r) => server.close(() => r())),
+        setOffline: (on) => {
+          offline = on;
+        },
       });
     });
   });
@@ -582,10 +595,8 @@ async function main(): Promise<void> {
     });
     await page.goto(server.url, { waitUntil: 'networkidle' });
     const fillProfile = async () => {
-      await page.locator('[data-profile="school"]').fill('부평초등학교');
-      await page.locator('[data-profile="grade"]').selectOption('3');
-      await page.locator('[data-profile="class"]').fill('2반');
       await page.locator('[data-profile="name"]').fill('안전이');
+      await page.locator('[data-profile="grade"] [data-grade="3"]').click();
       await page.locator('[data-coach="kids-profile-start"]').click();
     };
     const continueAfterWelcome = async (expected = '.k-app') => {
@@ -631,23 +642,31 @@ async function main(): Promise<void> {
       );
       assert(images.length === 3 && images.every((img) => img.loaded), `소개 그림을 못 읽었다: ${JSON.stringify(images)}`);
       assert(images.some((img) => img.alt?.includes('영이, 일구, 웅이')), '공식 캐릭터 대체 글이 없다');
-      const dashboardLink = page.locator('[data-coach="kids-welcome-dashboard"]');
-      const dashboardLinkBox = await dashboardLink.boundingBox();
-      const dashboardLinkHref = await dashboardLink.getAttribute('href');
+      assert((await page.locator('[data-coach="kids-welcome-dashboard"], [href$="/dashboard/"]').count()) === 0, '소방서-학교 대시보드로 가는 길이 남아 있다 (설계서 v1.18 §2)');
+      const installLink = page.locator('[data-coach="kids-welcome-install"]');
+      const installLinkBox = await installLink.boundingBox();
+      const installLinkHref = await installLink.getAttribute('href');
       const viewport = page.viewportSize();
-      assert(Boolean(dashboardLinkHref?.endsWith('/dashboard/')), `첫 화면 대시보드 주소가 아니다: ${dashboardLinkHref}`);
-      assert(Boolean(dashboardLinkBox && viewport && dashboardLinkBox.height >= 48 && dashboardLinkBox.y <= 24 && dashboardLinkBox.x + dashboardLinkBox.width >= viewport.width - 48), `대시보드 바로가기가 우측 상단에 있지 않다: ${JSON.stringify(dashboardLinkBox)}`);
+      assert(Boolean(installLinkHref?.endsWith('/download/')), `첫 화면 설치 안내 주소가 아니다: ${installLinkHref}`);
+      assert(Boolean(installLinkBox && viewport && installLinkBox.height >= 48 && installLinkBox.y <= 24 && installLinkBox.x + installLinkBox.width >= viewport.width - 48), `PC에 설치하기가 우측 상단에 있지 않다: ${JSON.stringify(installLinkBox)}`);
       const start = page.locator('[data-coach="kids-welcome-start"]');
       const box = await start.boundingBox();
       assert(box !== null && box.height >= 72 && box.width >= 300, `시작 단추가 작다: ${JSON.stringify(box)}`);
       await continueAfterWelcome('.k-profile');
     });
 
-    await check('학교·학년·반·이름을 채우면 템플릿과 직접 그리기 두 갈래가 뜬다 (설계서 v1.9 §9~§10)', async () => {
-      assert((await page.locator('[data-profile]').count()) === 4, '학교·학년·반·이름 네 입력이 아니다');
+    await check('이름표는 이름과 학년만 묻고, 채우면 템플릿과 직접 그리기 두 갈래가 뜬다 (설계서 v1.18 §3)', async () => {
+      assert((await page.locator('[data-profile]').count()) === 2, '이름·학년 두 입력이 아니다');
+      assert((await page.locator('[data-profile="school"], [data-profile="class"]').count()) === 0, '학교·반 입력이 남아 있다');
+      assert((await page.locator('[data-profile="grade"] [data-grade]').count()) === 6, '학년 단추가 여섯이 아니다');
       assert((await page.locator('.k-profile-privacy').innerText()).includes('인터넷으로 보내지 않고'), '브라우저 내부 사용 고지가 없다');
+      const gradeBoxes = await page.locator('[data-profile="grade"] [data-grade]').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+      assert(gradeBoxes.every((h) => h >= 48), `학년 단추가 48px 보다 작다: ${gradeBoxes.join(',')}`);
       await fillProfile();
       await page.waitForSelector('.k-app');
+      assert((await page.locator('[data-coach="kids-name-tag"]').innerText()).includes('3학년 안전이'), '상단 이름표가 학년·이름을 보이지 않는다');
+      assert((await page.locator('[data-coach="kids-grade"] button[aria-pressed="true"]').innerText()).includes('쉬움'), '3학년이 쉬움으로 시작하지 않는다');
+      assert((await page.locator('[data-coach="kids-dashboard"], .k-top a[href$="/dashboard/"]').count()) === 0, '상단바에 대시보드가 남아 있다');
       await page.waitForSelector('.k-onboard');
       assert((await page.locator('[data-start-path]').count()) === 2, '시작 방법이 템플릿과 직접 그리기 두 가지가 아니다');
       assert((await page.locator('[data-start-path="template"]').count()) === 1, '템플릿 시작이 없다');
@@ -1021,7 +1040,7 @@ async function main(): Promise<void> {
       await page.waitForTimeout(300);
       const save = await kidsSave(page);
       assert(save.attempts === 1, `시도 기록 ${save.attempts}`);
-      assert(save.schemaVersion === 3 && save.badges >= 2 && save.stampWeeks === 1 && save.practiceRecords === 1, `반복 연습 저장 v${save.schemaVersion}, 배지 ${save.badges}, 도장 ${save.stampWeeks}, 기록 ${save.practiceRecords}`);
+      assert(save.schemaVersion === 4 && save.badges >= 2 && save.stampWeeks === 1 && save.practiceRecords === 1, `반복 연습 저장 v${save.schemaVersion}, 배지 ${save.badges}, 도장 ${save.stampWeeks}, 기록 ${save.practiceRecords}`);
     });
 
     await check('리포트 — [왜?] 는 자리에서 펼쳐지고, 지도 고치기는 편집으로 돌아간다', async () => {
@@ -1039,49 +1058,21 @@ async function main(): Promise<void> {
       assert((await page.locator('svg.k-stage').count()) === 1, '도면이 없다');
     });
 
-    await check('통합 캠페인 포털은 세 역할과 지역·학교·학급별 안전 준비를 한 체계로 보여 준다', async () => {
-      const usage = page.locator('.k-top .k-tb', { hasText: '사용법' });
-      const dashboardButton = page.locator('[data-coach="kids-dashboard"]');
-      const usageBox = await usage.boundingBox();
-      const dashboardBox = await dashboardButton.boundingBox();
-      assert(Boolean(usageBox && dashboardBox && dashboardBox.x >= usageBox.x), '대시보드가 사용법 오른쪽에 없다');
-      const dashboardHref = await dashboardButton.getAttribute('href');
-      assert(Boolean(dashboardHref?.endsWith('/dashboard/')), `독립 대시보드 주소가 아니다: ${dashboardHref}`);
-      const dashboardPage = await context.newPage();
-      const dashboardErrors: string[] = [];
-      dashboardPage.on('pageerror', (error) => dashboardErrors.push(error.message));
-      await dashboardPage.goto(new URL(dashboardHref ?? '/dashboard/', page.url()).href, { waitUntil: 'networkidle' });
-      await dashboardPage.waitForSelector('[data-screen="campaign-dashboard"]');
-      /* 정적 HTML이 먼저 보인 뒤 브라우저 저장 기록을 합치는 useEffect까지 기다린다. */
-      await dashboardPage.waitForTimeout(900);
-      const text = await dashboardPage.locator('[data-screen="campaign-dashboard"]').innerText();
-      const storedName = await dashboardPage.evaluate(() => {
-        try { return JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}').profile?.studentName ?? ''; } catch { return ''; }
-      });
-      for (const word of ['소방기관', '교육기관', '가정', '학교·선생님', '통합 안전 관제센터', '부평초등학교']) assert(text.includes(word), `대시보드에 ${word}가 없다 (저장 이름: ${storedName || '없음'}, 오류: ${dashboardErrors.join(' / ') || '없음'})`);
-      assert((await dashboardPage.locator('[data-dashboard-filter]').count()) === 6, '시도·시군구·읍면동·학교·학년·반 필터가 여섯 개가 아니다');
-      assert((await dashboardPage.locator('.d-kpi').count()) === 5, '안전 준비 핵심 지표가 다섯 개가 아니다');
-      assert((await dashboardPage.locator('[data-role-hub]').count()) === 3, '소방기관·교육기관·가정 역할 허브가 세 개가 아니다');
-      assert((await dashboardPage.locator('.d-system-flow-item').count()) === 4, '교육 설계부터 결과 환류까지 통합 순환이 네 단계가 아니다');
-      assert((await dashboardPage.locator('.d-learning-step').count()) === 4, '표준 안전교육과정이 네 단계가 아니다');
-      assert((await dashboardPage.locator('.d-resource').count()) === 6, '역할별 통합 교육자료가 여섯 개가 아니다');
-      for (const width of [1024, 1280, 1440, 1920]) {
-        await dashboardPage.setViewportSize({ width, height: 900 });
-        await dashboardPage.waitForTimeout(80);
-        const overflow = await dashboardPage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-        assert(overflow <= 1, `${width}px 대시보드에 가로 넘침 ${overflow}px가 생겼다`);
-      }
-      await dashboardPage.setViewportSize({ width: 1440, height: 900 });
-      await dashboardPage.locator('[data-dashboard-filter="학교·어린이집"]').selectOption({ label: '부평초등학교' });
-      await dashboardPage.locator('[data-dashboard-filter="학년·연령"]').selectOption('3학년');
-      await dashboardPage.locator('[data-dashboard-filter="반"]').selectOption('2반');
-      await dashboardPage.locator('.d-search input').fill('안전이');
-      await dashboardPage.waitForTimeout(200);
-      const tableText = await dashboardPage.locator('.d-table-wrap tbody').innerText();
-      assert(tableText.includes('안전이') && tableText.includes('이 PC'), '현재 PC 학생 기록이 복합 필터 결과에 없다');
-      assert((await dashboardPage.locator('.d-data-notice').innerText()).includes('서버로 보내지 않는다'), '정적 체험판 데이터 경계가 없다');
-      assert(!/1위|2위|3위|순위/.test(await dashboardPage.locator('.d-students').innerText()), '학생 순위가 표시된다');
-      await dashboardPage.close();
+    await check('사용법에는 판 번호와 PC에 설치하기가 있고, 대시보드 페이지는 더 이상 없다 (설계서 v1.18 §2·§7)', async () => {
+      await page.locator('.k-top .k-tb', { hasText: '사용법' }).click();
+      const help = page.locator('.k-modal', { hasText: '사용법' }).or(page.locator('.k-modal', { hasText: '이렇게 하면 돼' }));
+      await help.first().waitFor({ state: 'visible' });
+      const version = await page.locator('[data-coach="kids-version"]').innerText();
+      assert(/\d+\.\d+\.\d+/.test(version), `판 번호가 없다: ${version}`);
+      const installHelp = page.locator('[data-coach="kids-help-install"]');
+      assert((await installHelp.getAttribute('href'))?.endsWith('/download/') === true, '사용법의 설치 안내 주소가 아니다');
+      const installHelpBox = await installHelp.boundingBox();
+      assert(Boolean(installHelpBox && installHelpBox.height >= 48), '사용법의 설치 단추가 48px 보다 작다');
+      assert(!/학교|반\b/.test(await help.first().innerText()), '사용법에 학교·반 문구가 남아 있다');
+      await page.keyboard.press('Escape');
+      await help.first().waitFor({ state: 'detached' });
+      const gone = await page.request.get(new URL('dashboard/', page.url()).href);
+      assert(gone.status() === 404, `/dashboard/ 가 아직 응답한다: ${gone.status()}`);
 
       /* 이하 공통 편집·경로·성공 리플레이 회귀 검사는 좌표가 고정된 방 두 개 템플릿에서 한다. */
       await page.locator('[data-coach="kids-template"]').click();
@@ -2095,52 +2086,150 @@ async function main(): Promise<void> {
       assert(result.minDuration >= 0.4, `가장 짧은 MP3가 ${result.minDuration}초다`);
     });
 
-    await check('부평초등학교 1학년 119반 자동화가 40초에 집과 두 대피경로를 완성한다', async () => {
-      const automationContext = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
-      const automationPage = await automationContext.newPage();
+    await check('이름표를 비워도 시작되고, 6학년은 보통으로 시작하며, 다시 오면 이름표가 채워져 있다 (설계서 v1.18 §3)', async () => {
+      const tagContext = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
+      const tagPage = await tagContext.newPage();
       const errors: string[] = [];
-      automationPage.on('pageerror', (error) => errors.push(error.message));
-      await automationPage.goto(server.url, { waitUntil: 'networkidle' });
-      await automationPage.locator('[data-coach="kids-welcome-start"]').click();
-      await automationPage.waitForSelector('.k-profile');
-      await automationPage.locator('[data-profile="school"]').fill('부평초등학교');
-      await automationPage.locator('[data-profile="grade"]').selectOption('1');
-      await automationPage.locator('[data-profile="class"]').fill('119반');
-      await automationPage.locator('[data-profile="name"]').fill('자동화');
-      const startedAt = Date.now();
-      await automationPage.locator('[data-coach="kids-profile-start"]').click();
-      await automationPage.waitForSelector('[data-automation-state="running"]', { timeout: 5000 });
-      await automationPage.waitForSelector('[data-automation-state="done"]', { timeout: 45_000 });
-      const elapsed = Date.now() - startedAt;
-      assert(elapsed >= 39_500 && elapsed <= 43_000, `완료 시간이 ${elapsed}ms다`);
-      await automationPage.waitForTimeout(900);
-      const saved = await automationPage.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}')) as {
-        plan?: BrowserPlan;
-        routes?: Record<string, { primary?: { key: string; waypoints: Array<{ x: number; y: number }> }; alternate?: { key: string; waypoints: Array<{ x: number; y: number }> } }>;
-      };
-      const blocks = saved.plan?.blocks ?? [];
-      const roomKinds = new Set(blocks.filter((block) => block.kind === 'room').map((block) => block.roomKind));
-      const furniture = blocks.filter((block) => block.kind === 'furniture');
-      const safety = blocks.filter((block) => block.kind === 'safety');
-      const markers = new Set(blocks.filter((block) => block.kind === 'marker').map((block) => block.subKind));
-      const resizedRoom = blocks.find((block) => block.id === 'r1');
-      const pair = saved.routes?.fire;
-      assert((saved.plan?.shell?.cells.length ?? 0) >= 100, '집 외곽이 충분히 그려지지 않았다');
-      for (const kind of ['bedroom', 'bath', 'living', 'kitchen', 'entry', 'balcony']) assert(roomKinds.has(kind), `${kind} 공간이 없다`);
-      assert(resizedRoom?.rect?.w === 4 && resizedRoom.rect.h === 4, '내 방 크기 조절이 반영되지 않았다');
-      assert(furniture.length >= 9, `가구가 ${furniture.length}개뿐이다`);
-      assert(safety.length >= 4, `안전설비가 ${safety.length}개뿐이다`);
-      assert(markers.has('my_spot') && markers.has('meeting_point'), '내 위치 또는 만나는 곳이 없다');
-      assert((pair?.primary?.waypoints.length ?? 0) >= 10, '주 대피경로가 짧거나 없다');
-      assert((pair?.alternate?.waypoints.length ?? 0) >= 8, '보조 대피경로가 짧거나 없다');
-      assert(pair?.primary?.key === 'fire_exit_available', `주 경로 키가 ${pair?.primary?.key}다`);
-      assert(pair?.alternate?.key === 'fire_exit_blocked', `보조 경로 키가 ${pair?.alternate?.key}다`);
-      const primaryEnd = pair?.primary?.waypoints.at(-1);
-      const alternateEnd = pair?.alternate?.waypoints.at(-1);
-      assert(primaryEnd?.x !== alternateEnd?.x || primaryEnd?.y !== alternateEnd?.y, '주 경로와 보조 경로의 끝이 같다');
-      assert((await automationPage.locator('[data-automation-state="done"]').innerText()).includes('모든 과정 완료'), '완료 안내가 없다');
+      tagPage.on('pageerror', (error) => errors.push(error.message));
+      await tagPage.goto(server.url, { waitUntil: 'networkidle' });
+      await tagPage.locator('[data-coach="kids-welcome-start"]').click();
+      await tagPage.waitForSelector('.k-profile');
+      /* 아무것도 적지 않고 시작 — 막지 않는다 */
+      await tagPage.locator('[data-coach="kids-profile-start"]').click();
+      await tagPage.waitForSelector('.k-app');
+      assert((await tagPage.locator('[data-coach="kids-name-tag"]').innerText()).includes('3학년 나'), '빈 이름표가 `3학년 나`로 보이지 않는다');
+      assert((await tagPage.locator('[data-coach="kids-grade"] button[aria-pressed="true"]').innerText()).includes('쉬움'), '학년을 안 고르면 쉬움으로 시작해야 한다');
+      /* 지도를 하나 만들어 저장한 뒤 다시 온다 */
+      await tagPage.locator('[data-start-path="template"]').click();
+      await tagPage.locator('[data-template="apt_2room"]').click();
+      await tagPage.locator('[data-coach="kids-plan-start"]').click();
+      await tagPage.waitForTimeout(900);
+      await tagPage.goto(server.url, { waitUntil: 'networkidle' });
+      await tagPage.locator('[data-coach="kids-welcome-start"]').click();
+      await tagPage.waitForSelector('.k-profile');
+      await tagPage.waitForTimeout(200);
+      assert((await tagPage.locator('[data-profile="grade"] [data-grade="3"]').getAttribute('aria-pressed')) === 'true', '지난번 학년이 미리 골라져 있지 않다');
+      assert((await tagPage.locator('[data-coach="kids-profile-start"]').innerText()).includes('이어서'), '그리던 지도가 있는데 이어서 하기로 바뀌지 않았다');
+      /* 6학년으로 바꾸고 이름을 적는다 — 저장된 수준(쉬움)은 그대로 둔다 */
+      await tagPage.locator('[data-profile="name"]').fill('하늘이');
+      await tagPage.locator('[data-profile="grade"] [data-grade="6"]').click();
+      await tagPage.locator('[data-coach="kids-profile-start"]').click();
+      await tagPage.waitForSelector('.k-app');
+      assert((await tagPage.locator('[data-coach="kids-name-tag"]').innerText()).includes('6학년 하늘이'), '바꾼 이름표가 반영되지 않았다');
+      assert((await tagPage.locator('[data-coach="kids-grade"] button[aria-pressed="true"]').innerText()).includes('쉬움'), '그리던 지도가 있으면 저장된 수준을 따라야 한다');
+      assert((await tagPage.locator('svg.k-stage [data-wall-mode]').count()) > 0, '그리던 지도가 다시 열리지 않았다');
+      /* 새 PC(저장 없음)에서 6학년은 보통으로 시작한다 */
+      await tagPage.evaluate(() => window.localStorage.clear());
+      await tagPage.goto(server.url, { waitUntil: 'networkidle' });
+      await tagPage.locator('[data-coach="kids-welcome-start"]').click();
+      await tagPage.waitForSelector('.k-profile');
+      await tagPage.locator('[data-profile="grade"] [data-grade="6"]').click();
+      await tagPage.locator('[data-coach="kids-profile-start"]').click();
+      await tagPage.waitForSelector('.k-app');
+      assert((await tagPage.locator('[data-coach="kids-grade"] button[aria-pressed="true"]').innerText()).includes('보통'), '6학년이 보통으로 시작하지 않는다');
+      /* 자동 저장은 600ms 뒤에 쓴다 */
+      await tagPage.waitForTimeout(900);
+      const saved = await tagPage.evaluate(() => JSON.parse(window.localStorage.getItem('evac-kids-v1') ?? '{}')) as { schemaVersion?: number; profile?: Record<string, unknown> };
+      assert(saved.schemaVersion === 4, `저장 형식이 v${saved.schemaVersion}다`);
+      assert(saved.profile !== undefined && !('schoolName' in saved.profile) && !('className' in saved.profile), '저장 파일에 학교·반이 남아 있다');
       assert(errors.length === 0, errors.slice(0, 2).join(' | '));
-      await automationContext.close();
+      await tagContext.close();
+    });
+
+    await check('설치 안내 페이지 — 세 갈래가 있고 꾸러미·매니페스트·서비스 워커가 실제로 응답한다 (설계서 v1.18 §5·§6)', async () => {
+      const dlContext = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
+      const dl = await dlContext.newPage();
+      const errors: string[] = [];
+      dl.on('pageerror', (e) => errors.push(e.message));
+      await dl.goto(new URL('download/', server.url).href, { waitUntil: 'networkidle' });
+      await dl.waitForSelector('[data-screen="download"]');
+      assert((await dl.locator('[data-download-card]').count()) === 3, '설치 갈래가 세 장이 아니다');
+      const text = await dl.locator('[data-screen="download"]').innerText();
+      for (const word of ['브라우저에 설치', '오프라인 꾸러미', '윈도우 설치 파일', '선생님·보호자께', '추가 정보']) assert(text.includes(word), `안내에 ${word}가 없다`);
+      assert(!/점수|등급|순위|대시보드/.test(text), '안내에 점수·대시보드 문구가 있다');
+      const zipHref = await dl.locator('[data-coach="kids-download-zip"]').getAttribute('href');
+      assert(Boolean(zipHref?.endsWith('/download/home-escape-map-offline.zip')), `꾸러미 주소가 다르다: ${zipHref}`);
+      if (fs.existsSync(path.join(root, 'dist', 'home-escape-map-offline.zip'))) {
+        const zip = await dl.request.get(new URL(zipHref ?? '', dl.url()).href);
+        assert(zip.status() === 200, `꾸러미가 응답하지 않는다: ${zip.status()}`);
+        const body = await zip.body();
+        assert(body.length > 10 * 1024 * 1024 && body.readUInt32LE(0) === 0x04034b50, `꾸러미가 ZIP 이 아니다: ${body.length}바이트`);
+        assert(/\d+\.\d+MB/.test(text), '꾸러미 크기가 안내에 없다');
+      } else {
+        process.stdout.write('    --  꾸러미 응답 검사 건너뜀 (npm run build:standalone 을 먼저 실행한다)\n');
+      }
+      const manifestRes = await dl.request.get(new URL('manifest.webmanifest', server.url).href);
+      assert(manifestRes.status() === 200, `매니페스트 ${manifestRes.status()}`);
+      const manifest = (await manifestRes.json()) as { name: string; start_url: string; icons: Array<{ src: string }> };
+      assert(manifest.name === '우리집 대피지도' && manifest.start_url === '/' && manifest.icons.length === 3, `매니페스트 내용이 다르다: ${JSON.stringify(manifest).slice(0, 80)}`);
+      for (const icon of manifest.icons) assert((await dl.request.get(new URL(icon.src, server.url).href)).status() === 200, `아이콘이 없다: ${icon.src}`);
+      const swRes = await dl.request.get(new URL('sw.js', server.url).href);
+      assert(swRes.status() === 200 && (await swRes.text()).includes('const PRECACHE = ['), '서비스 워커가 없다');
+      const manifestLink = await dl.locator('link[rel="manifest"]').getAttribute('href');
+      assert(manifestLink === '/manifest.webmanifest', `매니페스트 링크가 다르다: ${manifestLink}`);
+      for (const link of ['kids-download-desktop', 'kids-download-portable', 'kids-download-releases', 'kids-download-repo']) {
+        const href = await dl.locator(`[data-coach="${link}"]`).getAttribute('href');
+        assert(Boolean(href?.startsWith('https://github.com/leondic1976/119-Map-Your-Evacuation-Route')), `${link} 주소가 다르다: ${href}`);
+      }
+      assert((await dl.locator('[data-coach="kids-download-desktop"]').getAttribute('href'))?.endsWith('/releases/download/desktop/HomeEscapeMap-Setup-2.0.0.exe') === true, '설치판 주소가 Release desktop 태그의 산출물이 아니다');
+      const small = (await hitTargets(dl)).filter((t) => t.w < 48 || t.h < 48);
+      assert(small.length === 0, `48px 미만: ${small.slice(0, 4).map((t) => `${t.name}(${t.w}×${t.h})`).join(', ')}`);
+      for (const width of [1024, 1280, 1440, 1920]) {
+        await dl.setViewportSize({ width, height: 900 });
+        await dl.waitForTimeout(80);
+        const overflow = await dl.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        assert(overflow <= 1, `${width}px 안내 페이지에 가로 넘침 ${overflow}px`);
+      }
+      await dl.locator('[data-coach="kids-download-home"]').click();
+      await dl.waitForSelector('.k-welcome');
+      assert(errors.length === 0, errors.slice(0, 2).join(' | '));
+      await dlContext.close();
+    });
+
+    await check('브라우저에 설치하면 인터넷 없이도 첫 화면·설치 안내·이름표가 열린다 (설계서 v1.18 §5.1)', async () => {
+      const swContext = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR' });
+      const sw = await swContext.newPage();
+      const errors: string[] = [];
+      sw.on('pageerror', (e) => errors.push(e.message));
+      await sw.goto(server.url, { waitUntil: 'networkidle' });
+      await sw.waitForSelector('.k-welcome');
+      const state = await sw.evaluate(async () => {
+        const registration = await navigator.serviceWorker.ready;
+        const keys = await caches.keys();
+        return { active: registration.active?.state ?? '', keys };
+      });
+      assert(state.active === 'activated' || state.active === 'activating', `서비스 워커 상태가 ${state.active}다`);
+      assert(state.keys.some((key) => key.startsWith('hem-')), `앱 껍데기 캐시가 없다: ${state.keys.join(',')}`);
+      /* 첫 방문 화면은 아직 워커가 제어하지 않을 수 있다 — 한 번 다시 연다 */
+      await sw.reload({ waitUntil: 'networkidle' });
+      await sw.waitForSelector('.k-welcome');
+      await sw.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+      assert((await sw.locator('[data-coach="kids-update"]').count()) === 0, '첫 설치인데 새 판 알림이 떴다');
+      /* 서버가 503 만 돌려준다 — 브라우저 오프라인 흉내는 워커 요청에 닿지 않는다 */
+      server.setOffline(true);
+      try {
+        assert((await sw.request.get(server.url)).status() === 503, '오프라인 흉내가 켜지지 않았다');
+        await sw.reload();
+        await sw.waitForSelector('.k-welcome', { timeout: 15000 });
+        const images = await sw.locator('.k-welcome img').evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0));
+        assert(images.length === 3 && images.every(Boolean), '오프라인에서 소개 그림이 보이지 않는다');
+        await sw.goto(new URL('download/', server.url).href);
+        await sw.waitForSelector('[data-screen="download"]', { timeout: 15000 });
+        await sw.goto(server.url);
+        await sw.waitForSelector('.k-welcome', { timeout: 15000 });
+        await sw.locator('[data-coach="kids-welcome-start"]').click();
+        await sw.waitForSelector('.k-profile');
+        await sw.locator('[data-profile="grade"] [data-grade="2"]').click();
+        await sw.locator('[data-coach="kids-profile-start"]').click();
+        await sw.waitForSelector('.k-app', { timeout: 15000 });
+        await sw.waitForSelector('.k-onboard');
+        /* 선캐시가 아닌 MP3 는 503 을 받아도 오류로 번지지 않아야 한다 — 글만 남고 조용히 멈춘다 */
+        await sw.waitForTimeout(800);
+      } finally {
+        server.setOffline(false);
+      }
+      assert(errors.length === 0, errors.slice(0, 2).join(' | '));
+      await swContext.close();
     });
 
     await check('1024px 미만 화면도 소개를 먼저 보여 준 뒤 PC 안내에서 앱 실행을 막는다', async () => {
@@ -2182,10 +2271,9 @@ async function main(): Promise<void> {
         assert(welcomeImages.length === 3 && welcomeImages.every(Boolean), '오프라인 소개 그림이 보이지 않는다');
         await p3.locator('[data-coach="kids-welcome-start"]').click();
         await p3.waitForSelector('.k-profile', { timeout: 20000 });
-        await p3.locator('[data-profile="school"]').fill('부평초등학교');
-        await p3.locator('[data-profile="grade"]').selectOption('3');
-        await p3.locator('[data-profile="class"]').fill('2반');
+        assert((await p3.locator('[data-coach="kids-welcome-install"]').count()) === 0, '오프라인 HTML 에 설치 안내 링크가 보인다');
         await p3.locator('[data-profile="name"]').fill('안전이');
+        await p3.locator('[data-profile="grade"] [data-grade="3"]').click();
         await p3.locator('[data-coach="kids-profile-start"]').click();
         await p3.waitForSelector('.k-onboard', { timeout: 20000 });
         await p3.locator('[data-start-path="template"]').click();

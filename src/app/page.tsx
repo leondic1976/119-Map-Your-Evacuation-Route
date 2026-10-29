@@ -6,6 +6,8 @@
  * 이용자 유형을 고르지는 않는다. 접속할 때 교육 목적을 소개한 뒤 온보딩으로 간다 (v1.6 §8).
  */
 import React, { useEffect, useState } from 'react';
+import AppUpdates from '../ui/AppUpdates';
+import ErrorBoundary from '../ui/ErrorBoundary';
 import KidsShell from '../ui/KidsShell';
 import ProfileSetup, { type StudentInfo } from '../ui/ProfileSetup';
 import WelcomeScreen from '../ui/WelcomeScreen';
@@ -27,7 +29,12 @@ export default function Page() {
 
   /* 첫 배경 소개를 본 뒤에만 PC 해상도를 판정한 결과를 보여 준다 (v1.9 §10). */
   if (screen === 'welcome') {
-    return <WelcomeScreen onStart={() => setScreen('profile')} />;
+    return (
+      <>
+        <WelcomeScreen onStart={() => setScreen('profile')} />
+        <AppUpdates />
+      </>
+    );
   }
 
   if (desktop !== true) {
@@ -52,5 +59,11 @@ export default function Page() {
     return <ProfileSetup onComplete={(info) => { setStudentInfo(info); setScreen('app'); }} />;
   }
 
-  return <KidsShell studentInfo={studentInfo ?? undefined} />;
+  /* 화면이 깨져도 흰 화면으로 끝내지 않는다 (설계서 v1.18 §7) */
+  return (
+    <ErrorBoundary>
+      <KidsShell studentInfo={studentInfo ?? undefined} />
+      <AppUpdates />
+    </ErrorBoundary>
+  );
 }

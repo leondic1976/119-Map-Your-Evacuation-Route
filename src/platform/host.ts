@@ -11,9 +11,31 @@
  * 어느 쪽이든 자료는 이용자 기기 밖으로 나가지 않는다 (CON-2 · CON-8).
  */
 
+export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable';
+
+/**
+ * 브라우저에 설치하기 — 서비스 워커와 설치 묻기 (설계서 v1.18 §5.1).
+ * 바깥 세계(브라우저 API)에 닿는 일이라 여기서만 다룬다. UI 는 `host().installer` 만 부른다.
+ */
+export interface Installer {
+  /** 서비스 워커를 등록하고, 새 판이 준비되면 알린다. file://·오프라인 HTML·개발 서버에서는 아무것도 하지 않는다 */
+  registerOffline(onUpdate: () => void): void;
+  /** 준비된 새 판으로 바꾼다 — 대기 중인 워커를 깨우고 다시 연다 */
+  applyUpdate(): void;
+  /** 브라우저가 설치 묻기를 허락한 상태인가 */
+  canInstall(): boolean;
+  /** 허락 상태가 바뀔 때 알린다. 되돌려 주는 함수로 구독을 푼다 */
+  onInstallAvailable(listener: (can: boolean) => void): () => void;
+  /** 설치를 묻는다 */
+  promptInstall(): Promise<InstallOutcome>;
+  /** 이미 설치된 앱 창으로 열렸는가 */
+  isStandalone(): boolean;
+}
+
 export interface Host {
   /** 어떤 껍데기 위에서 도는지 — 화면에 알릴 일은 없고 진단용이다 */
   readonly kind: 'web' | 'desktop';
+  readonly installer: Installer;
   /** 없거나 읽지 못하면 null */
   read(key: string): string | null;
   /** 쓰지 못했으면 false — 시크릿 모드·용량 초과 */
@@ -26,12 +48,117 @@ export interface Host {
   exportFile(data: Blob, filename: string): Promise<void>;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+const basePath = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/$/, '');
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
+let waitingWorker: ServiceWorker | null = null;
+let registered = false;
+let applying = false;
+const installListeners = new Set<(can: boolean) => void>();
+
+/* 설치 묻기 허락은 React 가 붙기 전에 올 수 있어 모듈이 읽히는 때부터 받아 둔다 */
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPrompt = event as BeforeInstallPromptEvent;
+    installListeners.forEach((listener) => listener(true));
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    installListeners.forEach((listener) => listener(false));
+  });
+}
+
+function canUseServiceWorker(): boolean {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
+  if (window.location.protocol === 'file:') return false;
+  if (process.env.NEXT_PUBLIC_OFFLINE === '1') return false;
+  return process.env.NODE_ENV === 'production';
+}
+
+const webInstaller: Installer = {
+  registerOffline(onUpdate) {
+    if (registered || !canUseServiceWorker()) return;
+    registered = true;
+    const watch = (worker: ServiceWorker | null): void => {
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        /* 이미 돌고 있는 판이 있을 때 새 판이 설치되면 — 첫 설치는 알리지 않는다 */
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          waitingWorker = worker;
+          onUpdate();
+        }
+      });
+    };
+    navigator.serviceWorker
+      .register(`${basePath}/sw.js`)
+      .then((registration) => {
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          waitingWorker = registration.waiting;
+          onUpdate();
+        }
+        watch(registration.installing);
+        registration.addEventListener('updatefound', () => watch(registration.installing));
+      })
+      .catch(() => {
+        /* 설치하지 못해도 앱은 그대로 돈다 */
+      });
+    /* 새 판을 적용하라고 했을 때만 다시 연다. 첫 설치의 claim 으로는 화면을 흔들지 않는다 */
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (applying) window.location.reload();
+    });
+  },
+
+  applyUpdate() {
+    if (typeof window === 'undefined') return;
+    applying = true;
+    if (waitingWorker) waitingWorker.postMessage('skip-waiting');
+    else window.location.reload();
+  },
+
+  canInstall() {
+    return deferredPrompt !== null;
+  },
+
+  onInstallAvailable(listener) {
+    installListeners.add(listener);
+    return () => {
+      installListeners.delete(listener);
+    };
+  },
+
+  async promptInstall() {
+    const event = deferredPrompt;
+    if (!event) return 'unavailable';
+    deferredPrompt = null;
+    installListeners.forEach((listener) => listener(false));
+    try {
+      await event.prompt();
+      const choice = await event.userChoice;
+      return choice.outcome;
+    } catch {
+      return 'unavailable';
+    }
+  },
+
+  isStandalone() {
+    if (typeof window === 'undefined') return false;
+    const nav = navigator as Navigator & { standalone?: boolean };
+    return window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
+  },
+};
+
 /**
  * 브라우저 구현.
  * 저장소가 막혀 있어도(시크릿 모드) 던지지 않는다 — 저장만 안 될 뿐 그리기는 이어져야 한다.
  */
 export const webHost: Host = {
   kind: 'web',
+  installer: webInstaller,
 
   read(key) {
     try {

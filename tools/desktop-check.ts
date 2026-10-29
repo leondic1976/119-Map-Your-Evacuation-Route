@@ -16,8 +16,9 @@ import { _electron as electron } from '@playwright/test';
 
 const root = process.cwd();
 const indexFile = path.join(root, 'dist', 'home-escape-map.html');
-const packaged = process.argv.includes('--packaged');
-const packagedExe = path.join(root, 'release', 'win-unpacked', 'HomeEscapeMap.exe');
+const packaged = process.argv.includes('--packaged') || Boolean(process.env.DESKTOP_EXE);
+/* DESKTOP_EXE 로 다른 실행 파일을 줄 수 있다 — 공개 주소에서 받은 설치 파일을 풀어 그 안의 앱을 검증할 때 쓴다 */
+const packagedExe = process.env.DESKTOP_EXE || path.join(root, 'release', 'win-unpacked', 'HomeEscapeMap.exe');
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -25,7 +26,7 @@ function assert(cond: boolean, msg: string): void {
 
 async function main(): Promise<void> {
   if (packaged && !fs.existsSync(packagedExe)) {
-    process.stderr.write('\n  release/win-unpacked/HomeEscapeMap.exe 가 없다. 먼저 npm run desktop:build 를 돌린다.\n\n');
+    process.stderr.write(`\n  ${packagedExe} 가 없다. 먼저 npm run desktop:build 를 돌리거나 DESKTOP_EXE 를 바로잡는다.\n\n`);
     process.exit(1);
   }
   if (!packaged && !fs.existsSync(indexFile)) {

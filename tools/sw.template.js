@@ -63,7 +63,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith(SCOPE)) return;
-  if (url.pathname.endsWith('.zip')) return;
+  if (url.pathname.endsWith('.zip') || url.pathname.endsWith('.exe')) return;
   if (request.mode === 'navigate') {
     event.respondWith(navigate(request));
     return;

@@ -12,13 +12,17 @@
  */
 import React, { useEffect, useState } from 'react';
 import { host } from '../platform/host';
-import { OFFLINE_BUNDLE_DIR, OFFLINE_ZIP_NAME, REPO_URL, desktopAssetUrls, humanBytes } from '../content/release';
+import { OFFLINE_BUNDLE_DIR, OFFLINE_ZIP_NAME, desktopDownloadPaths, humanBytes } from '../content/release';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '';
 const zipBytes = Number(process.env.NEXT_PUBLIC_OFFLINE_ZIP_BYTES ?? '');
 const zipSize = humanBytes(zipBytes) || '약 20MB';
-const desktop = desktopAssetUrls(APP_VERSION);
+/* 설치 파일은 배포 빌드가 Release 에서 받아 함께 실을 때만 안다. 없으면 받을 곳 대신 준비 중이라고 말한다 */
+const desktop = desktopDownloadPaths(basePath, APP_VERSION);
+const setupSize = humanBytes(Number(process.env.NEXT_PUBLIC_DESKTOP_SETUP_BYTES ?? ''));
+const portableSize = humanBytes(Number(process.env.NEXT_PUBLIC_DESKTOP_PORTABLE_BYTES ?? ''));
+const desktopReady = Boolean(setupSize && portableSize);
 
 type InstallState = 'checking' | 'installed' | 'ready' | 'manual' | 'done';
 
@@ -123,14 +127,20 @@ export default function DownloadPage() {
             <li><span>처음 실행할 때 파란 경고 창이 뜨면 <b>추가 정보 → 실행</b>을 누른다. 서명 비용을 내지 않은 무료 프로그램이라 뜨는 창이야.</span></li>
             <li><span>설치판은 안내대로 「다음」을 누르면 바탕화면 아이콘이 생긴다.</span></li>
           </ol>
-          <div className="k-dl-actions">
-            <a className="k-dl-action secondary" href={desktop.setup} data-coach="kids-download-desktop">
-              <DownloadIcon /> 설치판 받기
-            </a>
-            <a className="k-dl-action ghost" href={desktop.portable} data-coach="kids-download-portable">
-              무설치판 받기
-            </a>
-          </div>
+          {desktopReady ? (
+            <div className="k-dl-actions" data-desktop-state="ready">
+              <a className="k-dl-action secondary" href={desktop.setup} data-coach="kids-download-desktop">
+                <DownloadIcon /> 설치판 받기 <span className="k-dl-size">({setupSize})</span>
+              </a>
+              <a className="k-dl-action ghost" href={desktop.portable} data-coach="kids-download-portable">
+                무설치판 받기 <span className="k-dl-size">({portableSize})</span>
+              </a>
+            </div>
+          ) : (
+            <p className="k-dl-status" data-desktop-state="pending">
+              설치 파일은 만드는 중이야. 조금 뒤 이 자리에서 받을 수 있어. 지금은 브라우저에 설치하거나 꾸러미를 받아 줘.
+            </p>
+          )}
           <p className="k-dl-note">윈도우 10·11 64비트 · 판 {APP_VERSION}</p>
         </article>
       </div>
@@ -155,15 +165,8 @@ export default function DownloadPage() {
             <dd>브라우저 설치판은 앱 창 메뉴의 「우리집 대피지도 제거」, 윈도우 설치판은 「앱 및 기능」에서 지운다. 꾸러미는 폴더를 지우면 끝이다.</dd>
           </div>
           <div>
-            <dt>문의와 오류 신고</dt>
-            <dd>
-              <a className="k-dl-link" href={REPO_URL} data-coach="kids-download-repo">
-                공개 저장소 (GitHub)
-              </a>
-              <a className="k-dl-link" href={desktop.releases} data-coach="kids-download-releases">
-                설치 파일 목록
-              </a>
-            </dd>
+            <dt>문의</dt>
+            <dd>부평소방서 어린이 화재안전교육. 이 페이지와 프로그램은 바깥 주소로 아무것도 보내지 않고, 받을 파일도 모두 이 사이트 안에 있다.</dd>
           </div>
         </dl>
       </section>

@@ -50,7 +50,7 @@ import { CHILD_EYE_CROUCH, CHILD_EYE_STAND } from '../src/ui/replay3d/Scene';
 import { buildDoors } from '../src/ui/replay3d/geometry';
 import { lowerQuality, settingsFor } from '../src/ui/replay3d/quality';
 import { gradeModeForGrade, displayName } from '../src/types/save';
-import { desktopAssetNames, desktopAssetUrls, humanBytes } from '../src/content/release';
+import { desktopAssetNames, desktopDownloadPaths, humanBytes } from '../src/content/release';
 import { unzipBuffer, zipBuffer } from './zip';
 
 type Check = (name: string, fn: () => void) => void;
@@ -769,12 +769,13 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(dup, '겹친 이름을 받아들인다');
   });
 
-  check('배포 산출물 이름은 영문이고 Releases 주소가 한 태그를 가리킨다 (설계서 v1.18 §5.3)', () => {
+  check('배포 산출물 이름은 영문이고 설치 파일은 같은 사이트의 download/ 아래를 가리킨다 (설계서 v1.18 §5.3)', () => {
     const names = desktopAssetNames('2.0.0');
     assert(names.setup === 'HomeEscapeMap-Setup-2.0.0.exe' && names.portable === 'HomeEscapeMap-Portable-2.0.0.exe', `이름이 다르다: ${JSON.stringify(names)}`);
-    const urls = desktopAssetUrls('2.0.0');
-    assert(urls.setup.endsWith('/releases/download/desktop/HomeEscapeMap-Setup-2.0.0.exe'), `설치판 주소: ${urls.setup}`);
-    assert(/^[\x20-\x7e]+$/.test(urls.setup + urls.portable + urls.releases), '주소에 영문 밖 글자가 섞였다');
+    const paths = desktopDownloadPaths('/119-Map-Your-Evacuation-Route', '2.0.0');
+    assert(paths.setup === '/119-Map-Your-Evacuation-Route/download/HomeEscapeMap-Setup-2.0.0.exe', `설치판 주소: ${paths.setup}`);
+    assert(desktopDownloadPaths('', '2.0.0').portable === '/download/HomeEscapeMap-Portable-2.0.0.exe', '기준 경로가 없을 때의 주소가 다르다');
+    assert(/^[\x20-\x7e]+$/.test(paths.setup + paths.portable), '주소에 영문 밖 글자가 섞였다');
     assert(humanBytes(20.3 * 1024 * 1024) === '20.3MB' && humanBytes(900 * 1024) === '900KB' && humanBytes(0) === '', '크기 표기가 다르다');
 
     const s = emptySave();

@@ -128,7 +128,8 @@ app   →  ui
 - 서비스 워커·설치 묻기(`beforeinstallprompt`)는 `platform/host.ts` 의 `installer` 에서만 다룬다. `file://` 과
   오프라인 HTML 에서는 등록하지 않는다. `npm test` 가 경계를 지킨다.
 - 윈도우 설치 파일은 `.github/workflows/desktop.yml`(windows 러너)이 만들어 Release `desktop` 태그에 덮어쓴다.
-  Pages 배포를 막지 않는다. `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
+  Pages 배포를 막지 않는다. **저장소가 비공개라 Release 주소는 공개 링크가 아니다** — `deploy.yml` 이 받아
+  `dist/desktop/` 에 두면 `pack.ts` 가 Pages 의 `download/` 에 싣고, 안내 페이지는 같은 사이트 안만 가리킨다. `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
   산출물 이름은 `src/content/release.ts` 한 곳에서 정한다 — 안내 페이지와 빌드가 같은 이름을 써야 한다.
 - 런타임 의존성 목록(설계서 v1.4 §1.1)은 그대로다. `electron`·`electron-builder` 는 개발 의존성이다.
 

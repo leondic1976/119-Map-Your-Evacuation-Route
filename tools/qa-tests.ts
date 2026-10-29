@@ -285,8 +285,6 @@ export function qaTests(check: Check, assert: Assert): void {
   const ALLOWED_URLS = [
     /^https?:\/\/(www\.)?w3\.org\//,
     /^https:\/\/cdn\.jsdelivr\.net(\/gh\/orioncactus\/pretendard|$)/,
-    /* 설치 파일 Releases 와 오류 신고로 가는 이동 링크다. 요청을 보내지는 않는다 (설계서 v1.18 §6) */
-    /^https:\/\/github\.com\/leondic1976\/119-Map-Your-Evacuation-Route(\/|$)/,
     /* 공유용 메타(og:image)의 절대 주소 기준 — 웹 배포에서만 렌더하고 요청은 없다 */
     /^https:\/\/leondic1976\.github\.io(\/|$)/,
   ];
@@ -362,9 +360,14 @@ export function qaTests(check: Check, assert: Assert): void {
     const sw = read(path.join(root, 'tools', 'sw.template.js'));
     assert(!/https?:\/\//.test(sw), '서비스 워커 틀에 바깥 주소가 있다');
     for (const marker of ['__CACHE_NAME__', '__SCOPE__', '__PRECACHE__', '__VOICE__']) assert(sw.includes(marker), `자리표가 없다: ${marker}`);
-    assert(sw.includes("url.pathname.endsWith('.zip')") && sw.includes('skip-waiting') && sw.includes('warmVoice'), '꾸러미 제외·새 판 대기·배경 음성 캐시 중 빠진 것이 있다');
+    assert(sw.includes("url.pathname.endsWith('.zip') || url.pathname.endsWith('.exe')") && sw.includes('skip-waiting') && sw.includes('warmVoice'), '꾸러미·설치 파일 제외·새 판 대기·배경 음성 캐시 중 빠진 것이 있다');
     const pack = read(path.join(root, 'tools', 'pack.ts'));
-    assert(pack.includes("rel.startsWith('voice/') || rel.endsWith('.zip')"), '선캐시에서 꾸러미·음성을 빼지 않는다');
+    assert(pack.includes("rel.startsWith('voice/') || rel.endsWith('.zip') || rel.endsWith('.exe')"), '선캐시에서 꾸러미·설치 파일·음성을 빼지 않는다');
+    assert(pack.includes('DESKTOP_DIST_DIR') && pack.includes("path.join(outDir, 'download')"), '설치 파일을 download/ 에 싣는 경로가 없다');
+    const deploy = read(path.join(root, '.github', 'workflows', 'deploy.yml'));
+    assert(deploy.includes('gh release download desktop') && deploy.includes('dist/desktop'), '배포 워크플로가 Release 의 설치 파일을 Pages 에 싣지 않는다');
+    const page = read(path.join(root, 'src/ui/DownloadPage.tsx'));
+    assert(!/https?:\/\//.test(page) && page.includes('data-desktop-state="pending"') && page.includes('data-desktop-state="ready"'), '안내 페이지가 바깥 주소를 쓰거나 설치 파일 준비 중/받기 상태가 없다');
     assert(pack.includes('manifest.webmanifest') && pack.includes('icons/maskable-512.png'), '매니페스트·아이콘 생성이 없다');
     for (const icon of ['icon-192.png', 'icon-512.png', 'maskable-512.png']) assert(fs.existsSync(path.join(root, 'public', 'icons', icon)), `아이콘이 없다: public/icons/${icon}`);
     const layout = read(path.join(root, 'src/app/layout.tsx'));
@@ -381,7 +384,7 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(scope.endsWith('/'), `범위가 /로 끝나지 않는다: ${scope}`);
     assert(precache.includes(scope) && precache.includes(`${scope}download/`), '첫 화면·설치 안내가 선캐시에 없다');
     assert(precache.every((url) => url.startsWith(scope)), '범위 밖 주소가 선캐시에 있다');
-    assert(!precache.some((url) => url.endsWith('.mp3') || url.endsWith('.zip')), '음성·꾸러미가 선캐시에 들어갔다');
+    assert(!precache.some((url) => url.endsWith('.mp3') || url.endsWith('.zip') || url.endsWith('.exe')), '음성·꾸러미·설치 파일이 선캐시에 들어갔다');
     assert(voice.length === 176, `배경 음성 목록이 ${voice.length}개다`);
     const missing = precache.filter((url) => {
       const rel = url.slice(scope.length);

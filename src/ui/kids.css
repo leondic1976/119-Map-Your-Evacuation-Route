@@ -2577,26 +2577,6 @@
   line-height: 1.6;
 }
 
-.k-dl-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--k-hit);
-  margin: 2px 10px 0 0;
-  padding: 0 14px;
-  border: 2px solid #cbdbe7;
-  border-radius: 12px;
-  background: #fff;
-  color: #0b2f51;
-  font-size: 14px;
-  font-weight: 850;
-  text-decoration: none;
-}
-
-.k-dl-link:focus-visible {
-  outline: 3px solid #ffd54a;
-  outline-offset: 2px;
-}
-
 .k-dl-foot {
   max-width: 1180px;
   margin: 0 auto;

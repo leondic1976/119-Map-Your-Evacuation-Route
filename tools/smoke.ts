@@ -2167,11 +2167,20 @@ async function main(): Promise<void> {
       assert(swRes.status() === 200 && (await swRes.text()).includes('const PRECACHE = ['), '서비스 워커가 없다');
       const manifestLink = await dl.locator('link[rel="manifest"]').getAttribute('href');
       assert(manifestLink === '/manifest.webmanifest', `매니페스트 링크가 다르다: ${manifestLink}`);
-      for (const link of ['kids-download-desktop', 'kids-download-portable', 'kids-download-releases', 'kids-download-repo']) {
-        const href = await dl.locator(`[data-coach="${link}"]`).getAttribute('href');
-        assert(Boolean(href?.startsWith('https://github.com/leondic1976/119-Map-Your-Evacuation-Route')), `${link} 주소가 다르다: ${href}`);
+      /* 바깥 주소로 나가는 링크가 없다 — 설치 파일도 같은 사이트 안에서 받는다 */
+      const outsideLinks = await dl.locator('[data-screen="download"] a[href^="http"]').count();
+      assert(outsideLinks === 0, `안내 페이지에 바깥 링크가 ${outsideLinks}개 있다`);
+      if ((await dl.locator('[data-desktop-state="ready"]').count()) === 1) {
+        for (const [link, name] of [['kids-download-desktop', 'HomeEscapeMap-Setup-'], ['kids-download-portable', 'HomeEscapeMap-Portable-']] as const) {
+          const href = await dl.locator(`[data-coach="${link}"]`).getAttribute('href');
+          assert(Boolean(href?.includes(`/download/${name}`) && href.endsWith('.exe')), `${link} 주소가 다르다: ${href}`);
+          const head = await dl.request.head(new URL(href ?? '', dl.url()).href);
+          assert(head.status() === 200, `설치 파일이 응답하지 않는다: ${href} ${head.status()}`);
+        }
+      } else {
+        assert((await dl.locator('[data-desktop-state="pending"]').count()) === 1, '설치 파일이 없는데 준비 중 안내도 없다');
+        process.stdout.write('    --  설치 파일 링크 검사 건너뜀 (dist/desktop/ 에 설치 파일이 없다 — 배포 워크플로가 Release 에서 받는다)\n');
       }
-      assert((await dl.locator('[data-coach="kids-download-desktop"]').getAttribute('href'))?.endsWith('/releases/download/desktop/HomeEscapeMap-Setup-2.0.0.exe') === true, '설치판 주소가 Release desktop 태그의 산출물이 아니다');
       const small = (await hitTargets(dl)).filter((t) => t.w < 48 || t.h < 48);
       assert(small.length === 0, `48px 미만: ${small.slice(0, 4).map((t) => `${t.name}(${t.w}×${t.h})`).join(', ')}`);
       for (const width of [1024, 1280, 1440, 1920]) {

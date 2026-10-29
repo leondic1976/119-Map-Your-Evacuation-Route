@@ -12,7 +12,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { OFFLINE_ZIP_NAME } from '../src/content/release';
+import { DESKTOP_DIST_DIR, OFFLINE_ZIP_NAME, desktopAssetNames } from '../src/content/release';
 
 const root = process.cwd();
 const outDir = path.join(root, 'out');
@@ -62,6 +62,20 @@ if (fs.existsSync(zipSource)) {
   zipNote = `${bytes(fs.statSync(zipSource).size)} → out/download/${OFFLINE_ZIP_NAME}`;
 }
 
+/*
+ * 1b. 윈도우 설치 파일 — deploy.yml 이 Release `desktop` 에서 받아 dist/desktop/ 에 둔 것을 같은 사이트에 싣는다.
+ * 저장소가 비공개라 Release 주소는 공개 링크가 아니기 때문이다. 둘 다 있을 때만 싣는다(안내 페이지가 준비 중/받기를 가른다).
+ */
+const assetNames = desktopAssetNames(pkg.version);
+const desktopFiles = [assetNames.setup, assetNames.portable].map((name) => path.join(distDir, DESKTOP_DIST_DIR, name));
+let desktopNote = '없음 — 안내 페이지는 준비 중이라고 말한다';
+if (desktopFiles.every((file) => fs.existsSync(file))) {
+  const downloadDir = path.join(outDir, 'download');
+  fs.mkdirSync(downloadDir, { recursive: true });
+  for (const file of desktopFiles) fs.copyFileSync(file, path.join(downloadDir, path.basename(file)));
+  desktopNote = desktopFiles.map((file) => `${path.basename(file)} ${bytes(fs.statSync(file).size)}`).join(' · ');
+}
+
 /* 2. 매니페스트 */
 const manifest = {
   id: scope,
@@ -89,10 +103,10 @@ for (const icon of manifest.icons) {
 }
 fs.writeFileSync(path.join(outDir, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2), 'utf8');
 
-/* 3. 서비스 워커 — 음성 폴더와 꾸러미(.zip)는 선캐시에서 뺀다. 설치 안내(download/index.html)는 넣는다 */
+/* 3. 서비스 워커 — 음성 폴더와 꾸러미(.zip)·설치 파일(.exe)은 선캐시에서 뺀다. 설치 안내(download/index.html)는 넣는다 */
 const files = walk(outDir).filter((file) => {
   const rel = path.relative(outDir, file).split(path.sep).join('/');
-  if (rel === 'sw.js' || rel.startsWith('voice/') || rel.endsWith('.zip')) return false;
+  if (rel === 'sw.js' || rel.startsWith('voice/') || rel.endsWith('.zip') || rel.endsWith('.exe')) return false;
   return PRECACHE_EXT.has(path.extname(rel).toLowerCase());
 });
 const precache = Array.from(new Set(files.map(toUrl))).sort();
@@ -117,5 +131,6 @@ fs.writeFileSync(path.join(outDir, 'sw.js'), sw, 'utf8');
 process.stdout.write('\n  내보내기 마감\n');
 process.stdout.write(`    기준 경로   ${scope}\n`);
 process.stdout.write(`    꾸러미      ${zipNote}\n`);
+process.stdout.write(`    설치 파일   ${desktopNote}\n`);
 process.stdout.write(`    매니페스트  out/manifest.webmanifest\n`);
 process.stdout.write(`    서비스 워커 out/sw.js · 선캐시 ${precache.length}개 · 배경 음성 ${voice.length}개 · ${cacheName}\n\n`);

@@ -10,6 +10,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # 같은 커밋의 desktop.yml 실행 상태를 묻는 데 필요하다
+  actions: read
 
 concurrency:
   group: pages
@@ -67,7 +69,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for i in $(seq 1 30); do
-            STATUS=$(gh run list --workflow desktop.yml --commit "$GITHUB_SHA" --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"' 2>/dev/null || echo "")
+            STATUS=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/desktop.yml/runs?head_sha=${GITHUB_SHA}&per_page=1" \
+              --jq '.workflow_runs[0] | "\(.status) \(.conclusion)"' 2>&1) || true
             echo "desktop.yml: ${STATUS:-없음}"
             case "$STATUS" in
               "completed success") break ;;

@@ -94,12 +94,12 @@ export default function HelpPanel({ onGuardian }: { onGuardian: () => void }) {
                 </dl>
               </>
             ) : (
-              <p className="k-help-empty">{easy ? '왼쪽 칸에 마우스를 올리거나 도면에서 무언가를 고르면 여기서 설명해 줄게.' : '팔레트 항목에 올리거나 도면의 블록을 선택하면 설명이 나온다.'}</p>
+              <p className="k-help-empty">{easy ? '왼쪽 칸에 마우스를 올리면 그게 뭔지 알려 줄게.' : '팔레트 항목에 올리면 설명이 나온다.'}</p>
             )}
           </section>
 
-          <section className="k-help-moves" data-help-section="moves">
-            <h3>{easy ? '어떻게 해?' : '조작법'}</h3>
+          <details className="k-help-moves" data-help-section="moves">
+            <summary>{easy ? '어떻게 해? 손놀림 보기' : '조작법 보기'}</summary>
             <ul>
               {moves.map((m) => (
                 <li key={m.title}>
@@ -108,15 +108,15 @@ export default function HelpPanel({ onGuardian }: { onGuardian: () => void }) {
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
 
-          <section className="k-help-guardian" data-help-section="guardian">
-            <h3>어른과 함께</h3>
+          <details className="k-help-guardian" data-help-section="guardian">
+            <summary>어른과 함께 볼 것</summary>
             <p>{stepHelp.guardian}</p>
             <button type="button" className="k-link" onClick={onGuardian} data-coach="kids-guardian-open">
               선생님·보호자 안내 전체 보기
             </button>
-          </section>
+          </details>
         </div>
       )}
     </aside>

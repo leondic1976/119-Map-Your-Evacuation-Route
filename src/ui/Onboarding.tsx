@@ -55,7 +55,7 @@ export default function Onboarding({ open, onClose }: Props) {
   const [rotation, setRotation] = useState<PlanRotation>(0);
   const [shell, setShell] = useState<ShellShape>('wide');
   const [vertices, setVertices] = useState<ShellVertex[]>([]);
-  const [drawMessage, setDrawMessage] = useState('격자에서 집의 모서리를 차례로 눌러 주세요.');
+  const [drawMessage, setDrawMessage] = useState('격자에서 집의 모서리를 차례로 눌러 줘. 벽은 가로·세로로만 그려져. 비스듬한 벽은 계단 모양으로 그리면 돼.');
 
   useEffect(() => {
     if (!open) return;
@@ -215,7 +215,7 @@ export default function Onboarding({ open, onClose }: Props) {
 
         {page === 'draw' && (
           <div className="k-onboard-body k-shell-draw-page">
-            <div className="k-draw-help"><b>1</b><span>모서리를 차례로 눌러요</span><i /><b>2</b><span>벽선은 자동으로 반듯해져요</span><i /><b>3</b><span>외곽 완성을 눌러요</span></div>
+            <div className="k-draw-help"><b>1</b><span>모서리를 차례로 눌러</span><i /><b>2</b><span>벽은 가로·세로로 반듯하게 이어져</span><i /><b>3</b><span>다 그리면 「외곽 완성」</span></div>
             <ShellDrawBoard vertices={vertices} onAdd={(point) => { setVertices((current) => current.concat(orthogonalVertex(current[current.length - 1], point))); setDrawMessage('계속해서 다음 모서리를 눌러 주세요.'); }} />
             <div className="k-draw-actions">
               <p role="status">{drawMessage}</p>

@@ -773,15 +773,15 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-stage [data-kind="furniture"], .k-stage [data-kind="safety"], .k-stage [data-kind="hazard"], .k-stage [data-kind="marker"]').count()) === 0, '구조 단계 전에 가구나 표시가 놓여 있다');
       assert((await page.locator('[data-palette-group]').count()) === 2, '실·문·창 단계의 방·문 팔레트가 아니다');
       assert((await page.locator('[data-block-id="kitchen_open"]').count()) === 1, '트인 주방 칸이 팔레트에 없다');
-      const quickRooms = page.locator('[data-quick-room]');
-      assert((await quickRooms.count()) === 4, '욕실·현관·발코니·트인 주방 바로 추가 단추 네 개가 없다');
-      assert((await page.locator('[data-quick-room="kitchen"]').innerText()).includes('트인 주방(부엌)'), '트인 주방(부엌) 표기가 빠졌다');
+      /* 욕실·현관·발코니·트인 주방은 팔레트에서 바로 고른다 (설계서 v2.0 §11 — 막대의 빠른 추가는 겹쳐서 없앴다) */
+      assert((await page.locator('[data-block-id="kitchen_open"]').innerText()).includes('트인 주방'), '트인 주방 표기가 빠졌다');
       for (const quick of [
         { id: 'bath', label: '욕실', x: 10, y: 3 },
         { id: 'entry', label: '현관', x: 16, y: 3 },
         { id: 'balcony', label: '발코니', x: 10, y: 10 },
       ] as const) {
-        const button = page.locator(`[data-quick-room="${quick.id}"]`);
+        const button = page.locator(`[data-coach="kids-palette"] [data-block-id="${quick.id}"]`);
+        await button.scrollIntoViewIfNeeded();
         await button.click();
         assert((await button.getAttribute('aria-pressed')) === 'true', `${quick.label} 바로 추가 단추가 선택되지 않았다`);
         assert((await page.locator('.k-build-copy').innerText()).includes('도면의 빈 곳을 눌러'), `${quick.label}을 어디에 놓는지 안내하지 않는다`);
@@ -798,8 +798,8 @@ async function main(): Promise<void> {
           assert((await page.locator('[data-handle]').count()) === 8, '현관을 골라도 도면에 8방향 크기 손잡이가 보이지 않는다');
         }
       }
-      const kitchenButton = page.locator('[data-quick-room="kitchen"]');
-      assert((await kitchenButton.getAttribute('data-room-mode')) === 'zone', '트인 주방이 벽 없는 구역 도구가 아니다');
+      const kitchenButton = page.locator('[data-block-id="kitchen_open"]');
+      await kitchenButton.scrollIntoViewIfNeeded();
       await kitchenButton.click();
       assert((await kitchenButton.getAttribute('aria-pressed')) === 'true', '트인 주방 단추가 선택되지 않았다');
       assert((await page.locator('.k-build-copy').innerText()).includes('끌어 주방(부엌) 크기'), '트인 주방(부엌) 범위를 그리는 방법을 안내하지 않는다');
@@ -810,7 +810,7 @@ async function main(): Promise<void> {
       const kitchenZones = zonedPlan.blocks.filter((block) => block.kind === 'room' && block.roomKind === 'kitchen' && block.wallMode === 'zone' && block.rect);
       assert(kitchenZones.length >= 1, '트인 주방 범위를 그려도 주방 구역이 생기지 않았다');
       assert(zonedPlan.blocks.some((block) => block.openingKind === 'open_passage' && (block as BrowserBlock & { hideInPlan?: boolean }).hideInPlan), '트인 주방과 거실 사이 열린 통로가 없다');
-      assert((await kitchenButton.getAttribute('aria-pressed')) === 'false' && (await kitchenButton.innerText()).includes('다시'), '트인 주방을 만든 뒤 다시 그릴 수 있다는 표시가 없다');
+      assert((await kitchenButton.getAttribute('aria-pressed')) === 'false', '트인 주방을 만든 뒤 도구가 풀리지 않았다');
       const closedKitchenButton = page.locator('[data-block-id="kitchen"]');
       assert((await closedKitchenButton.count()) === 1 && (await closedKitchenButton.innerText()).includes('주방(부엌)'), '벽 있는 독립 주방을 놓는 왼쪽 주방(부엌) 도구가 없다');
       const kitchenZoneId = kitchenZones[0].id;

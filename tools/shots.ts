@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   await page.waitForTimeout(500);
   const stage = await page.locator('svg.k-stage').boundingBox();
   if (!stage) throw new Error('도면이 보이지 않는다.');
-  await page.locator('[data-quick-room="kitchen"]').click();
+  await page.locator('[data-block-id="kitchen_open"]').click();
   await page.mouse.move(stage.x + (15.5 / 24) * stage.width, stage.y + (8.5 / 16) * stage.height);
   await page.mouse.down();
   await page.mouse.move(stage.x + (20.5 / 24) * stage.width, stage.y + (12.5 / 16) * stage.height, { steps: 5 });

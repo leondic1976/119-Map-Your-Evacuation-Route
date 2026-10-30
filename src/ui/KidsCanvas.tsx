@@ -34,6 +34,8 @@ type Drag =
   | { kind: 'move'; id: string; start: Cell; cell: Cell; offset: Cell }
   | { kind: 'openingMove'; id: string; start: { cell: Cell; side: Side }; slot: { cell: Cell; side: Side }; moved: boolean }
   | { kind: 'roomMove'; id: string; start: Cell; dx: number; dy: number }
+  /* 거실 같은 열린 바닥은 끌어도 옮겨지지 않는다 — 한 번만 말해 준다 */
+  | { kind: 'zoneHint'; start: Cell; told: boolean }
   | { kind: 'resize'; id: string; handle: Handle; start: Cell; base: Rect; rect: Rect }
   | { kind: 'route'; last: Cell };
 
@@ -121,7 +123,8 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
 
   const pair = routes[hazardId];
   const inGame = mode === 'game' && game;
-  const canAdjustRooms = step === 'spaces' || step === 'structure' || step === 'edit' || step === 'ready';
+  /* 방은 고르면 언제나 옮기고 크기를 바꿀 수 있다 — 내 자리·만나는 곳 고르는 두 단계만 뺀다 (설계서 v2.0 §10) */
+  const canAdjustRooms = step !== 'mySpot' && step !== 'meeting' && step !== 'template';
   const suggested = useMemo(
     () => (showHint && !inGame ? suggestedRoute({ plan, hazardId, routeSlot, profile, routes }) : null),
     [showHint, inGame, plan, hazardId, routeSlot, profile, routes],
@@ -236,7 +239,8 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     /* 크기 손잡이는 한 방만 골랐을 때만 작동해, 여러 블록의 전체 이동을 가로채지 않는다. */
     if (tool === 'select' && canAdjustRooms && handle && selection && s.multi.length <= 1) {
       const room = plan.blocks.find((b) => b.id === selection);
-      if (room && isRoom(room) && room.wallMode !== 'zone') {
+      /* 트인 주방 같은 구역도 손잡이로 범위를 바꾼다. 거실은 남는 바닥이라 손잡이가 없다 */
+      if (room && isRoom(room) && !(room.wallMode === 'zone' && room.roomKind === 'living')) {
         dragRef.current = { kind: 'resize', id: room.id, handle, start: c, base: room.rect, rect: room.rect };
         setResizePreview(room.rect);
         svgRef.current?.setPointerCapture(e.pointerId);
@@ -291,7 +295,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
           setOpeningPreview({ id, cell: b.cell, side: b.side, allowed: true });
         }
         else if (b && isPoint(b)) dragRef.current = { kind: 'move', id, start: b.cell, cell: b.cell, offset: { x: c.x - b.cell.x, y: c.y - b.cell.y } };
-        else if (b && isRoom(b) && canAdjustRooms) dragRef.current = { kind: 'roomMove', id, start: c, dx: 0, dy: 0 };
+        else if (b && isRoom(b) && canAdjustRooms) {
+          if (b.wallMode === 'zone') dragRef.current = { kind: 'zoneHint', start: c, told: false };
+          else dragRef.current = { kind: 'roomMove', id, start: c, dx: 0, dy: 0 };
+        }
       } else {
         /* 빈 곳에서 끌면 네모로 두른다 */
         dragRef.current = { kind: 'band', start: c, add: false, rect: null };
@@ -422,6 +429,12 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         d.dy = c.y - d.start.y;
         setRoomShift({ id: d.id, dx: d.dx, dy: d.dy });
         break;
+      case 'zoneHint':
+        if (!d.told && !sameCell(c, d.start)) {
+          d.told = true;
+          s.notify('거실 같은 열린 바닥은 끌어 옮기지 않아. 방을 옮기거나 테두리 점으로 크기를 바꾸면 남는 바닥이 저절로 따라와.', 'warn');
+        }
+        break;
       case 'band':
         d.rect = rectFromDrag(d.start, c, 1);
         setBand(d.rect);
@@ -512,7 +525,8 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     setGhost(null);
   };
 
-  const selectedRoom = selection ? plan.blocks.find((b) => b.id === selection && isRoom(b) && b.wallMode !== 'zone') : undefined;
+  /* 손잡이를 보이는 방 — 닫힌 방과 트인 구역. 거실은 남는 바닥이라 뺀다 */
+  const selectedRoom = selection ? plan.blocks.find((b) => b.id === selection && isRoom(b) && !(b.wallMode === 'zone' && b.roomKind === 'living')) : undefined;
   const resizeAllowed = resizePreview && selection
     ? (plan.shell ? canReflowShellRoom(plan, selection, resizePreview) : canPlaceRoom(plan, resizePreview, selection))
     : false;

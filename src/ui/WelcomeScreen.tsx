@@ -1,8 +1,12 @@
 'use client';
 
 /**
- * 첫 소개 화면 — 설계서 v1.6 §8.
+ * 첫 소개 화면 — 설계서 v1.6 §8 · v2.0 §9·§10.
  * 이용자 유형을 고르는 화면이 아니다. 교육 목적을 읽고 한 번 누르면 기존 온보딩으로 간다.
+ *
+ *   위 띠      기관(인천소방본부 심벌)과 「PC에 설치하기」 — 카드와 겹치지 않는 제 자리
+ *   카드       제목 옆에 캐릭터, 세 단계, 큰 시작 단추, 「어떻게 하는지 먼저 보기」
+ *   먼저 보기  세 장면을 큰 그림과 두 줄씩 — 줄은 뜻 단위로 끊는다
  */
 import React, { useEffect, useState } from 'react';
 
@@ -30,44 +34,48 @@ export default function WelcomeScreen({ onStart }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [guide]);
+
   return (
     <main className="k-welcome" data-screen="welcome" aria-labelledby="k-welcome-title">
-      <img
-        className="k-welcome-bg"
-        src={welcomeAssets.background}
-        alt=""
-        aria-hidden="true"
-        fetchPriority="high"
-      />
+      <img className="k-welcome-bg" src={welcomeAssets.background} alt="" aria-hidden="true" fetchPriority="high" />
       <div className="k-welcome-shade" aria-hidden="true" />
 
-      {installAvailable && (
-        <a className="k-welcome-install" href={`${basePath}/download/`} data-coach="kids-welcome-install" title="브라우저에 설치하거나 PC에 내려받아 인터넷 없이 쓴다">
-          <span aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 3v11M7.5 9.5 12 14l4.5-4.5" />
-              <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-            </svg>
+      <header className="k-welcome-top">
+        <div className="k-welcome-agency">
+          <img src={welcomeAssets.symbol} alt="인천소방본부 심벌" />
+          <span>
+            <strong>인천소방본부</strong>
+            <small>어린이 화재안전교육</small>
           </span>
-          PC에 설치하기
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12h13M13 6l6 6-6 6" />
-          </svg>
-        </a>
-      )}
+        </div>
+        {installAvailable && (
+          <a className="k-welcome-install" href={`${basePath}/download/`} data-coach="kids-welcome-install" title="브라우저에 설치하거나 PC에 내려받아 인터넷 없이 쓴다">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3v11M7.5 9.5 12 14l4.5-4.5" />
+                <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+              </svg>
+            </span>
+            PC에 설치하기
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h13M13 6l6 6-6 6" />
+            </svg>
+          </a>
+        )}
+      </header>
 
       <section className="k-welcome-card">
-        <img
-          className="k-welcome-characters"
-          src={welcomeAssets.characters}
-          alt="소방청 공식 캐릭터 영이, 일구, 웅이"
-        />
+        <div className="k-welcome-head">
+          <div className="k-welcome-head-text">
+            <p className="k-welcome-kicker">우리 가족의 안전 미션</p>
+            <h1 id="k-welcome-title">
+              <span>우리집</span>
+              대피지도 그리기
+            </h1>
+          </div>
+          <img className="k-welcome-characters" src={welcomeAssets.characters} alt="소방청 공식 캐릭터 영이, 일구, 웅이" />
+        </div>
 
-        <p className="k-welcome-kicker">우리 가족의 안전 미션</p>
-        <h1 id="k-welcome-title">
-          <span>우리집</span>
-          대피지도 그리기
-        </h1>
         <p className="k-welcome-lead">우리 집에서 빠르게 나갈 길을 미리 찾아보자.</p>
         <p className="k-welcome-purpose">
           방과 문을 직접 그리고 나가는 길을 찾아보면서,
@@ -75,40 +83,42 @@ export default function WelcomeScreen({ onStart }: Props) {
           화재가 났을 때 신속하게 대피하는 방법을 연습한다.
         </p>
 
-        <ul className="k-welcome-missions" aria-label="배울 내용">
+        <ol className="k-welcome-missions" aria-label="배울 내용">
           <li>
+            <i aria-hidden="true">1</i>
             <HomeMissionIcon />
             <span>우리 집 그리기</span>
           </li>
           <li>
+            <i aria-hidden="true">2</i>
             <RouteMissionIcon />
             <span>나가는 길 찾기</span>
           </li>
           <li>
+            <i aria-hidden="true">3</i>
             <PracticeMissionIcon />
             <span>화재 대피 연습</span>
           </li>
-        </ul>
+        </ol>
 
-        <button type="button" className="k-welcome-start" data-coach="kids-welcome-start" onClick={onStart} autoFocus>
-          우리집 대피지도 그리기
-          <span aria-hidden="true">
-            <svg viewBox="0 0 28 28">
-              <path d="M5 14h17M16 7l7 7-7 7" />
+        <div className="k-welcome-actions">
+          <button type="button" className="k-welcome-start" data-coach="kids-welcome-start" onClick={onStart}>
+            우리집 대피지도 그리기
+            <span aria-hidden="true">
+              <svg viewBox="0 0 28 28">
+                <path d="M5 14h17M16 7l7 7-7 7" />
+              </svg>
+            </span>
+          </button>
+          <button type="button" className="k-welcome-guide-open" data-coach="kids-welcome-guide" onClick={() => setGuide(true)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9.3 9.5a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.2 1-1.2 1.8M12 17h.01" />
             </svg>
-          </span>
-        </button>
-        <button type="button" className="k-welcome-guide-open" data-coach="kids-welcome-guide" onClick={() => setGuide(true)}>
-          어떻게 하는지 먼저 보기
-        </button>
-
-        <footer className="k-welcome-agency">
-          <img src={welcomeAssets.symbol} alt="인천소방본부 심벌" />
-          <span>
-            <strong>인천소방본부</strong>
-            <small>어린이 화재안전교육</small>
-          </span>
-        </footer>
+            어떻게 하는지 먼저 보기
+          </button>
+        </div>
+        <p className="k-welcome-foot">인터넷 없이도 되고, 그린 지도는 이 PC 안에만 저장돼.</p>
       </section>
 
       {guide && (
@@ -126,20 +136,36 @@ export default function WelcomeScreen({ onStart }: Props) {
               <li>
                 <i><HomeMissionIcon /></i>
                 <b>1. 우리 집 그리기</b>
-                <span>비슷한 집 모양을 고르고, 방·문·가구를 눌러서 놓아. 똑같지 않아도 돼. 화면이 하나하나 알려 줘.</span>
+                <span>
+                  비슷한 집 모양을 고르고, 방과 문과 가구를 눌러서 놓아.
+                  <br />
+                  똑같지 않아도 돼. 화면이 하나하나 알려 줘.
+                </span>
               </li>
               <li>
                 <i><RouteMissionIcon /></i>
                 <b>2. 나가는 길 찾기</b>
-                <span>내 자리에서 현관문까지 손가락으로 끌어 길을 그어. 못 나갈 때 갈 두 번째 길도.</span>
+                <span>
+                  내 자리에서 현관문까지 끌어서 길을 그어.
+                  <br />
+                  못 나갈 때 갈 두 번째 길도 그려 두자.
+                </span>
               </li>
               <li>
                 <i><PracticeMissionIcon /></i>
                 <b>3. 화재 대피 연습</b>
-                <span>불이 난 집에서 방향키로 움직여 밖으로 나가. 연기가 오면 낮게! 끝나면 잘한 점을 알려 주고 3D 로 다시 봐.</span>
+                <span>
+                  불이 난 집에서 방향키로 움직여 밖으로 나가. 연기가 오면 낮게!
+                  <br />
+                  끝나면 잘한 점을 알려 주고, 3D 로 다시 볼 수 있어.
+                </span>
               </li>
             </ol>
-            <p className="k-note">처음 들어가면 화면의 자리를 하나씩 비춰 주는 안내가 나와. 모르면 언제든 아래 「뭘 해야 해?」를 누르면 캐릭터가 말해 줘.</p>
+            <p className="k-welcome-guide-note">
+              처음 들어가면 화면의 자리를 하나씩 비춰 주는 안내가 나와.
+              <br />
+              모르면 언제든 아래 「뭘 해야 해?」를 누르면 캐릭터가 말해 줘.
+            </p>
             <footer>
               <button type="button" className="k-tb" onClick={() => setGuide(false)}>
                 닫기

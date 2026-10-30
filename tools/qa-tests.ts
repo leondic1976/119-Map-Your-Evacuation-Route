@@ -599,12 +599,13 @@ export function qaTests(check: Check, assert: Assert): void {
    * Electron 으로 감쌀 때 갈아 끼울 자리를 하나로 묶어 두기 위해서다 — 다른 데로
    * 새면 껍데기를 바꿀 때마다 온 코드를 뒤져야 한다.
    */
-  check('[점검] 브라우저 저장소·파일 내려받기가 platform 밖으로 새지 않는다', () => {
+  check('[점검] 브라우저 저장소·파일 내려받기·전체 화면이 platform 밖으로 새지 않는다', () => {
     const bad: string[] = [];
     for (const f of sourceFiles(path.join(root, 'src'), ['.ts', '.tsx'])) {
       if (rel(f).startsWith('src/platform/')) continue;
       const src = read(f);
-      for (const m of src.matchAll(/(?:local|session)Storage|createObjectURL|\.download\s*=/g)) {
+      /* 전체 화면 API 도 바깥 세계다 (설계서 v1.19 §2.2) — Host.screen 만 부른다 */
+      for (const m of src.matchAll(/(?:local|session)Storage|createObjectURL|\.download\s*=|requestFullscreen|exitFullscreen|fullscreenElement|fullscreenEnabled/g)) {
         const line = src.slice(0, m.index ?? 0).split('\n').pop() ?? '';
         if (/^\s*(\*|\/\/)/.test(line)) continue;
         bad.push(`${rel(f)}:${src.slice(0, m.index ?? 0).split('\n').length} ${m[0]}`);
@@ -691,6 +692,28 @@ export function qaTests(check: Check, assert: Assert): void {
       }
     }
     assert(bad.length === 0, bad.slice(0, 3).join(' | '));
+  });
+
+  /**
+   * 3D 사실감은 코드로만 낸다 (설계서 v1.19 §4.1). 하늘·환경광·재질·불꽃이 파일을 받아오면
+   * 인터넷이 끊긴 교실에서 장면이 깨진다 — 소스에서 바깥 자산 흔적을 찾는다.
+   */
+  check('[점검] 3D 사실감 기법(환경광·물리 하늘·PCSS·물리 유리·후처리·노이즈 불꽃)이 코드로만 들어 있다 (설계서 v1.19 §4.1)', () => {
+    const scene = read(path.join(root, 'src/ui/replay3d/Scene.tsx'));
+    const sky = read(path.join(root, 'src/ui/replay3d/Sky.tsx'));
+    const effects = read(path.join(root, 'src/ui/replay3d/Effects.tsx'));
+    const fire = read(path.join(root, 'src/ui/replay3d/Fire.tsx'));
+    const smoke = read(path.join(root, 'src/ui/replay3d/Smoke.tsx'));
+    const textures = read(path.join(root, 'src/ui/replay3d/textures.ts'));
+    assert(sky.includes('PMREMGenerator') && sky.includes("from 'three/examples/jsm/objects/Sky.js'"), '하늘 환경광(PMREM)과 물리 하늘이 없다');
+    assert(scene.includes('SoftShadows') && scene.includes('meshPhysicalMaterial') && scene.includes('normalMap='), 'PCSS 부드러운 그림자·유리 물리 재질·법선 맵이 없다');
+    assert(effects.includes('N8AO') && effects.includes('TiltShift2') && effects.includes('multisampling'), '후처리(AO·피사계 심도·MSAA)가 없다');
+    assert(fire.includes('fbm(') && smoke.includes('fbm(') && textures.includes('normalMap'), '불꽃·연기 노이즈 셰이더나 절차형 법선 맵이 없다');
+    const all = scene + sky + effects + fire + smoke + textures;
+    assert(!/\.(png|jpg|jpeg|webp|hdr|exr|gltf|glb|ktx2)['"]/.test(all), '3D 가 바깥 그림·모델 파일을 쓴다 (NFR-1)');
+    assert(!/fetch\(|new Image\(|TextureLoader|RGBELoader|GLTFLoader|useTexture|useGLTF|useEnvironment/.test(all), '3D 가 바깥에서 자산을 받아온다 (NFR-1)');
+    /* 움직임을 줄이라는 기기에서는 불꽃·연기가 멈춘다 */
+    assert(fire.includes('reduced ? 0 : clock.elapsedTime') && smoke.includes('reduced ? 0 : clock.elapsedTime'), '불꽃·연기가 prefers-reduced-motion 을 따르지 않는다');
   });
 
   /**

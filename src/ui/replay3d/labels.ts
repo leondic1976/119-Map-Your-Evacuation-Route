@@ -106,26 +106,6 @@ export function makeDiscTexture(color: string, ring: string): THREE.CanvasTextur
   return t;
 }
 
-/** 연기 알갱이 — 가운데가 짙고 가장자리로 사라지는 동그라미 */
-export function makePuffTexture(): THREE.CanvasTexture {
-  const s = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = s;
-  canvas.height = s;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.45, 'rgba(255,255,255,0.55)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, s, s);
-  }
-  const t = new THREE.CanvasTexture(canvas);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
 /** 빛나는 길 위의 화살표 — 흐르게 하려고 세로로 반복해 쓴다 */
 export function makeArrowTexture(): THREE.CanvasTexture {
   const w = 64;

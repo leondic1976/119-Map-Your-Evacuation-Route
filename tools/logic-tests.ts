@@ -47,7 +47,8 @@ import { normalizeEditablePlan, ruleReportsFor, useKids } from '../src/store/kid
 import { KIDS } from '../src/ui/KidCharacters';
 import { avatar3dIdentity, CHILD_BODY_SCALE, CHILD_HEAD_SCALE, CHILD_NAME_MARK_Y } from '../src/ui/replay3d/Avatar3D';
 import { CHILD_EYE_CROUCH, CHILD_EYE_STAND } from '../src/ui/replay3d/Scene';
-import { buildDoors } from '../src/ui/replay3d/geometry';
+import { STRIDE, buildDoors, buildHouse } from '../src/ui/replay3d/geometry';
+import { ZOOM_STEPS, nearestZoomIndex, nextZoom, zoomPercent } from '../src/core/zoom';
 import { lowerQuality, settingsFor } from '../src/ui/replay3d/quality';
 import { gradeModeForGrade, displayName } from '../src/types/save';
 import { desktopAssetNames, desktopDownloadPaths, humanBytes } from '../src/content/release';
@@ -895,6 +896,44 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(ultra.textureSize > high.textureSize && high.textureSize > low.textureSize, '절차형 재질 크기가 내려가지 않는다');
     assert(ultra.dpr[1] >= 2.5 && ultra.textureSize >= 1024, '고급 화질이 v1.11 고해상도 기준에 못 미친다');
     assert(lowerQuality('ultra') === 'high' && lowerQuality('high') === 'low' && lowerQuality('low') === 'low', '자동 화질 하향 순서가 다르다');
+    /* v1.19 §4.1 — 사실감 기법도 단계를 따른다. 가벼움은 아무 후처리도 걸지 않는다 */
+    assert(ultra.softShadows && !high.softShadows && !low.softShadows, '부드러운 그림자(PCSS)는 고급만이어야 한다');
+    assert(ultra.dof && !high.dof && !low.dof, '피사계 심도는 고급만이어야 한다');
+    assert(ultra.msaa === 4 && high.msaa === 4 && low.msaa === 0, 'MSAA 단계가 다르다');
+    assert(ultra.sky === 'physical' && high.sky === 'physical' && low.sky === 'gradient', '물리 하늘 단계가 다르다');
+    assert(ultra.fireOctaves > high.fireOctaves && high.fireOctaves > low.fireOctaves, '불꽃 옥타브가 내려가지 않는다');
+    assert(ultra.embers && !high.embers && !low.embers && !low.postprocessing && !low.shadows, '불씨는 고급만, 가벼움은 후처리·그림자 없음이어야 한다');
+  });
+
+  check('도면 확대는 맞춤 1배에서 여섯 단계만 오르내리고 끝에서 멈춘다 (설계서 v1.19 §2.1)', () => {
+    let z = 1;
+    const seen = [z];
+    for (let i = 0; i < 8; i += 1) {
+      z = nextZoom(z, 'in');
+      seen.push(z);
+    }
+    assert(z === ZOOM_STEPS[ZOOM_STEPS.length - 1], `끝에서 멈추지 않는다: ${z}`);
+    assert(seen.slice(0, ZOOM_STEPS.length).join() === ZOOM_STEPS.join(), `단계가 다르다: ${seen.join()}`);
+    assert(nextZoom(3, 'out') === 2.5 && nextZoom(1, 'out') === 1, '줄이기가 한 단계씩 내려가지 않거나 1배 아래로 간다');
+    assert(nextZoom(2.5, 'fit') === 1 && nextZoom(1.37, 'in') === 1.5 && nearestZoomIndex(1.37) === 1, '맞춤·가까운 단계 계산이 다르다');
+    assert(zoomPercent(1.25) === 125, '백분율이 다르다');
+  });
+
+  check('집 지오메트리는 벽·가구·유리 세 벌이고 정점마다 UV 가 붙는다 (설계서 v1.19 §4.1)', () => {
+    const plan = template('apt_2room');
+    const parts = buildHouse(plan);
+    assert(STRIDE === 11, `STRIDE ${STRIDE}`);
+    for (const [name, data] of Object.entries(parts)) {
+      assert(data.length % STRIDE === 0, `${name} 정점 줄 길이가 STRIDE 의 배수가 아니다`);
+      for (let i = 9; i < data.length; i += STRIDE) {
+        if (!Number.isFinite(data[i]) || !Number.isFinite(data[i + 1])) throw new Error(`${name} 의 UV 가 수가 아니다`);
+      }
+    }
+    assert(parts.walls.length > 0 && parts.furniture.length > 0, '벽이나 가구가 비었다');
+    /* 바닥 면의 UV 는 도면 좌표와 같다 — 한 칸이 1 이라 무늬가 방 크기에 따라 늘어나지 않는다 */
+    const u = parts.walls[9];
+    const v = parts.walls[10];
+    assert(Math.abs(u - parts.walls[0]) < 1e-6 && Math.abs(v - parts.walls[2]) < 1e-6, `바닥 UV 가 도면 좌표와 다르다: ${u},${v}`);
   });
 
   check('닫힌 창은 확산을 늦추고, 열린 창은 돕는다 (설계서 v1.2 §2.2)', () => {

@@ -1482,6 +1482,56 @@
   flex: 1;
 }
 
+/* 패널 접기·펴기 (설계서 v1.19 §2.3) — 접으면 오른쪽 위에 작은 「설정」 단추만 남는다 */
+.k-r-fold {
+  width: var(--k-hit);
+  height: var(--k-hit);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #3c5265;
+  border-radius: 10px;
+  background: #17222d;
+  color: #cdd8e4;
+  cursor: pointer;
+}
+
+.k-r-fold:hover {
+  border-color: #75bbed;
+  background: #233d52;
+}
+
+.k-r-panel-open {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  justify-self: end;
+  position: relative;
+  z-index: 20;
+  margin: 12px;
+  min-height: var(--k-hit);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(11, 19, 28, 0.92);
+  color: #eaf2f8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.k-r-panel-open:hover {
+  border-color: #75bbed;
+}
+
+.k-replay.panel-closed .k-r-scene-hud {
+  right: 18px;
+}
+
 .k-r-scene-hud {
   position: absolute;
   left: 18px;

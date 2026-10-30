@@ -13,11 +13,14 @@ import {
   Gauge,
   House,
   LocateFixed,
+  PanelRightClose,
   Pause,
   Play,
   RotateCcw,
   Settings2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import type { Layers, ViewMode } from './Scene';
 import type { Quality } from './quality';
@@ -42,13 +45,15 @@ interface CameraToolbarProps {
   view: ViewMode;
   onView: (view: ViewMode) => void;
   onLook: (direction: LookDirection) => void;
+  /** 가까이·멀리 — 휠과 같은 값을 바꾼다 (설계서 v1.19 §2.3) */
+  onZoom: (direction: 'in' | 'out') => void;
   moved: boolean;
   onReset: () => void;
   onClose: () => void;
 }
 
 /** 가장 중요한 시점 조작은 캔버스 위를 가리지 않는 독립된 첫 줄에 둔다. */
-export function CameraToolbar({ seconds, view, onView, onLook, moved, onReset, onClose }: CameraToolbarProps) {
+export function CameraToolbar({ seconds, view, onView, onLook, onZoom, moved, onReset, onClose }: CameraToolbarProps) {
   return (
     <header className="k-r-topbar" aria-label="3D 시점 조작">
       <div className="k-r-top-title">
@@ -97,6 +102,12 @@ export function CameraToolbar({ seconds, view, onView, onLook, moved, onReset, o
         >
           <LocateFixed size={22} />
         </button>
+        <button type="button" className="k-r-look-button" data-look-zoom="in" onClick={() => onZoom('in')} aria-label="가까이 보기" title="가까이 보기 (휠 · +)">
+          <ZoomIn size={22} />
+        </button>
+        <button type="button" className="k-r-look-button" data-look-zoom="out" onClick={() => onZoom('out')} aria-label="멀리 보기" title="멀리 보기 (휠 · -)">
+          <ZoomOut size={22} />
+        </button>
       </div>
       <button type="button" className="k-x" onClick={onClose} aria-label="3D 다시 보기 닫기">
         <X size={24} strokeWidth={2.6} />
@@ -117,6 +128,9 @@ interface Props {
   onLayer: (k: keyof Layers, v: boolean) => void;
   quality: Quality;
   onQuality: (q: Quality) => void;
+  /** 패널이 펴져 있는가. 접으면 작은 「설정」 단추만 남는다 */
+  open: boolean;
+  onToggle: () => void;
 }
 
 const LAYER_LABELS: { id: keyof Layers; label: string }[] = [
@@ -137,12 +151,22 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
 }
 
 /** 재생·레이어·화질처럼 덜 자주 쓰는 기능만 오른쪽 보조 패널에 둔다. */
-export default function Hud({ playing, onPlay, onRestart, onStep, speed, speeds, onSpeed, layers, onLayer, quality, onQuality }: Props) {
+export default function Hud({ playing, onPlay, onRestart, onStep, speed, speeds, onSpeed, layers, onLayer, quality, onQuality, open, onToggle }: Props) {
+  if (!open) {
+    return (
+      <button type="button" className="k-r-panel-open" data-coach="kids-replay-panel-toggle" onClick={onToggle} aria-expanded={false} aria-label="화면 설정 펴기" title="화면 설정">
+        <Settings2 size={20} aria-hidden="true" /> 설정
+      </button>
+    );
+  }
   return (
     <aside className="k-r-panel" aria-label="3D 화면 설정">
       <header className="k-r-head">
         <Settings2 size={20} aria-hidden="true" />
         <h2>화면 설정</h2>
+        <button type="button" className="k-r-fold" data-coach="kids-replay-panel-toggle" onClick={onToggle} aria-expanded aria-label="화면 설정 접기" title="접기 — 장면이 끝까지 보인다">
+          <PanelRightClose size={20} aria-hidden="true" />
+        </button>
       </header>
 
       <div className="k-r-row" role="group" aria-label="재생">
@@ -173,7 +197,7 @@ export default function Hud({ playing, onPlay, onRestart, onStep, speed, speeds,
           <button type="button" aria-pressed={quality === 'low'} data-quality="low" onClick={() => onQuality('low')}>가벼움</button>
         </div>
       </div>
-      <p className="k-r-hint">화면을 마우스로 끌거나 방향키를 눌러 둘러보세요.</p>
+      <p className="k-r-hint">마우스로 끌거나 방향키로 둘러보자. 두 번 누르면 정면으로 돌아온다.</p>
     </aside>
   );
 }

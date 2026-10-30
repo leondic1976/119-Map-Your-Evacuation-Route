@@ -1,22 +1,16 @@
 'use client';
 
 /**
- * 불과 연기 — 설계서 v1.2 §8.4 를 three 위에 다시 얹은 것.
+ * 불과 연기 — 설계서 v1.2 §8.4 · v1.19 §4.1.
  *
- * 칸마다 판을 세우는 대신 **인스턴스 하나**로 그린다. 큰 집에서 칸이 수백 개라
- * 판을 따로 만들면 그리기 호출이 그만큼 늘어난다.
- *
- * 판은 늘 카메라를 마주 봐야 한다(빌보드). 안 그러면 옆에서 볼 때 종잇장처럼 사라진다.
- * 모든 판이 같은 방향을 보므로 회전값 하나를 전부에 나눠 쓴다.
- *
- * 연기는 위층이 먼저 짙어진다 — "연기가 위에서부터 내려온다"가 눈에 보여야
- * 몸을 낮추라는 말이 와닿는다.
+ * 리플레이 컷(칸마다 불 세기·연기 농도)을 불꽃·연기·불씨 입력으로 바꾼다.
+ * 그림은 `Fire.tsx`·`Smoke.tsx` 가 셰이더로 그린다. 여기는 컷이 바뀔 때만 다시 계산한다.
  */
-import React, { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import React, { useMemo } from 'react';
 import type { GridSpec } from '../../types/plan';
-import { makePuffTexture } from './labels';
+import { Embers, Flames, type FireCell } from './Fire';
+import Smoke, { type SmokeCell } from './Smoke';
+import type { QualitySettings } from './quality';
 
 /** 연기 층 높이(칸 단위. 한 칸 60cm 이므로 4 = 2.4m) */
 const LAYERS = [0.7, 2.0, 3.3];
@@ -32,101 +26,44 @@ export interface HazardFrameView {
 interface Props {
   grid: GridSpec;
   frame: HazardFrameView;
+  quality: QualitySettings;
+  reduced: boolean;
 }
 
-const dummy = new THREE.Object3D();
-const tint = new THREE.Color();
+function seedOf(i: number): number {
+  return ((i * 2654435761) >>> 0) % 1000 / 1000;
+}
 
-export default function Hazard({ grid, frame }: Props) {
-  const puff = useMemo(() => makePuffTexture(), []);
-  const smokeRef = useRef<THREE.InstancedMesh>(null);
-  const fireRef = useRef<THREE.InstancedMesh>(null);
-  /** 마지막으로 채운 컷과 카메라 방향 — 둘 다 그대로면 다시 채우지 않는다 */
-  const lastRef = useRef<{ frame: HazardFrameView | null; quat: THREE.Quaternion }>({
-    frame: null,
-    quat: new THREE.Quaternion(0, 0, 0, 0),
-  });
-
-  useEffect(() => () => puff.dispose(), [puff]);
-
+export default function Hazard({ grid, frame, quality, reduced }: Props) {
   /* 최악의 경우까지 자리를 잡아 둔다 — 도중에 늘리면 다시 만들어야 한다 */
   const maxSmoke = grid.width * grid.height * LAYERS.length;
   const maxFire = grid.width * grid.height * 2;
 
-  useFrame(({ camera }) => {
-    const smoke = smokeRef.current;
-    const fire = fireRef.current;
-    if (!smoke || !fire) return;
-
-    const last = lastRef.current;
-    const turned = !last.quat.equals(camera.quaternion);
-    if (last.frame === frame && !turned) return;
-    last.frame = frame;
-    last.quat.copy(camera.quaternion);
-
-    let s = 0;
-    let f = 0;
+  const { fire, smoke } = useMemo(() => {
+    const fire: FireCell[] = [];
+    const smoke: SmokeCell[] = [];
     for (let i = 0; i < frame.secondary.length; i += 1) {
       const x = (i % grid.width) + 0.5;
       const z = Math.floor(i / grid.width) + 0.5;
-
       const density = frame.secondary[i] / 255;
       if (density > 0.05) {
         for (let l = 0; l < LAYERS.length; l += 1) {
           const a = Math.min(0.55, density * LAYER_MIX[l] * 0.7);
           if (a < 0.02) continue;
-          /* 연기 판만 카메라를 마주 본다. 불꽃은 입체 원뿔이라 세워 둔다. */
-          dummy.quaternion.copy(camera.quaternion);
-          dummy.position.set(x, LAYERS[l], z);
-          dummy.scale.setScalar(1.5 + density * 0.5);
-          dummy.updateMatrix();
-          smoke.setMatrixAt(s, dummy.matrix);
-          const g = 0.5 - density * 0.2;
-          smoke.setColorAt(s, tint.setRGB(g, g + 0.02, g + 0.05));
-          s += 1;
+          smoke.push({ x, y: LAYERS[l], z, density: a / 0.55, seed: seedOf(i * 3 + l) });
         }
       }
-
       const heat = frame.primary[i] / 255;
-      if (heat > 0.06) {
-        dummy.quaternion.identity();
-        /* 밑동은 밝은 노랑 */
-        dummy.position.set(x, 0.72, z);
-        dummy.scale.set(0.9 + heat * 0.25, 0.8 + heat * 0.45, 0.9 + heat * 0.25);
-        dummy.updateMatrix();
-        fire.setMatrixAt(f, dummy.matrix);
-        fire.setColorAt(f, tint.setRGB(1, 0.82, 0.35).multiplyScalar(Math.min(1.4, heat * 1.5)));
-        f += 1;
-        /* 그 위로 붉은 혀 */
-        dummy.position.set(x + 0.12, 1.15 + heat * 0.62, z - 0.08);
-        dummy.scale.set(0.62, 0.75 + heat * 0.36, 0.62);
-        dummy.updateMatrix();
-        fire.setMatrixAt(f, dummy.matrix);
-        fire.setColorAt(f, tint.setRGB(0.98, 0.4, 0.13).multiplyScalar(Math.min(1.2, heat * 1.3)));
-        f += 1;
-      }
+      if (heat > 0.06) fire.push({ x, z, heat: Math.min(1, heat), seed: seedOf(i) });
     }
-
-    smoke.count = s;
-    fire.count = f;
-    smoke.instanceMatrix.needsUpdate = true;
-    fire.instanceMatrix.needsUpdate = true;
-    if (smoke.instanceColor) smoke.instanceColor.needsUpdate = true;
-    if (fire.instanceColor) fire.instanceColor.needsUpdate = true;
-  });
+    return { fire, smoke };
+  }, [frame, grid.width]);
 
   return (
     <group>
-      {/* 연기 — 알파 혼합. 뒤가 비쳐야 길이 보인다 */}
-      <instancedMesh ref={smokeRef} args={[undefined, undefined, maxSmoke]} renderOrder={8} frustumCulled={false}>
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={puff} transparent opacity={0.5} depthWrite={false} vertexColors />
-      </instancedMesh>
-      {/* 불 — 입체 원뿔 두 겹과 가산 혼합으로 옆에서도 불꽃 형태가 보인다. */}
-      <instancedMesh ref={fireRef} args={[undefined, undefined, maxFire]} renderOrder={9} frustumCulled={false}>
-        <coneGeometry args={[0.58, 1.45, 12, 1]} />
-        <meshBasicMaterial transparent opacity={0.88} depthWrite={false} blending={THREE.AdditiveBlending} vertexColors toneMapped={false} />
-      </instancedMesh>
+      <Smoke cells={smoke} max={maxSmoke} octaves={quality.fireOctaves} reduced={reduced} />
+      <Flames cells={fire} max={maxFire} octaves={quality.fireOctaves} reduced={reduced} />
+      {quality.embers && <Embers cells={fire} max={maxFire / 2} reduced={reduced} />}
     </group>
   );
 }

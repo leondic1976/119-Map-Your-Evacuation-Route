@@ -869,7 +869,83 @@ async function main(): Promise<void> {
         assert(layout.stageWidth >= viewport.width * 0.5 && layout.stageHeight >= viewport.height * 0.45, `${viewport.width}px 캔버스가 충분히 크지 않다: ${JSON.stringify(layout)}`);
         assert(layout.overflow <= 1, `${viewport.width}px 편집 화면에 가로 넘침 ${layout.overflow}px가 생겼다`);
       }
+      /* 창을 키우면 틀은 그대로이고 도면만 커진다 (설계서 v1.19 §3) */
+      const sizes: Record<number, { top: number; bottom: number; palette: number; howTo: number; stage: number; stageH: number }> = {};
+      for (const width of [1280, 1920]) {
+        await page.setViewportSize({ width, height: width === 1280 ? 800 : 1080 });
+        await page.waitForTimeout(150);
+        sizes[width] = await page.evaluate(() => ({
+          top: document.querySelector('.k-top')?.getBoundingClientRect().height ?? 0,
+          bottom: document.querySelector('.k-bottom')?.getBoundingClientRect().height ?? 0,
+          palette: document.querySelector('.k-palette')?.getBoundingClientRect().width ?? 0,
+          howTo: document.querySelector('.k-howto')?.getBoundingClientRect().width ?? 0,
+          stage: document.querySelector('svg.k-stage')?.getBoundingClientRect().width ?? 0,
+          stageH: document.querySelector('svg.k-stage')?.getBoundingClientRect().height ?? 0,
+        }));
+      }
+      assert(
+        sizes[1280].top === sizes[1920].top && sizes[1280].bottom === sizes[1920].bottom && sizes[1280].palette === sizes[1920].palette && sizes[1280].howTo === sizes[1920].howTo,
+        `창을 키우니 틀이 같이 커진다: ${JSON.stringify(sizes)}`,
+      );
+      assert(sizes[1920].stage >= sizes[1280].stage * 1.3 && sizes[1920].stageH >= sizes[1280].stageH * 1.25, `창을 키워도 도면이 그만큼 커지지 않는다: ${JSON.stringify(sizes)}`);
       await page.setViewportSize({ width: 1440, height: 900 });
+    });
+
+    await check('도면을 확대·축소·맞춤으로 키우고 Ctrl+휠·키로도 바꾼다, 전체 화면 단추가 있다 (설계서 v1.19 §2.1·§2.2)', async () => {
+      const zoomBox = page.locator('[data-coach="kids-zoom"]');
+      assert((await zoomBox.locator('button').count()) === 3, '확대 단추 묶음이 셋이 아니다');
+      const before = await page.locator('svg.k-stage').boundingBox();
+      await zoomBox.locator('[data-zoom="in"]').click();
+      await page.waitForTimeout(150);
+      const after = await page.locator('svg.k-stage').boundingBox();
+      assert(Boolean(before && after && after.width > before.width * 1.2), `확대해도 도면이 커지지 않는다: ${JSON.stringify({ before, after })}`);
+      assert((await page.locator('.k-canvas-inner').getAttribute('data-zoom')) === '1.25', '확대 배율이 1.25 가 아니다');
+      await zoomBox.locator('[data-zoom="in"]').click();
+      await page.waitForTimeout(150);
+      const scroll = await page.evaluate(() => {
+        const c = document.querySelector('.k-canvas') as HTMLElement;
+        return { w: c.scrollWidth - c.clientWidth, h: c.scrollHeight - c.clientHeight };
+      });
+      assert(scroll.w > 10 || scroll.h > 10, `확대했는데 스크롤이 생기지 않는다: ${JSON.stringify(scroll)}`);
+      await zoomBox.locator('[data-zoom="fit"]').click();
+      await page.waitForTimeout(150);
+      assert((await page.locator('.k-canvas-inner').getAttribute('data-zoom')) === '1', '맞춤이 1배로 돌아오지 않는다');
+      const fit = await page.locator('svg.k-stage').boundingBox();
+      assert(Boolean(before && fit && Math.abs(fit.width - before.width) < 2), '맞춤 크기가 처음과 다르다');
+      /* Ctrl+휠 — 브라우저 확대가 아니라 도면 확대다 */
+      const stageBox = await page.locator('svg.k-stage').boundingBox();
+      if (!stageBox) throw new Error('도면이 없다');
+      await page.mouse.move(stageBox.x + stageBox.width / 2, stageBox.y + stageBox.height / 2);
+      await page.keyboard.down('Control');
+      await page.mouse.wheel(0, -120);
+      await page.keyboard.up('Control');
+      await page.waitForTimeout(150);
+      assert((await page.locator('.k-canvas-inner').getAttribute('data-zoom')) === '1.25', 'Ctrl+휠로 확대되지 않는다');
+      await page.keyboard.press('0');
+      await page.waitForTimeout(150);
+      assert((await page.locator('.k-canvas-inner').getAttribute('data-zoom')) === '1', '0 키로 맞춤이 되지 않는다');
+      await page.keyboard.press('+');
+      await page.waitForTimeout(150);
+      assert((await page.locator('.k-canvas-inner').getAttribute('data-zoom')) === '1.25', '+ 키로 확대되지 않는다');
+      await page.keyboard.press('-');
+      await page.waitForTimeout(150);
+      assert((await page.locator('.k-canvas-inner').getAttribute('data-zoom')) === '1', '- 키로 축소되지 않는다');
+      /* 전체 화면 단추 — 헤드리스는 전체 화면을 못 하므로 있고 눌러도 깨지지 않는지만 본다 */
+      const fullscreen = page.locator('[data-coach="kids-fullscreen"]');
+      if (await fullscreen.count()) {
+        const box = await fullscreen.boundingBox();
+        assert(Boolean(box && box.height >= 48), '전체 화면 단추가 48px 미만이다');
+        await fullscreen.click();
+        await page.waitForTimeout(250);
+        assert((await page.locator('.k-app').count()) === 1, '전체 화면 단추를 누르니 화면이 깨졌다');
+        if (await page.evaluate(() => Boolean(document.fullscreenElement))) {
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(250);
+        }
+      }
+    });
+
+    await check('실·문·창·크기 다음은 가구 단계이고 가구 크기를 조절한다', async () => {
       await page.locator('[data-build-next]').click();
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'furniture', '실·문·창·크기 다음이 바로 가구 단계가 아니다');
       assert((await page.locator('.k-cats .k-cat').count()) === 2, '가구 단계에 가구·위험 갈래가 없다');
@@ -1855,6 +1931,23 @@ async function main(): Promise<void> {
       await page.waitForTimeout(300);
       assert((await page.locator('[data-view="dollhouse"]').getAttribute('aria-pressed')) === 'true', '집 전체 시점이 안 바뀐다');
       assert((await replay.getAttribute('data-player-representation')) === 'full-avatar', '집 전체 보기에 전신 캐릭터 하나만 남지 않았다');
+
+      /* 가까이·멀리 단추와 패널 접기 (설계서 v1.19 §2.3) */
+      assert((await page.locator('[data-look-zoom]').count()) === 2, '가까이·멀리 단추가 둘이 아니다');
+      const zoom0 = await replay.getAttribute('data-camera-zoom');
+      await page.locator('[data-look-zoom="in"]').click();
+      await page.waitForTimeout(200);
+      assert((await replay.getAttribute('data-camera-zoom')) !== zoom0, '가까이 단추가 작동하지 않는다');
+      await page.locator('[data-look-zoom="out"]').click();
+      await page.waitForTimeout(200);
+      assert((await replay.getAttribute('data-camera-zoom')) === zoom0, '멀리 단추가 되돌리지 않는다');
+      assert((await page.locator('.k-r-panel').count()) === 1, '설정 패널이 없다');
+      await page.locator('[data-coach="kids-replay-panel-toggle"]').click();
+      await page.waitForTimeout(200);
+      assert((await page.locator('.k-r-panel').count()) === 0 && (await page.locator('.k-r-panel-open').count()) === 1, '패널이 접히지 않는다');
+      await page.locator('[data-coach="kids-replay-panel-toggle"]').click();
+      await page.waitForTimeout(200);
+      assert((await page.locator('.k-r-panel').count()) === 1, '패널이 다시 펴지지 않는다');
       await page.locator('[data-coach="kids-replay-play"]').click();
       await page.waitForTimeout(200);
 

@@ -87,6 +87,13 @@ async function main(): Promise<void> {
   await page.mouse.click(stage.x + (4.5 / 24) * stage.width, stage.y + (4.5 / 16) * stage.height);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(dest, '2-spaces.png') });
+  /* 확대 두 단계 — 도면이 칸을 넘어 스크롤된다 (설계서 v1.19 §2.1) */
+  await page.locator('[data-zoom="in"]').click();
+  await page.locator('[data-zoom="in"]').click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(dest, '2-spaces-zoom.png') });
+  await page.locator('[data-zoom="fit"]').click();
+  await page.waitForTimeout(200);
   await page.locator('.k-stage [data-wall-mode="closed"]').first().click();
   await page.screenshot({ path: path.join(dest, '2a-room-adjust.png') });
   const roomWall = await page.locator('.k-stage [data-wall-mode="closed"]').first().boundingBox();
@@ -145,13 +152,14 @@ async function main(): Promise<void> {
   await page.locator('[data-quality="ultra"]').click();
   await page.locator('[data-look-direction="right"]').click();
   await page.locator('[data-look-direction="up"]').click();
-  await page.waitForTimeout(1400);
+  /* 고급 화질은 재질을 굽고 셰이더를 엮는 데 시간이 든다 — 소프트웨어 렌더링에서는 더 */
+  await page.waitForTimeout(4000);
   await page.screenshot({ path: path.join(dest, '5a-replay3d-character.png') });
   await page.locator('[data-view="follow"]').click();
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(dest, '5b-replay3d-character-close.png') });
   await page.locator('[data-view="dollhouse"]').click();
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(dest, '5c-replay3d-dollhouse.png') });
   /* 짧은 기록은 캡처 중 끝 장면으로 넘어갈 수 있다. 현재 보이는 닫기 길을 직접 누른다. */
   const replayClose = page

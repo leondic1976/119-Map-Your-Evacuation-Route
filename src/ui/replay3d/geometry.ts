@@ -11,8 +11,8 @@
 import type { Cell, FloorPlan, OpeningBlock, Rect, RoomBlock, Side } from '../../types/plan';
 import { isOpening, isPoint, isRoom } from '../../types/plan';
 import { openingCells } from '../../core/grid/occupancy';
-/** 한 줄 = 위치3 · 법선3 · 색3 */
-export const STRIDE = 9;
+/** 한 줄 = 위치3 · 법선3 · 색3 · UV2 (v1.19 §4.1 — 절차형 법선 맵이 UV 를 쓴다) */
+export const STRIDE = 11;
 
 /** 벽 높이(칸 단위). 한 칸을 60cm 로 보면 2.4m 다 */
 export const WALL_H = 4;
@@ -20,8 +20,8 @@ const WALL_T = 0.16;
 
 const COLOR = {
   floor: [0.9, 0.9, 0.86],
-  wallOut: [0.82, 0.83, 0.85],
-  wallIn: [0.9, 0.9, 0.9],
+  wallOut: [0.72, 0.72, 0.73],
+  wallIn: [0.8, 0.79, 0.76],
   frame: [0.45, 0.35, 0.24],
   glass: [0.55, 0.75, 0.9],
   door: [0.62, 0.44, 0.28],
@@ -50,13 +50,22 @@ const ROOM_TINT: Record<RoomBlock['roomKind'], number[]> = {
   elevator_hall: [0.93, 0.8, 0.8],
 };
 
-/** 한 줄 = 위치3 · 법선3 · 색3 */
+/** 한 줄 = 위치3 · 법선3 · 색3 · UV2 */
 class Builder {
   data: number[] = [];
 
   tri(a: number[], b: number[], c: number[], color: number[]): void {
     const n = normal(a, b, c);
-    for (const p of [a, b, c]) this.data.push(p[0], p[1], p[2], n[0], n[1], n[2], color[0], color[1], color[2]);
+    /* UV 는 면이 향한 축에 따라 평면 투영한다 — 바닥은 x·z, 벽은 진행 방향·높이. 한 칸이 1 이다 */
+    const ax = Math.abs(n[0]);
+    const ay = Math.abs(n[1]);
+    const az = Math.abs(n[2]);
+    const flat = ay >= ax && ay >= az;
+    for (const p of [a, b, c]) {
+      const u = flat ? p[0] : ax >= az ? p[2] : p[0];
+      const v = flat ? p[2] : p[1];
+      this.data.push(p[0], p[1], p[2], n[0], n[1], n[2], color[0], color[1], color[2], u, v);
+    }
   }
 
   quad(a: number[], b: number[], c: number[], d: number[], color: number[]): void {
@@ -106,12 +115,21 @@ function inRect(r: Rect, c: Cell): boolean {
   return c.x >= r.x && c.y >= r.y && c.x < r.x + r.w && c.y < r.y + r.h;
 }
 
+/** 재질이 다른 세 벌 — 벽(바닥 바탕·문틀 포함) · 가구 · 유리 (설계서 v1.19 §4.1) */
+export interface HouseParts {
+  walls: Float32Array;
+  furniture: Float32Array;
+  glass: Float32Array;
+}
+
 /**
- * 집을 세운다. 바닥·벽·문틀·창·가구 상자를 한 벌의 정점 배열로 낸다.
+ * 집을 세운다. 바닥·벽·문틀·창·가구 상자를 재질별 세 벌의 정점 배열로 낸다.
  * 반투명한 것(연기·불)은 여기 넣지 않는다 — 그리는 차례가 다르다.
  */
-export function buildHouse(plan: FloorPlan): Float32Array {
+export function buildHouse(plan: FloorPlan): HouseParts {
   const b = new Builder();
+  const furn = new Builder();
+  const glass = new Builder();
   const rooms = plan.blocks.filter(isRoom);
   const openings = plan.blocks.filter(isOpening);
   const points = plan.blocks.filter(isPoint);
@@ -160,7 +178,7 @@ export function buildHouse(plan: FloorPlan): Float32Array {
           seen.add(key);
           const outer = !other;
           const op = openingAt(openings, here, side);
-          wallSegment(b, here, side, outer, op);
+          wallSegment(b, glass, here, side, outer, op);
         }
       }
     }
@@ -172,10 +190,10 @@ export function buildHouse(plan: FloorPlan): Float32Array {
     if (p.kind === 'marker') continue;
     const host = rooms.find((r) => inRect(r.rect, p.cell));
     if (!host) continue;
-    furniture(b, p.subKind, p.cell, p.rotation, p.size);
+    furniture(furn, p.subKind, p.cell, p.rotation, p.size);
   }
 
-  return b.toArray();
+  return { walls: b.toArray(), furniture: furn.toArray(), glass: glass.toArray() };
 }
 
 /* 가구 색 — 나무·천·금속·백색가전·화면 */
@@ -328,7 +346,7 @@ function furniture(b: Builder, kind: string, cell: Cell, rotation: number, size:
  *   문   — 아래는 뚫리고 위에 인방(상인방)만 남는다
  *   창   — 아래 허리벽 + 위 인방, 가운데에 유리 판
  */
-function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: OpeningBlock): void {
+function wallSegment(b: Builder, glass: Builder, cell: Cell, side: Side, outer: boolean, op?: OpeningBlock): void {
   const t = outer ? WALL_T * 1.6 : WALL_T;
   const col = outer ? COLOR.wallOut : COLOR.wallIn;
   /* 면의 두 끝점 (도면 좌표) */
@@ -351,12 +369,12 @@ function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: Op
    */
   const EPS = 0.006;
 
-  const put = (from: number, to: number, yLo: number, yHi: number, color: number[]): void => {
+  const put = (from: number, to: number, yLo: number, yHi: number, color: number[], into: Builder = b): void => {
     if (to - from <= 0.001 || yHi - yLo <= 0.001) return;
     const f = from === lo ? from - EPS : from;
     const t2 = to === hi ? to + EPS : to;
-    if (horizontal) b.box(f, yLo, at - t / 2, t2, yHi, at + t / 2, color, color);
-    else b.box(at - t / 2, yLo, f, at + t / 2, yHi, t2, color, color);
+    if (horizontal) into.box(f, yLo, at - t / 2, t2, yHi, at + t / 2, color, color);
+    else into.box(at - t / 2, yLo, f, at + t / 2, yHi, t2, color, color);
   };
 
   if (!op) {
@@ -380,7 +398,10 @@ function wallSegment(b: Builder, cell: Cell, side: Side, outer: boolean, op?: Op
   if (glazed) {
     put(gLo, gHi, 0, 1.5, col); // 허리벽
     put(gLo, gHi, 3.2, WALL_H, col); // 인방
-    put(gLo, gHi, 1.5, 3.2, COLOR.glass); // 유리
+    /* 유리는 따로 낸다 — 비치는 물리 재질을 입힌다. 벽보다 얇게 */
+    const paneT = t;
+    if (horizontal) glass.box(gLo, 1.5, at - paneT * 0.12, gHi, 3.2, at + paneT * 0.12, COLOR.glass, COLOR.glass);
+    else glass.box(at - paneT * 0.12, 1.5, gLo, at + paneT * 0.12, 3.2, gHi, COLOR.glass, COLOR.glass);
   } else {
     put(gLo, gHi, 3.35, WALL_H, col); // 인방 — 문은 2m 높이다
     /* 문틀 — 아주 얇은 기둥 둘 */

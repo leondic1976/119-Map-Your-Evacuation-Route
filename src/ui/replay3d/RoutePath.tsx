@@ -73,6 +73,7 @@ function ribbonGeometry(waypoints: Cell[]): { geo: THREE.BufferGeometry; length:
 
 export default function RoutePath({ waypoints, color, faint = false, animate = true }: Props) {
   const built = useMemo(() => ribbonGeometry(waypoints), [waypoints]);
+  const glow = useMemo(() => new THREE.Color(color).multiplyScalar(faint ? 1.6 : 2.4), [color, faint]);
   const arrowTex = useMemo(() => makeArrowTexture(), []);
   const arrowRef = useRef<THREE.MeshBasicMaterial>(null);
   const flowing = animate && !prefersReducedMotion();
@@ -107,13 +108,15 @@ export default function RoutePath({ waypoints, color, faint = false, animate = t
         <meshBasicMaterial color={color} transparent opacity={faint ? 0.42 : 0.8} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={built.geo} renderOrder={2} position={[0, 0.002, 0]}>
+        {/* 1 을 넘는 색 — 블룸 문턱(1)을 넘어야 띠가 빛난다 (v1.19 §4.1) */}
         <meshBasicMaterial
-          color={color}
+          color={glow}
           transparent
-          opacity={faint ? 0.2 : 0.45}
+          opacity={faint ? 0.3 : 0.6}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
           side={THREE.DoubleSide}
+          toneMapped={false}
         />
       </mesh>
       {/* 그 위에 흐르는 화살표 */}

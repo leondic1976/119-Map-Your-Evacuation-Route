@@ -11,7 +11,6 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { EffectComposer, Bloom, N8AO } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { ReplayFrame } from '../../types/game';
 import { isPoint, type Cell, type FloorPlan, type RoutePair } from '../../types/plan';
@@ -23,6 +22,7 @@ import Hud, { CameraToolbar, type LookDirection } from './Hud';
 import EndingScene from './EndingScene';
 import { FrameWatch, guessQuality, lowerQuality, settingsFor, type Quality } from './quality';
 import { smokeAt } from './Hazard';
+import Effects from './Effects';
 
 interface Props {
   plan: FloorPlan;
@@ -76,6 +76,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   const [quality, setQuality] = useState<Quality>('high');
   const [autoLowered, setAutoLowered] = useState(false);
   const [layers, setLayers] = useState<Layers>({ route: true, trail: true, hazard: true, scenery: true });
+  /** 오른쪽 설정 패널 — 접으면 장면이 끝까지 보인다 (설계서 v1.19 §2.3) */
+  const [panelOpen, setPanelOpen] = useState(true);
   /** 멈춘 뒤 끌어서 둘러보기 — 좌우(yaw)·상하(pitch)와 거리(zoom) */
   const [orbit, setOrbit] = useState({ yaw: 0, pitch: 0, zoom: 1 });
   const closeRef = useRef(onClose);
@@ -125,6 +127,10 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
   }, [onClose]);
 
   const resetView = useCallback(() => setOrbit({ yaw: 0, pitch: 0, zoom: 1 }), []);
+  /* 가까이·멀리 — 휠이 없는 노트북을 위한 단추와 +·- 키가 같은 값을 바꾼다 (설계서 v1.19 §2.3) */
+  const nudgeZoom = useCallback((direction: 'in' | 'out') => {
+    setOrbit((old) => ({ ...old, zoom: Math.max(0.45, Math.min(2.6, old.zoom * (direction === 'in' ? 1.18 : 1 / 1.18))) }));
+  }, []);
   const nudgeLook = useCallback((direction: LookDirection) => {
     const yawStep = Math.PI / 12;
     const pitchStep = Math.PI / 18;
@@ -150,6 +156,11 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
       }
       const target = e.target as HTMLElement | null;
       if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        nudgeZoom(e.key === '-' || e.key === '_' ? 'out' : 'in');
+        return;
+      }
       const direction: LookDirection | null =
         e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right' : e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : null;
       if (!direction) return;
@@ -158,7 +169,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [nudgeLook]);
+  }, [nudgeLook, nudgeZoom]);
 
   const settings = useMemo(() => settingsFor(quality), [quality]);
   const seconds = Math.round((frame?.tick ?? 0) * tickSeconds);
@@ -241,7 +252,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
 
   return (
     <div
-      className="k-replay"
+      className={`k-replay${panelOpen ? '' : ' panel-closed'}`}
       role="dialog"
       aria-modal="true"
       aria-label={`${avatar.name} 캐릭터의 3D 다시 보기`}
@@ -261,6 +272,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
         view={view}
         onView={setView}
         onLook={nudgeLook}
+        onZoom={nudgeZoom}
         moved={moved}
         onReset={resetView}
         onClose={onClose}
@@ -291,21 +303,24 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
             data-character={character}
             data-character-style={avatar.style}
             onPointerDown={startDrag}
+            onDoubleClick={resetView}
             onWheel={(e) => {
               setOrbit((o) => ({ ...o, zoom: Math.max(0.45, Math.min(2.6, o.zoom * (e.deltaY > 0 ? 0.89 : 1.12))) }));
             }}
           >
             <Canvas
-              shadows={settings.shadows}
+              shadows={settings.shadows ? 'percentage' : false}
               dpr={settings.dpr}
               camera={{ fov: 34, near: 0.08, far: 400, position: [18, 18, 22] }}
               gl={{ antialias: quality !== 'low', powerPreference: 'high-performance', precision: 'highp' }}
               onCreated={({ gl }) => {
                 gl.setClearColor('#0b1118');
                 gl.outputColorSpace = THREE.SRGBColorSpace;
+                /* AgX — 밝은 불꽃과 하늘이 하얗게 타지 않고 색을 지킨다 (설계서 v1.19 §4.1) */
                 gl.toneMapping = THREE.AgXToneMapping;
-                gl.toneMappingExposure = quality === 'ultra' ? 1.18 : 1.12;
-                gl.shadowMap.type = THREE.PCFSoftShadowMap;
+                gl.toneMappingExposure = 0.95;
+                /* r186 은 PCFSoft 를 없앴다. 부드러움은 고급 화질의 PCSS 가 맡는다 */
+                gl.shadowMap.type = THREE.PCFShadowMap;
                 /* 집 전체 시점에서 벽을 허리께로 자르려면 켜야 한다 (설계서 v1.4 §2.1) */
                 gl.localClippingEnabled = true;
               }}
@@ -327,12 +342,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
                 quality={settings}
                 orbit={orbit}
               />
-              {settings.postprocessing && (
-                <EffectComposer enableNormalPass>
-                  <N8AO intensity={settings.aoIntensity} aoRadius={1.5} distanceFalloff={1} />
-                  <Bloom intensity={settings.bloomIntensity} luminanceThreshold={0.68} luminanceSmoothing={0.24} mipmapBlur />
-                </EffectComposer>
-              )}
+              <Effects quality={settings} view={view} />
             </Canvas>
           </div>
         )}
@@ -340,7 +350,7 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
           <p className="k-r-caption"><b>{seconds}초</b><span>{caption}</span></p>
           <div className="k-r-scene-meta">
             <p className="k-r-quality-badge" data-quality-badge={quality}>{quality === 'ultra' ? '고급 화질' : quality === 'high' ? '높음 화질' : '가벼움 화질'}</p>
-            <p className="k-r-mouse-hint">마우스로 끌기 · 휠로 확대 · 키보드 방향키</p>
+            <p className="k-r-mouse-hint">마우스로 끌기 · 휠로 확대 · 두 번 누르면 정면 · 방향키</p>
           </div>
         </div>
         {view === 'first' && <span className="k-r-reticle" aria-hidden="true" />}
@@ -361,6 +371,8 @@ export default function Replay3D({ plan, frames, character, tickSeconds, outcome
           setAutoLowered(true);
           setQuality(q);
         }}
+        open={panelOpen}
+        onToggle={() => setPanelOpen((v) => !v)}
       />
 
       <input

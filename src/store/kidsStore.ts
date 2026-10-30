@@ -55,6 +55,7 @@ import { generateResidualPlan, type ResidualPlanRequest } from '../core/plan/res
 import { clearShellZone, defineShellZone, reflowShellFloor, reflowShellZones } from '../core/plan/reflow';
 import { shellOnlyPlan } from '../core/plan/shellSketch';
 import { loadKids, saveKids } from './storage';
+import { nextZoom, type ZoomDirection } from '../core/zoom';
 import { playDoor, playSuccessCue, playTap, setSoundEnabled } from '../ui/sound';
 
 const HISTORY = 30;
@@ -134,6 +135,8 @@ export interface KidsState {
 
   /** 오른쪽 사용법 상자를 펴 두었는가 */
   howTo: boolean;
+  /** 도면 확대 배율 — 맞춤이 1 (설계서 v1.19 §2.1). 저장하지 않는다 */
+  canvasZoom: number;
 
   /** 조작 횟수·시작 시각 — 개발 모드 측정 (FR-7.11) */
   ops: number;
@@ -162,6 +165,8 @@ export interface KidsActions {
   setRouteSlot: (slot: RouteSlot) => void;
   setTimed: (on: boolean) => void;
   setHowTo: (on: boolean) => void;
+  /** 도면을 한 단계 키우거나 줄이거나 맞춤으로 (FR-7.12) */
+  zoomCanvas: (direction: ZoomDirection) => void;
 
   loadTemplate: (id: string, options?: PreparePlanOptions) => void;
   /** 외곽과 독립실 방식으로 만든 시작 평면을 불러온다 (설계서 v1.9 §2). */
@@ -270,6 +275,7 @@ function initialState(): KidsState {
     toast: null,
     onboarded: false,
     howTo: false,
+    canvasZoom: 1,
     createdAt: now,
     ops: 0,
     startedAt: 0,
@@ -531,6 +537,8 @@ export const useKids = create<KidsStore>()((set, get) => {
     setMode: (mode) => set({ mode }),
 
     setHowTo: (on) => set({ howTo: on }),
+
+    zoomCanvas: (direction) => set({ canvasZoom: nextZoom(get().canvasZoom, direction) }),
 
     /* -------------------------------------------------- 화면 */
 

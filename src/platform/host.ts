@@ -32,10 +32,25 @@ export interface Installer {
   isStandalone(): boolean;
 }
 
+/**
+ * 전체 화면 — 브라우저 API 라 여기서만 다룬다 (설계서 v1.19 §2.2).
+ * UI 는 `host().screen` 만 부른다. 데스크톱 앱의 F11 은 껍데기가 따로 한다.
+ */
+export interface Screen {
+  /** 이 환경이 전체 화면을 허락하는가 (iframe·일부 브라우저는 막는다) */
+  canFullscreen(): boolean;
+  isFullscreen(): boolean;
+  /** 켜져 있으면 끄고, 꺼져 있으면 켠다. 막혀 있으면 조용히 그대로 둔다 */
+  toggleFullscreen(): Promise<void>;
+  /** 바뀔 때 알린다 (Esc 로 나가는 것도 포함). 되돌려 주는 함수로 구독을 푼다 */
+  onChange(listener: (on: boolean) => void): () => void;
+}
+
 export interface Host {
   /** 어떤 껍데기 위에서 도는지 — 화면에 알릴 일은 없고 진단용이다 */
   readonly kind: 'web' | 'desktop';
   readonly installer: Installer;
+  readonly screen: Screen;
   /** 없거나 읽지 못하면 null */
   read(key: string): string | null;
   /** 쓰지 못했으면 false — 시크릿 모드·용량 초과 */
@@ -152,6 +167,30 @@ const webInstaller: Installer = {
   },
 };
 
+const webScreen: Screen = {
+  canFullscreen() {
+    return typeof document !== 'undefined' && Boolean(document.fullscreenEnabled);
+  },
+  isFullscreen() {
+    return typeof document !== 'undefined' && Boolean(document.fullscreenElement);
+  },
+  async toggleFullscreen() {
+    if (typeof document === 'undefined') return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch {
+      /* 브라우저가 막았다 — 창 그대로 쓴다 */
+    }
+  },
+  onChange(listener) {
+    if (typeof document === 'undefined') return () => {};
+    const handler = () => listener(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  },
+};
+
 /**
  * 브라우저 구현.
  * 저장소가 막혀 있어도(시크릿 모드) 던지지 않는다 — 저장만 안 될 뿐 그리기는 이어져야 한다.
@@ -159,6 +198,7 @@ const webInstaller: Installer = {
 export const webHost: Host = {
   kind: 'web',
   installer: webInstaller,
+  screen: webScreen,
 
   read(key) {
     try {

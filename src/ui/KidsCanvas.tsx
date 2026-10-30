@@ -13,7 +13,7 @@
  * 마우스가 없어도 다 된다 (설계서 v1.0 §7.4). 도면에 Tab 으로 들어와 방향키로 칸을 옮기고
  * Enter 로 누른다 — 누르는 것과 똑같은 자리로 들어가므로 두 벌을 만들지 않는다.
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Cell, Rect, RoomKind, Side } from '../types/plan';
 import { isOpening, isPoint, isRoom, pointFootprint } from '../types/plan';
 import type { Direction } from '../types/game';
@@ -57,6 +57,45 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   const step = useKids((s) => s.step);
   const mode = useKids((s) => s.mode);
   const game = useKids((s) => s.game);
+  const canvasZoom = useKids((s) => s.canvasZoom);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * Ctrl+휠(트랙패드 오므리기 포함)은 브라우저가 아니라 도면을 키운다 (설계서 v1.19 §2.1).
+   * React 의 onWheel 은 passive 라 preventDefault 가 듣지 않아 직접 단다.
+   */
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      useKids.getState().zoomCanvas(e.deltaY < 0 ? 'in' : 'out');
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  /** 가운데 단추로 끌면 확대한 도면을 움직인다. 왼쪽 단추는 도면 조작 그대로다 */
+  const onPanStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 1) return;
+    const el = canvasRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const start = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    const move = (ev: PointerEvent) => {
+      el.scrollLeft = start.left - (ev.clientX - start.x);
+      el.scrollTop = start.top - (ev.clientY - start.y);
+    };
+    const stop = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+  }, []);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -516,8 +555,13 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
       : null;
 
   return (
-    <div className={`k-canvas${grayscale ? ' k-gray' : ''}`} data-tool={tool} data-mode={mode} style={{ cursor }}>
-      <div className="k-canvas-inner" style={{ aspectRatio: `${W} / ${H}` }}>
+    <div ref={canvasRef} className={`k-canvas${grayscale ? ' k-gray' : ''}`} data-tool={tool} data-mode={mode} style={{ cursor }} onPointerDown={onPanStart}>
+      {/* 맞춤 크기는 CSS 컨테이너 단위가 재고, 배율만 여기서 준다 (설계서 v1.19 §3) */}
+      <div
+        className="k-canvas-inner"
+        data-zoom={canvasZoom}
+        style={{ aspectRatio: `${W} / ${H}`, ['--plan-ratio' as string]: String(W / H), ['--k-zoom' as string]: String(canvasZoom) }}
+      >
         <PlanSvg
           svgRef={svgRef}
           plan={plan}

@@ -1193,11 +1193,17 @@
   position: relative;
   min-height: 0;
   overflow: hidden;
+  /* 도면 맞춤 크기를 컨테이너 단위(cqw·cqh)로 재려고 (설계서 v1.19 §3) */
+  container-type: size;
 }
 
 .k-canvas {
   position: absolute;
   inset: 0;
+  display: flex;
+  /* 들어맞으면 가운데, 확대해 넘치면 처음부터 스크롤되게 safe 를 붙인다 */
+  align-items: safe center;
+  justify-content: safe center;
   overflow: auto;
   padding: 6px;
 }
@@ -1207,8 +1213,15 @@
 }
 
 .k-canvas-inner {
-  margin: 0 auto;
-  max-height: 100%;
+  --k-zoom: 1;
+  --plan-ratio: 1.5;
+  flex: none;
+  /*
+   * 틀은 고정이고 남는 공간은 전부 도면이 쓴다 (설계서 v1.19 §3).
+   * 칸 안에 비율대로 가장 크게(맞춤) 들어가는 폭에 확대 배율을 곱한다. 높이는 aspect-ratio 가 따라온다.
+   */
+  box-sizing: border-box;
+  width: calc(min(100cqw - 12px, (100cqh - 12px) * var(--plan-ratio)) * var(--k-zoom));
   background: #fff;
   border: 1px solid var(--k-line);
   border-radius: 8px;
@@ -1225,6 +1238,52 @@
 .k-stage:focus-visible {
   outline: 3px solid var(--k-accent);
   outline-offset: -3px;
+}
+
+/* 도면 확대 단추 — 도면 오른쪽 아래에 떠 있다 (설계서 v1.19 §2.1). svg.k-stage 보다 위여야 한다 */
+.k-zoom {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--k-line);
+  box-shadow: 0 4px 14px rgba(16, 30, 48, 0.14);
+}
+
+.k-zoom button {
+  display: grid;
+  place-items: center;
+  width: var(--k-hit);
+  height: var(--k-hit);
+  border-radius: 9px;
+  border: 1.5px solid var(--k-line);
+  background: var(--k-panel);
+  color: var(--k-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.k-zoom button:hover:not(:disabled) {
+  border-color: var(--k-accent);
+  background: var(--k-accent-soft);
+  color: var(--k-accent);
+}
+
+.k-zoom b {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: var(--k-dim);
+}
+
+/* 게임에서는 오른쪽 아래가 행동 단추 자리다. 키와 Ctrl+휠은 그대로 된다 */
+.k-app.mode-game .k-zoom {
+  display: none;
 }
 
 /*

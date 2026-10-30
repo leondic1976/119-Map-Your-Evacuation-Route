@@ -1,16 +1,20 @@
 'use client';
 
-/** 코드로 만든 바닥 무늬·걸레받이·러그·천장등 — 외부 모델 없이 실내 밀도를 높인다. */
+/**
+ * 실내 밀도 — 설계서 v1.10 §5.1 · v1.19 §4.3.
+ * 코드로 만든 바닥 재질(색·법선·거칠기)·걸레받이·러그·천장등. 외부 모델은 없다.
+ */
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { FloorPlan, RoomBlock, RoomKind } from '../../types/plan';
 import { WALL_H } from './geometry';
 import type { QualitySettings } from './quality';
 import type { ViewMode } from './Scene';
+import type { Surface, Surfaces } from './textures';
 
-type Surface = 'wood' | 'tile' | 'terrazzo';
+type FloorKind = 'wood' | 'tile' | 'terrazzo';
 
-const SURFACE_BY_ROOM: Partial<Record<RoomKind, Surface>> = {
+const SURFACE_BY_ROOM: Partial<Record<RoomKind, FloorKind>> = {
   bedroom: 'wood',
   living: 'wood',
   corridor: 'wood',
@@ -26,53 +30,38 @@ const SURFACE_BY_ROOM: Partial<Record<RoomKind, Surface>> = {
   other: 'terrazzo',
 };
 
-function makePattern(kind: Surface, size: number): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return new THREE.CanvasTexture(canvas);
+const FLOOR_NORMAL: Record<FloorKind, THREE.Vector2> = {
+  wood: new THREE.Vector2(0.55, 0.55),
+  tile: new THREE.Vector2(0.7, 0.7),
+  terrazzo: new THREE.Vector2(0.35, 0.35),
+};
 
-  if (kind === 'wood') {
-    ctx.fillStyle = '#b98d5e';
-    ctx.fillRect(0, 0, size, size);
-    const plank = Math.max(18, Math.floor(size / 9));
-    ctx.lineWidth = Math.max(1, size / 256);
-    for (let y = 0; y <= size; y += plank) {
-      ctx.strokeStyle = 'rgba(72,43,24,.30)';
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
-      const offset = Math.floor(y / plank) % 2 ? size * 0.42 : size * 0.18;
-      ctx.beginPath(); ctx.moveTo(offset, y); ctx.lineTo(offset, Math.min(size, y + plank)); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,235,204,.20)';
-      ctx.beginPath(); ctx.moveTo(0, y + 2); ctx.lineTo(size, y + 2); ctx.stroke();
-    }
-  } else if (kind === 'tile') {
-    ctx.fillStyle = '#d6d2c6';
-    ctx.fillRect(0, 0, size, size);
-    const tile = Math.max(28, Math.floor(size / 6));
-    ctx.strokeStyle = 'rgba(80,91,98,.28)';
-    ctx.lineWidth = Math.max(2, size / 170);
-    for (let x = 0; x <= size; x += tile) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke(); }
-    for (let y = 0; y <= size; y += tile) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke(); }
-  } else {
-    ctx.fillStyle = '#aaa9a4';
-    ctx.fillRect(0, 0, size, size);
-    for (let i = 0; i < Math.floor(size * 1.8); i += 1) {
-      const x = (i * 73) % size;
-      const y = (i * 151 + 17) % size;
-      const c = i % 3 === 0 ? '#e8e2d8' : i % 3 === 1 ? '#777d82' : '#c58c72';
-      ctx.fillStyle = c;
-      ctx.fillRect(x, y, Math.max(1, size / 180), Math.max(1, size / 180));
-    }
-  }
+/** UV 가 칸 단위인 바닥판 — 큰 방이라고 널빤지가 늘어나지 않는다 */
+function floorGeometry(w: number, h: number): THREE.PlaneGeometry {
+  const g = new THREE.PlaneGeometry(w, h);
+  const uv = g.getAttribute('uv');
+  for (let i = 0; i < uv.count; i += 1) uv.setXY(i, uv.getX(i) * w, uv.getY(i) * h);
+  return g;
+}
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(3.5, 3.5);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = size >= 1024 ? 16 : 8;
-  texture.needsUpdate = true;
-  return texture;
+function Floor({ room, surface, kind, shadows }: { room: RoomBlock; surface: Surface; kind: FloorKind; shadows: boolean }) {
+  const w = Math.max(0.05, room.rect.w - 0.06);
+  const h = Math.max(0.05, room.rect.h - 0.06);
+  const geo = useMemo(() => floorGeometry(w, h), [w, h]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} position={[room.rect.x + room.rect.w / 2, 0.018, room.rect.y + room.rect.h / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={shadows}>
+      <meshStandardMaterial
+        map={surface.map}
+        normalMap={surface.normalMap}
+        normalScale={FLOOR_NORMAL[kind]}
+        roughnessMap={surface.roughnessMap}
+        roughness={1}
+        metalness={0.02}
+        envMapIntensity={kind === 'tile' ? 0.9 : 0.5}
+      />
+    </mesh>
+  );
 }
 
 function Baseboards({ room }: { room: RoomBlock }) {
@@ -89,16 +78,21 @@ function Baseboards({ room }: { room: RoomBlock }) {
   );
 }
 
-function Rug({ room }: { room: RoomBlock }) {
+/** 러그 — 직조 결이 있는 재질에 방마다 다른 색을 입힌다 */
+function Rug({ room, surface }: { room: RoomBlock; surface: Surface | null }) {
   if (room.roomKind !== 'living' && room.roomKind !== 'bedroom') return null;
   const { x, y, w, h } = room.rect;
   const rw = Math.max(0.75, Math.min(w * 0.55, 3.8));
   const rh = Math.max(0.75, Math.min(h * 0.42, 2.8));
-  const color = room.roomKind === 'living' ? '#315f77' : '#8e596a';
+  const color = room.roomKind === 'living' ? '#3f6f88' : '#9a6478';
   return (
     <mesh position={[x + w / 2, 0.035, y + h / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[rw, rh]} />
-      <meshStandardMaterial color={color} roughness={0.98} />
+      {surface ? (
+        <meshStandardMaterial color={color} map={surface.map} normalMap={surface.normalMap} normalScale={[0.5, 0.5]} roughnessMap={surface.roughnessMap} roughness={1} />
+      ) : (
+        <meshStandardMaterial color={color} roughness={0.98} />
+      )}
     </mesh>
   );
 }
@@ -132,44 +126,21 @@ interface Props {
   plan: FloorPlan;
   quality: QualitySettings;
   view: ViewMode;
+  surfaces: Surfaces | null;
 }
 
-export default function InteriorDetails({ plan, quality, view }: Props) {
+export default function InteriorDetails({ plan, quality, view, surfaces }: Props) {
   const rooms = useMemo(() => plan.blocks.filter((block): block is RoomBlock => block.kind === 'room'), [plan]);
-  const textures = useMemo(() => {
-    if (!quality.textureSize) return null;
-    return {
-      wood: makePattern('wood', quality.textureSize),
-      tile: makePattern('tile', quality.textureSize),
-      terrazzo: makePattern('terrazzo', quality.textureSize),
-    };
-  }, [quality.textureSize]);
-
-  useEffect(() => () => {
-    if (!textures) return;
-    Object.values(textures).forEach((texture) => texture.dispose());
-  }, [textures]);
-
   const litRooms = quality.interiorLights ? rooms.filter((room) => room.rect.w * room.rect.h >= 4).slice(0, quality.detail === 'full' ? 8 : 5) : [];
 
   return (
-    <group>
-      {textures && rooms.map((room) => {
-        const surface = SURFACE_BY_ROOM[room.roomKind] ?? 'terrazzo';
-        return (
-          <mesh
-            key={`floor-${room.id}`}
-            position={[room.rect.x + room.rect.w / 2, 0.018, room.rect.y + room.rect.h / 2]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            receiveShadow={quality.shadows}
-          >
-            <planeGeometry args={[Math.max(0.05, room.rect.w - 0.06), Math.max(0.05, room.rect.h - 0.06)]} />
-            <meshStandardMaterial map={textures[surface]} roughness={surface === 'wood' ? 0.68 : 0.88} metalness={0.01} />
-          </mesh>
-        );
+    <group key={surfaces ? surfaces.id : 'plain'}>
+      {surfaces && rooms.map((room) => {
+        const kind = SURFACE_BY_ROOM[room.roomKind] ?? 'terrazzo';
+        return <Floor key={`floor-${room.id}`} room={room} surface={surfaces[kind]} kind={kind} shadows={quality.shadows} />;
       })}
       {quality.detail !== 'minimal' && rooms.map((room) => <Baseboards key={`base-${room.id}`} room={room} />)}
-      {quality.detail === 'full' && rooms.map((room) => <Rug key={`rug-${room.id}`} room={room} />)}
+      {quality.detail === 'full' && rooms.map((room) => <Rug key={`rug-${room.id}`} room={room} surface={surfaces?.rug ?? null} />)}
       {litRooms.map((room) => <CeilingLight key={`light-${room.id}`} room={room} fixture={view === 'first'} />)}
     </group>
   );

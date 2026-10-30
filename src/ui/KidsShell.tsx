@@ -37,6 +37,8 @@ import { playDoor, playTap, replayLastGuideVoice, stopSpeaking, unlockAudio } fr
 import type { StudentInfo } from './ProfileSetup';
 import SafetyNotebook from './SafetyNotebook';
 import { displayName, gradeModeForGrade } from '../types/save';
+import { host } from '../platform/host';
+import { ZOOM_MAX, zoomPercent } from '../core/zoom';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '';
@@ -107,6 +109,15 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const [showHint, setShowHint] = useState(false);
   const [gray, setGray] = useState(false);
   const [help, setHelp] = useState(false);
+  /* 전체 화면 — 브라우저 API 는 platform 만 만진다 (설계서 v1.19 §2.2) */
+  const [fullscreen, setFullscreen] = useState(false);
+  const [canFullscreen, setCanFullscreen] = useState(false);
+  useEffect(() => {
+    const screen = host().screen;
+    setCanFullscreen(screen.canFullscreen());
+    setFullscreen(screen.isFullscreen());
+    return screen.onChange(setFullscreen);
+  }, []);
   const [dev, setDev] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [badFile, setBadFile] = useState<{ version: number; raw: string } | null>(null);
@@ -218,6 +229,12 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
         return;
       }
       if (meta) return;
+      /* 도면 확대 — 단추·Ctrl+휠과 같은 일 (설계서 v1.19 §2.1). 리포트에는 도면이 없다 */
+      if (s.mode !== 'report' && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_' || e.key === '0')) {
+        e.preventDefault();
+        s.zoomCanvas(e.key === '0' ? 'fit' : e.key === '-' || e.key === '_' ? 'out' : 'in');
+        return;
+      }
       if (s.mode === 'game') return;
       if (e.key === 'Escape') {
         if (s.drafting) s.endRoute();
@@ -432,6 +449,18 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
           <button type="button" className="k-tb" onClick={() => setHelp(true)} title="사용법 (?)">
             사용법
           </button>
+          {canFullscreen && (
+            <button
+              type="button"
+              className="k-tb"
+              aria-pressed={fullscreen}
+              data-coach="kids-fullscreen"
+              title={fullscreen ? '창 크기로 돌아간다' : '브라우저 틀을 숨기고 화면 전체를 쓴다'}
+              onClick={() => void host().screen.toggleFullscreen()}
+            >
+              <FullscreenIcon on={fullscreen} /> {fullscreen ? '창으로' : '전체 화면'}
+            </button>
+          )}
         </header>
 
         {/* 가운데 */}
@@ -595,6 +624,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                 <>
                   <KidsCanvas showHint={showHint} grayscale={gray} />
                   {mode === 'game' && <GameView />}
+                  <ZoomControls />
                   {editing && plan.blocks.length === 0 && step !== 'template' && (
                     <div className="k-empty">
                       <p>{easy ? '아직 아무것도 없어. 왼쪽에서 “방”을 고르고 도면을 눌러 보자.' : '도면이 비어 있다. 팔레트에서 방을 골라 도면을 누른다.'}</p>
@@ -998,6 +1028,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['6. 결과', '잘한 점과 고칠 점, 참 잘했어요 도장과 새 배지를 본다. “같은 상황 다시”나 “새로운 상황”으로 또 연습할 수 있다.'],
         ['7. 뽑기', '한 장으로 뽑아 잘 보이는 곳에 붙인다.'],
         ['마우스가 없어도', 'Tab 을 눌러 도면으로 들어가고, 방향키로 칸을 옮긴 다음 Enter 를 누르면 된다.'],
+        ['크게 보기', '도면 오른쪽 아래 + − 단추나 Ctrl+휠로 도면을 키운다. 위쪽 “전체 화면”을 누르면 화면을 다 쓴다.'],
       ]
     : [
         ['평면', '질문으로 추천받거나 집 모양에서 시작해 방을 옮기고 크기를 바꾼다. 방만 먼저 놓은 뒤 문과 가구를 붙여도 된다.'],
@@ -1007,6 +1038,7 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['리포트', '규칙 엔진(정적)과 플레이 로그(동적)를 합쳐 잘한 점·고칠 점으로 정리한다. [왜?]를 누르면 학습 카드가 펼쳐진다.'],
         ['인쇄', 'A4 세로 1장. 흑백에서도 경로가 번호·선종류로 구분된다.'],
         ['키보드', 'Tab 으로 도면에 초점을 준 뒤 방향키로 칸을 옮기고 Enter 로 누른다. 마우스 없이도 전 과정이 된다.'],
+        ['확대·전체 화면', '도면 오른쪽 아래의 확대·축소·맞춤 단추, Ctrl+휠, + − 0 키로 도면을 키운다. 상단 “전체 화면”은 브라우저 틀을 숨긴다.'],
       ];
   return (
     <div className="k-modal-back" onClick={onClose} role="presentation">
@@ -1092,6 +1124,55 @@ function backBuildStep(step: string, openOnboarding: (open: boolean) => void): v
   }
   const previous = step === 'structure' || step === 'furniture' ? 'spaces' : step === 'safety' ? 'furniture' : step === 'mySpot' ? 'safety' : step === 'meeting' ? 'mySpot' : null;
   if (previous) useKids.getState().setStep(previous);
+}
+
+/** 도면 확대·축소·맞춤 — 도면 위에 떠 있는 작은 묶음 (설계서 v1.19 §2.1) */
+function ZoomControls() {
+  const zoom = useKids((s) => s.canvasZoom);
+  const zoomCanvas = useKids((s) => s.zoomCanvas);
+  return (
+    <div className="k-zoom" role="group" aria-label="도면 확대" data-coach="kids-zoom">
+      <button type="button" data-zoom="in" onClick={() => zoomCanvas('in')} disabled={zoom >= ZOOM_MAX} aria-label="도면 확대" title="확대 (Ctrl+휠 · +)">
+        <ZoomIcon kind="in" />
+      </button>
+      <b className="num" aria-live="polite">{zoomPercent(zoom)}%</b>
+      <button type="button" data-zoom="out" onClick={() => zoomCanvas('out')} disabled={zoom <= 1} aria-label="도면 축소" title="축소 (Ctrl+휠 · -)">
+        <ZoomIcon kind="out" />
+      </button>
+      <button type="button" data-zoom="fit" onClick={() => zoomCanvas('fit')} disabled={zoom === 1} aria-label="도면 맞춤" title="칸에 맞춤 (0)">
+        맞춤
+      </button>
+    </div>
+  );
+}
+
+function ZoomIcon({ kind }: { kind: 'in' | 'out' }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M15.5 15.5 20 20" />
+      <path d="M7.5 10.5h6" />
+      {kind === 'in' && <path d="M10.5 7.5v6" />}
+    </svg>
+  );
+}
+
+function FullscreenIcon({ on }: { on: boolean }) {
+  return on ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 4v5H4" />
+      <path d="M15 4v5h5" />
+      <path d="M9 20v-5H4" />
+      <path d="M15 20v-5h5" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 9V4h5" />
+      <path d="M20 9V4h-5" />
+      <path d="M4 15v5h5" />
+      <path d="M20 15v5h-5" />
+    </svg>
+  );
 }
 
 function SoundIcon({ on }: { on: boolean }) {

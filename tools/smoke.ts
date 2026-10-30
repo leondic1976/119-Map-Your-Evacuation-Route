@@ -582,6 +582,19 @@ async function main(): Promise<void> {
       })();`,
     });
     const page = await context.newPage();
+    /*
+     * 3D 리플레이는 소프트웨어 GL(CI 러너·그래픽 없는 PC)에서 한 컷에 몇 초씩 걸린다. 단추는 멀쩡히 눌리지만
+     * Playwright 가 「안정된 요소」를 기다리는 30초 기본 제한에 걸릴 수 있어, 이 두 시나리오만 넉넉히 준다.
+     * 앱의 느림이 아니라 소프트웨어 그리기의 느림이다 — 실제 GPU 에서는 한 컷이 수십 ms 다.
+     */
+    const slowGl = (fn: () => Promise<void>) => async (): Promise<void> => {
+      page.setDefaultTimeout(120000);
+      try {
+        await fn();
+      } finally {
+        page.setDefaultTimeout(30000);
+      }
+    };
     const errors: string[] = [];
     const appVoiceResponses: Array<{ url: string; status: number; contentType: string }> = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -1842,7 +1855,7 @@ async function main(): Promise<void> {
       assert(pageRule.includes('portrait'), `세로 규칙 없음: ${pageRule}`);
     });
 
-    await check('3D 리플레이가 열리고 재생·시점 전환이 된다 (FR-11)', async () => {
+    await check('3D 리플레이가 열리고 재생·시점 전환이 된다 (FR-11)', slowGl(async () => {
       /* 기본값이 아닌 캐릭터를 골라 2D 선택이 3D 모델까지 이어지는지 본다. */
       await page.locator('[data-coach="kids-character"]').click();
       await page.locator('[data-character="girl_braid"]').click();
@@ -2000,9 +2013,9 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-replay').count()) === 0, '리플레이가 안 닫힌다');
       await page.locator('[data-coach="kids-edit-plan"]').click();
       await page.waitForSelector('svg.k-stage');
-    });
+    }));
 
-    await check('무사히 나오면 3D 마지막이 가족 장면으로 넘어간다 (설계서 v1.2 §8.6)', async () => {
+    await check('무사히 나오면 3D 마지막이 가족 장면으로 넘어간다 (설계서 v1.2 §8.6)', slowGl(async () => {
       await page.locator('[data-coach="kids-start-game"]').click();
       await page.waitForTimeout(400);
       const anyway = page.locator('[data-coach="kids-start-anyway"]');
@@ -2044,7 +2057,7 @@ async function main(): Promise<void> {
       assert((await page.locator('.k-ending').count()) === 0, '마지막 장면이 안 닫힌다');
       await page.locator('[data-coach="kids-edit-plan"]').click();
       await page.waitForSelector('svg.k-stage');
-    });
+    }));
 
     await check('집 외곽을 고른 뒤 같은 단계에서 독립실을 놓고 크기와 위치를 바꾼다 (설계서 v1.9 §15)', async () => {
       await page.evaluate(() => window.localStorage.clear());

@@ -190,7 +190,7 @@ app   →  ui
 2. **챗봇·자유 대화 입력·검색을 만들지 않는다.** 대사는 트리거(`GuideTrigger`) 기반이다. 이름표의 이름과
    공간 이름처럼 용도·길이·저장 범위가 고정된 필드는 예외다.
 3. **에디터·게임·인쇄에 3D 를 만들지 않는다.** 그 셋의 그래픽은 전부 SVG 이고 `ui/PlanSvg.tsx` 하나를 쓴다.
-   3D 는 **리플레이 화면과 첫 화면 배경(`ui/replay3d/`)에만** 허용한다(설계서 v1.2 §8 · v2.1 §1). 첫 화면 3D 는 동적으로 불러오고, WebGL 이 없거나 자동 검사면 그림 배경으로 남는다. `three` 를 `ui/replay3d/**`
+   3D 는 **리플레이 화면(`ui/replay3d/`)에만** 허용한다(설계서 v1.2 §8). 첫 화면 배경은 3D 가 아니라 SVG 그림 이야기(`ui/WelcomeStory.tsx`)다(설계서 v2.0 §10). `three` 를 `ui/replay3d/**`
    밖에서 부르면 `npm test` 가 실패한다.
 4. `src/core/**` 에서 `react`·`zustand`·`document`·`window` 를 부르지 않는다 (§3).
 5. **위험장 엔진(`core/hazard/field.ts`)에 재난 이름을 넣지 않는다.** `'fire'`·`smoke`·`화재`·`연기`가

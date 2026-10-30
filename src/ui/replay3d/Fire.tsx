@@ -46,9 +46,14 @@ void main() {
   vec4 c = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
   float sx = length(vec3(instanceMatrix[0]));
   float sy = length(vec3(instanceMatrix[1]));
-  /* 세로축은 세운 채 카메라 쪽으로만 돈다 — 옆에서 봐도 종잇장이 되지 않는다 */
+  /* 세로축은 세운 채 카메라 쪽으로만 돈다 — 옆에서 봐도 종잇장이 되지 않는다.
+     위에서 내려다볼수록 화면 위쪽으로 눕혀, 바로 위에서 봐도 가는 금이 되지 않고 불꽃 모양이 보인다 */
   vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
-  vec3 world = c.xyz + right * position.x * sx + vec3(0.0, (position.y + 0.5) * sy, 0.0);
+  vec3 camUp = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+  vec3 fwd = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+  float top = smoothstep(0.55, 0.92, abs(fwd.y));
+  vec3 upAxis = normalize(mix(vec3(0.0, 1.0, 0.0), camUp, top));
+  vec3 world = c.xyz + right * position.x * sx + upAxis * (position.y + 0.5) * sy;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;

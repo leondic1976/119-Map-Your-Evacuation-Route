@@ -660,9 +660,19 @@ async function main(): Promise<void> {
         imgs.map((img) => ({ alt: img.getAttribute('alt'), loaded: (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0 })),
       );
       assert(images.length >= 2 && images.every((img) => img.loaded), `소개 그림을 못 읽었다: ${JSON.stringify(images)}`);
-      /* 3D 디오라마 — 공식 캐릭터가 대피 경로를 그리는 장면 (설계서 v2.1 §1). 자동 검사에서는 그림 배경으로 남는다 */
-      assert(((await page.locator('[data-coach="kids-welcome-hero"]').getAttribute('aria-label')) ?? '').includes('영이, 일구, 웅이'), '공식 캐릭터 장면 대체 글이 없다');
-      assert((await page.locator('.k-welcome').getAttribute('data-hero')) === 'image', '자동 검사에서 3D 가 떠 검사를 느리게 한다');
+      assert(images.some((img) => img.alt?.includes('영이, 일구, 웅이')), '공식 캐릭터 대체 글이 없다');
+      /* 그림 이야기 (설계서 v2.0 §10) — 3D 없이 SVG 네 장면. 카드와 겹치지 않고, 장면이 바뀌면 카드 단계도 같이 켜진다 */
+      assert(((await page.locator('[data-coach="kids-welcome-hero"]').getAttribute('aria-label')) ?? '').includes('대피'), '그림 이야기 대체 글이 없다');
+      assert((await page.locator('.k-welcome').getAttribute('data-hero')) === 'story', '첫 화면 배경이 그림 이야기가 아니다');
+      assert((await page.locator('.k-welcome canvas').count()) === 0, '첫 화면에 3D 캔버스가 남아 있다');
+      const storyBox = await page.locator('.k-story-paper').boundingBox();
+      const cardBox = await page.locator('.k-welcome-card').boundingBox();
+      assert(Boolean(storyBox && cardBox && storyBox.width > 300 && storyBox.x + storyBox.width <= cardBox.x + 4), `그림 이야기가 작거나 카드와 겹친다: ${JSON.stringify({ storyBox, cardBox })}`);
+      await page.waitForSelector('.k-story[data-scene="1"]', { timeout: 5000 });
+      assert((await page.locator('.k-story-caption b').innerText()) === '우리 집을 그린다', '첫 장면 자막이 아니다');
+      await page.waitForSelector('.k-story[data-scene="2"]', { timeout: 12000 });
+      assert((await page.locator('.k-story-caption b').innerText()) === '나가는 길을 그린다', '둘째 장면 자막이 아니다');
+      assert((await page.locator('.k-welcome-missions li.on').innerText()).includes('나가는 길'), '장면과 카드 단계가 같은 박자로 켜지지 않는다');
       assert((await page.locator('[data-coach="kids-welcome-dashboard"], [href$="/dashboard/"]').count()) === 0, '소방서-학교 대시보드로 가는 길이 남아 있다 (설계서 v1.18 §2)');
       const installLink = page.locator('[data-coach="kids-welcome-install"]');
       const installLinkBox = await installLink.boundingBox();

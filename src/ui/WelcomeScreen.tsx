@@ -1,17 +1,15 @@
 'use client';
 
 /**
- * 첫 화면 — 설계서 v2.1 §1 (전면 개편).
+ * 첫 화면 — 설계서 v2.0 §10.
  *
- *   배경   3D 디오라마(ui/replay3d/WelcomeHero3D): 모눈종이 위 우리 집 모형, 크레용이 대피 경로를 그려 나가고
- *          소방복 친구 일구·영이·웅이가 옆에서 움직인다. 3D 를 못 쓰는 PC·자동 검사에서는 그림 배경이 그대로 남는다.
+ *   배경   그림 이야기(ui/WelcomeStory): 모눈종이 한 장 위에서 「우리 집을 그린다 → 나가는 길을 그린다 →
+ *          불이 나면 몸을 낮추고 그 길로 → 밖에서 가족과 만난다」가 장면마다 움직인다. 3D 를 쓰지 않는다.
  *   위 띠  기관(인천소방본부 심벌) · PC에 설치하기 — 카드와 겹치지 않는 제 자리
  *   카드   유리 질감. 한 줄 소개 → 제목 → 세 단계(이어진 줄) → 시작 단추(빛이 스친다) → 먼저 보기
  */
 import React, { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-
-const WelcomeHero3D = dynamic(() => import('./replay3d/WelcomeHero3D'), { ssr: false });
+import WelcomeStory from './WelcomeStory';
 
 interface Props {
   onStart: () => void;
@@ -21,31 +19,14 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 /* 오프라인 HTML·데스크톱 앱에서는 받을 곳이 없으므로 설치 안내로 가는 길을 보이지 않는다 (설계서 v1.18 §6) */
 const installAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
 const welcomeAssets = {
-  background: `${basePath}/images/welcome-evacuation.jpg`,
+  characters: `${basePath}/images/nfa-characters.png`,
   symbol: `${basePath}/images/incheon-fire-symbol.png`,
 } as const;
 
-/** WebGL 이 되고 자동 검사가 아닐 때만 3D 를 띄운다. `?hero=3d` 면 검사에서도 띄운다 */
-function canShow3d(): boolean {
-  if (typeof window === 'undefined') return false;
-  const forced = window.location.search.includes('hero=3d');
-  if (navigator.webdriver && !forced) return false;
-  try {
-    const c = document.createElement('canvas');
-    return Boolean(c.getContext('webgl2') || c.getContext('webgl'));
-  } catch {
-    return false;
-  }
-}
-
 export default function WelcomeScreen({ onStart }: Props) {
   const [guide, setGuide] = useState(false);
-  const [show3d, setShow3d] = useState(false);
-  const [ready3d, setReady3d] = useState(false);
-
-  useEffect(() => {
-    setShow3d(canShow3d());
-  }, []);
+  /* 그림 이야기의 장면 — 카드의 세 단계가 같은 박자로 켜진다 */
+  const [heroPhase, setHeroPhase] = useState<number>(0);
 
   useEffect(() => {
     if (!guide) return;
@@ -57,15 +38,14 @@ export default function WelcomeScreen({ onStart }: Props) {
   }, [guide]);
 
   return (
-    <main className={`k-welcome${ready3d ? ' hero-on' : ''}`} data-screen="welcome" data-hero={show3d ? (ready3d ? '3d' : 'loading') : 'image'} aria-labelledby="k-welcome-title">
-      <img className="k-welcome-bg" src={welcomeAssets.background} alt="" aria-hidden="true" fetchPriority="high" />
+    <main className="k-welcome" data-screen="welcome" data-hero="story" aria-labelledby="k-welcome-title">
       <div
         className="k-welcome-hero"
         role="img"
-        aria-label="소방청 공식 캐릭터 영이, 일구, 웅이가 모눈종이 위 우리 집 모형에서 크레용으로 대피 경로를 그리는 장면"
+        aria-label="연필로 우리 집을 그리고, 빨간 펜으로 나가는 길을 그린 뒤, 불이 나자 아이가 몸을 낮춰 그 길로 대피해 밖에서 가족과 만나는 그림 이야기"
         data-coach="kids-welcome-hero"
       >
-        {show3d && <WelcomeHero3D onReady={() => setReady3d(true)} />}
+        <WelcomeStory onPhase={setHeroPhase} />
       </div>
       <div className="k-welcome-shade" aria-hidden="true" />
 
@@ -94,6 +74,7 @@ export default function WelcomeScreen({ onStart }: Props) {
       </header>
 
       <section className="k-welcome-card">
+        <img className="k-welcome-characters" src={welcomeAssets.characters} alt="소방청 공식 캐릭터 영이, 일구, 웅이" />
         <p className="k-welcome-kicker">
           <i aria-hidden="true" />
           우리 가족의 안전 미션
@@ -109,18 +90,18 @@ export default function WelcomeScreen({ onStart }: Props) {
           화재가 났을 때 신속하게 대피하는 방법을 연습한다.
         </p>
 
-        <ol className="k-welcome-missions" aria-label="배울 내용">
-          <li>
+        <ol className="k-welcome-missions" aria-label="배울 내용" data-hero-phase={heroPhase}>
+          <li className={heroPhase === 1 ? 'on' : undefined}>
             <span className="k-mission-icon"><HomeMissionIcon /></span>
             <b>1</b>
             <span>우리 집 그리기</span>
           </li>
-          <li>
+          <li className={heroPhase === 2 ? 'on' : undefined}>
             <span className="k-mission-icon"><RouteMissionIcon /></span>
             <b>2</b>
             <span>나가는 길 찾기</span>
           </li>
-          <li>
+          <li className={heroPhase === 3 ? 'on' : undefined}>
             <span className="k-mission-icon"><PracticeMissionIcon /></span>
             <b>3</b>
             <span>화재 대피 연습</span>

@@ -1,14 +1,17 @@
 'use client';
 
 /**
- * 첫 소개 화면 — 설계서 v1.6 §8 · v2.0 §9·§10.
- * 이용자 유형을 고르는 화면이 아니다. 교육 목적을 읽고 한 번 누르면 기존 온보딩으로 간다.
+ * 첫 화면 — 설계서 v2.1 §1 (전면 개편).
  *
- *   위 띠      기관(인천소방본부 심벌)과 「PC에 설치하기」 — 카드와 겹치지 않는 제 자리
- *   카드       제목 옆에 캐릭터, 세 단계, 큰 시작 단추, 「어떻게 하는지 먼저 보기」
- *   먼저 보기  세 장면을 큰 그림과 두 줄씩 — 줄은 뜻 단위로 끊는다
+ *   배경   3D 디오라마(ui/replay3d/WelcomeHero3D): 모눈종이 위 우리 집 모형, 크레용이 대피 경로를 그려 나가고
+ *          소방복 친구 일구·영이·웅이가 옆에서 움직인다. 3D 를 못 쓰는 PC·자동 검사에서는 그림 배경이 그대로 남는다.
+ *   위 띠  기관(인천소방본부 심벌) · PC에 설치하기 — 카드와 겹치지 않는 제 자리
+ *   카드   유리 질감. 한 줄 소개 → 제목 → 세 단계(이어진 줄) → 시작 단추(빛이 스친다) → 먼저 보기
  */
 import React, { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const WelcomeHero3D = dynamic(() => import('./replay3d/WelcomeHero3D'), { ssr: false });
 
 interface Props {
   onStart: () => void;
@@ -19,13 +22,31 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const installAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
 const welcomeAssets = {
   background: `${basePath}/images/welcome-evacuation.jpg`,
-  characters: `${basePath}/images/nfa-characters.png`,
   symbol: `${basePath}/images/incheon-fire-symbol.png`,
 } as const;
 
+/** WebGL 이 되고 자동 검사가 아닐 때만 3D 를 띄운다. `?hero=3d` 면 검사에서도 띄운다 */
+function canShow3d(): boolean {
+  if (typeof window === 'undefined') return false;
+  const forced = window.location.search.includes('hero=3d');
+  if (navigator.webdriver && !forced) return false;
+  try {
+    const c = document.createElement('canvas');
+    return Boolean(c.getContext('webgl2') || c.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
 export default function WelcomeScreen({ onStart }: Props) {
-  /* 시작 전에 어떻게 하는지 세 장면으로 (설계서 v2.0 §9) */
   const [guide, setGuide] = useState(false);
+  const [show3d, setShow3d] = useState(false);
+  const [ready3d, setReady3d] = useState(false);
+
+  useEffect(() => {
+    setShow3d(canShow3d());
+  }, []);
+
   useEffect(() => {
     if (!guide) return;
     const onKey = (e: KeyboardEvent) => {
@@ -36,8 +57,16 @@ export default function WelcomeScreen({ onStart }: Props) {
   }, [guide]);
 
   return (
-    <main className="k-welcome" data-screen="welcome" aria-labelledby="k-welcome-title">
+    <main className={`k-welcome${ready3d ? ' hero-on' : ''}`} data-screen="welcome" data-hero={show3d ? (ready3d ? '3d' : 'loading') : 'image'} aria-labelledby="k-welcome-title">
       <img className="k-welcome-bg" src={welcomeAssets.background} alt="" aria-hidden="true" fetchPriority="high" />
+      <div
+        className="k-welcome-hero"
+        role="img"
+        aria-label="소방청 공식 캐릭터 영이, 일구, 웅이가 모눈종이 위 우리 집 모형에서 크레용으로 대피 경로를 그리는 장면"
+        data-coach="kids-welcome-hero"
+      >
+        {show3d && <WelcomeHero3D onReady={() => setReady3d(true)} />}
+      </div>
       <div className="k-welcome-shade" aria-hidden="true" />
 
       <header className="k-welcome-top">
@@ -65,17 +94,14 @@ export default function WelcomeScreen({ onStart }: Props) {
       </header>
 
       <section className="k-welcome-card">
-        <div className="k-welcome-head">
-          <div className="k-welcome-head-text">
-            <p className="k-welcome-kicker">우리 가족의 안전 미션</p>
-            <h1 id="k-welcome-title">
-              <span>우리집</span>
-              대피지도 그리기
-            </h1>
-          </div>
-          <img className="k-welcome-characters" src={welcomeAssets.characters} alt="소방청 공식 캐릭터 영이, 일구, 웅이" />
-        </div>
-
+        <p className="k-welcome-kicker">
+          <i aria-hidden="true" />
+          우리 가족의 안전 미션
+        </p>
+        <h1 id="k-welcome-title">
+          <span>우리집</span>
+          대피지도 그리기
+        </h1>
         <p className="k-welcome-lead">우리 집에서 빠르게 나갈 길을 미리 찾아보자.</p>
         <p className="k-welcome-purpose">
           방과 문을 직접 그리고 나가는 길을 찾아보면서,
@@ -85,39 +111,37 @@ export default function WelcomeScreen({ onStart }: Props) {
 
         <ol className="k-welcome-missions" aria-label="배울 내용">
           <li>
-            <i aria-hidden="true">1</i>
-            <HomeMissionIcon />
+            <span className="k-mission-icon"><HomeMissionIcon /></span>
+            <b>1</b>
             <span>우리 집 그리기</span>
           </li>
           <li>
-            <i aria-hidden="true">2</i>
-            <RouteMissionIcon />
+            <span className="k-mission-icon"><RouteMissionIcon /></span>
+            <b>2</b>
             <span>나가는 길 찾기</span>
           </li>
           <li>
-            <i aria-hidden="true">3</i>
-            <PracticeMissionIcon />
+            <span className="k-mission-icon"><PracticeMissionIcon /></span>
+            <b>3</b>
             <span>화재 대피 연습</span>
           </li>
         </ol>
 
-        <div className="k-welcome-actions">
-          <button type="button" className="k-welcome-start" data-coach="kids-welcome-start" onClick={onStart}>
-            우리집 대피지도 그리기
-            <span aria-hidden="true">
-              <svg viewBox="0 0 28 28">
-                <path d="M5 14h17M16 7l7 7-7 7" />
-              </svg>
-            </span>
-          </button>
-          <button type="button" className="k-welcome-guide-open" data-coach="kids-welcome-guide" onClick={() => setGuide(true)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M9.3 9.5a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.2 1-1.2 1.8M12 17h.01" />
+        <button type="button" className="k-welcome-start" data-coach="kids-welcome-start" onClick={onStart}>
+          <span className="k-welcome-start-label">우리집 대피지도 그리기</span>
+          <span className="k-welcome-start-arrow" aria-hidden="true">
+            <svg viewBox="0 0 28 28">
+              <path d="M5 14h17M16 7l7 7-7 7" />
             </svg>
-            어떻게 하는지 먼저 보기
-          </button>
-        </div>
+          </span>
+        </button>
+        <button type="button" className="k-welcome-guide-open" data-coach="kids-welcome-guide" onClick={() => setGuide(true)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M10 8.5l5 3.5-5 3.5z" />
+          </svg>
+          어떻게 하는지 먼저 보기
+        </button>
         <p className="k-welcome-foot">인터넷 없이도 되고, 그린 지도는 이 PC 안에만 저장돼.</p>
       </section>
 

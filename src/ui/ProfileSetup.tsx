@@ -15,6 +15,8 @@ export type StudentInfo = Pick<UserProfile, 'schoolGrade' | 'studentName'>;
 
 interface Props {
   onComplete: (info: StudentInfo) => void;
+  /** 첫 화면으로 */
+  onHome?: () => void;
 }
 
 const GRADES: SchoolGrade[] = [1, 2, 3, 4, 5, 6];
@@ -22,7 +24,7 @@ const GRADES: SchoolGrade[] = [1, 2, 3, 4, 5, 6];
 const FALLBACK_GRADE: SchoolGrade = 3;
 const NAME_MAX = 12;
 
-export default function ProfileSetup({ onComplete }: Props) {
+export default function ProfileSetup({ onComplete, onHome }: Props) {
   const [studentName, setStudentName] = useState('');
   const [grade, setGrade] = useState<SchoolGrade | null>(null);
   const [returning, setReturning] = useState(false);
@@ -43,6 +45,15 @@ export default function ProfileSetup({ onComplete }: Props) {
 
   return (
     <main className="k-profile" data-screen="profile" aria-labelledby="k-profile-title">
+      {onHome && (
+        <button type="button" className="k-profile-home" data-coach="kids-home" onClick={onHome} title="첫 화면으로">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 11l8-7 8 7" />
+            <path d="M6 10v10h12V10" />
+          </svg>
+          첫 화면
+        </button>
+      )}
       <section className="k-profile-card">
         <header>
           <span aria-hidden="true">

@@ -465,6 +465,8 @@ export const useKids = create<KidsStore>()((set, get) => {
     /* -------------------------------------------------- 시작 */
 
     boot: () => {
+      /* 첫 화면에 다녀오면 다시 불린다 — 같은 세션이면 하던 단계·도면 그대로 이어 간다 */
+      if (get().ready) return;
       const saved = loadKids();
       const now = Date.now();
       /*

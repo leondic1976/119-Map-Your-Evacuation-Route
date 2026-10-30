@@ -92,6 +92,7 @@ body {
 
 /* 소개 뒤, 지도 만들기 전에 쓰는 이름표 — 이름(선택)과 학년뿐이다 (설계서 v1.18 §3). PC 화면에서만 마운트한다. */
 .k-profile {
+  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;

@@ -56,13 +56,13 @@ export default function Page() {
   }
 
   if (screen === 'profile') {
-    return <ProfileSetup onComplete={(info) => { setStudentInfo(info); setScreen('app'); }} />;
+    return <ProfileSetup onHome={() => setScreen('welcome')} onComplete={(info) => { setStudentInfo(info); setScreen('app'); }} />;
   }
 
   /* 화면이 깨져도 흰 화면으로 끝내지 않는다 (설계서 v1.18 §7) */
   return (
     <ErrorBoundary>
-      <KidsShell studentInfo={studentInfo ?? undefined} />
+      <KidsShell studentInfo={studentInfo ?? undefined} onHome={() => setScreen('welcome')} />
       <AppUpdates />
     </ErrorBoundary>
   );

@@ -82,7 +82,7 @@ const OPEN_ZONE_KINDS: { id: RoomKind; label: string }[] = [
 ];
 
 
-export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }) {
+export default function KidsShell({ studentInfo, onHome }: { studentInfo?: StudentInfo; onHome?: () => void }) {
   const ready = useKids((s) => s.ready);
   const step = useKids((s) => s.step);
   const mode = useKids((s) => s.mode);
@@ -381,12 +381,13 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
       <div className={`k-app mode-${mode}`} data-level="kids" data-step={step} data-grade-mode={profile.gradeMode}>
         {/* 상단바 */}
         <header className="k-top">
-          <div className="k-brand">
+          {/* 로고를 누르면 첫 화면으로 — 그리던 지도는 자동 저장돼 있다 */}
+          <button type="button" className="k-brand" data-coach="kids-home" title="첫 화면으로 (그린 지도는 저장돼 있다)" onClick={() => onHome?.()}>
             <BrandMark />
             <span>
               우리집 대피지도 <small data-coach="kids-name-tag">{`${profile.schoolGrade}학년 ${displayName(profile)}`}</small>
             </span>
-          </div>
+          </button>
 
           {/* 재난 탭 — 프리셋이 둘 이상일 때만 (FR-2.1 개정) */}
           {HAZARD_PRESETS.length > 1 && (

@@ -6,7 +6,8 @@
  *
  *   설치     앱 껍데기(HTML·CSS·JS·아이콘·그림·음성 매니페스트)를 받아 둔다. 실패하면 설치하지 않는다.
  *   활성화   지난 판 캐시를 지우고, MP3 를 배경에서 4개씩 받아 둔다. 끊겨도 앱은 이미 돈다.
- *   요청     같은 범위 안의 GET 만 다룬다. 문서는 캐시 우선·배경 갱신, 나머지는 캐시 우선이다.
+ *   요청     같은 범위 안의 GET 만 다룬다. 문서는 **네트워크 먼저**(3초 안에 오지 않거나 인터넷이 없으면 캐시),
+ *            나머지(이름에 해시가 든 묶음·그림)는 캐시 우선이다. 그래서 새 판은 새로고침만으로 보인다 (설계서 v2.0 §7).
  *            꾸러미 ZIP 은 캐시하지 않는다.
  *   갱신     새 판은 화면이 `skip-waiting` 을 보낼 때만 넘어간다 — 그리던 도중에 바뀌지 않게.
  */
@@ -75,16 +76,19 @@ async function navigate(request) {
   const cache = await caches.open(CACHE);
   const url = new URL(request.url);
   const key = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
-  const cached = (await cache.match(request, { ignoreSearch: true })) || (await cache.match(key));
-  const refresh = fetch(request)
-    .then((response) => {
-      if (response.ok) cache.put(key, response.clone());
-      return response;
-    })
-    .catch(() => null);
-  if (cached) return cached;
-  const fresh = await refresh;
+  /* 네트워크 먼저 — 느린 망에서 아이가 기다리지 않게 3초가 넘으면 캐시로 연다 */
+  const fresh = await Promise.race([
+    fetch(request, { cache: 'no-cache' })
+      .then((response) => {
+        if (response.ok) cache.put(key, response.clone());
+        return response.ok ? response : null;
+      })
+      .catch(() => null),
+    new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+  ]);
   if (fresh) return fresh;
+  const cached = (await cache.match(request, { ignoreSearch: true })) || (await cache.match(key));
+  if (cached) return cached;
   return (await cache.match(SCOPE)) || Response.error();
 }
 

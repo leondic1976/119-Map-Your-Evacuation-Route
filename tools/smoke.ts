@@ -659,8 +659,10 @@ async function main(): Promise<void> {
       const images = await page.locator('.k-welcome img').evaluateAll((imgs) =>
         imgs.map((img) => ({ alt: img.getAttribute('alt'), loaded: (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0 })),
       );
-      assert(images.length === 3 && images.every((img) => img.loaded), `소개 그림을 못 읽었다: ${JSON.stringify(images)}`);
-      assert(images.some((img) => img.alt?.includes('영이, 일구, 웅이')), '공식 캐릭터 대체 글이 없다');
+      assert(images.length >= 2 && images.every((img) => img.loaded), `소개 그림을 못 읽었다: ${JSON.stringify(images)}`);
+      /* 3D 디오라마 — 공식 캐릭터가 대피 경로를 그리는 장면 (설계서 v2.1 §1). 자동 검사에서는 그림 배경으로 남는다 */
+      assert(((await page.locator('[data-coach="kids-welcome-hero"]').getAttribute('aria-label')) ?? '').includes('영이, 일구, 웅이'), '공식 캐릭터 장면 대체 글이 없다');
+      assert((await page.locator('.k-welcome').getAttribute('data-hero')) === 'image', '자동 검사에서 3D 가 떠 검사를 느리게 한다');
       assert((await page.locator('[data-coach="kids-welcome-dashboard"], [href$="/dashboard/"]').count()) === 0, '소방서-학교 대시보드로 가는 길이 남아 있다 (설계서 v1.18 §2)');
       const installLink = page.locator('[data-coach="kids-welcome-install"]');
       const installLinkBox = await installLink.boundingBox();
@@ -768,6 +770,17 @@ async function main(): Promise<void> {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(150);
       assert((await tour.count()) === 0, 'Esc 로 투어가 닫히지 않는다');
+      /* 로고를 누르면 첫 화면으로, 다시 시작하면 그리던 지도가 그대로다 */
+      const blocksBeforeHome = (await kidsSave(page)).blocks;
+      await page.locator('.k-top [data-coach="kids-home"]').click();
+      await page.waitForSelector('.k-welcome');
+      await page.locator('[data-coach="kids-welcome-start"]').click();
+      await page.waitForSelector('.k-profile');
+      assert((await page.locator('.k-profile [data-coach="kids-home"]').count()) === 1, '이름표 화면에 첫 화면으로 가는 단추가 없다');
+      await page.locator('[data-coach="kids-profile-start"]').click();
+      await page.waitForSelector('.k-app');
+      await page.waitForTimeout(400);
+      assert((await kidsSave(page)).blocks === blocksBeforeHome, '첫 화면에 다녀오니 그리던 지도가 달라졌다');
       assert((await page.locator('.k-app').getAttribute('data-step')) === 'spaces', '집 모양 뒤 실·문·창 단계가 아니다');
       assert((await page.locator('.k-build-steps li').count()) === 6, '여섯 단계 만들기 순서가 보이지 않는다');
       assert((await page.locator('.k-stage [data-kind="furniture"], .k-stage [data-kind="safety"], .k-stage [data-kind="hazard"], .k-stage [data-kind="marker"]').count()) === 0, '구조 단계 전에 가구나 표시가 놓여 있다');
@@ -2358,7 +2371,7 @@ async function main(): Promise<void> {
         await sw.reload();
         await sw.waitForSelector('.k-welcome', { timeout: 15000 });
         const images = await sw.locator('.k-welcome img').evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0));
-        assert(images.length === 3 && images.every(Boolean), '오프라인에서 소개 그림이 보이지 않는다');
+        assert(images.length >= 2 && images.every(Boolean), '오프라인에서 소개 그림이 보이지 않는다');
         await sw.goto(new URL('download/', server.url).href);
         await sw.waitForSelector('[data-screen="download"]', { timeout: 15000 });
         await sw.goto(server.url);
@@ -2414,7 +2427,7 @@ async function main(): Promise<void> {
         const welcomeImages = await p3.locator('.k-welcome img').evaluateAll((imgs) =>
           imgs.map((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0),
         );
-        assert(welcomeImages.length === 3 && welcomeImages.every(Boolean), '오프라인 소개 그림이 보이지 않는다');
+        assert(welcomeImages.length >= 2 && welcomeImages.every(Boolean), '오프라인 소개 그림이 보이지 않는다');
         await p3.locator('[data-coach="kids-welcome-start"]').click();
         await p3.waitForSelector('.k-profile', { timeout: 20000 });
         assert((await p3.locator('[data-coach="kids-welcome-install"]').count()) === 0, '오프라인 HTML 에 설치 안내 링크가 보인다');

@@ -1915,10 +1915,13 @@
   min-width: 0;
 }
 
-/* 막대는 좁으면 줄을 바꾼다 — 단추가 서로 덮이지 않는다 (설계서 v2.0 §10) */
+/* 막대는 늘 한 줄 — 고른 것의 단추가 생겨도 높이가 그대로라 도면이 출렁이지 않는다. 넘치면 옆으로 민다 (설계서 v2.0 §11) */
 .k-canvas-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
   align-items: center;
   gap: 6px 8px;
   min-height: 54px;
@@ -2027,7 +2030,10 @@
 /* 고른 것을 바꾸는 줄 — 골랐을 때만 */
 .k-build-context {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
   align-items: center;
   gap: 6px 8px;
   min-height: 62px;
@@ -4262,6 +4268,67 @@
 
   .k-block-name {
     font-size: 11.5px;
+  }
+}
+
+/* 막대 안의 단추는 줄어들지 않고 한 줄로 선다 */
+.k-canvas-bar > *,
+.k-build-context > * {
+  flex-shrink: 0;
+}
+
+.k-canvas-bar > .k-spacer,
+.k-build-context > .k-spacer {
+  flex-shrink: 1;
+}
+
+/* 1440 아래 — 문·창 너비 단추는 기호만 (뜻은 aria-label 과 도움 패널이 말한다) */
+@media (max-width: 1439px) {
+  .k-opening-size button small {
+    display: none;
+  }
+}
+
+/* 800~1023 — 창을 화면 반쪽에 붙여도 쓴다 (설계서 v2.0 §11). 누르는 크기는 줄이지 않고 글을 덜어 낸다 */
+@media (max-width: 1023px) {
+  .k-brand > span {
+    display: none;
+  }
+
+  .k-brand {
+    margin-right: 2px;
+    padding-right: 4px;
+  }
+
+  .k-ib {
+    min-width: var(--k-hit);
+    padding: 0 3px;
+  }
+
+  .k-ib span {
+    font-size: 11px;
+  }
+
+  .k-bottom {
+    gap: 6px;
+    padding: 0 6px;
+  }
+
+  .k-bottom .k-save {
+    display: none;
+  }
+
+  .k-progress-bar {
+    width: 64px;
+  }
+
+  .k-bottom .k-ask,
+  .k-bottom .k-cta {
+    padding: 0 10px;
+  }
+
+  .k-bottom .k-tb {
+    padding: 0 9px;
   }
 }
 

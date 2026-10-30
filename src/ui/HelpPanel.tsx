@@ -11,7 +11,7 @@
  * 챗봇이 아니다 — 고정된 문장을 지금 상태에 맞춰 고르기만 한다 (작업지침 §10-2).
  * 화면에만 보이고 읽지 않으므로 MP3 대상이 아니다.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BLOCKS, blockName } from '../content';
 import { STEP_HELP, blockHelp } from '../content/blockHelp';
 import { isOpening, isPoint, isRoom } from '../types/plan';
@@ -28,6 +28,17 @@ export default function HelpPanel({ onGuardian }: { onGuardian: () => void }) {
   const easy = useKids((s) => s.profile.gradeMode === 'easy');
   const open = useKids((s) => s.howTo);
   const setOpen = useKids((s) => s.setHowTo);
+  /* 좁은 창(1024 미만)으로 들어오거나 줄이면 한 번 접는다 — 도면이 먼저다. 펴면 서랍처럼 덮는다 */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const query = window.matchMedia('(max-width: 1023px)');
+    const fold = () => {
+      if (query.matches) useKids.getState().setHowTo(false);
+    };
+    fold();
+    query.addEventListener('change', fold);
+    return () => query.removeEventListener('change', fold);
+  }, []);
   const g = easy ? 'easy' : 'normal';
 
   if (mode !== 'edit') return null;

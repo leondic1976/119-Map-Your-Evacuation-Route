@@ -14,7 +14,7 @@
  * Enter 로 누른다 — 누르는 것과 똑같은 자리로 들어가므로 두 벌을 만들지 않는다.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Cell, Rect, RoomKind, Side } from '../types/plan';
+import type { Cell, OpeningBlock, OpeningSpan, Rect, RoomKind, Side } from '../types/plan';
 import { isOpening, isPoint, isRoom, pointFootprint } from '../types/plan';
 import type { Direction } from '../types/game';
 import { roomAt, canPlaceOpening, canPlaceRoom } from '../core/grid/occupancy';
@@ -37,6 +37,8 @@ type Drag =
   /* 거실 같은 열린 바닥은 끌어도 옮겨지지 않는다 — 한 번만 말해 준다 */
   | { kind: 'zoneHint'; start: Cell; told: boolean }
   | { kind: 'resize'; id: string; handle: Handle; start: Cell; base: Rect; rect: Rect }
+  /* 고른 문·창의 끝 손잡이를 벽을 따라 끌어 너비를 바꾼다 */
+  | { kind: 'openingSpan'; id: string; base: OpeningBlock; span: number }
   | { kind: 'route'; last: Cell };
 
 interface Props {
@@ -108,6 +110,7 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
   const [openingPreview, setOpeningPreview] = useState<{ id: string; cell: Cell; side: Side; allowed: boolean } | null>(null);
   const [roomShift, setRoomShift] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [resizePreview, setResizePreview] = useState<Rect | null>(null);
+  const [spanPreview, setSpanPreview] = useState<OpeningBlock | null>(null);
   /** 끌어서 두르는 네모 */
   const [band, setBand] = useState<Rect | null>(null);
   /** 여럿을 함께 옮기는 중의 치우침 */
@@ -236,6 +239,16 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     /* 큰 가구가 문 위까지 덮여도 가는 문선 가까이를 누르면 문·창을 고른다. */
     const hitId = geometricBlock && isOpening(geometricBlock) ? geometricId : exactId ?? geometricId;
     const handle = target.closest?.('[data-handle]')?.getAttribute('data-handle') as Handle | null;
+    /* 문·창 끝 손잡이 — 방 손잡이보다 먼저 본다 */
+    if (tool === 'select' && canAdjustRooms && selection && s.multi.length <= 1 && target.closest?.('[data-opening-grip]')) {
+      const opening = plan.blocks.find((b) => b.id === selection);
+      if (opening && isOpening(opening)) {
+        dragRef.current = { kind: 'openingSpan', id: opening.id, base: opening, span: opening.span ?? 1 };
+        setSpanPreview(opening);
+        svgRef.current?.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
     /* 크기 손잡이는 한 방만 골랐을 때만 작동해, 여러 블록의 전체 이동을 가로채지 않는다. */
     if (tool === 'select' && canAdjustRooms && handle && selection && s.multi.length <= 1) {
       const room = plan.blocks.find((b) => b.id === selection);
@@ -448,6 +461,15 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         d.rect = applyHandle(d.base, d.handle, c.x - d.start.x, c.y - d.start.y);
         setResizePreview(d.rect);
         break;
+      case 'openingSpan': {
+        const along = d.base.side === 'N' || d.base.side === 'S' ? c.x - d.base.cell.x : c.y - d.base.cell.y;
+        const span = Math.max(1, Math.min(openingMaxSpan(d.base), along + 1));
+        if (span !== d.span) {
+          d.span = span;
+          setSpanPreview({ ...d.base, span: span as OpeningSpan });
+        }
+        break;
+      }
       case 'route':
         if (!sameCell(d.last, c)) {
           for (const stepCell of lineCells(d.last, c)) s.extendRoute(stepCell);
@@ -512,6 +534,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
         s.resizeRoom(d.id, d.rect);
         setResizePreview(null);
         break;
+      case 'openingSpan':
+        if (d.span !== (d.base.span ?? 1)) s.resizeOpening(d.id, d.span as OpeningSpan, 'start');
+        setSpanPreview(null);
+        break;
       case 'route':
         s.endRoute();
         break;
@@ -524,6 +550,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
     setHover(null);
     setGhost(null);
   };
+
+  /* 끝 손잡이를 보이는 문·창 — 한 개만 골랐고 도면에 보이는 것 */
+  const selectedOpeningBlock = selection && multi.length <= 1 ? plan.blocks.find((b) => b.id === selection && isOpening(b) && !b.hideInPlan && b.openingKind !== 'open_passage') : undefined;
+  const spanAllowed = spanPreview ? canPlaceOpening(plan, spanPreview) : false;
 
   /* 손잡이를 보이는 방 — 닫힌 방과 트인 구역. 거실은 남는 바닥이라 뺀다 */
   const selectedRoom = selection ? plan.blocks.find((b) => b.id === selection && isRoom(b) && !(b.wallMode === 'zone' && b.roomKind === 'living')) : undefined;
@@ -710,6 +740,10 @@ export default function KidsCanvas({ showHint, grayscale }: Props) {
             />
           )}
           {!inGame && canAdjustRooms && tool === 'select' && selectedRoom && isRoom(selectedRoom) && !roomShift && <ResizeHandles rect={selectedRoom.rect} />}
+          {spanPreview && <OpeningSpanPreview opening={spanPreview} ok={spanAllowed} />}
+          {!inGame && canAdjustRooms && tool === 'select' && selectedOpeningBlock && isOpening(selectedOpeningBlock) && (
+            <OpeningGrip opening={spanPreview ?? selectedOpeningBlock} />
+          )}
           {caret && (
             <rect
               data-caret
@@ -766,6 +800,65 @@ function RoomGhost({ plan, at, kind, mode }: { plan: Parameters<typeof canPlaceR
       strokeDasharray="6 4"
       style={{ pointerEvents: 'none' }}
     />
+  );
+}
+
+/** 문·창이 놓일 수 있는 가장 긴 칸 수 — 미닫이는 길게, 나머지는 세 칸까지 (너비 단추와 같다) */
+function openingMaxSpan(opening: OpeningBlock): number {
+  return opening.openingKind === 'sliding_door' || opening.openingKind === 'sliding_window' ? 6 : 3;
+}
+
+/** 문·창이 놓인 벽 선의 시작과 끝 (도면 좌표) */
+function openingEnds(opening: OpeningBlock): { x0: number; y0: number; x1: number; y1: number; horizontal: boolean } {
+  const span = opening.span ?? 1;
+  const { x, y } = opening.cell;
+  switch (opening.side) {
+    case 'N':
+      return { x0: x * CS, y0: y * CS, x1: (x + span) * CS, y1: y * CS, horizontal: true };
+    case 'S':
+      return { x0: x * CS, y0: (y + 1) * CS, x1: (x + span) * CS, y1: (y + 1) * CS, horizontal: true };
+    case 'W':
+      return { x0: x * CS, y0: y * CS, x1: x * CS, y1: (y + span) * CS, horizontal: false };
+    default:
+      return { x0: (x + 1) * CS, y0: y * CS, x1: (x + 1) * CS, y1: (y + span) * CS, horizontal: false };
+  }
+}
+
+/** 끌고 있는 너비 — 놓일 수 있으면 파랑, 안 되면 빨강 */
+function OpeningSpanPreview({ opening, ok }: { opening: OpeningBlock; ok: boolean }) {
+  const e = openingEnds(opening);
+  return (
+    <line
+      x1={e.x0}
+      y1={e.y0}
+      x2={e.x1}
+      y2={e.y1}
+      stroke={ok ? '#2f7fd0' : '#c8102e'}
+      strokeOpacity={0.55}
+      strokeWidth={12}
+      strokeLinecap="round"
+      style={{ pointerEvents: 'none' }}
+    />
+  );
+}
+
+/** 고른 문·창의 끝 손잡이 — 벽을 따라 끌면 너비가 바뀐다 */
+function OpeningGrip({ opening }: { opening: OpeningBlock }) {
+  const e = openingEnds(opening);
+  const cursor = e.horizontal ? 'ew-resize' : 'ns-resize';
+  return (
+    <g data-opening-grip transform={`translate(${e.x1} ${e.y1})`} style={{ cursor }}>
+      <title>끌어서 너비 바꾸기</title>
+      <circle r={18} fill="transparent" />
+      <circle r={10} fill="#ffffff" stroke="#0f3d68" strokeWidth={2.5} />
+      <path
+        d={e.horizontal ? 'M-5 0 H5 M-5 0 L-2.5 -2.5 M-5 0 L-2.5 2.5 M5 0 L2.5 -2.5 M5 0 L2.5 2.5' : 'M0 -5 V5 M0 -5 L-2.5 -2.5 M0 -5 L2.5 -2.5 M0 5 L-2.5 2.5 M0 5 L2.5 2.5'}
+        stroke="#0f3d68"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </g>
   );
 }
 

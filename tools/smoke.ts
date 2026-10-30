@@ -888,6 +888,21 @@ async function main(): Promise<void> {
       await page.locator('[data-opening-resize="decrease"]').click();
       await page.waitForTimeout(750);
       assert((await kidsPlan(page)).blocks.some((block) => block.openingKind === 'sliding_window' && (block as BrowserBlock & { span?: number }).span === 2), '미닫이창이 줄이기 단추로 2칸 길이가 되지 않았다');
+      /* 끝 손잡이를 벽을 따라 끌어도 너비가 바뀐다 — 방처럼 직접 늘린다 */
+      const grip = page.locator('[data-opening-grip]');
+      assert((await grip.count()) === 1, '고른 미닫이창에 끝 손잡이가 없다');
+      const gripBox = await grip.boundingBox();
+      if (!gripBox) throw new Error('미닫이창 끝 손잡이가 보이지 않는다');
+      const cellPx = bedroomBox.width / (newBedroom?.rect?.w ?? 1);
+      const gx = gripBox.x + gripBox.width / 2;
+      const gy = gripBox.y + gripBox.height / 2;
+      await page.mouse.move(gx, gy);
+      await page.mouse.down();
+      await page.mouse.move(gx + cellPx * 0.25, gy, { steps: 3 });
+      await page.mouse.move(gx + cellPx * 0.5, gy, { steps: 3 });
+      await page.mouse.up();
+      await page.waitForTimeout(700);
+      assert((await kidsPlan(page)).blocks.some((block) => block.openingKind === 'sliding_window' && (block as BrowserBlock & { span?: number }).span === 3), '미닫이창 끝 손잡이를 끌어도 3칸이 되지 않았다');
       await page.locator('[data-delete-selected]').click();
       await page.waitForTimeout(500);
       assert((await page.locator('.k-stage [data-opening-kind="sliding_window"]').count()) === 0, '화면 삭제 단추로 미닫이창이 지워지지 않았다');
@@ -901,6 +916,7 @@ async function main(): Promise<void> {
       await page.locator(`.k-stage [data-block="${newBedroom?.id}"]`).click();
       assert((await page.locator('[data-handle]').count()) === 8, '실·문·창 단계 안에서 방 크기 손잡이가 보이지 않는다');
       for (const viewport of [
+        { width: 900, height: 700 },
         { width: 1024, height: 768 },
         { width: 1440, height: 900 },
         { width: 1920, height: 1080 },
@@ -2401,8 +2417,15 @@ async function main(): Promise<void> {
       await swContext.close();
     });
 
-    await check('1024px 미만 화면도 소개를 먼저 보여 준 뒤 PC 안내에서 앱 실행을 막는다', async () => {
-      const narrow = await browser!.newContext({ viewport: { width: 900, height: 844 }, locale: 'ko-KR' });
+    await check('창을 반쪽(900px)으로 붙여도 앱이 열리고, 800px 미만에서만 PC 안내가 막는다 (설계서 v2.0 §11)', async () => {
+      const half = await browser!.newContext({ viewport: { width: 900, height: 760 }, locale: 'ko-KR' });
+      const h = await half.newPage();
+      await h.goto(server.url, { waitUntil: 'networkidle' });
+      await h.locator('[data-coach="kids-welcome-start"]').click();
+      await h.waitForSelector('.k-profile', { timeout: 8000 });
+      assert((await h.locator('.k-pc-only').count()) === 0, '900px 창에서 PC 안내가 앱을 막았다');
+      await half.close();
+      const narrow = await browser!.newContext({ viewport: { width: 760, height: 844 }, locale: 'ko-KR' });
       const p = await narrow.newPage();
       const errs: string[] = [];
       p.on('pageerror', (e) => errs.push(e.message));

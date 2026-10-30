@@ -15,9 +15,9 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 
-/* 앱이 PC 전용으로 보는 최소 화면 — 본문의 1024px 판정과 같다 */
-const CONTENT_MIN_WIDTH = 1024;
-const CONTENT_MIN_HEIGHT = 700;
+/* 창을 화면 반쪽에 붙여도 쓰게 웹과 같은 800 으로 둔다 (설계서 v2.0 §11) */
+const CONTENT_MIN_WIDTH = 800;
+const CONTENT_MIN_HEIGHT = 600;
 const CONTENT_WIDTH = 1280;
 const CONTENT_HEIGHT = 800;
 
@@ -44,8 +44,8 @@ if (!app.requestSingleInstanceLock()) {
 
 function createWindow() {
   /*
-   * 크기는 창틀이 아니라 본문 기준이다(useContentSize). 1024×768 교실 모니터처럼 작은 화면에서는
-   * 창을 최대화해 본문 너비가 1024px 에 닿게 한다 — 그래야 앱의 PC 판정을 통과한다.
+   * 크기는 창틀이 아니라 본문 기준이다(useContentSize). 처음에는 1280×800 으로 열고, 그보다 작은
+   * 교실 모니터에서는 최대화한다. 이용자는 800×600 까지 줄일 수 있다 — 앱도 그 너비에서 돈다.
    */
   const work = screen.getPrimaryDisplay().workAreaSize;
   const small = work.width < CONTENT_WIDTH + 16 || work.height < CONTENT_HEIGHT + 40;

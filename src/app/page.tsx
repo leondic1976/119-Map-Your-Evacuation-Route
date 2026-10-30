@@ -12,7 +12,8 @@ import KidsShell from '../ui/KidsShell';
 import ProfileSetup, { type StudentInfo } from '../ui/ProfileSetup';
 import WelcomeScreen from '../ui/WelcomeScreen';
 
-const PC_MIN_WIDTH = 1024;
+/* 창을 화면 반쪽에 붙여도 쓰게 800 으로 둔다 (설계서 v2.0 §11). 그보다 좁으면 휴대폰으로 본다 */
+const PC_MIN_WIDTH = 800;
 
 export default function Page() {
   const [desktop, setDesktop] = useState<boolean | null>(null);
@@ -49,7 +50,7 @@ export default function Page() {
           </span>
           <h1>PC에서 이용해 주세요</h1>
           <p>우리집 대피지도는 큰 화면과 키보드·마우스를 사용하는 PC 전용 프로그램입니다.</p>
-          <small>브라우저 창을 1024px 이상으로 넓혀 주세요.</small>
+          <small>브라우저 창을 800px 이상으로 넓혀 주세요. 넓히면 하던 것이 그대로 이어진다.</small>
         </div>
       </main>
     );

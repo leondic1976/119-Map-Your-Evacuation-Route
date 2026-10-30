@@ -1427,6 +1427,29 @@
   }
 }
 
+/* 800~1023 — 팔레트는 좁게, 도움은 접힌 칸에서 펴면 도면 위에 서랍처럼 덮는다 (설계서 v2.0 §11) */
+@media (max-width: 1023px) {
+  .k-app {
+    --k-pal-w: 196px;
+  }
+
+  .k-app.mode-edit .k-work,
+  .k-app.mode-edit:has(.k-help.collapsed) .k-work {
+    position: relative;
+    grid-template-columns: var(--k-pal-w) minmax(0, 1fr) 60px;
+  }
+
+  .k-app.mode-edit .k-help:not(.collapsed) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(320px, 70%);
+    box-shadow: -14px 0 32px rgba(11, 47, 81, 0.22);
+  }
+}
+
 /* 불꽃 혀 — 살짝 흔들린다. 움직임을 줄이라고 하면 멈춘다 (설계서 v1.2 §5.1) */
 .k-flame {
   transform-box: fill-box;

@@ -198,7 +198,8 @@ export interface KidsActions {
   toggleOpening: (id: BlockId) => void;
   /** 여닫이문의 안쪽/바깥쪽 열림 방향을 정한다. */
   setOpeningSwing: (id: BlockId, swing: OpeningSwing) => void;
-  resizeOpening: (id: BlockId, span: OpeningSpan) => void;
+  /** anchor 'start' — 손잡이로 끝을 끌 때. 시작 칸을 그대로 두고 그 자리에 안 맞으면 가까운 자리로 맞춘다 */
+  resizeOpening: (id: BlockId, span: OpeningSpan, anchor?: 'start') => void;
   removeBlock: (id: BlockId) => void;
   /** 온보딩 — 방을 눌러 내 자리를 정한다 */
   pickMyRoom: (cell: Cell) => boolean;
@@ -1087,11 +1088,13 @@ export const useKids = create<KidsStore>()((set, get) => {
       get().notify(swing === 'inward' ? '문이 방 안쪽으로 열리게 바꿨다.' : '문이 방 바깥쪽으로 열리게 바꿨다.');
     },
 
-    resizeOpening: (id, span) => {
+    resizeOpening: (id, span, anchor) => {
       const plan = get().plan;
       const target = plan.blocks.find((block) => block.id === id && isOpening(block));
       if (!target || !isOpening(target)) return;
-      const fitted = fitOpeningSpan(plan, target, span);
+      if ((target.span ?? 1) === span) return;
+      const anchored = anchor === 'start' ? { ...target, span } : null;
+      const fitted = anchored && canPlaceOpening(plan, anchored) ? anchored : fitOpeningSpan(plan, target, span);
       if (!fitted) {
         get().notify('그쪽 벽에는 이만큼 넓힐 자리가 없다. 벽의 시작 쪽에 다시 놓거나 더 작은 폭을 골라 보자.', 'warn');
         return;

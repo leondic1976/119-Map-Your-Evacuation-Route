@@ -2395,6 +2395,66 @@
   line-height: 1.65;
 }
 
+/* 설치 없이 웹에서 바로 쓰기 — 카드 위의 띠 (설계서 v1.20 §2.1) */
+.k-dl-web {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-top: 22px;
+  padding: 18px 22px;
+  border: 2px solid #bfe3d2;
+  border-radius: 22px;
+  background: #edf8f2;
+}
+
+.k-dl-web-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #fff;
+  color: #1b7f5a;
+}
+
+.k-dl-web-icon svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.k-dl-web-text h2 {
+  margin: 0 0 4px;
+  color: #0b2f51;
+  font-size: 20px;
+}
+
+.k-dl-web-text p {
+  margin: 0;
+  color: #3b5063;
+  font-size: 15.5px;
+  line-height: 1.5;
+}
+
+/* 주소는 한글이 아니라 어디서든 끊어도 된다 */
+.k-dl-web-text .k-dl-web-address {
+  margin-top: 6px;
+  color: #0b2f51;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 14.5px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.k-dl-web .k-dl-action {
+  margin-top: 0;
+}
+
 .k-dl-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

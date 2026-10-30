@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * PC에 설치하기 — 받는 곳 (설계서 v1.18 §6).
+ * PC에 설치하기 — 받는 곳 (설계서 v1.18 §6 · v1.20 §2.1).
  *
- * 세 갈래를 한 화면에 둔다. 어느 것이든 인터넷 없이 돈다.
+ * 첫 줄은 설치 없이 웹에서 바로 쓰는 길이다. 주소는 하드코딩하지 않고 지금 열린 주소에서 만든다.
+ * 그 아래 세 갈래를 한 화면에 둔다. 어느 것이든 인터넷 없이 돈다.
  *   브라우저에 설치     설치 묻기가 허락되면 그 자리에서 묻고, 아니면 주소창 절차를 알려 준다
  *   오프라인 꾸러미     ZIP 을 받아 압축을 풀고 HTML 을 두 번 누른다. USB 로 옮겨도 된다
  *   윈도우 설치 파일     Releases 의 설치판·무설치판
@@ -28,6 +29,12 @@ type InstallState = 'checking' | 'installed' | 'ready' | 'manual' | 'done';
 
 export default function DownloadPage() {
   const [install, setInstall] = useState<InstallState>('checking');
+  /* 웹에서 바로 쓰는 주소 — 지금 열린 페이지 주소에 기준 경로를 더한다. 다른 서버에 올려도 그 서버 주소가 나온다 */
+  const [webAddress, setWebAddress] = useState('');
+
+  useEffect(() => {
+    setWebAddress(new URL(`${basePath}/`, window.location.href).href);
+  }, []);
 
   useEffect(() => {
     const installer = host().installer;
@@ -62,11 +69,25 @@ export default function DownloadPage() {
 
       <section className="k-dl-hero">
         <p className="k-dl-kicker">학교에서도 집에서도 · 인터넷 없이도</p>
-        <h1 id="k-dl-title">우리집 대피지도를 PC에 설치하자</h1>
+        <h1 id="k-dl-title">웹에서 바로 쓰거나, PC에 설치하자</h1>
         <p>
-          세 가지 중 편한 것을 고르면 돼. 어느 것이든 한 번 받아 두면 인터넷이 없어도 열리고,
-          그린 지도는 그 PC 안에만 저장돼.
+          설치하지 않아도 웹 주소를 열면 바로 돼. 설치해 두면 바탕화면 아이콘으로 열고 인터넷이 없어도 열려.
+          어느 쪽이든 그린 지도는 그 PC 안에만 저장돼.
         </p>
+
+        <section className="k-dl-web" aria-labelledby="k-dl-web-title" data-coach="kids-download-web-strip">
+          <span className="k-dl-web-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" /><path d="M5 16h22M16 5c-4.2 4-4.2 18 0 22M16 5c4.2 4 4.2 18 0 22" /></svg>
+          </span>
+          <div className="k-dl-web-text">
+            <h2 id="k-dl-web-title">설치하지 않아도 돼</h2>
+            <p>이 주소를 열면 바로 그릴 수 있어. 한 번 열어 두면 다음부터는 인터넷이 없어도 열려.</p>
+            {webAddress && <p className="k-dl-web-address" data-web-address>{webAddress}</p>}
+          </div>
+          <a className="k-dl-action" href={`${basePath}/`} data-coach="kids-download-web">
+            <PlayIcon /> 웹에서 바로 쓰기
+          </a>
+        </section>
       </section>
 
       <div className="k-dl-cards">

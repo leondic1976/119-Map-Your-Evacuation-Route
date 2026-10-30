@@ -646,6 +646,26 @@ export function qaTests(check: Check, assert: Assert): void {
   });
 
   /**
+   * 탭 아이콘을 명시하지 않으면 웹은 `/favicon.ico` 를 찾아 매 방문 404 를 내고, 오프라인 HTML 은 `/icon.svg`
+   * 절대 링크를 품어 file:// 과 다른 서버에서 404 를 낸다 (설계서 v1.20 §2.2).
+   */
+  check('[점검] 탭 아이콘 — 웹 HTML 에 rel="icon" 이 있고 오프라인 HTML 에 뿌리 절대 경로가 없다 (설계서 v1.20 §2.2)', () => {
+    const layout = read(path.join(root, 'src/app/layout.tsx'));
+    assert(/icons:\s*\{/.test(layout) && /data:image\/svg\+xml/.test(layout), 'layout.tsx 가 탭 아이콘을 명시하지 않는다');
+    const web = path.join(root, 'out', 'index.html');
+    if (fs.existsSync(web)) {
+      assert(/<link[^>]*rel="icon"[^>]*href="[^"]*\/icon\.svg/.test(read(web)), '웹 HTML 에 rel="icon" 이 없다 — 브라우저가 /favicon.ico 를 찾아 404 를 낸다');
+    }
+    const offline = path.join(root, 'dist', 'home-escape-map.html');
+    if (fs.existsSync(offline)) {
+      const html = read(offline);
+      const rooted = [...html.matchAll(/<(?:link|script|img|a|source)\b[^>]*\b(?:href|src)="\/(?!\/)[^"]*"/g)].map((m) => m[0].slice(0, 90));
+      assert(rooted.length === 0, `오프라인 HTML 의 뿌리 절대 경로 ${rooted.length}건: ${rooted.slice(0, 2).join(' | ')}`);
+      assert(/<link[^>]*rel="icon"[^>]*href="data:image\/svg\+xml/.test(html), '오프라인 HTML 의 탭 아이콘이 data URI 가 아니다');
+    }
+  });
+
+  /**
    * 런타임 의존성 목록의 정본은 설계서 v1.4 §1.1 이다.
    * 여기 없는 것을 더하면 실패한다 — 늘리려면 설계서를 먼저 고친다 (작업지침 §9-12).
    */

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Metadata, Viewport } from 'next';
 import React from 'react';
 import '../ui/base.css';
@@ -15,6 +17,14 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
  */
 const offline = process.env.NEXT_PUBLIC_OFFLINE === '1';
 
+/*
+ * 탭 아이콘 (설계서 v1.20 §2.2). 명시하지 않으면 웹은 `/favicon.ico` 를 찾아 매 방문 404 를 내고,
+ * 오프라인 HTML 은 `/icon.svg` 절대 링크를 품어 file:// 과 다른 서버에서 404 를 낸다.
+ * 오프라인은 같은 그림을 빌드 때 읽어 data URI 로 품는다 — 어디에 두어도 바깥을 찾지 않는다.
+ */
+const iconSvg = fs.readFileSync(path.join(process.cwd(), 'src/app/icon.svg'), 'utf8').replace(/\s*\n\s*/g, '');
+const iconUrl = offline ? `data:image/svg+xml,${encodeURIComponent(iconSvg)}` : `${basePath}/icon.svg`;
+
 export const metadata: Metadata = {
   title: '우리집 대피지도',
   description:
@@ -22,6 +32,10 @@ export const metadata: Metadata = {
   applicationName: '우리집 대피지도',
   authors: [{ name: '부평소방서 어린이 화재안전교육' }],
   robots: { index: true, follow: true },
+  icons: {
+    icon: [{ url: iconUrl, type: 'image/svg+xml' }],
+    ...(offline ? {} : { apple: `${basePath}/icons/icon-192.png` }),
+  },
   ...(offline
     ? {}
     : {
@@ -32,9 +46,6 @@ export const metadata: Metadata = {
           type: 'website',
           locale: 'ko_KR',
           images: [{ url: `${basePath}/images/welcome-evacuation.jpg`, width: 1600, height: 900, alt: '대피지도를 함께 보는 어린이들' }],
-        },
-        icons: {
-          apple: `${basePath}/icons/icon-192.png`,
         },
       }),
 };

@@ -14,7 +14,7 @@ import { BLOCKS, HAZARD_PRESETS, REQUIRED_BLOCKS, blockDef, blockName } from '..
 import { checklist, missingOf } from '../core/checklist';
 import { doorlessRooms } from '../core/grid/doors';
 import { eul, i } from '../core/josa';
-import { hasDrawableRoute, isOpening, isPoint, isRoom, pointFootprint, type OpeningBlock, type OpeningSpan, type PointBlock, type RoomKind } from '../types/plan';
+import { hasDrawableRoute, isOpening, isPoint, isRoom, pointFootprint, type OpeningBlock, type OpeningSpan, type PointBlock, type RoomBlock, type RoomKind } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { hasCritical, severityOf, titleOf } from '../core/rules/engine';
 import { firstIssue, ruleReportsFor, useKids } from '../store/kidsStore';
@@ -26,7 +26,9 @@ import GuideBubble from './GuideBubble';
 import GameView from './GameView';
 import ReportView from './ReportView';
 import Palette from './Palette';
-import HowTo from './HowTo';
+import HelpPanel from './HelpPanel';
+import CoachTour from './CoachTour';
+import { GUARDIAN_INTRO, STEP_HELP } from '../content/blockHelp';
 import Onboarding, { CloseIcon } from './Onboarding';
 import KidsPrint, { SHEET_H, SHEET_W } from './KidsPrint';
 import { SLOT_STYLE } from './PlanSvg';
@@ -44,6 +46,13 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '';
 /* 오프라인 HTML·데스크톱 앱에서는 설치 안내로 가는 길이 없다 (설계서 v1.18 §6) */
 const installAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
+
+/* 큰 흐름 세 칸 — 집 만들기 → 나가는 길 → 대피 연습 (설계서 v2.0 §2.1) */
+const FLOW = [
+  { key: 'build', label: '집 만들기' },
+  { key: 'route', label: '나가는 길' },
+  { key: 'drill', label: '대피 연습' },
+] as const;
 
 const BUILD_STEPS = [
   ['template', '집 모양'],
@@ -125,6 +134,19 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
   const [askMissing, setAskMissing] = useState<string[] | null>(null);
   const [pickChar, setPickChar] = useState(false);
   const [showNotebook, setShowNotebook] = useState(false);
+  /* 상단 설정 · 하단 저장 메뉴 · 어른 안내 (설계서 v2.0 §2.1) */
+  const [settings, setSettings] = useState(false);
+  const [fileMenu, setFileMenu] = useState(false);
+  const [guardian, setGuardian] = useState(false);
+  /* 처음 안내 투어 — 편집 화면에 처음 들어왔을 때 한 번, 그 뒤로는 설정·사용법에서 (설계서 v2.0 §9) */
+  const [tour, setTour] = useState(false);
+  const closeTour = useCallback(() => {
+    setTour(false);
+    if (!useKids.getState().profile.tourSeen) useKids.getState().setProfile({ tourSeen: true });
+  }, []);
+  useEffect(() => {
+    if (ready && mode === 'edit' && !onboard && step !== 'template' && !profile.tourSeen) setTour(true);
+  }, [ready, mode, onboard, step, profile.tourSeen]);
   const sheetRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const doorlessNoticeRef = useRef(false);
@@ -248,6 +270,9 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
         setAskMissing(null);
         setBadFile(null);
         setShowNotebook(false);
+        setSettings(false);
+        setFileMenu(false);
+        setGuardian(false);
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection) {
@@ -359,7 +384,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
 
   return (
     <>
-      <div className={`k-app mode-${mode}`} data-level="kids" data-step={step}>
+      <div className={`k-app mode-${mode}`} data-level="kids" data-step={step} data-grade-mode={profile.gradeMode}>
         {/* 상단바 */}
         <header className="k-top">
           <div className="k-brand">
@@ -380,54 +405,40 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
             </nav>
           )}
 
+          {/* 큰 흐름 — 아이가 지금 어디쯤인지 한눈에 (설계서 v2.0 §2.1) */}
+          <ol className="k-flow" aria-label="진행 순서" data-coach="kids-flow">
+            {FLOW.map((f, idx) => {
+              const state = flowState(idx, step, mode, Boolean(pair.primary));
+              return (
+                <li key={f.key} className={state} aria-current={state === 'on' ? 'step' : undefined} data-flow={f.key}>
+                  <i>{state === 'done' ? <CheckIcon /> : idx + 1}</i>
+                  <span>{f.label}</span>
+                </li>
+              );
+            })}
+          </ol>
+
           <span className="k-spacer" />
 
-          <div className="k-seg" role="group" aria-label="이용 수준" data-coach="kids-grade">
-            <button type="button" aria-pressed={easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'easy' })}>
-              쉬움
+          <div className="k-top-group" role="group" aria-label="되돌리기와 다시">
+            <button type="button" className="k-ib" onClick={() => useKids.getState().undo()} disabled={!past.length || !editing} title="되돌리기 (Ctrl+Z)" data-coach="kids-undo">
+              <UndoIcon />
+              <span>되돌리기</span>
             </button>
-            <button type="button" aria-pressed={!easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'normal' })}>
-              보통
-            </button>
-          </div>
-          <div className="k-seg" role="group" aria-label="게임 방식" data-coach="kids-timed">
-            <button type="button" aria-pressed={!timed} onClick={() => useKids.getState().setTimed(false)} title="시간제한 없음 — 기본값">
-              연습
-            </button>
-            <button type="button" aria-pressed={timed} onClick={() => useKids.getState().setTimed(true)} title="시간 게이지가 줄어든다">
-              도전
+            <button type="button" className="k-ib" onClick={() => useKids.getState().redo()} disabled={!future.length || !editing} title="다시 하기 (Ctrl+Shift+Z)" data-coach="kids-redo">
+              <RedoIcon />
+              <span>다시</span>
             </button>
           </div>
-          <div className="k-seg" role="group" aria-label="블록 외형">
-            <button type="button" aria-pressed={profile.blockStyle === 'kid'} onClick={() => useKids.getState().setProfile({ blockStyle: 'kid' })}>
-              그림
-            </button>
-            <button type="button" aria-pressed={profile.blockStyle === 'blueprint'} onClick={() => useKids.getState().setProfile({ blockStyle: 'blueprint' })}>
-              도면
-            </button>
-          </div>
-
-          <button type="button" className="k-tb" onClick={() => useKids.getState().undo()} disabled={!past.length || !editing} title="되돌리기 (Ctrl+Z)">
-            <UndoIcon /> 되돌리기
-          </button>
-          <button type="button" className="k-tb" onClick={() => useKids.getState().redo()} disabled={!future.length || !editing} title="다시 하기 (Ctrl+Shift+Z)">
-            <RedoIcon /> 다시
-          </button>
-          <button type="button" className="k-tb" onClick={() => setOnboard(true)} disabled={!editing} title="다른 집 모양을 고른다" data-coach="kids-template">
-            집 모양
-          </button>
-          <button type="button" className="k-tb" onClick={() => setConfirmReset(true)} disabled={!editing} title="그린 것을 모두 지우고 처음부터">
-            처음부터
-          </button>
-          <button type="button" className="k-tb" onClick={() => setPickChar(true)} title="게임에서 내가 될 캐릭터를 고른다" data-coach="kids-character">
+          <button type="button" className="k-ib" onClick={() => setPickChar(true)} title="대피 연습에서 내가 될 캐릭터를 고른다" data-coach="kids-character">
             <span className="k-char-chip" aria-hidden="true">
-              <KidPortrait id={profile.playerCharacter} size={26} />
+              <KidPortrait id={profile.playerCharacter} size={28} />
             </span>
-            내 캐릭터
+            <span>내 캐릭터</span>
           </button>
           <button
             type="button"
-            className="k-tb"
+            className="k-ib"
             aria-pressed={profile.soundOn}
             data-coach="kids-sound"
             title={profile.soundOn ? '소리를 끈다' : '소리를 켠다'}
@@ -444,23 +455,104 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
               }
             }}
           >
-            <SoundIcon on={profile.soundOn} /> {profile.soundOn ? '소리 켜짐' : '소리 꺼짐'}
+            <SoundIcon on={profile.soundOn} />
+            <span>{profile.soundOn ? '소리 켜짐' : '소리 꺼짐'}</span>
           </button>
-          <button type="button" className="k-tb" onClick={() => setHelp(true)} title="사용법 (?)">
-            사용법
+          <button type="button" className="k-ib" onClick={() => setHelp(true)} title="사용법 (?)" data-coach="kids-usage">
+            <HelpIcon />
+            <span>사용법</span>
           </button>
           {canFullscreen && (
             <button
               type="button"
-              className="k-tb"
+              className="k-ib"
               aria-pressed={fullscreen}
               data-coach="kids-fullscreen"
               title={fullscreen ? '창 크기로 돌아간다' : '브라우저 틀을 숨기고 화면 전체를 쓴다'}
               onClick={() => void host().screen.toggleFullscreen()}
             >
-              <FullscreenIcon on={fullscreen} /> {fullscreen ? '창으로' : '전체 화면'}
+              <FullscreenIcon on={fullscreen} />
+              <span>{fullscreen ? '창으로' : '전체 화면'}</span>
             </button>
           )}
+          <div className="k-menu-wrap">
+            <button type="button" className={`k-ib${settings ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={settings} data-coach="kids-settings" title="글 수준·게임 방식·도면 모양·집 모양 바꾸기·처음부터" onClick={() => { setSettings((v) => !v); setFileMenu(false); }}>
+              <GearIcon />
+              <span>설정</span>
+            </button>
+            {settings && (
+              <>
+                <div className="k-menu-back" onClick={() => setSettings(false)} role="presentation" />
+                <div className="k-menu k-settings" role="dialog" aria-label="설정" data-coach="kids-settings-menu">
+                  <h3>설정</h3>
+                  <div className="k-menu-row">
+                    <span>글 수준</span>
+                    <div className="k-seg" role="group" aria-label="이용 수준" data-coach="kids-grade">
+                      <button type="button" aria-pressed={easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'easy' })}>
+                        쉬움
+                      </button>
+                      <button type="button" aria-pressed={!easy} onClick={() => useKids.getState().setProfile({ gradeMode: 'normal' })}>
+                        보통
+                      </button>
+                    </div>
+                    <small>쉬움은 아이 말, 보통은 소방 용어로 적는다</small>
+                  </div>
+                  <div className="k-menu-row">
+                    <span>게임 방식</span>
+                    <div className="k-seg" role="group" aria-label="게임 방식" data-coach="kids-timed">
+                      <button type="button" aria-pressed={!timed} onClick={() => useKids.getState().setTimed(false)} title="시간제한 없음 — 기본값">
+                        연습
+                      </button>
+                      <button type="button" aria-pressed={timed} onClick={() => useKids.getState().setTimed(true)} title="시간 게이지가 줄어든다">
+                        도전
+                      </button>
+                    </div>
+                    <small>연습이 기본이다. 도전은 시간이 줄어든다</small>
+                  </div>
+                  <div className="k-menu-row">
+                    <span>도면 모양</span>
+                    <div className="k-seg" role="group" aria-label="블록 외형">
+                      <button type="button" aria-pressed={profile.blockStyle === 'kid'} onClick={() => useKids.getState().setProfile({ blockStyle: 'kid' })}>
+                        그림
+                      </button>
+                      <button type="button" aria-pressed={profile.blockStyle === 'blueprint'} onClick={() => useKids.getState().setProfile({ blockStyle: 'blueprint' })}>
+                        도면
+                      </button>
+                    </div>
+                    <small>그림은 색이 있고, 도면은 흑백 건축 도면처럼 보인다</small>
+                  </div>
+                  <hr />
+                  <button type="button" className="k-menu-item" onClick={() => { setSettings(false); setOnboard(true); }} disabled={!editing} data-coach="kids-template">
+                    <HouseIcon /> 집 모양 바꾸기
+                  </button>
+                  <button type="button" className="k-menu-item" onClick={() => { setSettings(false); setGuardian(true); }} data-coach="kids-guardian">
+                    <HelpIcon /> 선생님·보호자 안내
+                  </button>
+                  <button type="button" className="k-menu-item" onClick={() => { setSettings(false); setTour(true); }} disabled={!editing} data-coach="kids-tour-again">
+                    <TourIcon /> 처음 안내 다시 보기
+                  </button>
+                  <button type="button" className="k-menu-item danger" onClick={() => { setSettings(false); setConfirmReset(true); }} disabled={!editing} data-coach="kids-reset">
+                    처음부터 다시
+                  </button>
+                  {installAvailable && (
+                    <button
+                      type="button"
+                      className="k-menu-item"
+                      data-coach="kids-check-update"
+                      onClick={async () => {
+                        setSettings(false);
+                        const result = await host().installer.checkUpdate();
+                        useKids.getState().notify(result === 'ready' ? '새 판을 받았어. 아래 「다시 열기」를 누르면 바뀐 것이 보여.' : result === 'none' ? `지금 판 ${APP_VERSION} 이 가장 새 판이야.` : '여기서는 새 판을 확인할 수 없어. 설치 안내 페이지에서 받아 줘.');
+                      }}
+                    >
+                      <RefreshIcon /> 새 판 확인 <small>지금 {APP_VERSION}</small>
+                    </button>
+                  )}
+                  <small className="k-menu-note">우리집 대피지도 {APP_VERSION} · 이 PC 안에만 저장된다</small>
+                </div>
+              </>
+            )}
+          </div>
         </header>
 
         {/* 가운데 */}
@@ -533,6 +625,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                       ))}
                     </div>
                   )}
+                  {(step === 'spaces' || step === 'structure') && selectedRoom?.roomKind === 'kitchen' && <KitchenWallsToggle room={selectedRoom} />}
                   {step === 'furniture' && selectedRoom && (
                     <label className="k-build-name">
                       <span>공간 이름</span>
@@ -601,6 +694,7 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
                 )}
                 {selectedOpening && !selectedOpening.hideInPlan && <OpeningSizeControl opening={selectedOpening} />}
                 {selectedFurniture && <FurnitureSizeControl furniture={selectedFurniture} easy={easy} />}
+                {selectedRoom?.roomKind === 'kitchen' && <KitchenWallsToggle room={selectedRoom} />}
                 <span className="k-spacer" />
                 <label className="k-chk" title="계산으로 찾은 가장 짧은 길을 회색 점선으로 보여 준다">
                   <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} />
@@ -668,18 +762,18 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
               </div>
             )}
           </main>
-          <HowTo />
+          <HelpPanel onGuardian={() => setGuardian(true)} />
         </div>
 
         {/* 하단바 */}
         <footer className="k-bottom">
-          <button type="button" className="k-tb accent" onClick={() => useKids.getState().help()} data-coach="kids-help">
-            이제 뭘 해야 해?
+          <button type="button" className="k-tb accent k-ask" onClick={() => useKids.getState().help()} data-coach="kids-help" title="캐릭터가 지금 할 일을 말해 준다">
+            <AskIcon /> {easy ? '뭘 해야 해?' : '다음 할 일'}
           </button>
           {editing && !guidedStep && (
             <button
               type="button"
-              className="k-tb primary"
+              className="k-tb primary k-cta"
               disabled={plan.blocks.length === 0 || !preset}
               onClick={startGame}
               data-coach="kids-start-game"
@@ -688,20 +782,37 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
               <PlayIcon /> {easy ? '대피 연습 시작!' : '대피 연습 시작'}
             </button>
           )}
-          <button type="button" className="k-tb" onClick={() => withPrintableRoute(() => setPreview(true))} data-coach="kids-print">
+          <button type="button" className="k-tb" onClick={() => withPrintableRoute(() => setPreview(true))} data-coach="kids-print" title="A4 한 장으로 뽑는다">
             <PrintIcon /> {easy ? '뽑기' : '인쇄'}
           </button>
           <button type="button" className="k-tb k-notebook-open" onClick={() => setShowNotebook(true)} title="4주 안전 약속표와 모은 배지를 본다" data-coach="kids-notebook-open">
             <NotebookIcon /> 안전 수첩
           </button>
-          <button type="button" className="k-tb" onClick={saveFile} title="파일로 저장 (Ctrl+S)">
-            파일 저장
-          </button>
-          <button type="button" className="k-tb" onClick={() => fileRef.current?.click()} disabled={!editing}>
-            불러오기
-          </button>
+          <div className="k-menu-wrap k-menu-up">
+            <button type="button" className={`k-tb${fileMenu ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={fileMenu} data-coach="kids-file-menu" title="파일로 저장하거나 불러온다" onClick={() => { setFileMenu((v) => !v); setSettings(false); }}>
+              <SaveIcon /> 저장·열기
+            </button>
+            {fileMenu && (
+              <>
+                <div className="k-menu-back" onClick={() => setFileMenu(false)} role="presentation" />
+                <div className="k-menu" role="dialog" aria-label="저장과 열기" data-coach="kids-file-menu-panel">
+                  <h3>저장과 열기</h3>
+                  <p className={`k-menu-note${saveError ? ' err' : ''}`} data-coach="kids-save-state">
+                    {saveError ? '자동 저장이 되지 않는다 — 파일로 저장해 두자.' : saved ? `자동 저장됨 ${saved}. 이 PC 의 브라우저 안에만 저장된다.` : '자동 저장 대기. 그리면 바로 저장된다.'}
+                  </p>
+                  <button type="button" className="k-menu-item" onClick={() => { setFileMenu(false); saveFile(); }} data-coach="kids-save-file">
+                    <SaveIcon /> 파일로 저장 <small>Ctrl+S</small>
+                  </button>
+                  <button type="button" className="k-menu-item" onClick={() => { setFileMenu(false); fileRef.current?.click(); }} disabled={!editing} data-coach="kids-load-file">
+                    <FolderIcon /> 파일 불러오기
+                  </button>
+                  <small className="k-menu-note">다른 PC 로 옮길 때 파일로 저장해서 가져간다.</small>
+                </div>
+              </>
+            )}
+          </div>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => onOpenFile(e.target.files?.[0])} />
-          <span className={`k-save${saveError ? ' err' : ''}`}>{saveError ? '자동 저장 불가' : saved ? `자동 저장 ${saved}` : '자동 저장 대기'}</span>
+          <span className={`k-save${saveError ? ' err' : ''}`} aria-live="polite">{saveError ? '자동 저장 불가' : saved ? `자동 저장 ${saved}` : '자동 저장 대기'}</span>
           <span className="k-spacer" />
           {dev && (
             <span className="k-dev" title="조작 횟수 · 경과 시간 (FR-7.11)" data-coach="kids-dev">
@@ -893,7 +1004,9 @@ export default function KidsShell({ studentInfo }: { studentInfo?: StudentInfo }
         </div>
       )}
 
-      {help && <HelpModal easy={easy} onClose={() => setHelp(false)} />}
+      {help && <HelpModal easy={easy} onClose={() => setHelp(false)} onTour={editing ? () => { setHelp(false); setTour(true); } : undefined} />}
+      {tour && editing && <CoachTour easy={easy} onClose={closeTour} />}
+      {guardian && <GuardianModal step={step} onClose={() => setGuardian(false)} />}
       {showNotebook && <SafetyNotebook progress={progress} easy={easy} onClose={() => setShowNotebook(false)} />}
     </>
   );
@@ -1010,7 +1123,7 @@ function sevLabel(sev: 'critical' | 'important' | 'tip', easy: boolean): string 
   return easy ? '참고' : '권장';
 }
 
-function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
+function HelpModal({ easy, onClose, onTour }: { easy: boolean; onClose: () => void; onTour?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -1029,6 +1142,8 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['7. 뽑기', '한 장으로 뽑아 잘 보이는 곳에 붙인다.'],
         ['마우스가 없어도', 'Tab 을 눌러 도면으로 들어가고, 방향키로 칸을 옮긴 다음 Enter 를 누르면 된다.'],
         ['크게 보기', '도면 오른쪽 아래 + − 단추나 Ctrl+휠로 도면을 키운다. 위쪽 “전체 화면”을 누르면 화면을 다 쓴다.'],
+        ['모르는 게 있으면', '왼쪽 칸에 마우스를 올리면 오른쪽 “도움”이 그게 뭔지, 왜 그리는지, 어떻게 놓는지 알려 준다. 아래 “뭘 해야 해?”는 캐릭터가 말로 알려 준다.'],
+        ['설정', '위쪽 톱니(설정)에서 글 수준·게임 방식·도면 모양을 바꾸고, 집 모양을 다시 고르거나 처음부터 할 수 있다.'],
       ]
     : [
         ['평면', '질문으로 추천받거나 집 모양에서 시작해 방을 옮기고 크기를 바꾼다. 방만 먼저 놓은 뒤 문과 가구를 붙여도 된다.'],
@@ -1039,6 +1154,8 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         ['인쇄', 'A4 세로 1장. 흑백에서도 경로가 번호·선종류로 구분된다.'],
         ['키보드', 'Tab 으로 도면에 초점을 준 뒤 방향키로 칸을 옮기고 Enter 로 누른다. 마우스 없이도 전 과정이 된다.'],
         ['확대·전체 화면', '도면 오른쪽 아래의 확대·축소·맞춤 단추, Ctrl+휠, + − 0 키로 도면을 키운다. 상단 “전체 화면”은 브라우저 틀을 숨긴다.'],
+        ['도움 패널', '팔레트 항목에 마우스를 올리거나 도면의 블록을 선택하면 오른쪽 패널이 정의·이유·방법을 설명한다. “어른과 함께” 줄은 지도 포인트다.'],
+        ['설정', '상단 설정에서 이용 수준·게임 방식·블록 외형을 바꾸고 평면을 다시 고르거나 초기화한다.'],
       ];
   return (
     <div className="k-modal-back" onClick={onClose} role="presentation">
@@ -1068,11 +1185,83 @@ function HelpModal({ easy, onClose }: { easy: boolean; onClose: () => void }) {
         </p>
         <footer>
           <span className="k-version" data-coach="kids-version">우리집 대피지도 {APP_VERSION}</span>
+          {onTour && (
+            <button type="button" className="k-tb" onClick={onTour} data-coach="kids-help-tour">
+              <TourIcon /> 처음 안내 다시 보기
+            </button>
+          )}
           {installAvailable && (
             <a className="k-tb" href={`${basePath}/download/`} data-coach="kids-help-install">
               PC에 설치하기
             </a>
           )}
+          <button type="button" className="k-tb primary" onClick={onClose}>
+            닫기
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/** 큰 흐름의 상태 — 집 만들기 · 나가는 길 · 대피 연습 */
+function flowState(index: number, step: string, mode: string, hasPrimary: boolean): 'done' | 'on' | '' {
+  const current = mode === 'game' || mode === 'report' ? 2 : step === 'route' || step === 'routeAlt' ? 1 : 0;
+  if (index < current) return 'done';
+  if (index === current) return 'on';
+  if (index === 1 && hasPrimary) return 'done';
+  return '';
+}
+
+/** 주방의 벽 — 있는 집도, 거실과 트인 집도 있다. 고른 주방에서 바로 바꾼다 (설계서 v2.0 §2.4) */
+function KitchenWallsToggle({ room }: { room: RoomBlock }) {
+  const open = room.wallMode === 'zone';
+  return (
+    <div className="k-walls" role="group" aria-label="주방 벽" data-room-walls-control>
+      <span>주방 벽</span>
+      <button type="button" aria-pressed={!open} data-room-walls="closed" title="벽과 문으로 나뉜 주방으로 바꾼다" onClick={() => useKids.getState().setRoomWalls(room.id, 'closed')}>
+        벽과 문이 있어
+      </button>
+      <button type="button" aria-pressed={open} data-room-walls="zone" title="거실과 벽 없이 이어진 트인 주방으로 바꾼다" onClick={() => useKids.getState().setRoomWalls(room.id, 'zone')}>
+        거실과 트여 있어
+      </button>
+    </div>
+  );
+}
+
+/** 선생님·보호자 안내 — 지도감독 포인트를 단계별로 (설계서 v2.0 §3.3) */
+function GuardianModal({ step, onClose }: { step: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const order = ['template', 'spaces', 'furniture', 'safety', 'mySpot', 'meeting', 'route', 'routeAlt'];
+  return (
+    <div className="k-modal-back" onClick={onClose} role="presentation">
+      <div className="k-modal k-guardian" role="dialog" aria-modal="true" aria-labelledby="k-guardian-title" style={{ width: 680 }} onClick={(e) => e.stopPropagation()} data-coach="kids-guardian-modal">
+        <header>
+          <h2 id="k-guardian-title">선생님·보호자 안내</h2>
+          <button type="button" className="k-x" onClick={onClose} aria-label="닫기">
+            <CloseIcon />
+          </button>
+        </header>
+        <div className="k-guardian-body">
+          {GUARDIAN_INTRO.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          <ol>
+            {order.map((key) => (
+              <li key={key} className={key === step ? 'on' : ''}>
+                <b>{STEP_HELP[key].title.normal}</b>
+                <span>{STEP_HELP[key].guardian}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <footer>
           <button type="button" className="k-tb primary" onClick={onClose}>
             닫기
           </button>
@@ -1159,14 +1348,14 @@ function ZoomIcon({ kind }: { kind: 'in' | 'out' }) {
 
 function FullscreenIcon({ on }: { on: boolean }) {
   return on ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9 4v5H4" />
       <path d="M15 4v5h5" />
       <path d="M9 20v-5H4" />
       <path d="M15 20v-5h5" />
     </svg>
   ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M4 9V4h5" />
       <path d="M20 9V4h-5" />
       <path d="M4 15v5h5" />
@@ -1177,7 +1366,7 @@ function FullscreenIcon({ on }: { on: boolean }) {
 
 function SoundIcon({ on }: { on: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M5 9v6h4l5 4V5L9 9z" />
       {on ? <path d="M17 9a4 4 0 0 1 0 6" /> : <path d="M17 10l4 4M21 10l-4 4" />}
     </svg>
@@ -1195,9 +1384,91 @@ function BrandMark() {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.3 9.5a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.2 1-1.2 1.8" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
+function AskIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 5h16v11H9l-5 4z" />
+      <path d="M10 9.2a2 2 0 1 1 2.9 1.8c-.6.3-.9.7-.9 1.3" />
+      <path d="M12 14.2h.01" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 4h11l3 3v13H5z" />
+      <path d="M8 4v5h7V4M8 20v-6h8v6" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h6l2 2h10v11H3z" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 12a8 8 0 1 1-2.3-5.7" />
+      <path d="M20 4v5h-5" />
+    </svg>
+  );
+}
+
+function TourIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v.01M11 12h1v4h1" />
+    </svg>
+  );
+}
+
+function HouseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 11l8-7 8 7" />
+      <path d="M6 10v10h12V10" />
+      <path d="M10 20v-6h4v6" />
+    </svg>
+  );
+}
+
 function UndoIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9 14L4 9l5-5" />
       <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
     </svg>
@@ -1206,7 +1477,7 @@ function UndoIcon() {
 
 function RedoIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M15 14l5-5-5-5" />
       <path d="M20 9H9a5 5 0 0 0 0 10h3" />
     </svg>

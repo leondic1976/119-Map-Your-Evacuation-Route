@@ -1,26 +1,31 @@
 'use client';
 
 /**
- * 팔레트 — 자주 쓰는 7종 + 더보기 = 8칸 (FR-7.8).
- * 단추를 누르면 장전되고, 도면을 누르면 표준 크기로 놓인다 (FR-7.1).
- * 캐릭터가 가리키는 항목은 밝게 표시된다 (FR-7.10).
+ * 팔레트 — 놓을 수 있는 것이 전부 보인다 (설계서 v2.0 §2.2).
+ *
+ * 「더보기」와 갈래 탭을 없앴다. 방 · 문과 창 · 가구와 가전 · 안전 · 조심할 것 · 사람과 장소 여섯 묶음이
+ * 머리글과 함께 한 줄로 늘어서고, 아이는 스크롤해서 고른다. 어른이 못 찾던 소파·책상·냉장고가 바로 보인다.
+ * 단추를 누르면 장전되고, 도면을 누르면 표준 크기로 놓인다 (FR-7.1). 캐릭터가 가리키는 항목은 밝게 표시되고
+ * 보이는 자리로 스크롤된다 (FR-7.10). 칸에 올리면 오른쪽 도움 패널이 그 물건을 설명한다.
  */
-import React, { useEffect, useState } from 'react';
-import { BLOCKS, PALETTE_BASIC, REQUIRED_BLOCKS, type BlockCategory, type BlockDef } from '../content';
+import React, { useCallback, useEffect, useState } from 'react';
+import { BLOCKS, REQUIRED_BLOCKS, type BlockCategory, type BlockDef } from '../content';
+import { blockHelp } from '../content/blockHelp';
 import { checklist } from '../core/checklist';
 import { useKids, type KidsTool } from '../store/kidsStore';
 import { OpeningArt, PointArt } from './BlockArt';
 
-const CATS: { key: BlockCategory; easy: string; normal: string }[] = [
-  { key: 'room', easy: '방', normal: '실' },
-  { key: 'opening', easy: '문·창', normal: '개구부' },
-  { key: 'safety', easy: '안전', normal: '피난설비' },
-  { key: 'furniture', easy: '가구', normal: '가구' },
-  { key: 'hazard', easy: '조심', normal: '위험원' },
-  { key: 'marker', easy: '표시', normal: '표시' },
+/** 묶음 순서 — 아이가 집을 만드는 순서와 같다 */
+const GROUPS: { key: BlockCategory; easy: string; normal: string; note: string }[] = [
+  { key: 'room', easy: '방', normal: '실', note: '놓은 뒤 끌어서 옮기고 테두리 점으로 크기를 바꿔' },
+  { key: 'opening', easy: '문과 창', normal: '개구부', note: '방의 벽을 눌러 붙여' },
+  { key: 'furniture', easy: '가구와 가전', normal: '가구·가전', note: '진짜 있는 것을 방 안에 놓아' },
+  { key: 'safety', easy: '안전', normal: '피난설비', note: '진짜 자리를 어른과 확인해' },
+  { key: 'hazard', easy: '조심할 것', normal: '위험원', note: '불이 날 수 있는 것' },
+  { key: 'marker', easy: '사람과 장소', normal: '표시', note: '누가 어디 있는지' },
 ];
 
-const ROOM_SWATCH: Record<string, string> = {
+export const ROOM_SWATCH: Record<string, string> = {
   bedroom: '#fff3d6',
   living: '#e8f4e2',
   kitchen: '#ffe4d1',
@@ -38,13 +43,18 @@ const ROOM_SWATCH: Record<string, string> = {
 
 const TOOLS: { key: KidsTool; easy: string; normal: string; hint: string }[] = [
   { key: 'select', easy: '고르기', normal: '선택', hint: '눌러서 고르고, 끌어서 옮긴다.' },
-  /*
-   * "길 그리기"는 무슨 길인지가 빠져 있었다. 이 앱이 그리는 것은 불이 났을 때
-   * 밖으로 나가는 길이다. 쉬움은 아이가 쓰는 말로, 보통은 소방 용어로 적는다.
-   */
   { key: 'route', easy: '나가는 길', normal: '피난경로', hint: '불났을 때 나갈 길이다. 출발할 칸부터 끌어서 잇는다.' },
   { key: 'erase', easy: '지우개', normal: '삭제', hint: '눌러서 지운다.' },
 ];
+
+/** 트인 주방 — 블록 목록에는 없는 팔레트 전용 칸. 주방을 벽 없는 구역으로 장전한다 */
+const KITCHEN_OPEN: BlockDef = {
+  ...(BLOCKS.find((b) => b.id === 'kitchen') as BlockDef),
+  id: 'kitchen_open',
+  label: '트인 주방(부엌)',
+  easy: '트인 주방',
+  required: false,
+};
 
 export default function Palette() {
   const tool = useKids((s) => s.tool);
@@ -58,11 +68,11 @@ export default function Palette() {
   const plan = useKids((s) => s.plan);
   const setTool = useKids((s) => s.setTool);
   const arm = useKids((s) => s.arm);
-  const [more, setMore] = useState(false);
-  const [cat, setCat] = useState<BlockCategory>('safety');
+  const setPeek = useKids((s) => s.setPeek);
   const easy = gradeMode === 'easy';
   const disabled = mode !== 'edit';
   const adjustOnly = step === 'structure';
+  /* 만들기 단계에서는 그 단계에 맞는 묶음만 보인다 — 한 번에 한 가지씩 (v1.9 §15) */
   const stageCats: BlockCategory[] | null = adjustOnly
     ? []
     : step === 'spaces'
@@ -71,40 +81,69 @@ export default function Palette() {
         ? ['furniture', 'hazard']
         : step === 'safety'
           ? ['safety']
-        : null;
+          : null;
 
-  /* 캐릭터가 가리킨 항목이 더보기 안에 있으면 그때 한 번 펼쳐 준다. 그 뒤로는 아이가 고르는 대로다 */
+  /* 캐릭터가 가리킨 칸이 보이는 자리로 온다 */
   useEffect(() => {
     if (!paletteHl) return;
-    const def = BLOCKS.find((b) => b.id === paletteHl);
-    if (!def || PALETTE_BASIC.includes(def.id)) return;
-    setMore(true);
-    setCat(def.category);
+    const el = document.querySelector(`[data-coach="kids-palette"] [data-block-id="${paletteHl}"]`);
+    if (el instanceof HTMLElement) el.scrollIntoView({ block: 'nearest' });
   }, [paletteHl]);
-  useEffect(() => {
-    if (step === 'spaces') setCat('room');
-    else if (step === 'furniture') setCat('furniture');
-    else if (step === 'safety') setCat('safety');
-  }, [step]);
-  const showMore = adjustOnly ? false : stageCats ? true : more;
-  const activeCat = stageCats?.includes(cat) ? cat : (stageCats?.[0] ?? cat);
 
-  const basics = PALETTE_BASIC
-    .map((id) => BLOCKS.find((b) => b.id === id))
-    .filter((b): b is BlockDef => b !== undefined && (!stageCats || stageCats.includes(b.category)) && (step !== 'safety' || b.id === 'extinguisher'));
-  const moreItems = adjustOnly ? [] : BLOCKS.filter((b) => b.category === activeCat && !PALETTE_BASIC.includes(b.id) && (step !== 'safety' || b.id === 'extinguisher'));
-  const categories = stageCats ? CATS.filter((item) => stageCats.includes(item.key)) : CATS;
-  /* 필수 물건이 도면에 있는지 — 팔레트에 채움 표시로 보인다 (설계서 v1.2 §1.4) */
   const done = new Set(checklist(plan, REQUIRED_BLOCKS).filter((i) => i.present).map((i) => i.id));
-
-  const pick = (b: BlockDef) => {
-    const on = armed?.id === b.id && armed.roomMode !== 'zone';
-    arm(on ? null : { category: b.category, id: b.id });
+  const groups = (stageCats ? GROUPS.filter((g) => stageCats.includes(g.key)) : GROUPS).map((g) => {
+    let items = BLOCKS.filter((b) => b.category === g.key);
+    if (step === 'safety') items = items.filter((b) => b.id === 'extinguisher');
+    if (g.key === 'room') {
+      const at = items.findIndex((b) => b.id === 'kitchen');
+      items = [...items.slice(0, at + 1), KITCHEN_OPEN, ...items.slice(at + 1)];
+    }
+    /* 순서는 콘텐츠 그대로 — 여닫이문·미닫이문처럼 짝이 나란히 있어야 한다. 꼭 있어야 하는 것은 표시로 구분한다 */
+    return { ...g, items };
+  });
+  /*
+   * 키보드 — 팔레트 전체가 Tab 한 번이고, 안에서는 방향키로 옮긴다 (설계서 v2.0 §9).
+   * 칸이 50개가 넘어 하나씩 Tab 으로 지나가면 도면까지 못 간다.
+   */
+  const flat = groups.flatMap((g) => g.items.map((b) => b.id));
+  const [cursor, setCursor] = useState(0);
+  const cursorId = flat[Math.min(cursor, Math.max(0, flat.length - 1))];
+  const moveCursor = useCallback((delta: number) => {
+    const at = flat.indexOf(cursorId);
+    const next = Math.min(flat.length - 1, Math.max(0, (at < 0 ? 0 : at) + delta));
+    setCursor(next);
+    const el = document.querySelector(`[data-coach="kids-palette"] [data-block-id="${flat[next]}"]`);
+    if (el instanceof HTMLElement) el.focus();
+  }, [flat, cursorId]);
+  const onListKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight') moveCursor(1);
+    else if (e.key === 'ArrowLeft') moveCursor(-1);
+    else if (e.key === 'ArrowDown') moveCursor(3);
+    else if (e.key === 'ArrowUp') moveCursor(-3);
+    else if (e.key === 'Home') moveCursor(-flat.length);
+    else if (e.key === 'End') moveCursor(flat.length);
+    else return;
+    e.preventDefault();
   };
 
+  const isOn = (b: BlockDef): boolean => {
+    if (!armed) return false;
+    if (b.id === 'kitchen_open') return armed.id === 'kitchen' && armed.roomMode === 'zone';
+    return armed.id === b.id && armed.roomMode !== 'zone';
+  };
+  const pick = (b: BlockDef) => {
+    if (isOn(b)) {
+      arm(null);
+      return;
+    }
+    if (b.id === 'kitchen_open') arm({ category: 'room', id: 'kitchen', roomMode: 'zone' });
+    else arm({ category: b.category, id: b.id });
+  };
+  const armedDef = armed ? (armed.roomMode === 'zone' && armed.id === 'kitchen' ? KITCHEN_OPEN : BLOCKS.find((b) => b.id === armed.id)) : undefined;
+
   return (
-    <aside className={`k-palette${disabled ? ' k-disabled' : ''}`} aria-label="블록 팔레트" data-coach="kids-palette">
-      <div className="k-tools">
+    <aside className={`k-palette${disabled ? ' k-disabled' : ''}`} aria-label="놓을 것 팔레트" data-coach="kids-palette">
+      <div className="k-tools" role="group" aria-label="도구">
         {TOOLS.map((t) => (
           <button
             key={t.key}
@@ -125,59 +164,47 @@ export default function Palette() {
         ))}
       </div>
 
-      {adjustOnly && <div className="k-adjust-note"><b>방·문·창을 눌러 조정해요</b><span>방은 끌어서 옮기고 모서리 점으로 크기를 바꿔요. 문과 창은 위쪽에서 너비를 골라요.</span></div>}
-
-      <div className="k-blocks k-basic" role="group" aria-label="기본 블록">
-        {basics.map((b) => (
-          <PaletteButton key={b.id} def={b} on={armed?.id === b.id && armed.roomMode !== 'zone'} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} />
-        ))}
-        {!stageCats && (
-          <button type="button" className={`k-block k-more${showMore ? ' on' : ''}`} aria-expanded={showMore} disabled={disabled} data-block-id="more" onClick={() => setMore((v) => !v)}>
-            <span className="k-block-art">
-              <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
-                <circle cx={12} cy={20} r={3.2} fill="#2a3038" />
-                <circle cx={20} cy={20} r={3.2} fill="#2a3038" />
-                <circle cx={28} cy={20} r={3.2} fill="#2a3038" />
-              </svg>
-            </span>
-            <span className="k-block-name">{showMore ? '접기' : '더보기'}</span>
-          </button>
-        )}
-      </div>
-
-      {showMore && (
-        <div className="k-more-panel">
-          <div className="k-cats" role="tablist" aria-label="블록 갈래">
-            {categories.map((c) => (
-              <button key={c.key} type="button" role="tab" aria-selected={activeCat === c.key} className={`k-cat${activeCat === c.key ? ' on' : ''}`} onClick={() => setCat(c.key)}>
-                {easy ? c.easy : c.normal}
-              </button>
-            ))}
-          </div>
-          <div className="k-more-scroll" role="tabpanel">
-            {[true, false].map((req) => {
-              const items = moreItems.filter((b) => b.required === req);
-              if (items.length === 0) return null;
-              return (
-                <section key={String(req)} className="k-block-group">
-                  <h3>{req ? (easy ? '꼭 있어야 하는 것' : '필수') : easy ? '있을 수 있는 것' : '선택'}</h3>
-                  <div className="k-blocks">
-                    {items.map((b) => (
-                      <PaletteButton key={b.id} def={b} on={armed?.id === b.id && armed.roomMode !== 'zone'} hl={paletteHl === b.id} style={style} easy={easy} disabled={disabled} onPick={pick} placed={done.has(b.id)} common={b.tags.includes('common') && layer !== 'common'} />
-                    ))}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
+      {adjustOnly ? (
+        <div className="k-adjust-note">
+          <b>방·문·창을 눌러 조정해요</b>
+          <span>방은 끌어서 옮기고 모서리 점으로 크기를 바꿔요. 문과 창은 위쪽에서 너비를 골라요.</span>
+        </div>
+      ) : (
+        <div className="k-pal-scroll" data-coach="kids-palette-list" onKeyDown={onListKey}>
+          {groups.map((g) => (
+            <section key={g.key} className="k-pal-group" data-palette-group={g.key} aria-labelledby={`k-pal-${g.key}`}>
+              <h3 id={`k-pal-${g.key}`}>
+                <span>{easy ? g.easy : g.normal}</span>
+                <small>{g.note}</small>
+              </h3>
+              <div className="k-blocks">
+                {g.items.map((b) => (
+                  <PaletteButton
+                    key={b.id}
+                    def={b}
+                    on={isOn(b)}
+                    hl={paletteHl === b.id}
+                    style={style}
+                    easy={easy}
+                    disabled={disabled}
+                    onPick={pick}
+                    onPeek={setPeek}
+                    placed={done.has(b.id)}
+                    common={b.tags.includes('common') && layer !== 'common'}
+                    tabStop={b.id === cursorId}
+                    onFocusTile={() => setCursor(flat.indexOf(b.id))}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       )}
 
-      {armed && (
-        <div className="k-armed" role="status">
-          {armed.category === 'room' ? armed.roomMode === 'zone' ? '빈 바닥에서 끌어 트인 주방(부엌) 범위를 그려. 다시 그리면 자리와 크기가 바뀌어.' : '도면을 누르면 방이 놓여. 끌면 크기를 정할 수 있어.' : armed.category === 'opening' ? '방의 벽을 눌러 놓자.' : '놓을 칸을 누르자.'}
-          {' '}
-          <b>한 번에 하나씩 놓여.</b> 또 놓으려면 여기서 다시 고르자.
+      {armed && armedDef && (
+        <div className="k-armed" role="status" data-coach="kids-armed">
+          <b>{easy ? armedDef.easy : armedDef.label}</b>
+          <span>{blockHelp(armedDef.id, armedDef.category).how[easy ? 'easy' : 'normal']}</span>
           <button type="button" className="k-link" onClick={() => arm(null)}>
             그만
           </button>
@@ -197,6 +224,9 @@ function PaletteButton({
   common,
   placed,
   onPick,
+  onPeek,
+  tabStop,
+  onFocusTile,
 }: {
   def: BlockDef;
   on: boolean;
@@ -208,7 +238,13 @@ function PaletteButton({
   /** 필수 항목이 이미 도면에 있는가 */
   placed?: boolean;
   onPick: (b: BlockDef) => void;
+  onPeek: (id: string | null) => void;
+  /** 팔레트 전체에서 Tab 이 멈추는 한 칸인가 */
+  tabStop: boolean;
+  onFocusTile: () => void;
 }) {
+  const help = blockHelp(def.id, def.category);
+  const name = easy ? def.easy : def.label;
   return (
     <button
       type="button"
@@ -217,9 +253,17 @@ function PaletteButton({
       data-block-id={def.id}
       data-block-category={def.category}
       data-required={def.required ? (placed ? 'done' : 'todo') : undefined}
-      title={def.required ? `${hintFor(def, easy)} 꼭 있어야 하는 것이다.${placed ? ' 이미 놓았다.' : ''}` : hintFor(def, easy)}
+      title={`${name} — ${help.what[easy ? 'easy' : 'normal']}${def.required ? (placed ? ' 이미 놓았다.' : ' 꼭 있어야 하는 것이다.') : ''}`}
       disabled={disabled}
+      tabIndex={tabStop ? 0 : -1}
       onClick={() => onPick(def)}
+      onPointerEnter={() => onPeek(def.id)}
+      onPointerLeave={() => onPeek(null)}
+      onFocus={() => {
+        onPeek(def.id);
+        onFocusTile();
+      }}
+      onBlur={() => onPeek(null)}
     >
       {def.required && (
         <span className="k-req-mark" aria-hidden="true">
@@ -239,36 +283,33 @@ function PaletteButton({
         <BlockPreview def={def} style={style} />
       </span>
       <span className="k-block-name">
-        {easy ? def.easy : def.label}
+        {name}
         {common && <small> (집 밖)</small>}
       </span>
     </button>
   );
 }
 
-function hintFor(b: BlockDef, easy: boolean): string {
-  if (b.id === 'kitchen') return easy ? '벽과 문이 있는 주방(부엌)이야. 대부분의 집은 위쪽 트인 주방(부엌)을 골라.' : '벽과 문으로 나뉜 주방(부엌)입니다. 개방형은 빠른 추가에서 범위를 지정합니다.';
-  if (b.category === 'room') return easy ? '도면을 누르면 방이 놓인다.' : '클릭하면 표준 크기로 놓이고, 드래그하면 그 크기로 놓인다.';
-  if (b.id === 'door') return easy ? '앞뒤로 여는 문이다. 방의 벽을 누르자.' : '경첩으로 여는 방문이다. 방 경계선에 놓는다.';
-  if (b.id === 'sliding_door') return easy ? '옆으로 미는 문이다. 방의 벽을 누르자.' : '옆으로 미는 방문이다. 방 경계선에 놓는다.';
-  if (b.id === 'window') return easy ? '앞뒤로 여는 창이다. 바깥 벽을 누르자.' : '경첩으로 여는 창이다. 외벽에 놓는다.';
-  if (b.id === 'sliding_window') return easy ? '옆으로 미는 창이다. 바깥 벽을 누르자.' : '옆으로 미는 창이다. 외벽에 놓는다.';
-  if (b.category === 'opening') return easy ? '방의 벽을 눌러 놓는다.' : '방 경계선(벽면)에만 놓인다.';
-  if (b.tags.includes('adult')) return '어른과 함께 쓰는 설비다.';
-  return easy ? '놓을 칸을 누른다.' : '셀 중심에 놓인다.';
-}
-
-function BlockPreview({ def, style }: { def: BlockDef; style: 'kid' | 'blueprint' }) {
+export function BlockPreview({ def, style, size = 40 }: { def: BlockDef; style: 'kid' | 'blueprint'; size?: number }) {
+  if (def.id === 'kitchen_open') {
+    return (
+      <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
+        <rect x={4} y={6} width={32} height={28} fill={style === 'kid' ? ROOM_SWATCH.kitchen : '#fff'} />
+        <path d="M4 6h32v28H4" fill="none" stroke="#2a3038" strokeWidth={3} />
+        <path d="M4 10v20" stroke="#2a3038" strokeWidth={2} strokeDasharray="3 3" />
+      </svg>
+    );
+  }
   if (def.category === 'room') {
     return (
-      <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
         <rect x={4} y={6} width={32} height={28} fill={style === 'kid' ? (ROOM_SWATCH[def.id] ?? '#fff') : '#fff'} stroke="#2a3038" strokeWidth={3} />
       </svg>
     );
   }
   if (def.category === 'opening') {
     return (
-      <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
         <path d="M2 14 H38" stroke="#2a3038" strokeWidth={3} />
         <g transform="translate(20 14)">
           <OpeningArt kind={def.id} len={26} style={style} />
@@ -277,14 +318,14 @@ function BlockPreview({ def, style }: { def: BlockDef; style: 'kid' | 'blueprint
     );
   }
   return (
-    <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
+    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
       <PointArt subKind={def.id} w={40} h={40} style={style} />
     </svg>
   );
 }
 
 function ToolIcon({ k }: { k: KidsTool }) {
-  const p = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
+  const p = { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
   switch (k) {
     case 'select':
       return (

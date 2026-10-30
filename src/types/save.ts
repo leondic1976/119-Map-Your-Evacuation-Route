@@ -24,6 +24,8 @@ export interface UserProfile {
   soundOn: boolean;
   /** 게임에서 내가 되는 캐릭터. 4종 중 고른다 (설계서 v1.2 §6.2) */
   playerCharacter: PlayerCharacter;
+  /** 편집 화면의 처음 안내 투어를 봤는가 (설계서 v2.0 §9). 없으면 아직 안 본 것이다 */
+  tourSeen?: boolean;
 }
 
 export function defaultProfile(): UserProfile {
@@ -36,6 +38,7 @@ export function defaultProfile(): UserProfile {
     ttsEnabled: false,
     soundOn: true,
     playerCharacter: 'boy_cap',
+    tourSeen: false,
   };
 }
 

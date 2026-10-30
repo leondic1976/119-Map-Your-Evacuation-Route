@@ -4,7 +4,7 @@
  * 첫 소개 화면 — 설계서 v1.6 §8.
  * 이용자 유형을 고르는 화면이 아니다. 교육 목적을 읽고 한 번 누르면 기존 온보딩으로 간다.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface Props {
   onStart: () => void;
@@ -16,10 +16,20 @@ const installAvailable = process.env.NEXT_PUBLIC_OFFLINE !== '1';
 const welcomeAssets = {
   background: `${basePath}/images/welcome-evacuation.jpg`,
   characters: `${basePath}/images/nfa-characters.png`,
-  symbol: `${basePath}/images/nfa-symbol.png`,
+  symbol: `${basePath}/images/incheon-fire-symbol.png`,
 } as const;
 
 export default function WelcomeScreen({ onStart }: Props) {
+  /* 시작 전에 어떻게 하는지 세 장면으로 (설계서 v2.0 §9) */
+  const [guide, setGuide] = useState(false);
+  useEffect(() => {
+    if (!guide) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGuide(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [guide]);
   return (
     <main className="k-welcome" data-screen="welcome" aria-labelledby="k-welcome-title">
       <img
@@ -88,15 +98,59 @@ export default function WelcomeScreen({ onStart }: Props) {
             </svg>
           </span>
         </button>
+        <button type="button" className="k-welcome-guide-open" data-coach="kids-welcome-guide" onClick={() => setGuide(true)}>
+          어떻게 하는지 먼저 보기
+        </button>
 
         <footer className="k-welcome-agency">
-          <img src={welcomeAssets.symbol} alt="소방 심벌" />
+          <img src={welcomeAssets.symbol} alt="인천소방본부 심벌" />
           <span>
-            <strong>부평소방서</strong>
+            <strong>인천소방본부</strong>
             <small>어린이 화재안전교육</small>
           </span>
         </footer>
       </section>
+
+      {guide && (
+        <div className="k-modal-back" onClick={() => setGuide(false)} role="presentation">
+          <div className="k-modal k-welcome-guide" role="dialog" aria-modal="true" aria-labelledby="k-welcome-guide-title" onClick={(e) => e.stopPropagation()} data-coach="kids-welcome-guide-modal">
+            <header>
+              <h2 id="k-welcome-guide-title">이렇게 하면 돼</h2>
+              <button type="button" className="k-x" onClick={() => setGuide(false)} aria-label="닫기">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </header>
+            <ol className="k-welcome-guide-steps">
+              <li>
+                <i><HomeMissionIcon /></i>
+                <b>1. 우리 집 그리기</b>
+                <span>비슷한 집 모양을 고르고, 방·문·가구를 눌러서 놓아. 똑같지 않아도 돼. 화면이 하나하나 알려 줘.</span>
+              </li>
+              <li>
+                <i><RouteMissionIcon /></i>
+                <b>2. 나가는 길 찾기</b>
+                <span>내 자리에서 현관문까지 손가락으로 끌어 길을 그어. 못 나갈 때 갈 두 번째 길도.</span>
+              </li>
+              <li>
+                <i><PracticeMissionIcon /></i>
+                <b>3. 화재 대피 연습</b>
+                <span>불이 난 집에서 방향키로 움직여 밖으로 나가. 연기가 오면 낮게! 끝나면 잘한 점을 알려 주고 3D 로 다시 봐.</span>
+              </li>
+            </ol>
+            <p className="k-note">처음 들어가면 화면의 자리를 하나씩 비춰 주는 안내가 나와. 모르면 언제든 아래 「뭘 해야 해?」를 누르면 캐릭터가 말해 줘.</p>
+            <footer>
+              <button type="button" className="k-tb" onClick={() => setGuide(false)}>
+                닫기
+              </button>
+              <button type="button" className="k-tb primary" onClick={onStart}>
+                바로 시작하기
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

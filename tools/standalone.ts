@@ -167,7 +167,7 @@ const readme = [
   'USB 에 이 폴더를 복사해 다른 PC 에서 열어도 된다.',
   '이 폴더를 통째로 웹 서버에 올리고 home-escape-map.html 주소를 열어도 된다. 바깥에서 받아오는 것이 없다.',
   '',
-  `판: ${pkg.version} · 만든 곳: 부평소방서 어린이 화재안전교육`,
+  `판: ${pkg.version} · 만든 곳: 인천소방본부 어린이 화재안전교육`,
   '',
 ].join('\r\n');
 const bundleEntries: ZipEntry[] = [

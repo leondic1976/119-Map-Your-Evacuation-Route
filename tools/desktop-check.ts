@@ -33,9 +33,11 @@ async function main(): Promise<void> {
     process.stderr.write('\n  dist/home-escape-map.html 이 없다. 먼저 npm run build:standalone 을 돌린다.\n\n');
     process.exit(1);
   }
+  /* 검증 중에는 새 판 확인을 끈다 — 대화상자가 뜨면 멈춘다 (설계서 v2.0 §7) */
+  const env = { ...process.env, HEM_NO_UPDATE: '1' };
   const app = packaged
-    ? await electron.launch({ executablePath: packagedExe, args: [], cwd: root })
-    : await electron.launch({ args: [path.join(root, 'desktop', 'main.cjs')], cwd: root });
+    ? await electron.launch({ executablePath: packagedExe, args: [], cwd: root, env })
+    : await electron.launch({ args: [path.join(root, 'desktop', 'main.cjs')], cwd: root, env });
   try {
     const page = await app.firstWindow();
     const outside: string[] = [];

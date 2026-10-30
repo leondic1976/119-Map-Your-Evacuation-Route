@@ -162,7 +162,7 @@ export default function DownloadPage() {
               설치 파일은 만드는 중이야. 조금 뒤 이 자리에서 받을 수 있어. 지금은 브라우저에 설치하거나 꾸러미를 받아 줘.
             </p>
           )}
-          <p className="k-dl-note">윈도우 10·11 64비트 · 판 {APP_VERSION}</p>
+          <p className="k-dl-note">윈도우 10·11 64비트 · 판 {APP_VERSION} · 설치판은 켤 때 새 판을 스스로 확인하고(F5 로 손수), 받아서 조용히 덮어쓴다.</p>
         </article>
       </div>
 
@@ -187,13 +187,13 @@ export default function DownloadPage() {
           </div>
           <div>
             <dt>문의</dt>
-            <dd>부평소방서 어린이 화재안전교육. 이 페이지와 프로그램은 바깥 주소로 아무것도 보내지 않고, 받을 파일도 모두 이 사이트 안에 있다.</dd>
+            <dd>인천소방본부 어린이 화재안전교육. 이 페이지와 프로그램은 바깥 주소로 아무것도 보내지 않고, 받을 파일도 모두 이 사이트 안에 있다.</dd>
           </div>
         </dl>
       </section>
 
       <footer className="k-dl-foot">
-        부평소방서 어린이 화재안전교육 · 우리집 대피지도 {APP_VERSION} · 이 프로그램은 법정 피난안내도를 대체하지 않는다.
+        인천소방본부 어린이 화재안전교육 · 우리집 대피지도 {APP_VERSION} · 이 프로그램은 법정 피난안내도를 대체하지 않는다.
       </footer>
     </main>
   );

@@ -584,7 +584,8 @@ function HazardLayer({ game, plan, uid }: { game: GameLayer; plan: FloorPlan; ui
         </g>
       ))}
       {/* 플레이어 */}
-      <g transform={`translate(${p.cell.x * CS} ${p.cell.y * CS})`} data-player="1">
+      {/* 칸에서 칸으로 미끄러진다 — CSS transform 이라 전환이 먹는다 (설계서 v2.0 §8) */}
+      <g className="k-player-move" transform={`translate(${p.cell.x * CS} ${p.cell.y * CS})`} style={{ transform: `translate(${p.cell.x * CS}px, ${p.cell.y * CS}px)` }} data-player="1">
         <PlayerSprite speaker={p.character} posture={p.posture} facing={p.facing} size={CS} />
       </g>
       {/* 시야 밖 */}

@@ -86,7 +86,8 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(BLOCKS.find((block) => block.id === 'gas_range')?.category === 'furniture', '가스불이 가구 갈래가 아니다');
     assert(shell.includes('data-furniture-size-controls'), '가구 크기 조절 화면이 없다');
     assert(!shell.includes('data-room-size-controls') && canvas.includes('data-handle={h.h}'), '상단 방 크기 조절부를 없애고 도면 손잡이를 유지하지 않았다');
-    assert(store.includes('howTo: false'), '캔버스를 넓히는 기본 접힌 사용법 설정이 없다');
+    /* v2.0 §3 — 도움 패널은 기본으로 펴져 있고, 접으면 60px 띠가 되어 도면이 넓어진다 */
+    assert(store.includes('howTo: true') && store.includes('setHowTo'), '도움 패널의 기본 펼침·접기 설정이 없다');
     assert(shell.includes('data-opening-resize="decrease"') && shell.includes('data-opening-resize="increase"') && shell.includes("'현관문 너비'"), '문·현관문 너비 조절 화면이 없다');
     assert(store.includes('resizePoint: (id, footprint) =>') && store.includes("block.subKind === 'gas_range' ? 'furniture'"), '가구 크기 저장 또는 이전 가스불 이동 경로가 없다');
     assert(replay.includes("block.subKind === 'my_spot'" ) && replay.includes('data-replay-my-spot-count="0"'), '3D 리플레이에서 고정 내 위치를 제거하지 않는다');
@@ -434,7 +435,10 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(main.includes("setWindowOpenHandler(() => ({ action: 'deny' }))") && main.includes("if (!url.startsWith('file:')) event.preventDefault()"), '새 창·바깥 이동을 막지 않는다');
     assert(main.includes('will-download') && main.includes('setSaveDialogOptions'), '파일 저장 대화상자가 없다');
     assert(main.includes('nodeIntegration: false') && main.includes('contextIsolation: true') && main.includes('sandbox: true'), '렌더러 격리가 꺼져 있다');
-    assert(!/https?:\/\//.test(main), '데스크톱 껍데기에 바깥 주소가 있다');
+    /* 바깥 주소는 새 판 확인용 사이트 주소 하나뿐이다 (설계서 v2.0 §7) */
+    const urls = main.match(/https?:\/\/[^\s'"`]+/g) ?? [];
+    assert(urls.length === 1 && urls[0] === 'https://leondic1976.github.io/119-Map-Your-Evacuation-Route/download/', `데스크톱 껍데기의 바깥 주소: ${urls.join(', ')}`);
+    assert(main.includes('HEM_NO_UPDATE') && main.includes("createHash('sha256')") && main.includes("['/S', '--force-run']"), '새 판 확인·sha256 검증·조용한 덮어쓰기가 없다');
     assert(fs.existsSync(path.join(root, 'desktop', 'icon.png')), 'desktop/icon.png 이 없다');
     const workflow = read(path.join(root, '.github', 'workflows', 'desktop.yml'));
     assert(workflow.includes('windows-latest') && workflow.includes('desktop:build') && workflow.includes('desktop:check'), '데스크톱 워크플로가 빌드·검증을 돌리지 않는다');

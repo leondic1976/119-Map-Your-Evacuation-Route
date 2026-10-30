@@ -22,6 +22,8 @@ export interface Installer {
   registerOffline(onUpdate: () => void): void;
   /** 준비된 새 판으로 바꾼다 — 대기 중인 워커를 깨우고 다시 연다 */
   applyUpdate(): void;
+  /** 손수 새 판을 확인한다 (설계서 v2.0 §7). 'ready' 면 새 판이 받아져 알림이 뜬다 */
+  checkUpdate(): Promise<'ready' | 'none' | 'unavailable'>;
   /** 브라우저가 설치 묻기를 허락한 상태인가 */
   canInstall(): boolean;
   /** 허락 상태가 바뀔 때 알린다. 되돌려 주는 함수로 구독을 푼다 */
@@ -133,6 +135,30 @@ const webInstaller: Installer = {
     applying = true;
     if (waitingWorker) waitingWorker.postMessage('skip-waiting');
     else window.location.reload();
+  },
+
+  async checkUpdate() {
+    if (!canUseServiceWorker()) return 'unavailable';
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) return 'unavailable';
+    try {
+      await registration.update();
+    } catch {
+      return 'unavailable';
+    }
+    if (registration.waiting) {
+      waitingWorker = registration.waiting;
+      return 'ready';
+    }
+    const installing = registration.installing;
+    if (!installing) return 'none';
+    /* 받는 중이면 설치가 끝날 때까지 기다린다 — 그때 registerOffline 의 감시가 알림을 띄운다 */
+    return new Promise((resolve) => {
+      installing.addEventListener('statechange', () => {
+        if (installing.state === 'installed') resolve('ready');
+        else if (installing.state === 'redundant') resolve('none');
+      });
+    });
   },
 
   canInstall() {

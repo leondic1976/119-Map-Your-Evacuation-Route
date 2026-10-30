@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   description:
     '우리 집 모양을 블록으로 만들고 대피할 길을 그린 뒤, 불이 난 집에서 직접 빠져나와 보는 초등학생용 재난안전 학습 프로그램. 브라우저에 설치하거나 PC에 내려받아 인터넷 없이 쓸 수 있고 어떤 정보도 서버로 보내지 않는다.',
   applicationName: '우리집 대피지도',
-  authors: [{ name: '부평소방서 어린이 화재안전교육' }],
+  authors: [{ name: '인천소방본부 어린이 화재안전교육' }],
   robots: { index: true, follow: true },
   icons: {
     icon: [{ url: iconUrl, type: 'image/svg+xml' }],

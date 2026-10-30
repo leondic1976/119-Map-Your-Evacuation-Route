@@ -37,7 +37,8 @@ import { emptyLog } from '../src/core/game/playlog';
 import { buildReport } from '../src/core/report/build';
 import { ALL_FAIL_REASONS } from '../src/core/report/verdicts';
 import { selectGuide } from '../src/core/guide/runner';
-import { BLOCKS, GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, PALETTE_BASIC, REPORT_ITEMS, REQUIRED_BLOCKS, RULE_MESSAGES, TEMPLATES, fuelOf, isVerified } from '../src/content';
+import { BLOCK_HELP_IDS, blockHelp } from '../src/content/blockHelp';
+import { BLOCKS, GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, REPORT_ITEMS, REQUIRED_BLOCKS, RULE_MESSAGES, TEMPLATES, fuelOf, isVerified } from '../src/content';
 import { checklist, missingOf } from '../src/core/checklist';
 import { eul, eun, i } from '../src/core/josa';
 import { ALL_STEPS, validateContent, validatePlan } from '../src/content/validate';
@@ -142,8 +143,15 @@ export function logicTests(check: Check, assert: Assert): void {
     }
   });
 
-  check('팔레트 기본 8칸 (FR-7.8) · 기본판 규칙셋은 공통+화재', () => {
-    assert(PALETTE_BASIC.length === 7, `기본 ${PALETTE_BASIC.length}종 + 더보기`);
+  check('팔레트는 전부 보이고 블록마다 설명이 있다 (설계서 v2.0 §2.2·§3) · 기본판 규칙셋은 공통+화재', () => {
+    const missingHelp = BLOCKS.filter((b) => !BLOCK_HELP_IDS.includes(b.id)).map((b) => b.id);
+    assert(missingHelp.length === 0, `설명 없는 블록: ${missingHelp.join(', ')}`);
+    assert(BLOCK_HELP_IDS.includes('kitchen_open'), '트인 주방 칸의 설명이 없다');
+    for (const id of BLOCKS.map((b) => b.id).concat(['kitchen_open'])) {
+      const def = BLOCKS.find((b) => b.id === id) ?? BLOCKS.find((b) => b.id === 'kitchen');
+      const h = blockHelp(id, def ? def.category : 'room');
+      for (const part of [h.what, h.why, h.how]) assert(part.easy.length >= 6 && part.normal.length >= 3 && !/[\u{1F300}-\u{1FAFF}]/u.test(part.easy), `${id} 설명이 짧거나 이모지가 있다`);
+    }
     assert(RULES.every((r) => r.id.startsWith('RULE-C') || r.id.startsWith('RULE-F')), '기본판에 확장 규칙이 섞였다');
     assert(EXTENSION_RULES.every((r) => /^RULE-[EWG]/.test(r.id)), '확장 규칙 목록');
     assert(RULES.length === 17, `기본 규칙 ${RULES.length}개`);
@@ -196,7 +204,7 @@ export function logicTests(check: Check, assert: Assert): void {
     const sliding = BLOCKS.find((block) => block.id === 'sliding_door');
     assert(hinged?.easy === '여닫이문', `여닫이문 이름: ${hinged?.easy ?? '없음'}`);
     assert(sliding?.category === 'opening' && sliding.easy === '미닫이문', '미닫이문 콘텐츠가 없다');
-    assert(PALETTE_BASIC.indexOf('sliding_door') === PALETTE_BASIC.indexOf('door') + 1, '두 방문이 기본 팔레트에서 나란하지 않다');
+    assert(BLOCKS.findIndex((block) => block.id === 'sliding_door') === BLOCKS.findIndex((block) => block.id === 'door') + 1, '두 방문이 팔레트에서 나란하지 않다');
     assert(isDoorKind('sliding_door'), '위험장 엔진이 미닫이문을 문으로 보지 않는다');
     assert(Object.values(DEFAULT_PASSABILITY.sliding_door).every((value) => value === 'open'), '미닫이문 그래프 통행표가 열려 있지 않다');
 

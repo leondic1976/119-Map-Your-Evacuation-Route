@@ -133,8 +133,10 @@ export interface KidsState {
   onboarded: boolean;
   createdAt: string;
 
-  /** 오른쪽 사용법 상자를 펴 두었는가 */
+  /** 오른쪽 도움 패널을 펴 두었는가 (설계서 v2.0 §3) */
   howTo: boolean;
+  /** 팔레트에 올려 둔 블록 — 도움 패널이 설명한다. 저장하지 않는다 */
+  peekBlock: string | null;
   /** 도면 확대 배율 — 맞춤이 1 (설계서 v1.19 §2.1). 저장하지 않는다 */
   canvasZoom: number;
 
@@ -165,6 +167,9 @@ export interface KidsActions {
   setRouteSlot: (slot: RouteSlot) => void;
   setTimed: (on: boolean) => void;
   setHowTo: (on: boolean) => void;
+  setPeek: (id: string | null) => void;
+  /** 주방의 벽을 없애거나 세운다 — 닫힌 방 ↔ 거실과 트인 구역 (설계서 v2.0 §2.4) */
+  setRoomWalls: (id: BlockId, walls: 'zone' | 'closed') => void;
   /** 도면을 한 단계 키우거나 줄이거나 맞춤으로 (FR-7.12) */
   zoomCanvas: (direction: ZoomDirection) => void;
 
@@ -274,7 +279,8 @@ function initialState(): KidsState {
     saveError: false,
     toast: null,
     onboarded: false,
-    howTo: false,
+    howTo: true,
+    peekBlock: null,
     canvasZoom: 1,
     createdAt: now,
     ops: 0,
@@ -537,6 +543,9 @@ export const useKids = create<KidsStore>()((set, get) => {
     setMode: (mode) => set({ mode }),
 
     setHowTo: (on) => set({ howTo: on }),
+    setPeek: (id) => {
+      if (get().peekBlock !== id) set({ peekBlock: id });
+    },
 
     zoomCanvas: (direction) => set({ canvasZoom: nextZoom(get().canvasZoom, direction) }),
 
@@ -752,6 +761,59 @@ export const useKids = create<KidsStore>()((set, get) => {
       playTap();
       get().notify(roomKind === 'kitchen' ? '트인 주방(부엌)을 만들었어요. 다시 그리면 자리와 크기가 바뀌어요.' : `${zone.label} 구역을 만들었어요.`);
       return true;
+    },
+
+    setRoomWalls: (id, walls) => {
+      const plan = get().plan;
+      const room = plan.blocks.find((b) => b.id === id);
+      if (!room || !isRoom(room)) return;
+      if ((room.wallMode === 'zone' ? 'zone' : 'closed') === walls) return;
+      if (!plan.shell) {
+        get().notify('집 모양(테두리)이 있는 지도에서만 벽을 바꿀 수 있어.', 'warn');
+        return;
+      }
+      const rect = room.rect;
+      const inside = (c: Cell): boolean => c.x >= rect.x && c.x < rect.x + rect.w && c.y >= rect.y && c.y < rect.y + rect.h;
+      if (walls === 'zone') {
+        /* 벽을 없앤다 — 방과 그 벽의 문·창은 사라지고 안의 가구는 남는다 */
+        const blocks = plan.blocks.filter((b) => b.id !== id && !(b.kind === 'opening' && inside(b.cell)));
+        const floor = reflowShellFloor({ ...plan, blocks });
+        if (!floor) {
+          get().notify('이 방의 벽을 없애면 바닥이 끊어져.', 'warn');
+          return;
+        }
+        const zone: Block = { kind: 'room', id: newBlockId('z'), layer: room.layer, roomKind: room.roomKind, rect, label: room.label, showLabel: true, wallMode: 'zone' };
+        if (!isRoom(zone)) return;
+        const next = defineShellZone(floor, zone);
+        if (!next) {
+          get().notify('이 자리에서는 트인 주방을 만들 수 없어.', 'warn');
+          return;
+        }
+        commit({ plan: next });
+        const made = next.blocks.find((b) => isRoom(b) && b.id === zone.id);
+        set({ selection: made?.id ?? null, multi: made ? [made.id] : [] });
+        get().countOp();
+        playTap();
+        get().notify('벽을 없앴어. 거실과 이어진 트인 주방이 됐어. 범위는 테두리 점으로 바꿀 수 있어.');
+        return;
+      }
+      /* 벽을 세운다 — 구역을 지우고 같은 자리에 닫힌 방을 놓는다 */
+      const cleared = clearShellZone(plan, id);
+      if (!cleared) {
+        get().notify('이 구역에는 벽을 세울 수 없어.', 'warn');
+        return;
+      }
+      const closed: Block = { kind: 'room', id: newBlockId('r'), layer: room.layer, roomKind: room.roomKind, rect, label: room.label, wallMode: 'closed' };
+      const next = reflowShellFloor({ ...cleared, blocks: cleared.blocks.concat(closed) });
+      if (!next) {
+        get().notify('그 자리에는 벽이 있는 방을 만들 수 없어.', 'warn');
+        return;
+      }
+      commit({ plan: next });
+      set({ selection: closed.id, multi: [closed.id] });
+      get().countOp();
+      playTap();
+      get().notify('벽과 문이 있는 방으로 바꿨어. 벽에 문을 붙이는 걸 잊지 마.');
     },
 
     placeOpening: (kind, cell, side) => {

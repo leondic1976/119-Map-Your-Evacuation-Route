@@ -6,6 +6,7 @@
  *   배포  — 출처 미검수도 실패한다. 검수 전 문장이 배포에 섞이는 것을 구조로 막는다.
  */
 import type { Block, FloorPlan, OpeningKind, RoomKind } from '../types/plan';
+import { BLOCK_HELP_IDS } from './blockHelp';
 import { SCENARIO_KEYS, isOpening, isPoint, isRoom, pointFootprint } from '../types/plan';
 import { RULES } from '../core/rules/definitions';
 import { SPECIAL_RULES } from '../core/hazard/rules';
@@ -17,7 +18,6 @@ import {
   GUIDE_RULES,
   FALLBACK_TEMPLATE_ID,
   HAZARD_PRESETS,
-  PALETTE_BASIC,
   REPORT_ITEMS,
   RULE_MESSAGES,
   SOURCES,
@@ -207,10 +207,10 @@ export function validateContent(strict = false): ValidationReport {
   for (const k of OPENING_KINDS) {
     if (!BLOCKS.some((b) => b.category === 'opening' && b.id === k)) errors.push(`팔레트에 개구부 종류가 빠졌다 — ${k}`);
   }
-  for (const id of PALETTE_BASIC) {
-    if (!BLOCKS.some((b) => b.id === id)) errors.push(`기본 팔레트에 없는 블록 — ${id}`);
+  /* 팔레트는 전부 보이고, 블록마다 도움 패널 설명이 있다 (설계서 v2.0 §2.2 · §3) */
+  for (const b of BLOCKS) {
+    if (!BLOCK_HELP_IDS.includes(b.id)) errors.push(`도움 설명이 없는 블록 — ${b.id}`);
   }
-  if (PALETTE_BASIC.length + 1 !== 8) errors.push(`기본 팔레트는 7종 + 더보기 = 8칸이어야 한다 (FR-7.8), 지금 ${PALETTE_BASIC.length + 1}`);
 
   /* 7. 시작 평면 */
   if (TEMPLATES.length < 3) errors.push(`시작 평면이 ${TEMPLATES.length}종이다 (3종 이상, FR-1.4)`);

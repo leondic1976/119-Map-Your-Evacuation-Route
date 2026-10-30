@@ -74,6 +74,39 @@ if (desktopFiles.every((file) => fs.existsSync(file))) {
   fs.mkdirSync(downloadDir, { recursive: true });
   for (const file of desktopFiles) fs.copyFileSync(file, path.join(downloadDir, path.basename(file)));
   desktopNote = desktopFiles.map((file) => `${path.basename(file)} ${bytes(fs.statSync(file).size)}`).join(' · ');
+  /*
+   * 1c. 새 판 안내 latest.json (설계서 v2.0 §7) — 데스크톱 앱이 켤 때 읽어 판을 견준다.
+   * 설치판의 크기와 sha256 을 함께 적어 받은 파일이 사이트의 것과 같은지 맞춘다. 바뀐 것은 CHANGELOG 맨 위 항목이다.
+   */
+  const describe = (file: string) => ({
+    name: path.basename(file),
+    size: fs.statSync(file).size,
+    sha256: createHash('sha256').update(fs.readFileSync(file)).digest('hex'),
+  });
+  const latest = {
+    version: pkg.version,
+    publishedAt: new Date().toISOString(),
+    notes: changelogTop(),
+    setup: describe(desktopFiles[0]),
+    portable: describe(desktopFiles[1]),
+  };
+  fs.writeFileSync(path.join(downloadDir, 'latest.json'), JSON.stringify(latest, null, 2), 'utf8');
+  desktopNote += ` · latest.json ${pkg.version}`;
+}
+
+/** CHANGELOG.md 맨 위 판의 글머리 줄들 — 새 판 대화상자에 그대로 실린다 */
+function changelogTop(): string {
+  const file = path.join(root, 'CHANGELOG.md');
+  if (!fs.existsSync(file)) return '';
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith('## '));
+  if (start < 0) return '';
+  const out: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith('## ')) break;
+    if (line.startsWith('- ')) out.push(line);
+  }
+  return out.slice(0, 8).join('\n');
 }
 
 /* 2. 매니페스트 */
@@ -106,7 +139,8 @@ fs.writeFileSync(path.join(outDir, 'manifest.webmanifest'), JSON.stringify(manif
 /* 3. 서비스 워커 — 음성 폴더와 꾸러미(.zip)·설치 파일(.exe)은 선캐시에서 뺀다. 설치 안내(download/index.html)는 넣는다 */
 const files = walk(outDir).filter((file) => {
   const rel = path.relative(outDir, file).split(path.sep).join('/');
-  if (rel === 'sw.js' || rel.startsWith('voice/') || rel.endsWith('.zip') || rel.endsWith('.exe')) return false;
+  /* latest.json 은 늘 새것을 읽어야 하므로 선캐시하지 않는다 */
+  if (rel === 'sw.js' || rel.startsWith('voice/') || rel.endsWith('.zip') || rel.endsWith('.exe') || rel === 'download/latest.json') return false;
   return PRECACHE_EXT.has(path.extname(rel).toLowerCase());
 });
 const precache = Array.from(new Set(files.map(toUrl))).sort();

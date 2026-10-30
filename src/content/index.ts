@@ -92,7 +92,6 @@ export const TEMPLATES = [
 ];
 
 /** 팔레트 기본 8종 (FR-7.8). 나머지는 "더보기" */
-export const PALETTE_BASIC: string[] = ['bedroom', 'door', 'sliding_door', 'front_door', 'window', 'bed', 'gas_range'];
 
 export function blockDef(id: string): BlockDef | undefined {
   return BLOCKS.find((b) => b.id === id);

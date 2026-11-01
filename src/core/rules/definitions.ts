@@ -234,7 +234,16 @@ const F01: RuleDef = {
     const front = ctx.plan.blocks.filter(isOpening).filter((o) => o.openingKind === 'front_door');
     if (front.length === 0) return na('RULE-F-01');
     const used = openingsAlong(ctx.plan, ctx.route!.waypoints);
-    return used.some((o) => o.openingKind === 'front_door')
+    /*
+     * 현관 칸에서 끝난 길도 현관을 지난 것으로 본다. 종점 규칙(C-06)은 엣지의 anchorCell
+     * — 지나기 직전에 서 있는 칸 — 에서 끝나야 통과시키므로, 여기서 밖 칸까지 요구하면
+     * 두 규칙을 함께 맞출 길이 없다(P3 위반).
+     */
+    const last = lastCell(ctx);
+    const endsAtFrontDoor = Boolean(last) && ctx.graph.edges.some(
+      (e) => e.via === 'front_door' && e.passability[ctx.key] !== 'blocked' && e.anchorCell && sameCell(e.anchorCell, last!),
+    );
+    return endsAtFrontDoor || used.some((o) => o.openingKind === 'front_door')
       ? pass('RULE-F-01')
       : fail('RULE-F-01', { blockIds: front.map((o) => o.id), cells: front.map((o) => o.cell) });
   },

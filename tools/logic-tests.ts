@@ -422,6 +422,17 @@ export function logicTests(check: Check, assert: Assert): void {
     assert(!f05InPrimary, 'F-05(②)가 주 경로에서 평가됐다');
   });
 
+  check('RULE-F-01 · C-06 — 현관 칸에서 끝난 주 경로는 둘 다 통과한다 (P3)', () => {
+    const plan = template('apt_2room');
+    const toDoor: Cell[] = [[5, 5], [5, 6], [5, 7], [6, 7], [7, 7], [8, 7], [9, 7], [10, 7], [11, 7], [12, 7], [13, 7], [14, 7], [14, 8], [14, 9], [14, 10], [15, 10], [16, 10]]
+      .map(([x, y]) => ({ x, y }));
+    const rep = evaluate(RULES, ctxFor(plan, 'primary', P, toDoor));
+    const failed = rep.failed.map((f) => f.ruleId);
+    assert(!failed.includes('RULE-F-01') && !failed.includes('RULE-C-06'), `현관 칸 종점이 ${failed.join(',')} 에 걸린다`);
+    const inCorridor = toDoor.slice(0, 12);
+    assert(evaluate(RULES, ctxFor(plan, 'primary', P, inCorridor)).failed.some((f) => f.ruleId === 'RULE-F-01'), '현관에 닿지 않은 길이 F-01 을 통과했다');
+  });
+
   check('RULE-C-03 — 문 없는 방을 고립으로 잡는다', () => {
     const plan = template('apt_2room');
     plan.blocks = plan.blocks.filter((b) => b.id !== 'o2');

@@ -1,10 +1,10 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { analyze, reachableFrom, sqKey, unreachableCells } from '../core/grid';
+import { analyze, cellIdAt, edgeEnds, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
 import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
 import { findSecondRoute } from '../core/auto';
 import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
-import { extendStroke, nearestDot, nearestEdge, sameDot } from '../core/stroke';
+import { extendStroke, nearestDot, nearestEdge, sameDot, wasDiagonalDrag } from '../core/stroke';
 import { OUT, type MarkId, type OpeningKind, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
@@ -45,10 +45,8 @@ function HouseThumb({ id }: { id: string }) {
   return (
     <svg viewBox={`-1 -1 ${band.cols + 2} ${band.rows + 2}`} width="72" height="54" aria-hidden="true">
       {lines.map((k) => {
-        const [o, x, y] = k.split(':');
-        const nx = Number(x);
-        const ny = Number(y);
-        return <line key={k} x1={nx} y1={ny} x2={o === 'h' ? nx + 1 : nx} y2={o === 'v' ? ny + 1 : ny} stroke="#33363b" strokeWidth=".5" strokeLinecap="round" />;
+        const [a, b] = edgeEnds(k);
+        return <line key={k} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#33363b" strokeWidth=".5" strokeLinecap="round" />;
       })}
     </svg>
   );
@@ -65,6 +63,9 @@ export function DrawStep() {
   const [armed, setArmed] = useState<Pt | null>(null);
   const drawing = useRef(false);
   const erasing = useRef(false);
+  // 손이 지나온 자리 — 대각선을 그으려던 것인지 모서리를 돌던 것인지 가른다
+  const liveStroke = useRef<Pt[]>([]);
+  const trail = useRef<Pt[]>([]);
   const hadCell = useRef(layout.cells.length > 0);
 
   const guide = useMemo(() => {
@@ -95,19 +96,31 @@ export function DrawStep() {
       const dot = nearestDot(plan, p);
       if (!dot) return;
       drawing.current = true;
+      liveStroke.current = [dot];
+      trail.current = [];
       setStroke([dot]);
     } else if (kind === 'move') {
       if (!drawing.current) return;
+      trail.current.push(p);
       const dot = nearestDot(plan, p, 0.42);
-      if (dot) setStroke((s) => extendStroke(s, dot));
+      const last = liveStroke.current[liveStroke.current.length - 1];
+      if (!dot || !last || sameDot(last, dot)) {
+        // 점 위에 머무는 동안은 궤적이 아니다
+        if (dot) trail.current = [];
+        return;
+      }
+      liveStroke.current = extendStroke(liveStroke.current, dot, wasDiagonalDrag(last, dot, trail.current));
+      trail.current = [];
+      setStroke(liveStroke.current);
     } else if (kind === 'up') {
       if (!drawing.current) return;
       drawing.current = false;
-      if (stroke.length > 1) {
-        commit(addStroke(plan, stroke));
+      const done = liveStroke.current;
+      if (done.length > 1) {
+        commit(addStroke(plan, done));
         setArmed(null);
-      } else if (stroke[0]) {
-        const dot = stroke[0];
+      } else if (done[0]) {
+        const dot = done[0];
         if (armed && sameDot(armed, dot)) setArmed(null);
         else if (armed) {
           commit(addStroke(plan, extendStroke([armed], dot)));
@@ -185,7 +198,7 @@ export function SortStep() {
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
     if (kind !== 'up') return;
-    const id = layout.cellAt.get(sqKey(Math.floor(p.x), Math.floor(p.y)));
+    const id = cellIdAt(layout, p);
     if (!id) return;
     commit(paintCell(plan, layout, id, { kind: crayon.kind, name: crayon.name }));
   };
@@ -349,14 +362,14 @@ export function RouteStep() {
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
     if (kind !== 'up') return;
-    const square = sqKey(Math.floor(p.x), Math.floor(p.y));
-    choose(layout.cellAt.has(square) ? square : OUT);
+    const piece = pieceKeyAt(layout, p);
+    choose(layout.cellAt.has(piece) ? piece : OUT);
   };
 
   // 화살표 키 — 지금 자리에서 그 방향에 있는 문으로 간다
   const onArrow = (dir: ArrowDir) => {
     if (!plan.marks.me || done) return;
-    const steps = route.length ? route : [sqKey(Math.floor(plan.marks.me.x), Math.floor(plan.marks.me.y))];
+    const steps = route.length ? route : [pieceKeyAt(layout, plan.marks.me)];
     const here = layout.cellAt.get(steps[steps.length - 1]!);
     if (!here) return;
     const points = routePoints(plan, layout, steps);

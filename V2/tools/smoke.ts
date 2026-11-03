@@ -248,16 +248,7 @@ async function playToEnd(page: Page, tap: (x: number, y: number) => Promise<void
       const svg = document.querySelector('.stage svg.plan') as SVGElement;
       const at = document.querySelector('[data-testid="player"]')!.getAttribute('data-at')!;
       const route = (svg.getAttribute('data-route') ?? '').split(' ');
-      const cells = [...document.querySelectorAll('.stage [data-cell]')];
-      const cellOf = (k: string) => {
-        const [x, y] = k.split(',').map(Number);
-        for (const c of cells) {
-          for (const r of c.querySelectorAll('rect')) {
-            if (Number(r.getAttribute('x')) === x! * 100 - 0.5 && Number(r.getAttribute('y')) === y! * 100 - 0.5) return c.getAttribute('data-cell');
-          }
-        }
-        return null;
-      };
+      const cellOf = (k: string) => document.querySelector(`.stage [data-cell] [data-piece="${k}"]`)?.closest('[data-cell]')?.getAttribute('data-cell') ?? null;
       const ids = route.map((s) => (s === 'out' ? 'out' : cellOf(s)));
       return { next: route[ids.indexOf(at) + 1] ?? null, rows: 0 };
     });
@@ -267,8 +258,12 @@ async function playToEnd(page: Page, tap: (x: number, y: number) => Promise<void
       const rows = await num(page, 'rows');
       await tap(cols / 2, rows + 0.9);
     } else {
-      const [x, y] = next.next.split(',').map(Number);
-      await tap(x! + 0.5, y! + 0.5);
+      const [sq, part] = next.next.split(':');
+      const [x, y] = sq!.split(',').map(Number);
+      // 대각선에 나뉜 세모는 네모 가운데를 누르면 벽 위가 된다
+      const fx = part ? (part[1] === 'e' ? 0.7 : 0.3) : 0.5;
+      const fy = part ? (part[0] === 'n' ? 0.3 : 0.7) : 0.5;
+      await tap(x! + fx, y! + fy);
     }
     await page.waitForFunction(() => document.querySelectorAll('.glow-cell, .glow-out').length > 0 || document.querySelector('[data-testid="drill-touch"], [data-testid="drill-call"]') !== null || document.querySelector('[data-testid="player"]')?.getAttribute('data-phase') === 'outside', undefined, { timeout: 5000 });
     await page.waitForTimeout(900);
@@ -724,6 +719,95 @@ async function main(): Promise<void> {
     await page.click(t('menu-home'));
     await page.waitForSelector(t('start'));
     assert.equal(await page.locator('.overlay').count(), 0, '설정이 닫혀 있다');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+  });
+
+  await scenario('대각선: 끌면 비스듬한 벽이 되고, 모서리를 돌던 손은 꺾이며, 문·연습·인쇄·3D 까지 간다', async () => {
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1366, height: 768 } });
+    await startAs(page, 6);
+    assert.equal(await num(page, 'diagonals'), 0);
+
+    // 세모 집 — 마지막 줄이 대각선이다
+    await dragThrough(page, [[2, 1], [6, 1], [6, 5], [2, 1]]);
+    assert.equal(await num(page, 'cells'), 1, '대각선으로 닫으면 칸이 생긴다');
+    assert.equal(await num(page, 'diagonals'), 4, '대각선 네 조각');
+    await shot(page, '50-diag-triangle');
+    const walls = await num(page, 'walls');
+
+    // 모서리를 둥글게 돌며 점을 건너뛴 손 — 깎지 않고 ㄱ자로 꺾는다
+    const start = await toScreen(page, 8, 2);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    for (const [x, y] of [[8.3, 2.05], [8.6, 2.2], [8.8, 2.4], [8.95, 2.7], [9, 3]] as [number, number][]) {
+      const p = await toScreen(page, x, y);
+      await page.mouse.move(p.x, p.y);
+    }
+    await page.mouse.up();
+    assert.equal(await num(page, 'diagonals'), 4, '모서리를 돌던 손은 대각선이 아니다');
+    assert.equal(await num(page, 'walls'), walls + 2, '모서리를 돌면 두 조각');
+
+    // 점을 차례로 눌러도 대각선이 된다
+    await clickAt(page, 10, 4);
+    await clickAt(page, 11, 5);
+    assert.equal(await num(page, 'diagonals'), 5, '비스듬한 옆 점을 누르면 대각선');
+    // 지우개
+    await page.click(t('tool-eraser'));
+    await clickAt(page, 10.5, 4.5);
+    assert.equal(await num(page, 'diagonals'), 4, '지우개로 대각선을 지운다');
+    await page.click(t('tool-pencil'));
+
+    // 비스듬한 집 본으로 끝까지 — 본을 골라도 그려 둔 선은 남으므로 먼저 종이를 비운다
+    await page.click(t('menu'));
+    await page.click(t('reset'));
+    await page.click(t('reset-yes'));
+    if (await page.locator(t('menu-close')).count()) await page.click(t('menu-close'));
+    await page.click(t('tpl-high-cut'));
+    await page.click(t('help'));
+    assert.equal(await num(page, 'diagonals'), 4, '본의 대각선을 채운다');
+    await shot(page, '51-diag-draw');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    assert.equal(await num(page, 'tagged'), await num(page, 'cells'));
+    await shot(page, '52-diag-sort');
+    await page.click(t('next'));
+    // 대각선 벽에 창문과 문을 단다
+    await page.click(t('tool-window'));
+    await clickAt(page, 9.5, 0.5);
+    assert.equal(await num(page, 'windows'), 1, '대각선 벽에 창문');
+    await page.click(t('tool-door'));
+    await clickAt(page, 10.5, 1.5);
+    assert.equal(await num(page, 'doors'), 1, '대각선 벽에 문');
+    assert.equal(await page.locator('.stage [data-door^="d:"]').getAttribute('data-exit'), '1', '밖으로 나가는 문');
+    await page.click(t('help'));
+    await shot(page, '53-diag-door');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    await shot(page, '54-diag-marks');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    assert.ok((await attr(page, 'route'))!.endsWith('out'));
+    await shot(page, '55-diag-route');
+    await page.click(t('next'));
+    await page.click(t('drill-start'));
+    await page.waitForSelector(t('player'));
+    await playToEnd(page, (x, y) => clickAt(page, x, y));
+    await shot(page, '56-diag-drill');
+    await page.click(t('drill-call'));
+    await page.waitForSelector(t('praises'));
+    await page.emulateMedia({ media: 'print' });
+    assert.ok(await page.locator('.print-sheet').isVisible(), '인쇄에도 나온다');
+    await page.emulateMedia({ media: 'screen' });
+    await page.click(t('open-replay'));
+    await page.waitForSelector(t('replay-canvas'), { timeout: 20000 });
+    await page.waitForTimeout(1500);
+    await shot(page, '57-diag-replay');
+    await page.keyboard.press('Escape');
+    // 다시 열어도 대각선이 남는다
+    await page.reload();
+    await page.click(t('start'));
+    await page.waitForSelector('.studio');
+    assert.equal(await num(page, 'diagonals'), 4, '저장이 남는다');
     assert.deepEqual(errors, [], '콘솔 오류');
     await ctx.close();
   });

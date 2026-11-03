@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { DrillState, Snapshot } from '../../core/drill';
-import { analyze, edgeEnds, edgeSides, parseEdge, sqKey } from '../../core/grid';
+import { analyze, edgeEnds, edgeSides, parseEdge, piecePolygon, sqKey } from '../../core/grid';
 import { pointAlong, polylineLength, routePoints } from '../../core/path';
 import { OUT, type Cell, type Plan, type Pt } from '../../core/types';
 import { FIRE } from '../../content/fire';
@@ -78,9 +78,25 @@ function crayonTexture(base: string, stripe: string): THREE.CanvasTexture {
   return tex;
 }
 
+/** 대각선에 나뉜 세모 바닥 */
+function triangleFloor(key: string): THREE.BufferGeometry {
+  const [a, b, c] = piecePolygon(key) as [Pt, Pt, Pt];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([a.x, 0, a.y, c.x, 0, c.y, b.x, 0, b.y], 3));
+  const ox = Math.min(a.x, b.x, c.x);
+  const oy = Math.min(a.y, b.y, c.y);
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute([a.x - ox, a.y - oy, c.x - ox, c.y - oy, b.x - ox, b.y - oy], 2));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** 열린 문짝의 각도. 벽을 가로로 놓은 틀 안에서 돈다 */
+const doorOpenAngle = (edge: string): number => (parseEdge(edge).o === 'h' ? -1.25 : 1.25);
+
 /** 칸 이름에 맞는 가구를 저절로 놓는다. 아이가 고를 일을 늘리지 않는다 */
 function furnish(group: THREE.Group, cell: Cell, avoid: Set<string>): void {
-  const free = cell.squares.filter((s) => !avoid.has(sqKey(s.x, s.y)));
+  // 가구는 네모 전체에만 놓는다. 세모 조각에는 벽을 뚫고 나간다
+  const free = cell.squares.filter((s) => s.whole && !avoid.has(sqKey(s.x, s.y)));
   const spot = free[0] ?? null;
   if (!spot) return;
   const x = spot.x + 0.5;
@@ -286,9 +302,11 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     for (const cell of layout.cells) {
       const mat = cell.kind === 'room' ? floorMat.room : cell.kind === 'pass' ? floorMat.pass : floorMat.none;
       for (const s of cell.squares) {
-        const m = new THREE.Mesh(floorGeo, mat);
-        m.rotation.x = -Math.PI / 2;
-        m.position.set(s.x + 0.5, 0, s.y + 0.5);
+        const m = s.whole ? new THREE.Mesh(floorGeo, mat) : new THREE.Mesh(triangleFloor(s.key), mat);
+        if (s.whole) {
+          m.rotation.x = -Math.PI / 2;
+          m.position.set(s.x + 0.5, 0, s.y + 0.5);
+        }
         m.receiveShadow = true;
         scene.add(m);
       }
@@ -305,41 +323,40 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     scene.add(walls);
     for (const edge of plan.walls) {
       const [a, b] = edgeEnds(edge);
-      const { o } = parseEdge(edge);
-      const mx = (a.x + b.x) / 2;
-      const mz = (a.y + b.y) / 2;
       const kind = plan.openings[edge];
-      const piece = (len: number, h: number, y: number, off: number, mat: THREE.Material) =>
-        o === 'h'
-          ? box(len, h, WALL_T, mat, mx + off, y, mz)
-          : box(WALL_T, h, len, mat, mx, y, mz + off);
+      // 벽을 가로로 놓고 만든 뒤 제 방향으로 돌린다. 대각선 벽은 √2 배 길다
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const wall = new THREE.Group();
+      wall.position.set((a.x + b.x) / 2, 0, (a.y + b.y) / 2);
+      wall.rotation.y = -Math.atan2(b.y - a.y, b.x - a.x);
+      walls.add(wall);
+      const piece = (len: number, h: number, y: number, off: number, mat: THREE.Material) => box(len, h, WALL_T, mat, off, y, 0);
+      const full = length + WALL_T;
       if (!kind) {
-        walls.add(piece(1 + WALL_T, WALL_H, WALL_H / 2, 0, wallMat));
-        walls.add(piece(1 + WALL_T, 0.03, WALL_H + 0.015, 0, trimMat));
+        wall.add(piece(full, WALL_H, WALL_H / 2, 0, wallMat));
+        wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
       } else if (kind === 'window') {
-        walls.add(piece(1 + WALL_T, 0.4, 0.2, 0, wallMat));
-        walls.add(piece(1 + WALL_T, 0.14, WALL_H - 0.07, 0, wallMat));
-        walls.add(piece(0.16, WALL_H, WALL_H / 2, -0.42, wallMat));
-        walls.add(piece(0.16, WALL_H, WALL_H / 2, 0.42, wallMat));
-        walls.add(piece(0.7, 0.42, 0.61, 0, glassMat));
-        walls.add(piece(1 + WALL_T, 0.03, WALL_H + 0.015, 0, trimMat));
+        const side = length - 0.7;
+        wall.add(piece(full, 0.4, 0.2, 0, wallMat));
+        wall.add(piece(full, 0.14, WALL_H - 0.07, 0, wallMat));
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(0.35 + side / 4), wallMat));
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, 0.35 + side / 4, wallMat));
+        wall.add(piece(0.7, 0.42, 0.61, 0, glassMat));
+        wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
       } else {
-        walls.add(piece(0.14, WALL_H, WALL_H / 2, -0.45, wallMat));
-        walls.add(piece(0.14, WALL_H, WALL_H / 2, 0.45, wallMat));
-        walls.add(piece(1 + WALL_T, 0.14, WALL_H - 0.07, 0, wallMat));
-        walls.add(piece(1 + WALL_T, 0.03, WALL_H + 0.015, 0, trimMat));
-        const [p, q] = edgeSides(edge);
-        const isExit = layout.cellAt.has(sqKey(p.x, p.y)) !== layout.cellAt.has(sqKey(q.x, q.y));
+        const side = length - 0.76;
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(0.38 + side / 4), wallMat));
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, 0.38 + side / 4, wallMat));
+        wall.add(piece(full, 0.14, WALL_H - 0.07, 0, wallMat));
+        wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
+        const [p, q] = edgeSides(layout, edge);
+        const isExit = layout.cellAt.has(p) !== layout.cellAt.has(q);
         // 경첩을 축으로 도는 문짝
         const pivot = new THREE.Group();
-        if (o === 'h') pivot.position.set(mx - 0.38, 0, mz);
-        else pivot.position.set(mx, 0, mz - 0.38);
-        const panel = o === 'h'
-          ? box(0.76, WALL_H - 0.16, 0.05, isExit ? exitMat : doorMat, 0.38, (WALL_H - 0.16) / 2, 0)
-          : box(0.05, WALL_H - 0.16, 0.76, isExit ? exitMat : doorMat, 0, (WALL_H - 0.16) / 2, 0.38);
-        pivot.add(panel);
-        pivot.rotation.y = o === 'h' ? -1.25 : 1.25;
-        walls.add(pivot);
+        pivot.position.set(-0.38, 0, 0);
+        pivot.add(box(0.76, WALL_H - 0.16, 0.05, isExit ? exitMat : doorMat, 0.38, (WALL_H - 0.16) / 2, 0));
+        pivot.rotation.y = doorOpenAngle(edge);
+        wall.add(pivot);
         doorPanels.set(edge, pivot);
       }
     }
@@ -413,7 +430,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         const mat = makeFlameMaterial();
         flameMats.push(mat);
         const flame = new THREE.Mesh(flameGeo, mat);
-        flame.position.set(s.x + 0.5, 0.5, s.y + 0.5);
+        flame.position.set(s.center.x, 0.5, s.center.y);
         flameMeshes.push(flame);
         fg.add(flame);
       }
@@ -424,8 +441,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const sprites = cell.squares.flatMap((s) =>
         [0, 1].map((i) => {
           const sprite = new THREE.Sprite(sm);
-          const x = s.x + 0.3 + Math.random() * 0.4;
-          const z = s.y + 0.3 + Math.random() * 0.4;
+          const x = s.center.x - 0.2 + Math.random() * 0.4;
+          const z = s.center.y - 0.2 + Math.random() * 0.4;
           sprite.scale.setScalar(1.1);
           scene.add(sprite);
           return { s: sprite, x, z, ph: i * 1.7 + Math.random() * 3 };
@@ -536,9 +553,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       // 문 — 닫혔으면 돌아와 닫힌다
       const closedNow = new Set(seg.snap.closed);
       doorPanels.forEach((pivot, edge) => {
-        const { o } = parseEdge(edge);
-        const openAngle = o === 'h' ? -1.25 : 1.25;
-        const goal = closedNow.has(edge) ? 0 : openAngle;
+        const goal = closedNow.has(edge) ? 0 : doorOpenAngle(edge);
         pivot.rotation.y += (goal - pivot.rotation.y) * 0.14;
       });
 

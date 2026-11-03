@@ -2,7 +2,7 @@
  * 「도와줘」 — 모르는 아이를 막다른 길로 보내지 않는 무난한 기본값.
  * 이미 해 둔 것은 지우지 않고 빈 곳만 채운다.
  */
-import { analyze, edgeSides, isExterior, reachableFrom, shortestPath, sqKey, unreachableCells } from './grid';
+import { analyze, edgeSides, isExterior, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
 import { normalize } from './edit';
 import { OUT, type Band, type Cell, type Layout, type Plan, type Pt } from './types';
 
@@ -10,9 +10,9 @@ import { OUT, type Band, type Cell, type Layout, type Plan, type Pt } from './ty
 function neighborCounts(plan: Plan, layout: Layout): Map<string, number> {
   const seen = new Map<string, Set<string>>();
   for (const edge of plan.walls) {
-    const [p, q] = edgeSides(edge);
-    const a = layout.cellAt.get(sqKey(p.x, p.y));
-    const b = layout.cellAt.get(sqKey(q.x, q.y));
+    const [p, q] = edgeSides(layout, edge);
+    const a = layout.cellAt.get(p);
+    const b = layout.cellAt.get(q);
     if (!a || !b || a === b) continue;
     if (!seen.has(a)) seen.set(a, new Set());
     if (!seen.has(b)) seen.set(b, new Set());
@@ -58,9 +58,9 @@ export function autoTag(plan: Plan, band: Band): Plan {
 /** 두 칸이 맞닿은 벽 조각들 */
 function sharedEdges(plan: Plan, layout: Layout, a: string, b: string): string[] {
   return plan.walls.filter((edge) => {
-    const [p, q] = edgeSides(edge);
-    const x = layout.cellAt.get(sqKey(p.x, p.y));
-    const y = layout.cellAt.get(sqKey(q.x, q.y));
+    const [p, q] = edgeSides(layout, edge);
+    const x = layout.cellAt.get(p);
+    const y = layout.cellAt.get(q);
     return (x === a && y === b) || (x === b && y === a);
   });
 }
@@ -79,7 +79,7 @@ export function autoDoors(input: Plan): Plan {
     );
     for (const cell of order) {
       const edges = plan.walls.filter(
-        (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(e).some((s) => layout.cellAt.get(sqKey(s.x, s.y)) === cell.id),
+        (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(layout, e).some((s) => layout.cellAt.get(s) === cell.id),
       );
       if (edges.length) {
         // 아래쪽 겉벽을 먼저 쓴다 — 지도에서 「집 밖」이 아래에 있어 길이 곧게 이어진다
@@ -116,14 +116,14 @@ export function autoDoors(input: Plan): Plan {
       // 이어진 칸과 닿지 않는 섬 — 겉벽에 문을 낸다
       const island = stuck[0]!;
       const edges = plan.walls.filter(
-        (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(e).some((s) => layout.cellAt.get(sqKey(s.x, s.y)) === island.id),
+        (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(layout, e).some((s) => layout.cellAt.get(s) === island.id),
       );
       if (!edges.length) {
         // 다른 섬과만 닿아 있다
         const inner = plan.walls.filter((e) => {
-          const [p, q] = edgeSides(e);
-          const x = layout.cellAt.get(sqKey(p.x, p.y));
-          const y = layout.cellAt.get(sqKey(q.x, q.y));
+          const [p, q] = edgeSides(layout, e);
+          const x = layout.cellAt.get(p);
+          const y = layout.cellAt.get(q);
           return !plan.openings[e] && x && y && x !== y && (x === island.id || y === island.id);
         });
         if (!inner.length) break;
@@ -151,11 +151,11 @@ export function autoMarks(input: Plan, band: Band): Plan {
 
   const free = (cell: Cell): Pt | null => {
     const near = [...cell.squares].sort(
-      (a, b) => Math.hypot(a.x - cell.anchor.x, a.y - cell.anchor.y) - Math.hypot(b.x - cell.anchor.x, b.y - cell.anchor.y),
+      (a, b) => Math.hypot(a.center.x - cell.anchor.x, a.center.y - cell.anchor.y) - Math.hypot(b.center.x - cell.anchor.x, b.center.y - cell.anchor.y),
     );
-    // 글자가 놓이는 가운데 네모를 피한다
+    // 글자가 놓이는 가운데 조각을 피한다
     for (const s of [...near.slice(1), near[0]!]) {
-      const p = { x: s.x + 0.5, y: s.y + 0.5 };
+      const p = s.center;
       if (!used.has(`${p.x},${p.y}`)) {
         used.add(`${p.x},${p.y}`);
         return p;
@@ -191,7 +191,7 @@ export function autoMarks(input: Plan, band: Band): Plan {
   return normalize({ ...plan, marks });
 }
 
-/** 칸 id 의 대표 네모로 된 길을 만든다 */
+/** 칸 id 의 대표 조각으로 된 길을 만든다 */
 function toSteps(start: string, path: { to: string }[]): string[] {
   return [start, ...path.map((p) => p.to)];
 }
@@ -202,7 +202,7 @@ export function autoRoute(input: Plan): Plan {
   const me = plan.marks.me;
   if (!me) return plan;
   const layout = analyze(plan);
-  const startKey = sqKey(Math.floor(me.x), Math.floor(me.y));
+  const startKey = pieceKeyAt(layout, me);
   const start = layout.cellAt.get(startKey);
   if (!start) return plan;
   const path = shortestPath(layout, start);
@@ -220,7 +220,7 @@ export function findSecondRoute(plan: Plan): string[] | null {
   const me = plan.marks.me;
   if (!me) return null;
   const layout = analyze(plan);
-  const startKey = sqKey(Math.floor(me.x), Math.floor(me.y));
+  const startKey = pieceKeyAt(layout, me);
   const start = layout.cellAt.get(startKey);
   if (!start) return null;
   const ids = plan.route.map((s) => (s === OUT ? OUT : layout.cellAt.get(s)));

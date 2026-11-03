@@ -2,16 +2,28 @@
  * 지도 고치기. 어떤 조작이든 끝에 `normalize` 를 거쳐 앞뒤가 맞는 지도만 남긴다.
  * 모든 함수는 새 지도를 돌려주고 받은 지도를 바꾸지 않는다.
  */
-import { analyze, edgeBetween, edgeInGrid, isExterior, isInterior, reachableFrom, sqKey } from './grid';
+import { analyze, cellIdAt, dKey, edgeBetween, edgeInGrid, isExterior, isInterior, parseEdge, pieceCenter, pieceKeyAt, reachableFrom, sqKey, tagFor, uKey } from './grid';
 import { OUT, type CellTag, type Layout, type MarkId, type OpeningKind, type Plan, type Pt } from './types';
 
 export function emptyPlan(cols: number, rows: number): Plan {
   return { cols, rows, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [] };
 }
 
+/** 한 네모에 대각선은 하나만 — 나중에 그은 쪽이 남는다 */
+function withoutCrossings(walls: string[]): string[] {
+  const kept = new Set<string>();
+  for (const key of walls) {
+    const { o, x, y } = parseEdge(key);
+    if (o === 'd') kept.delete(uKey(x, y));
+    if (o === 'u') kept.delete(dKey(x, y));
+    kept.add(key);
+  }
+  return [...kept];
+}
+
 /** 벽이 바뀌어도 어긋나지 않게 맞춘다 */
 export function normalize(plan: Plan): Plan {
-  const walls = [...new Set(plan.walls)].filter((k) => edgeInGrid(plan, k)).sort();
+  const walls = withoutCrossings(plan.walls).filter((k) => edgeInGrid(plan, k)).sort();
   const wallSet = new Set(walls);
   const openings: Plan['openings'] = {};
   for (const [edge, kind] of Object.entries(plan.openings)) if (wallSet.has(edge)) openings[edge] = kind;
@@ -23,10 +35,9 @@ export function normalize(plan: Plan): Plan {
   const tags: Plan['tags'] = {};
   for (const cell of layout.cells) {
     for (const s of cell.squares) {
-      const k = sqKey(s.x, s.y);
-      const tag = plan.tags[k];
+      const tag = tagFor(plan.tags, s.key);
       if (tag) {
-        tags[k] = tag;
+        tags[s.key] = tag;
         break;
       }
     }
@@ -41,9 +52,10 @@ export function normalize(plan: Plan): Plan {
   const marks: Plan['marks'] = {};
   for (const [id, at] of Object.entries(plan.marks) as [MarkId, Pt][]) {
     if (id === 'meet') {
-      if (!insideAnyCell(layout, at)) marks.meet = at;
-    } else if (layout.cellAt.has(sqKey(Math.floor(at.x), Math.floor(at.y)))) {
-      marks[id] = at;
+      if (!cellIdAt(layout, at)) marks.meet = at;
+    } else if (cellIdAt(layout, at)) {
+      // 대각선이 지나가도 표시가 벽에 걸리지 않게 조각 가운데로 옮긴다
+      marks[id] = pieceCenter(pieceKeyAt(layout, at));
     }
   }
 
@@ -56,15 +68,11 @@ export function normalize(plan: Plan): Plan {
   };
 }
 
-function insideAnyCell(layout: Layout, at: Pt): boolean {
-  return layout.cellAt.has(sqKey(Math.floor(at.x), Math.floor(at.y)));
-}
-
 /** 내 자리에서 시작해 문으로 이어진 데까지만 남긴다 */
 export function trimRoute(plan: Plan, layout: Layout, route: string[]): string[] {
   const me = plan.marks.me;
   if (!me || route.length === 0) return [];
-  const startCell = layout.cellAt.get(sqKey(Math.floor(me.x), Math.floor(me.y)));
+  const startCell = cellIdAt(layout, me);
   if (!startCell) return [];
   const out: string[] = [];
   let at: string | null = null;
@@ -104,7 +112,10 @@ export function paintCell(plan: Plan, layout: Layout, cellId: string, tag: CellT
   if (!cell) return plan;
   const tags = { ...plan.tags };
   const same = cell.kind === tag.kind && cell.name === tag.name;
-  for (const s of cell.squares) delete tags[sqKey(s.x, s.y)];
+  for (const s of cell.squares) {
+    delete tags[s.key];
+    delete tags[sqKey(s.x, s.y)];
+  }
   if (!same) tags[cell.id] = tag;
   return normalize({ ...plan, tags });
 }
@@ -125,19 +136,19 @@ export type MarkResult = { plan: Plan; ok: true } | { plan: Plan; ok: false; why
 
 /** 표시 놓기. 같은 자리를 다시 누르면 치운다 */
 export function placeMark(plan: Plan, layout: Layout, id: MarkId, at: Pt): MarkResult {
-  const key = sqKey(Math.floor(at.x), Math.floor(at.y));
+  const key = pieceKeyAt(layout, at);
   const inside = layout.cellAt.has(key);
   if (id === 'meet') {
     if (inside) return { plan, ok: false, why: 'need-outside' };
     return { plan: normalize({ ...plan, marks: { ...plan.marks, meet: at } }), ok: true };
   }
   if (!inside) return { plan, ok: false, why: 'need-inside' };
-  const placed = { x: Math.floor(at.x) + 0.5, y: Math.floor(at.y) + 0.5 };
+  const placed = pieceCenter(key);
   const marks = { ...plan.marks };
   const old = marks[id];
   if (old && old.x === placed.x && old.y === placed.y) delete marks[id];
   else {
-    // 한 네모에 표시 하나만 — 눌렀을 때 무엇을 고른 것인지 헷갈리지 않게 한다
+    // 한 조각에 표시 하나만 — 눌렀을 때 무엇을 고른 것인지 헷갈리지 않게 한다
     for (const other of Object.keys(marks) as MarkId[]) {
       const m = marks[other];
       if (other !== 'meet' && m && m.x === placed.x && m.y === placed.y) delete marks[other];
@@ -158,13 +169,13 @@ export type RouteTap =
   | { plan: Plan; result: 'no-way' | 'no-start' };
 
 /**
- * 나가는 길에 칸을 더한다. `target` 은 네모 열쇠 또는 `out`.
+ * 나가는 길에 칸을 더한다. `target` 은 조각 열쇠 또는 `out`.
  * 이미 지나온 칸을 누르면 거기까지 되돌아간다.
  */
 export function tapRoute(plan: Plan, layout: Layout, which: 'route' | 'route2', target: string): RouteTap {
   const me = plan.marks.me;
   if (!me) return { plan, result: 'no-start' };
-  const startKey = sqKey(Math.floor(me.x), Math.floor(me.y));
+  const startKey = pieceKeyAt(layout, me);
   const startCell = layout.cellAt.get(startKey);
   if (!startCell) return { plan, result: 'no-start' };
 
@@ -191,7 +202,7 @@ export function tapRoute(plan: Plan, layout: Layout, which: 'route' | 'route2', 
 export function routeCandidates(plan: Plan, layout: Layout, which: 'route' | 'route2'): string[] {
   const me = plan.marks.me;
   if (!me) return [];
-  const startKey = sqKey(Math.floor(me.x), Math.floor(me.y));
+  const startKey = pieceKeyAt(layout, me);
   const route = plan[which].length ? plan[which] : [startKey];
   const last = route[route.length - 1]!;
   if (last === OUT) return [];

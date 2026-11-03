@@ -3,9 +3,9 @@
  * 네모 한 칸이 100 단위다. 포인터는 네모 단위 좌표로 바꿔서 알려 준다.
  */
 import { memo, useId, useMemo, useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { edgeEnds, edgeMid, edgeSides, parseEdge, sqKey } from '../core/grid';
+import { edgeEnds, edgeMid, edgeSides, isDiagonal, parseEdge, piecePolygon } from '../core/grid';
 import { routePoints } from '../core/path';
-import { OUT, type Layout, type MarkId, type Plan, type Pt } from '../core/types';
+import { OUT, type Layout, type MarkId, type Piece, type Plan, type Pt } from '../core/types';
 import { cellLabel, MARK_NAME, type LookId } from '../content/names';
 import { HandGlyph, MarkGlyph } from './art';
 
@@ -57,6 +57,9 @@ function pencilPath(key: string, a: Pt, b: Pt): string {
   return `M${ax} ${ay}Q${mx} ${my} ${bx} ${by}`;
 }
 
+/** 대각선에 나뉜 세모 조각의 꼭짓점 */
+const trianglePoints = (s: Piece): string => piecePolygon(s.key).map((p) => `${p.x * U},${p.y * U}`).join(' ');
+
 function PlanViewBase(props: PlanViewProps) {
   const { plan, layout, showDots, guide, stroke, armed, hotEdge, glow, warn, showRoute, hazard, closedDoors } = props;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -101,6 +104,7 @@ function PlanViewBase(props: PlanViewProps) {
       data-rows={plan.rows}
       data-cells={layout.cells.length}
       data-walls={plan.walls.length}
+      data-diagonals={plan.walls.filter(isDiagonal).length}
       data-doors={Object.values(plan.openings).filter((o) => o === 'door').length}
       data-windows={Object.values(plan.openings).filter((o) => o === 'window').length}
       data-route={plan.route.join(' ')}
@@ -142,9 +146,13 @@ function PlanViewBase(props: PlanViewProps) {
         const fill = cell.kind === 'room' ? pat('crayon-room') : cell.kind === 'pass' ? pat('crayon-pass') : pat('crayon-new');
         return (
           <g key={cell.id} data-cell={cell.id} data-kind={cell.kind ?? ''}>
-            {cell.squares.map((s) => (
-              <rect key={`${s.x},${s.y}`} x={s.x * U - 0.5} y={s.y * U - 0.5} width={U + 1} height={U + 1} fill={fill} />
-            ))}
+            {cell.squares.map((s) =>
+              s.whole ? (
+                <rect key={s.key} data-piece={s.key} x={s.x * U - 0.5} y={s.y * U - 0.5} width={U + 1} height={U + 1} fill={fill} />
+              ) : (
+                <polygon key={s.key} data-piece={s.key} points={trianglePoints(s)} fill={fill} />
+              ),
+            )}
           </g>
         );
       })}
@@ -152,18 +160,26 @@ function PlanViewBase(props: PlanViewProps) {
       {/* 밖으로 이어지지 않은 칸 */}
       {layout.cells.filter((c) => warnSet.has(c.id)).map((cell) => (
         <g key={`w${cell.id}`} className="warn-cell">
-          {cell.squares.map((s) => (
-            <rect key={`${s.x},${s.y}`} x={s.x * U + 6} y={s.y * U + 6} width={U - 12} height={U - 12} rx={10} fill="none" stroke="#b5651d" strokeWidth={6} strokeDasharray="14 12" />
-          ))}
+          {cell.squares.map((s) =>
+            s.whole ? (
+              <rect key={s.key} x={s.x * U + 6} y={s.y * U + 6} width={U - 12} height={U - 12} rx={10} fill="none" stroke="#b5651d" strokeWidth={6} strokeDasharray="14 12" />
+            ) : (
+              <polygon key={s.key} points={trianglePoints(s)} fill="none" stroke="#b5651d" strokeWidth={6} strokeDasharray="14 12" />
+            ),
+          )}
         </g>
       ))}
 
       {/* 반짝이는 칸 */}
       {layout.cells.filter((c) => glowSet.has(c.id)).map((cell) => (
         <g key={`g${cell.id}`} className="glow-cell">
-          {cell.squares.map((s) => (
-            <rect key={`${s.x},${s.y}`} x={s.x * U} y={s.y * U} width={U} height={U} fill="#ffffff" opacity=".6" />
-          ))}
+          {cell.squares.map((s) =>
+            s.whole ? (
+              <rect key={s.key} x={s.x * U} y={s.y * U} width={U} height={U} fill="#ffffff" opacity=".6" />
+            ) : (
+              <polygon key={s.key} points={trianglePoints(s)} fill="#ffffff" opacity=".6" />
+            ),
+          )}
         </g>
       ))}
 
@@ -174,10 +190,14 @@ function PlanViewBase(props: PlanViewProps) {
         return (
           <g key={`h${cell.id}`} data-hazard={lv}>
             {cell.squares.map((s, i) => (
-              <g key={`${s.x},${s.y}`}>
-                <rect className="smoke-sq" x={s.x * U} y={s.y * U} width={U} height={U} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
+              <g key={s.key}>
+                {s.whole ? (
+                  <rect className="smoke-sq" x={s.x * U} y={s.y * U} width={U} height={U} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
+                ) : (
+                  <polygon className="smoke-sq" points={trianglePoints(s)} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
+                )}
                 {lv === 3 && (
-                  <g className="flame" style={{ animationDelay: `${(i % 4) * 0.25}s` }} transform={`translate(${s.x * U + 50} ${s.y * U + 62})`}>
+                  <g className="flame" style={{ animationDelay: `${(i % 4) * 0.25}s` }} transform={`translate(${s.center.x * U} ${s.center.y * U + 12})`}>
                     <path d="M0-44c17 17 24 30 17 43-3 6-10 9-17 9s-14-3-17-9c-6-12 4-22 9-28 2 7 4 9 7 9 2-7 2-15 1-24z" fill="#f59a23" />
                     <path d="M0-16c7 7 10 13 7 18-1 3-4 4-7 4s-6-1-7-4c-3-5 2-9 4-11 1 3 2 4 3 4 1-3 1-7 0-11z" fill="#ffe08a" />
                   </g>
@@ -219,8 +239,8 @@ function PlanViewBase(props: PlanViewProps) {
           <text
             key={`l${cell.id}`}
             className="cell-label"
-            x={(cell.anchor.x + 0.5) * U}
-            y={(cell.anchor.y + 0.5) * U}
+            x={cell.anchor.x * U}
+            y={cell.anchor.y * U}
             fontSize={label.length > 3 && cell.squares.length < 3 ? 22 : 28}
           >
             {label}
@@ -228,7 +248,7 @@ function PlanViewBase(props: PlanViewProps) {
         );
       })}
       {showLabels && props.glow === undefined && props.showDots !== true && layout.cells.filter((c) => !c.kind).map((cell) => (
-        <text key={`q${cell.id}`} className="cell-unknown" x={(cell.anchor.x + 0.5) * U} y={(cell.anchor.y + 0.5) * U}>?</text>
+        <text key={`q${cell.id}`} className="cell-unknown" x={cell.anchor.x * U} y={cell.anchor.y * U}>?</text>
       ))}
 
       {/* 나가는 길 */}
@@ -252,9 +272,9 @@ function PlanViewBase(props: PlanViewProps) {
       {/* 눌러야 할 곳 */}
       {(props.hints ?? []).map((id) => {
         const cell = layout.byId.get(id);
-        const x = cell ? (cell.anchor.x + 0.5) * U : width * 0.28;
+        const x = cell ? cell.anchor.x * U : width * 0.28;
         // 칸 이름 바로 아래에 놓아 글자가 겹치지 않게 한다
-        const y = cell ? (cell.anchor.y + 0.5) * U + 58 : stripTop + 34;
+        const y = cell ? cell.anchor.y * U + 58 : stripTop + 34;
         return (
           <g key={`hint${id}`} className="tap-hint" data-hint={id} transform={`translate(${x} ${y})`} pointerEvents="none">
             <g className="tap-hand"><HandGlyph scale={1.5} /></g>
@@ -290,12 +310,21 @@ function RouteArrow({ points, color }: { points: Pt[]; color: string }) {
   );
 }
 
+const WALL_ANGLE = { h: 0, v: 90, d: 45, u: -45 } as const;
+const SLANT = Math.SQRT1_2;
+/** 벽에서 q 쪽을 향하는 방향 */
+const TOWARD_Q = {
+  h: { x: 0, y: 1 },
+  v: { x: 1, y: 0 },
+  d: { x: -SLANT, y: SLANT },
+  u: { x: SLANT, y: SLANT },
+} as const;
+
 function OpeningShape({ edge, kind, layout, closed, hot }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean }) {
-  const [a] = edgeEnds(edge);
   const { o } = parseEdge(edge);
   const m = edgeMid(edge);
-  // 벽 조각을 가로 100 으로 놓고 그린 뒤 돌린다
-  const place = `translate(${a.x * U} ${a.y * U}) rotate(${o === 'v' ? 90 : 0})`;
+  // 문과 창을 가로 100 으로 그린 뒤 벽 가운데로 옮겨 돌린다. 대각선 벽은 더 길어서 양옆에 벽이 남는다
+  const place = `translate(${m.x * U} ${m.y * U}) rotate(${WALL_ANGLE[o]}) translate(-50 0)`;
   if (kind === 'window') {
     const line = hot ? '#1d5f96' : '#2f7fbf';
     return (
@@ -306,18 +335,20 @@ function OpeningShape({ edge, kind, layout, closed, hot }: { edge: string; kind:
       </g>
     );
   }
-  const [p, q] = edgeSides(edge);
-  const pCell = layout.cellAt.get(sqKey(p.x, p.y));
-  const qCell = layout.cellAt.get(sqKey(q.x, q.y));
+  const [p, q] = edgeSides(layout, edge);
+  const pCell = layout.cellAt.get(p);
+  const qCell = layout.cellAt.get(q);
   const exit = Boolean(pCell) !== Boolean(qCell);
   const color = hot ? '#2f7fbf' : exit ? '#2e8b57' : '#9a5b2a';
-  // 문짝은 방 쪽으로 열린다. 가로 벽은 그림 +y 가 q 쪽이고, 세로 벽은 돌아가면서 +y 가 p 쪽이 된다
+  // 문짝은 방 쪽으로 열린다. 그림 +y 는 대개 q 쪽이고, 세로 벽만 돌아가면서 p 쪽이 된다
   const roomP = pCell ? layout.byId.get(pCell)?.kind === 'room' : false;
   const roomQ = qCell ? layout.byId.get(qCell)?.kind === 'room' : false;
   const toQ = exit ? Boolean(qCell) : roomQ || !roomP;
-  const swing = (o === 'h' ? toQ : !toQ) ? 1 : -1;
-  const nx = o === 'v' ? (pCell ? 1 : -1) : 0;
-  const ny = o === 'h' ? (pCell ? 1 : -1) : 0;
+  const swing = (o === 'v' ? !toQ : toQ) ? 1 : -1;
+  // 밖으로 나가는 쪽
+  const toward = pCell ? 1 : -1;
+  const nx = TOWARD_Q[o].x * toward;
+  const ny = TOWARD_Q[o].y * toward;
   return (
     <g data-door={edge} data-exit={exit ? '1' : '0'}>
       <g transform={place}>
@@ -332,8 +363,8 @@ function OpeningShape({ edge, kind, layout, closed, hot }: { edge: string; kind:
         )}
       </g>
       {exit && (
-        <g transform={`translate(${m.x * U + nx * 36} ${m.y * U + ny * 36})`}>
-          <path d={o === 'v' ? `M${-nx * 14} 0H${nx * 10}M${nx * 2} -12L${nx * 18} 0L${nx * 2} 12` : `M0 ${-ny * 14}V${ny * 10}M-12 ${ny * 2}L0 ${ny * 18}L12 ${ny * 2}`} fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+        <g transform={`translate(${m.x * U + nx * 36} ${m.y * U + ny * 36}) rotate(${(Math.atan2(ny, nx) * 180) / Math.PI})`}>
+          <path d="M-14 0H10M2-12L18 0L2 12" fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
         </g>
       )}
     </g>

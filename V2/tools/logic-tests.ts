@@ -14,11 +14,11 @@ import {
   type DrillState,
 } from '../src/core/drill';
 import { addEdges, addStroke, emptyPlan, normalize, paintCell, placeMark, removeWall, routeCandidates, tapRoute, toggleOpening } from '../src/core/edit';
-import { analyze, hKey, isExterior, shortestPath, sqKey, unreachableCells, vKey } from '../src/core/grid';
+import { analyze, cellIdAt, dKey, edgeBetween, hKey, isExterior, isInterior, pieceCenter, pieceKeyAt, shortestPath, sqKey, uKey, unreachableCells, vKey } from '../src/core/grid';
 import { stepField } from '../src/core/hazard';
 import { arrowMap, pickByArrow, pointAlong, routePoints, type ArrowDir } from '../src/core/path';
 import { buildReport } from '../src/core/report';
-import { extendStroke, nearestDot, nearestEdge } from '../src/core/stroke';
+import { extendStroke, nearestDot, nearestEdge, wasDiagonalDrag } from '../src/core/stroke';
 import { OUT, type Band, type Plan } from '../src/core/types';
 import { BANDS, bandOfGrade } from '../src/content/bands';
 import { FIRE } from '../src/content/fire';
@@ -235,6 +235,123 @@ export function runLogicTests(check: Check): void {
     assert.equal(pickByArrow(from, [up, right], 'right'), right);
     assert.equal(pickByArrow(from, [up, right], 'down'), null);
     assert.equal(pickByArrow(from, [up, right], 'left'), null);
+  });
+
+  /** 네모 (x1,y1)-(x2,y2) 의 오른쪽 위 모서리를 대각선으로 깎은 집 */
+  const cutHouse = (): string[] => [
+    hKey(0, 0), hKey(1, 0), dKey(2, 0), vKey(3, 1), vKey(3, 2),
+    hKey(0, 3), hKey(1, 3), hKey(2, 3), vKey(0, 0), vKey(0, 1), vKey(0, 2),
+  ];
+
+  check('[대각선] 두 점을 비스듬히 이으면 대각선 벽 조각이 된다', () => {
+    assert.equal(edgeBetween({ x: 2, y: 1 }, { x: 3, y: 2 }), dKey(2, 1));
+    assert.equal(edgeBetween({ x: 3, y: 2 }, { x: 2, y: 1 }), dKey(2, 1));
+    assert.equal(edgeBetween({ x: 2, y: 2 }, { x: 3, y: 1 }), uKey(2, 1));
+    assert.equal(edgeBetween({ x: 3, y: 1 }, { x: 2, y: 2 }), uKey(2, 1));
+    assert.deepEqual(extendStroke([{ x: 0, y: 0 }], { x: 2, y: 2 }), [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }]);
+    assert.deepEqual(extendStroke([{ x: 0, y: 0 }], { x: 1, y: 1 }, false), [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }]);
+  });
+
+  check('[대각선] 곧게 끈 손만 대각선이고 모서리를 돌던 손은 아니다', () => {
+    const a = { x: 2, y: 1 };
+    const b = { x: 3, y: 2 };
+    assert.equal(wasDiagonalDrag(a, b, []), true);
+    assert.equal(wasDiagonalDrag(a, b, [{ x: 2.4, y: 1.5 }, { x: 2.5, y: 1.4 }, { x: 2.7, y: 1.8 }]), true, '조금 흔들려도 대각선');
+    assert.equal(wasDiagonalDrag(a, b, [{ x: 2.6, y: 1.2 }, { x: 2.9, y: 1.6 }]), false, '가로로 가다 내려오면 꺾임');
+    assert.equal(wasDiagonalDrag(a, { x: 4, y: 2 }, []), false, '45도가 아니면 대각선이 아니다');
+  });
+
+  check('[대각선] 겉벽을 깎으면 안쪽 세모만 칸이고 바깥 세모는 집 밖이다', () => {
+    const plan = addEdges(emptyPlan(5, 4), cutHouse());
+    const layout = analyze(plan);
+    assert.equal(layout.cells.length, 1);
+    const cell = layout.cells[0]!;
+    assert.equal(cell.squares.length, 9, '네모 8 + 세모 1');
+    assert.ok(layout.cellAt.has('2,0:sw'), '안쪽 세모');
+    assert.ok(!layout.cellAt.has('2,0:ne'), '바깥 세모');
+    assert.ok(!layout.cellAt.has('2,0'), '나뉜 네모는 통째로 없다');
+    assert.equal(cellIdAt(layout, { x: 2.8, y: 0.2 }), undefined);
+    assert.equal(cellIdAt(layout, { x: 2.2, y: 0.8 }), cell.id);
+    assert.ok(isExterior(layout, dKey(2, 0)));
+  });
+
+  check('[대각선] 네모 안 대각선이 칸을 둘로 나눈다', () => {
+    const edges = [hKey(0, 0), hKey(0, 1), vKey(0, 0), vKey(1, 0), dKey(0, 0)];
+    const layout = analyze(addEdges(emptyPlan(3, 3), edges));
+    assert.equal(layout.cells.length, 2);
+    assert.ok(isInterior(layout, dKey(0, 0)));
+  });
+
+  check('[대각선] 대각선 벽에 문을 달면 그 문으로 지나간다', () => {
+    let plan = addEdges(emptyPlan(5, 4), cutHouse());
+    let layout = analyze(plan);
+    const window = toggleOpening(plan, layout, dKey(2, 0), 'window');
+    assert.equal(window.ok, true, '겉벽 대각선에 창문');
+    const door = toggleOpening(plan, layout, dKey(2, 0), 'door');
+    assert.equal(door.ok, true);
+    plan = door.plan;
+    layout = analyze(plan);
+    assert.deepEqual(layout.links.map((l) => l.b), [OUT], '밖으로 이어진다');
+    plan = placeMark(plan, layout, 'me', { x: 0.5, y: 2.5 }).plan;
+    layout = analyze(plan);
+    const route = tapRoute(plan, layout, 'route', OUT);
+    assert.equal(route.result, 'done');
+    const points = routePoints(route.plan, layout, route.plan.route);
+    assert.deepEqual(points[points.length - 2], { x: 2.5, y: 0.5 }, '대각선 가운데를 지난다');
+    const end = points[points.length - 1]!;
+    assert.equal(cellIdAt(layout, end), undefined, '문 밖 세모로 나선다');
+    assert.ok(end.x > 2.5 && end.y < 0.5);
+  });
+
+  check('[대각선] 칸 안에서 걸어도 대각선 벽을 뚫지 않는다', () => {
+    const edges = [...box(0, 0, 3, 3), dKey(1, 1)];
+    let plan = addEdges(emptyPlan(4, 4), edges);
+    plan = toggleOpening(plan, analyze(plan), hKey(2, 3), 'door').plan;
+    plan = placeMark(plan, analyze(plan), 'me', { x: 1.8, y: 1.2 }).plan;
+    const layout = analyze(plan);
+    assert.equal(layout.cells.length, 1, '닫히지 않은 대각선은 칸을 나누지 않는다');
+    assert.equal(pieceKeyAt(layout, plan.marks.me!), '1,1:ne');
+    const route = tapRoute(plan, layout, 'route', OUT).plan;
+    const points = routePoints(route, layout, route.route);
+    for (let i = 1; i < points.length; i++) {
+      for (let t = 0; t <= 1; t += 0.02) {
+        const x = points[i - 1]!.x + (points[i]!.x - points[i - 1]!.x) * t;
+        const y = points[i - 1]!.y + (points[i]!.y - points[i - 1]!.y) * t;
+        const onWall = x > 1 && x < 2 && y > 1 && y < 2 && Math.abs(x - 1 - (y - 1)) < 0.001;
+        assert.ok(!onWall, `대각선을 뚫었다: ${x},${y}`);
+      }
+    }
+  });
+
+  check('[대각선] 한 네모에 대각선은 하나 — 나중에 그은 쪽이 남는다', () => {
+    let plan = addStroke(emptyPlan(4, 4), [{ x: 1, y: 1 }, { x: 2, y: 2 }]);
+    assert.deepEqual(plan.walls, [dKey(1, 1)]);
+    plan = addStroke(plan, [{ x: 1, y: 2 }, { x: 2, y: 1 }]);
+    assert.deepEqual(plan.walls, [uKey(1, 1)]);
+  });
+
+  check('[대각선] 표시가 벽에 걸리지 않고, 표지가 대각선을 긋고 지워도 남는다', () => {
+    let plan = addEdges(emptyPlan(4, 4), box(0, 0, 3, 3));
+    plan = paintCell(plan, analyze(plan), analyze(plan).cells[0]!.id, { kind: 'room', name: null });
+    plan = placeMark(plan, analyze(plan), 'me', { x: 1.5, y: 1.5 }).plan;
+    plan = addStroke(plan, [{ x: 1, y: 1 }, { x: 2, y: 2 }]);
+    const layout = analyze(plan);
+    assert.notDeepEqual(plan.marks.me, { x: 1.5, y: 1.5 }, '대각선 위에 남지 않는다');
+    assert.deepEqual(plan.marks.me, pieceCenter(pieceKeyAt(layout, plan.marks.me!)));
+    assert.equal(layout.cells[0]!.kind, 'room', '칠한 것이 남는다');
+    plan = removeWall(plan, dKey(1, 1));
+    assert.equal(analyze(plan).cells[0]!.kind, 'room', '지워도 남는다');
+  });
+
+  check('[대각선] 학년 단계마다 비스듬한 집 본이 있고 칸이 닫힌다', () => {
+    for (const id of ['low-cut', 'mid-cut', 'high-cut']) {
+      const t = TEMPLATES.find((x) => x.id === id)!;
+      const band = BANDS[t.band];
+      const edges = segEdges(t.outer);
+      assert.ok(edges.some((k) => k.startsWith('d:') || k.startsWith('u:')), `${id}: 대각선이 없다`);
+      const layout = analyze(addEdges(emptyPlan(band.cols, band.rows), [...edges, ...segEdges(t.inner)]));
+      assert.ok(layout.cells.length >= 3, `${id}: 칸 ${layout.cells.length}개`);
+    }
   });
 
   check('[화살표] 같은 쪽에 문이 둘이면 밖으로 나가는 문이 먼저이고 다른 문도 닿는다', () => {

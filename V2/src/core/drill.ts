@@ -2,7 +2,7 @@
  * 대피 연습 — 움직일 때마다 한 차례 진행한다. 줄어드는 시계가 없다.
  * 진 판 없이 연습으로 끝나고, 점수를 만들지 않는다.
  */
-import { analyze, reachableFrom, shortestPath, sqKey } from './grid';
+import { analyze, cellIdAt, reachableFrom, shortestPath } from './grid';
 import { stepField, type Field, type FieldEdge, type FieldParams } from './hazard';
 import { hopPoints } from './path';
 import { OUT, type Layout, type Plan, type Pt } from './types';
@@ -127,7 +127,7 @@ export function pickSource(
 
   // 가스레인지가 있으면 그 칸을 자주 고른다
   const gas = plan.marks.gas;
-  const gasCell = gas ? layout.cellAt.get(sqKey(Math.floor(gas.x), Math.floor(gas.y))) : undefined;
+  const gasCell = gas ? cellIdAt(layout, gas) : undefined;
   for (let grace = 0; grace <= 12; grace++) {
     const safe = others.filter((id) => canEscape(layout, start, id, grace, config));
     if (safe.length === 0) continue;
@@ -142,7 +142,7 @@ export function startDrill(plan: Plan, seed: number, config: DrillConfig): Drill
   const layout = analyze(plan);
   const me = plan.marks.me;
   if (!me) return null;
-  const at = layout.cellAt.get(sqKey(Math.floor(me.x), Math.floor(me.y)));
+  const at = cellIdAt(layout, me);
   if (!at) return null;
   const { source, grace } = pickSource(plan, layout, at, seed, config);
   const field = startField(source, layout.cells.length === 1, config);

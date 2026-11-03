@@ -3,10 +3,10 @@
  * 1~2학년은 둘 다 연한 선으로 깔리고, 3~4학년은 겉모양만, 5~6학년은 고를 때만 깔린다.
  * 「도와줘」는 이 본의 빠진 선을 채운다.
  */
-import { hKey, vKey } from '../core/grid';
+import { edgeBetween } from '../core/grid';
 import type { Band } from '../core/types';
 
-/** [x1, y1, x2, y2] — 가로나 세로 한 줄 */
+/** [x1, y1, x2, y2] — 가로, 세로 또는 45도 대각선 한 줄 */
 type Seg = [number, number, number, number];
 
 export interface Template {
@@ -34,6 +34,13 @@ const ell = (x1: number, y1: number, x2: number, y2: number, xm: number, ym: num
   [x1, y1, x1, y2],
 ];
 
+/** 점들을 차례로 이어 닫은 모양 */
+const loop = (...dots: [number, number][]): Seg[] =>
+  dots.map(([x, y], i) => {
+    const [nx, ny] = dots[(i + 1) % dots.length]!;
+    return [x, y, nx, ny];
+  });
+
 export const TEMPLATES: Template[] = [
   // 1~2학년 8×6
   {
@@ -51,6 +58,11 @@ export const TEMPLATES: Template[] = [
     outer: ell(1, 0, 7, 6, 4, 3),
     inner: [[4, 0, 4, 3], [1, 3, 4, 3]],
   },
+  {
+    id: 'low-cut', band: 'low', name: '비스듬한 집',
+    outer: loop([1, 0], [5, 0], [7, 2], [7, 6], [1, 6]),
+    inner: [[4, 0, 4, 3], [1, 3, 7, 3]],
+  },
   // 3~4학년 10×7
   {
     id: 'mid-square', band: 'mid', name: '네모 집',
@@ -66,6 +78,11 @@ export const TEMPLATES: Template[] = [
     id: 'mid-ell', band: 'mid', name: '꺾인 집',
     outer: ell(0, 0, 10, 7, 5, 4),
     inner: [[3, 0, 3, 4], [6, 0, 6, 4], [0, 4, 5, 4], [3, 4, 3, 7]],
+  },
+  {
+    id: 'mid-cut', band: 'mid', name: '비스듬한 집',
+    outer: loop([1, 0], [7, 0], [9, 2], [9, 7], [1, 7]),
+    inner: [[4, 0, 4, 3], [7, 0, 7, 3], [1, 3, 9, 3], [6, 5, 9, 5], [6, 5, 6, 7]],
   },
   // 5~6학년 12×8
   {
@@ -83,15 +100,21 @@ export const TEMPLATES: Template[] = [
     outer: ell(0, 0, 12, 8, 6, 4),
     inner: [[3, 0, 3, 4], [6, 0, 6, 2], [9, 0, 9, 2], [3, 2, 12, 2], [0, 4, 6, 4], [3, 4, 3, 8]],
   },
+  {
+    id: 'high-cut', band: 'high', name: '비스듬한 집',
+    outer: loop([3, 0], [9, 0], [11, 2], [11, 8], [1, 8], [1, 2]),
+    inner: [[4, 0, 4, 3], [8, 0, 8, 3], [1, 3, 11, 3], [1, 5, 4, 5], [4, 5, 4, 8], [8, 5, 11, 5], [8, 5, 8, 8]],
+  },
 ];
 
 export function segEdges(segs: Seg[]): string[] {
   const out: string[] = [];
   for (const [x1, y1, x2, y2] of segs) {
-    if (y1 === y2) {
-      for (let x = Math.min(x1, x2); x < Math.max(x1, x2); x++) out.push(hKey(x, y1));
-    } else {
-      for (let y = Math.min(y1, y2); y < Math.max(y1, y2); y++) out.push(vKey(x1, y));
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+    const sx = Math.sign(x2 - x1);
+    const sy = Math.sign(y2 - y1);
+    for (let i = 0; i < steps; i++) {
+      out.push(edgeBetween({ x: x1 + sx * i, y: y1 + sy * i }, { x: x1 + sx * (i + 1), y: y1 + sy * (i + 1) }));
     }
   }
   return out;

@@ -13,7 +13,7 @@ import {
   type DrillMove,
   type DrillState,
 } from '../core/drill';
-import { analyze, sqKey } from '../core/grid';
+import { analyze, cellIdAt } from '../core/grid';
 import { pickByArrow, pointAlong, type ArrowDir } from '../core/path';
 import { OUT, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
@@ -118,8 +118,7 @@ export function DrillStep() {
       goMeet();
       return;
     }
-    const square = sqKey(Math.floor(p.x), Math.floor(p.y));
-    const target = layout.cellAt.get(square) ?? OUT;
+    const target = cellIdAt(layout, p) ?? OUT;
     if (target === state.at) return;
     const mv = drillMoves(layout, state, config).find((m) => m.to === target);
     if (!mv) {

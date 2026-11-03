@@ -270,7 +270,7 @@ export function qaTests(check: Check, assert: Assert): void {
     assert(bubble.includes('data-coach="kids-voice-replay"'), '말풍선에 MP3 다시 듣기 단추가 없다');
     assert(/path\.join\(root, 'public', 'voice'\)/.test(baker), '핵심 음원 굽기가 public/voice를 읽지 않는다');
     const standalone = read(path.join(root, 'tools', 'standalone.ts'));
-    assert(standalone.includes("path.join(root, 'public', 'voice')") && standalone.includes('fs.cpSync(voiceSource, voiceTarget'), '오프라인 Juwonmom MP3 복사가 없다');
+    assert(standalone.includes("path.join(v2Dir, 'offline')") && standalone.includes('fs.cpSync(v2Offline, distDir'), '오프라인 배포본이 V2 를 싣지 않는다');
     const workflow = read(path.join(root, '.github', 'workflows', 'deploy.yml'));
     assert(/name: offline-classroom-bundle[\s\S]*?path: dist\//.test(workflow), '배포 산출물이 오프라인 음성 폴더를 빠뜨린다');
   });
@@ -402,7 +402,7 @@ export function qaTests(check: Check, assert: Assert): void {
     }
   });
 
-  check('[점검] 오프라인 꾸러미 안에 HTML·읽어주세요·음성 176개가 있다 (설계서 v1.18 §5.2)', () => {
+  check('[점검] 오프라인 꾸러미 안에 V2 HTML·읽어주세요·그림·음성 전부가 있다 (설계서 v1.18 §5.2 · 대장 #110)', () => {
     const zipFile = path.join(root, 'dist', 'home-escape-map-offline.zip');
     if (!fs.existsSync(zipFile)) return; // npm run build:standalone 뒤에만 본다
     const data = fs.readFileSync(zipFile);
@@ -420,9 +420,11 @@ export function qaTests(check: Check, assert: Assert): void {
       at += 46 + nameLen + extraLen + commentLen;
     }
     assert(names.includes('우리집 대피지도/home-escape-map.html') && names.includes('우리집 대피지도/읽어주세요.txt'), 'HTML 또는 읽어주세요가 없다');
-    assert(names.filter((name) => /^우리집 대피지도\/voice\/.+\.mp3$/.test(name)).length === 176, '음성 176개가 아니다');
+    const v2Voices = (JSON.parse(read(path.join(root, 'V2', 'public', 'voice', 'manifest.json'))) as { items: unknown[] }).items.length;
+    assert(names.filter((name) => /^우리집 대피지도\/voice\/.+\.mp3$/.test(name)).length === v2Voices, `음성 ${v2Voices}개가 아니다`);
     assert(names.includes('우리집 대피지도/voice/manifest.json'), '음성 매니페스트가 없다');
-    assert(data.length > 10 * 1024 * 1024 && data.length < 40 * 1024 * 1024, `꾸러미 크기가 이상하다: ${(data.length / 1024 / 1024).toFixed(1)}MB`);
+    assert(names.includes('우리집 대피지도/art/ilgu_happy.webp'), '그림이 없다');
+    assert(data.length > 3 * 1024 * 1024 && data.length < 40 * 1024 * 1024, `꾸러미 크기가 이상하다: ${(data.length / 1024 / 1024).toFixed(1)}MB`);
   });
 
   check('[점검] 데스크톱 껍데기는 오프라인 HTML 만 싣고 바깥으로 나가지 않는다 (설계서 v1.18 §5.3)', () => {

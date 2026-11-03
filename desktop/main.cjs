@@ -1,7 +1,7 @@
 /*
  * 우리집 대피지도 — 데스크톱 껍데기 (설계서 v1.18 §5.3 · v2.0 §7).
  *
- * 오프라인 HTML(dist/home-escape-map.html)과 음성 폴더를 그대로 연다. 앱은 이미 file:// 에서
+ * V2 오프라인 HTML(dist/home-escape-map.html)과 그림·음성 폴더를 그대로 연다. 앱은 이미 file:// 에서
  * 네트워크 없이 도는 것이 검증돼 있어 Host 를 갈아 끼우지 않는다. 저장은 Electron 프로필의
  * localStorage 에 남고, 파일 저장은 저장 대화상자로 받는다. 화면 안에서는 바깥 주소로 나가지 않는다.
  *
@@ -56,7 +56,7 @@ function createWindow() {
     minHeight: CONTENT_MIN_HEIGHT,
     useContentSize: true,
     title: APP_NAME,
-    backgroundColor: '#eef3f7',
+    backgroundColor: '#fbf7ea',
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {

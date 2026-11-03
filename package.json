@@ -1,9 +1,9 @@
 {
   "name": "home-escape-map",
-  "version": "2.1.6",
+  "version": "2.2.0",
   "private": false,
   "license": "MIT",
-  "description": "우리집 대피지도 — 초등학생용 재난안전 학습 프로그램. 집을 블록으로 만들고 대피할 길을 그린 뒤, 불이 난 집에서 직접 빠져나와 본다. 브라우저 설치·오프라인 꾸러미·윈도우 설치 파일로 내려받아 인터넷 없이 쓴다",
+  "description": "우리집 대피지도 — 초등학생용 재난안전 학습 프로그램. 점을 이어 집을 그리고 나가는 길을 찾은 뒤, 불이 난 집에서 직접 빠져나와 본다. 브라우저 설치·오프라인 꾸러미·윈도우 설치 파일로 내려받아 인터넷 없이 쓴다",
   "main": "desktop/main.cjs",
   "scripts": {
     "dev": "next dev",
@@ -51,6 +51,7 @@
         "to": "app",
         "filter": [
           "home-escape-map.html",
+          "art/**",
           "voice/**"
         ]
       }

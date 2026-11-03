@@ -25,8 +25,8 @@
 
 | 길 | 이렇게 | 어울리는 때 |
 |---|---|---|
-| **브라우저에 설치** | 사이트를 연 Chrome·Edge·Whale 의 주소창 설치 아이콘을 누르거나, 안내 페이지의 「지금 설치하기」를 누른다. 바탕화면과 시작 메뉴에 아이콘이 생긴다. 캐릭터 목소리 176개는 설치 뒤 뒤에서 조용히 받아 둔다 | 인터넷이 한 번은 되는 PC. 가장 쉽다 |
-| **오프라인 꾸러미** | `home-escape-map-offline.zip` 을 받아 압축을 풀고 `우리집 대피지도/home-escape-map.html` 을 두 번 누른다. 목소리 폴더 `voice/` 는 옆에 그대로 둔다 | 인터넷이 없는 교실, USB 로 옮기는 PC |
+| **브라우저에 설치** | 사이트를 연 Chrome·Edge·Whale 의 주소창 설치 아이콘을 누르거나, 안내 페이지의 「지금 설치하기」를 누른다. 바탕화면과 시작 메뉴에 아이콘이 생긴다. 그림과 목소리는 한 번 열면 뒤에서 조용히 받아 둔다 | 인터넷이 한 번은 되는 PC. 가장 쉽다 |
+| **오프라인 꾸러미** | `home-escape-map-offline.zip` 을 받아 압축을 풀고 `우리집 대피지도/home-escape-map.html` 을 두 번 누른다. 그림 폴더 `art/` 와 목소리 폴더 `voice/` 는 옆에 그대로 둔다 | 인터넷이 없는 교실, USB 로 옮기는 PC |
 | **윈도우 설치 파일** | 안내 페이지의 `HomeEscapeMap-Setup-<판>.exe`(설치판) 또는 `HomeEscapeMap-Portable-<판>.exe`(무설치판). 처음 실행 때 SmartScreen 창이 뜨면 「추가 정보 → 실행」 | 브라우저 없이 바로 켜는 PC 프로그램이 필요할 때 |
 
 설치 파일은 코드 서명이 없다. 서명 비용을 내지 않은 무료 교육 프로그램이라 경고 창이 한 번 뜬다.
@@ -98,7 +98,7 @@ npm run dev          # http://localhost:3000
 | 명령 | 내용 |
 |---|---|
 | `npm run build` | 정적 내보내기 → `out/` + 마감(`tools/pack.ts`: 매니페스트·서비스 워커·꾸러미 복사) |
-| `npm run build:standalone` | 오프라인 배포본 → `dist/home-escape-map.html` + `dist/voice/` + `dist/home-escape-map-offline.zip` |
+| `npm run build:standalone` | V2 오프라인 배포본 → `dist/home-escape-map.html` + `dist/art/` + `dist/voice/` + `dist/home-escape-map-offline.zip` |
 | `npm run typecheck` | TypeScript strict 타입 검사 |
 | `npm test` | 연산 로직 · 배포 전 점검 100항목 (화면 없이 실행) |
 | `npm run smoke` | Chromium 실조작 40시나리오 (`npm run build:standalone && npm run build` 뒤) |
@@ -120,7 +120,7 @@ smoke 를 처음 실행하기 전에 `npx playwright install chromium` 이 한 �
 오프라인 배포본(+ZIP) → 검증용 내보내기(+마감) → 브라우저 검증 → 배포용 내보내기(BASE_PATH, +마감) → Pages 업로드
 ```
 
-`tools/standalone.ts` 는 `out/` 을 **오프라인 모드로 다시 내보내므로** 배포용 내보내기보다 반드시 앞에 온다.
+`tools/standalone.ts` 는 **V2 를 오프라인 판으로 묶어** `dist/` 에 두고, `pack.ts` 가 그 ZIP 을 싣기 때문에 배포용 내보내기보다 반드시 앞에 온다.
 `tools/pack.ts` 는 `next build` 뒤에 기준 경로를 넣어 `manifest.webmanifest`·`sw.js` 를 만들고 `dist/` 의 ZIP 을
 `out/download/` 로 옮긴다. 선캐시는 앱 껍데기뿐이고 MP3 는 활성화 뒤 배경에서 받는다. ZIP 은 캐시하지 않는다.
 
@@ -161,11 +161,11 @@ src/
     sound              감지기 소리 합성 · Juwonmom MP3 전용 재생
 public/voice/          Juwonmom 웹 MP3 176개 · 음성 매니페스트
 public/icons/          설치용 아이콘 PNG (192 · 512 · maskable)
-desktop/main.cjs       Electron 껍데기 — 오프라인 HTML 을 그대로 연다
+desktop/main.cjs       Electron 껍데기 — V2 오프라인 HTML 을 그대로 연다
 tools/
   test.ts              검증 틀 — logic · layout · qa 를 부른다
   smoke.ts             Chromium 실조작
-  standalone.ts        HTML + 음성 폴더 + ZIP 오프라인 빌더
+  standalone.ts        V2 HTML + 그림·음성 폴더 + ZIP 오프라인 빌더
   pack.ts              매니페스트 · 서비스 워커 · 꾸러미 복사
   zip.ts               외부 패키지 없는 ZIP 쓰기·되읽기
   desktop-build.ts     electron-builder 실행과 산출물 확인

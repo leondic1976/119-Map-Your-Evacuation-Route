@@ -12,9 +12,16 @@ export interface Host {
   stopVoice(): void;
   /** 시작 때 한 번, 2초 안에 끝나는 경보음 */
   alarm(): void;
+  /** 웹에서 연 판을 다음에 인터넷 없이도 열 수 있게 저장해 둔다 */
+  keepForOffline(): void;
+  /** 설치 안내 주소. 이미 설치했거나 오프라인 판이면 null */
+  installGuide(): string | null;
 }
 
 const PREFIX = 'home-escape-map-v2:';
+
+/** 사이트에서 연 웹 판인가. 오프라인 HTML 과 윈도우 프로그램, 개발 서버는 아니다 */
+const isWebBuild = (): boolean => import.meta.env.PROD && import.meta.env.MODE !== 'offline' && window.location.protocol.startsWith('http');
 
 class WebHost implements Host {
   private audio: HTMLAudioElement | null = null;
@@ -99,6 +106,22 @@ class WebHost implements Host {
     } catch {
       /* 소리가 없어도 다 된다 */
     }
+  }
+
+  keepForOffline(): void {
+    if (!isWebBuild() || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker
+      .register('./sw.js')
+      .then(() => navigator.serviceWorker.ready)
+      .then((registration) => registration.active?.postMessage('warm-voice'))
+      .catch(() => {
+        /* 저장하지 못해도 앱은 돈다 */
+      });
+  }
+
+  installGuide(): string | null {
+    if (!isWebBuild() || window.matchMedia('(display-mode: standalone)').matches) return null;
+    return '../download/';
   }
 }
 

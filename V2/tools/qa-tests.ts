@@ -55,7 +55,7 @@ export function runQaTests(check: Check): void {
     for (const f of srcFiles) {
       if (rel(f).startsWith('src/platform/')) continue;
       const c = code(f);
-      for (const api of ['localStorage', 'window.print', 'new Audio', 'AudioContext', 'sessionStorage']) {
+      for (const api of ['localStorage', 'window.print', 'new Audio', 'AudioContext', 'sessionStorage', 'serviceWorker']) {
         assert.ok(!c.includes(api), `${rel(f)}: ${api}`);
       }
     }
@@ -234,6 +234,44 @@ export function runQaTests(check: Check): void {
     assert.ok(page.includes("location.replace('./V2/'") && page.includes('url=./V2/'), '넘기는 페이지가 V2 를 가리키지 않는다');
     const deploy = read(path.join(root, '..', '.github', 'workflows', 'deploy.yml'));
     assert.ok(deploy.includes('cp -r V2/dist out/V2') && deploy.includes('cp V2/root-redirect.html out/index.html'), '배포가 V2 를 첫 페이지로 잇지 않는다');
+    assert.ok(deploy.includes('cp V2/root-sw.js out/sw.js'), '이전 판의 워커를 넘겨받지 않는다');
+  });
+
+  check('[오프라인] 서비스 워커가 화면을 모두 저장하고 바깥으로 나가지 않는다', () => {
+    const sw = read(path.join(root, 'dist', 'sw.js'));
+    assert.ok(!/https?:\/\//.test(sw) && !/https?:\/\//.test(read(path.join(root, 'root-sw.js'))), '워커에 바깥 주소가 있다');
+    assert.ok(!sw.includes('skipWaiting'), '그리는 도중에 새 판으로 넘어가면 안 된다');
+    const list = (name: string): string[] => JSON.parse(new RegExp(`const ${name} = (\\[[^\\n]*\\]);`).exec(sw)![1]!) as string[];
+    const precache = list('PRECACHE');
+    const voice = list('VOICE');
+    for (const url of precache) {
+      if (url !== './') assert.ok(fs.existsSync(path.join(root, 'dist', url)), `없는 파일: ${url}`);
+    }
+    assert.ok(precache.includes('./') && precache.includes('./manifest.webmanifest'), '첫 화면·매니페스트가 없다');
+    assert.ok(precache.some((u) => /Replay3D.*\.js$/.test(u)), '3D 묶음이 없다');
+    assert.ok(precache.some((u) => u.endsWith('.woff2')) && !precache.some((u) => u.endsWith('.woff')), '글꼴 목록이 다르다');
+    assert.ok(!precache.some((u) => u.endsWith('.mp3')), '음성은 뒤에서 받는다');
+    assert.equal(voice.length, LINE_IDS.length);
+    const manifest = JSON.parse(read(path.join(root, 'public', 'manifest.webmanifest'))) as { start_url: string; scope: string; icons: { src: string }[] };
+    assert.equal(manifest.start_url, './');
+    assert.equal(manifest.scope, './');
+    for (const icon of manifest.icons) assert.ok(fs.existsSync(path.join(root, 'public', icon.src)), icon.src);
+  });
+
+  check('[오프라인] 오프라인 HTML 하나에 다 들어 있고 4MB 를 넘지 않는다', () => {
+    const file = path.join(root, 'offline', 'home-escape-map.html');
+    assert.ok(fs.existsSync(file), 'npm run build:offline 을 먼저 돌린다');
+    assert.ok(fs.statSync(file).size <= 4 * 1024 * 1024, `${(fs.statSync(file).size / 1024 / 1024).toFixed(2)}MB`);
+    const html = read(file);
+    assert.ok(!/<script[^>]*\bsrc=/.test(html), '스크립트가 따로 있다');
+    assert.ok(!/<link[^>]*rel="(stylesheet|manifest|modulepreload)"/.test(html), '따로 받는 것이 있다');
+    assert.ok(html.includes('WebGLRenderer'), '3D 가 함께 들어 있어야 한다');
+    assert.ok(html.includes('data:font/woff2;base64,'), '글꼴이 함께 들어 있어야 한다');
+    assert.ok(/<link[^>]*rel="icon"[^>]*href="data:image\/svg\+xml/.test(html), '탭 아이콘이 data URI 가 아니다');
+    assert.ok(!/(?<![\w.$])url\(\s*["']?https?:/.test(html), '바깥에서 받는 CSS 자산이 있다');
+    const voices = fs.readdirSync(path.join(root, 'offline', 'voice')).filter((f) => f.endsWith('.mp3'));
+    assert.equal(voices.length, LINE_IDS.length);
+    assert.ok(fs.existsSync(path.join(root, 'offline', 'art', 'ilgu_happy.webp')));
   });
 
   check('[산출물] 빌드가 상대 경로이고 3D 가 첫 묶음과 나뉜다', () => {

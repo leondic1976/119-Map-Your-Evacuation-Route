@@ -1,20 +1,21 @@
 {
   "name": "home-escape-map-v2",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "description": "우리집 대피지도 V2 — 점을 이어 집을 그리고, 칸을 눌러 나가는 길을 고르는 초등학생용 화재 대피 학습 프로그램",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && tsx tools/make-sw.ts",
+    "build:offline": "tsx tools/offline.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "tsx tools/test.ts",
     "smoke": "tsx tools/smoke.ts",
     "shots": "tsx tools/shots.ts",
     "voice:manifest": "tsx tools/voice-manifest.ts",
-    "verify": "npm run typecheck && npm run voice:manifest && npm run build && npm test && npm run smoke"
+    "verify": "npm run typecheck && npm run voice:manifest && npm run build && npm run build:offline && npm test && npm run smoke"
   },
   "dependencies": {
     "@fontsource/jua": "^5.2.5",

@@ -27,6 +27,8 @@ function bytes(n: number): string {
 
 if (!fs.existsSync(path.join(root, 'dist', 'home-escape-map.html'))) fail('dist/home-escape-map.html 이 없다. 먼저 npm run build:standalone 을 돌린다.');
 if (!fs.existsSync(path.join(root, 'dist', 'voice', 'manifest.json'))) fail('dist/voice/ 가 없다.');
+if (!fs.existsSync(path.join(root, 'dist', 'art'))) fail('dist/art/ 가 없다.');
+const expectedVoices = (JSON.parse(fs.readFileSync(path.join(root, 'V2', 'public', 'voice', 'manifest.json'), 'utf8')) as { items: unknown[] }).items.length;
 if (!fs.existsSync(path.join(root, 'desktop', 'icon.png'))) fail('desktop/icon.png 이 없다. npm run icons 로 만든다.');
 
 const args = dirOnly ? 'npx electron-builder --win --dir --publish never' : 'npx electron-builder --win nsis portable --publish never';
@@ -38,7 +40,8 @@ const unpacked = path.join(root, 'release', 'win-unpacked');
 const resources = path.join(unpacked, 'resources', 'app');
 if (!fs.existsSync(path.join(resources, 'home-escape-map.html'))) fail('패키지에 오프라인 HTML 이 실리지 않았다.');
 const voiceCount = fs.readdirSync(path.join(resources, 'voice')).filter((name) => name.endsWith('.mp3')).length;
-if (voiceCount !== 176) fail(`패키지의 음성이 ${voiceCount}/176 개다.`);
+if (voiceCount !== expectedVoices) fail(`패키지의 음성이 ${voiceCount}/${expectedVoices} 개다.`);
+if (!fs.existsSync(path.join(resources, 'art', 'ilgu_happy.webp'))) fail('패키지에 그림이 실리지 않았다.');
 const asar = path.join(unpacked, 'resources', 'app.asar');
 const asarBytes = fs.existsSync(asar) ? fs.statSync(asar).size : 0;
 /* 런타임 의존성(next·three…)이 딸려 들어가면 수십 MB 가 된다. 껍데기 하나면 1MB 안쪽이다 */

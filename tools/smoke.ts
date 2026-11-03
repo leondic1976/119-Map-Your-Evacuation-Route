@@ -2324,7 +2324,7 @@ async function main(): Promise<void> {
         const zip = await dl.request.get(new URL(zipHref ?? '', dl.url()).href);
         assert(zip.status() === 200, `꾸러미가 응답하지 않는다: ${zip.status()}`);
         const body = await zip.body();
-        assert(body.length > 10 * 1024 * 1024 && body.readUInt32LE(0) === 0x04034b50, `꾸러미가 ZIP 이 아니다: ${body.length}바이트`);
+        assert(body.length > 3 * 1024 * 1024 && body.readUInt32LE(0) === 0x04034b50, `꾸러미가 ZIP 이 아니다: ${body.length}바이트`);
         assert(/\d+\.\d+MB/.test(text), '꾸러미 크기가 안내에 없다');
       } else {
         process.stdout.write('    --  꾸러미 응답 검사 건너뜀 (npm run build:standalone 을 먼저 실행한다)\n');
@@ -2446,42 +2446,25 @@ async function main(): Promise<void> {
     /* 오프라인 배포본이 있으면 file:// 에서 인터넷 없이 동작하는지 본다 */
     const standalone = path.join(root, 'dist', 'home-escape-map.html');
     if (fs.existsSync(standalone)) {
-      await check('오프라인 배포본에서 소개부터 리포트까지 간다 (NFR-1)', async () => {
+      await check('오프라인 배포본은 V2 이고 file:// 에서 바깥 요청 없이 열린다 (NFR-1 · 대장 #110)', async () => {
         const off = await browser!.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ko-KR', offline: true });
         const p3 = await off.newPage();
         const pageErrors: string[] = [];
         const outside: string[] = [];
         p3.on('pageerror', (e) => pageErrors.push(e.message));
         p3.on('request', (r) => {
-          if (!r.url().startsWith('file:')) outside.push(r.url());
+          if (!/^(file|data|blob):/.test(r.url())) outside.push(r.url());
         });
         await p3.goto(`file:///${standalone.split(path.sep).join('/')}`);
-        await p3.waitForSelector('.k-welcome', { timeout: 20000 });
-        const welcomeImages = await p3.locator('.k-welcome img').evaluateAll((imgs) =>
-          imgs.map((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0),
-        );
-        assert(welcomeImages.length >= 2 && welcomeImages.every(Boolean), '오프라인 소개 그림이 보이지 않는다');
-        await p3.locator('[data-coach="kids-welcome-start"]').click();
-        await p3.waitForSelector('.k-profile', { timeout: 20000 });
-        assert((await p3.locator('[data-coach="kids-welcome-install"]').count()) === 0, '오프라인 HTML 에 설치 안내 링크가 보인다');
-        await p3.locator('[data-profile="name"]').fill('안전이');
-        await p3.locator('[data-profile="grade"] [data-grade="3"]').click();
-        await p3.locator('[data-coach="kids-profile-start"]').click();
-        await p3.waitForSelector('.k-onboard', { timeout: 20000 });
-        await p3.locator('[data-start-path="template"]').click();
-        await p3.locator('[data-template="apt_2room"]').click();
-        await p3.locator('[data-kitchen="closed"]').click();
-        await p3.locator('[data-coach="kids-plan-start"]').click();
-        await p3.waitForTimeout(400);
-        await p3.locator('[data-coach="kids-start-game"]').click();
-        const startAnyway = p3.locator('[data-coach="kids-start-anyway"]');
-        if (await startAnyway.isVisible({ timeout: 1500 }).catch(() => false)) await startAnyway.click();
-        await p3.waitForSelector('.k-game', { timeout: 20000 });
-        await p3.waitForTimeout(600);
-        assert((await p3.locator('.k-stage [data-game-layer]').count()) === 1, '위험장이 안 그려졌다');
-        await p3.locator('[data-coach="kids-quit"]').click();
-        await p3.waitForSelector('.k-report-view');
-        assert((await p3.locator('.k-report-col.good li').count()) >= 1, '잘한 점이 없다');
+        await p3.waitForSelector('[data-testid="start"]', { timeout: 20000 });
+        await p3.waitForFunction(() => [...document.images].every((img) => img.complete));
+        const images = await p3.locator('.welcome img').evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).naturalWidth > 0));
+        assert(images.length >= 2 && images.every(Boolean), '오프라인 그림이 보이지 않는다');
+        assert((await p3.locator('[data-testid="install-link"]').count()) === 0, '오프라인 HTML 에 설치 안내 링크가 보인다');
+        await p3.locator('[data-testid="start"]').click();
+        await p3.locator('[data-testid="grade-3"]').click();
+        await p3.locator('[data-testid="tag-done"]').click();
+        await p3.waitForSelector('.studio', { timeout: 20000 });
         assert(outside.length === 0, `외부 요청 ${outside.length}건: ${outside.slice(0, 2).join(', ')}`);
         assert(pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '));
         await off.close();

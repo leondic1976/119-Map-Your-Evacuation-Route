@@ -82,6 +82,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .welcome-top span { display: flex; flex-direction: column; line-height: 1.2; }
 .welcome-top b { font-weight: 400; font-size: 18px; }
 .welcome-top small { font-size: 15px; color: var(--ink-2); }
+.install-link { margin-left: auto; min-height: var(--hit); display: inline-flex; align-items: center; padding: 0 14px; font-size: 17px; color: var(--ink); text-underline-offset: 4px; }
 .welcome-body { flex: 1; display: grid; grid-template-columns: minmax(300px, 5fr) 6fr; gap: 28px; align-items: center; max-width: 1240px; width: 100%; margin: 0 auto; }
 .welcome-text h1 { font-size: clamp(46px, 6vw, 76px); line-height: 1.08; }
 .welcome-text h1 span { display: block; color: var(--green-d); }

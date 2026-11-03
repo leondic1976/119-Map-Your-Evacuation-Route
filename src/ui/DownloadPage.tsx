@@ -18,7 +18,7 @@ import { OFFLINE_BUNDLE_DIR, OFFLINE_ZIP_NAME, desktopDownloadPaths, humanBytes 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '';
 const zipBytes = Number(process.env.NEXT_PUBLIC_OFFLINE_ZIP_BYTES ?? '');
-const zipSize = humanBytes(zipBytes) || '약 20MB';
+const zipSize = humanBytes(zipBytes) || '약 5MB';
 /* 설치 파일은 배포 빌드가 Release 에서 받아 함께 실을 때만 안다. 없으면 받을 곳 대신 준비 중이라고 말한다 */
 const desktop = desktopDownloadPaths(basePath, APP_VERSION);
 const setupSize = humanBytes(Number(process.env.NEXT_PUBLIC_DESKTOP_SETUP_BYTES ?? ''));
@@ -117,7 +117,7 @@ export default function DownloadPage() {
               </a>
             </>
           )}
-          <p className="k-dl-note">캐릭터 목소리 176개는 설치한 뒤 뒤에서 조용히 받아 둬. 처음 몇 분은 인터넷이 켜져 있는 게 좋아.</p>
+          <p className="k-dl-note">그림과 목소리는 한 번 열면 뒤에서 조용히 받아 둬. 처음 몇 분은 인터넷이 켜져 있는 게 좋아.</p>
         </article>
 
         <article className="k-dl-card" data-download-card="zip">
@@ -125,11 +125,11 @@ export default function DownloadPage() {
             <svg viewBox="0 0 32 32"><path d="M6 10h8l3 3h9v13H6z" /><path d="M14 16v6M11 19l3 3 3-3" /></svg>
           </span>
           <h2>오프라인 꾸러미 내려받기</h2>
-          <p>HTML 한 장과 목소리 폴더가 든 꾸러미야. USB에 담아 인터넷이 없는 교실이나 다른 PC로 옮길 수 있어.</p>
+          <p>HTML 한 장과 그림·목소리 폴더가 든 꾸러미야. USB에 담아 인터넷이 없는 교실이나 다른 PC로 옮길 수 있어.</p>
           <ol className="k-dl-steps">
             <li><span>아래 단추로 <b>{OFFLINE_ZIP_NAME}</b>을 받는다.</span></li>
             <li><span>압축을 풀면 <b>{OFFLINE_BUNDLE_DIR}</b> 폴더가 생긴다. 폴더를 통째로 둔다.</span></li>
-            <li><span>폴더 안 <b>home-escape-map.html</b>을 두 번 누른다. 목소리 폴더(voice)는 옆에 그대로 둔다.</span></li>
+            <li><span>폴더 안 <b>home-escape-map.html</b>을 두 번 누른다. 그림 폴더(art)와 목소리 폴더(voice)는 옆에 그대로 둔다.</span></li>
           </ol>
           <a className="k-dl-action secondary" href={`${basePath}/download/${OFFLINE_ZIP_NAME}`} download data-coach="kids-download-zip">
             <DownloadIcon /> 꾸러미 받기 <span className="k-dl-size">({zipSize})</span>
@@ -171,15 +171,15 @@ export default function DownloadPage() {
         <dl>
           <div>
             <dt>필요한 PC</dt>
-            <dd>Chrome·Edge·Whale 최신 2개 판. 화면 너비 1024px 이상(1280×800 권장). 소리가 나면 좋지만 없어도 다 된다.</dd>
+            <dd>Chrome·Edge·Whale 최신 2개 판이 든 PC나 태블릿. 소리가 나면 좋지만 없어도 다 된다.</dd>
           </div>
           <div>
             <dt>자료가 가는 곳</dt>
-            <dd>이름표·집 도면·연습 기록은 그 PC의 브라우저(또는 프로그램) 안에만 저장된다. 서버·로그인·전송이 없다.</dd>
+            <dd>이름표·그린 지도는 그 PC의 브라우저(또는 프로그램) 안에만 저장된다. 서버·로그인·전송이 없다.</dd>
           </div>
           <div>
-            <dt>다른 PC로 옮기기</dt>
-            <dd>화면 아래 「파일 저장」으로 .json 파일을 내려받고, 다른 PC에서 「불러오기」로 연다. 「뽑기」는 A4 한 장으로 인쇄한다.</dd>
+            <dt>인쇄와 옮기기</dt>
+            <dd>마지막 단계의 「지도 인쇄하기」로 A4 한 장을 뽑는다. 그린 지도를 다른 기기로 옮기는 기능은 없다.</dd>
           </div>
           <div>
             <dt>지우기</dt>

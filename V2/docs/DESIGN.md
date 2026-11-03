@@ -129,10 +129,13 @@ ui    → store · core · content · platform
 
 - `V2/` 는 독립 프로젝트(Vite · React · TypeScript)다. 자체 `package.json` 을 갖는다.
 - 빌드는 상대 경로라 어느 하위 경로에 올려도 돈다. `deploy.yml` 이 `V2/dist` 를 Pages 의 `V2/` 에 함께 싣는다.
-- 지금 판의 서비스 워커가 `/V2/` 요청을 건드리지 않게 제외한다.
+- 웹 판은 `V2/sw.js` 가 화면·글꼴·그림·3D 를 저장하고 음성을 뒤에서 받는다(`tools/make-sw.ts`). 한 번 열면 인터넷이 끊겨도 열린다. 새 워커는 열린 화면이 모두 닫힌 뒤 넘어가고, 문서는 인터넷을 먼저 본다.
+- `deploy.yml` 이 `root-sw.js` 를 이전 판의 `sw.js` 자리에 싣는다. 이전 판 워커를 곧바로 넘겨받아 옛 저장본을 지우고, 첫 페이지만 저장한다.
 - `deploy.yml` 이 `root-redirect.html` 을 사이트 첫 페이지(`index.html`)로 싣는다. 기본 주소를 열면 `/V2/` 로 간다.
 - `/download/` 와 `latest.json` 은 그대로 둔다. 이미 깔린 설치판이 새 판 확인에 쓴다.
-- V2 첫 판은 웹 전용이고 인터넷이 있어야 열린다. 오프라인 꾸러미·윈도우 설치 파일·서비스 워커를 V2 기준으로 옮기는 일은 대장 #110 이다.
+- 오프라인 판은 `npm run build:offline` 으로 `offline/` 에 만든다. file:// 에서 받을 수 없는 스크립트·스타일·글꼴을 HTML 한 장에 넣고(4MB 이내), 그림과 음성은 옆 폴더에 둔다.
+- 루트의 `tools/standalone.ts` 가 이 폴더를 `dist/` 로 옮겨 꾸러미 ZIP 을 만들고, 윈도우 설치 파일이 같은 `dist/` 를 싣는다(대장 #110).
+- 이전 판의 지도는 그리는 방식이 달라 V2 로 옮기지 않는다. 저장 키가 달라 이전 자료를 지우지도 않는다. V2 에는 파일로 저장·불러오기가 없고 인쇄만 있다.
 
 ## 13. 검증
 
@@ -140,4 +143,4 @@ ui    → store · core · content · platform
 |---|---|
 | `npm run typecheck` | 타입 |
 | `npm test` | 로직(칸 계산, 길, 대피 연습, 시작 본 × 시드 100) · 배포 전 점검(층 경계, 금지 낱말, 음성 대조) |
-| `npm run smoke` | Chromium 실조작 — 세 학년 단계를 마우스와 터치로 끝까지 |
+| `npm run smoke` | Chromium 실조작 — 세 학년 단계를 마우스와 터치로 끝까지, 오프라인 HTML, 웹 끊김, 이전 판 워커 전환 |

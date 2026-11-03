@@ -27,16 +27,20 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: V2 의존성
+        working-directory: V2
+        run: npm ci
+
       - name: 타입 검사
         run: npm run typecheck
 
-      - name: 오프라인 배포본 (HTML · 음성 · 꾸러미)
+      - name: 오프라인 배포본 (V2 HTML · 그림 · 음성 · 꾸러미)
         run: npx tsx tools/standalone.ts
 
       - name: 윈도우 설치 파일 빌드
         run: npm run desktop:build
 
-      - name: 빌드본 실행 검증 (소개 → 이름표 → 편집 → 저장 · 바깥 요청 0건)
+      - name: 빌드본 실행 검증 (첫 화면 → 이름표 → 그리기 → 저장 · 바깥 요청 0건)
         run: npm run desktop:check -- --packaged
 
       - name: 산출물 보관

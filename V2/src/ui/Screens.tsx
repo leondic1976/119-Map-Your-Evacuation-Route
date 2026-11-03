@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { bandOfGrade, BANDS } from '../content/bands';
 import { GRADES, LOOKS, type LookId } from '../content/names';
+import { host } from '../platform/host';
 import { saveProfile, startApp, useApp } from '../store/app';
 import { IconNext, KidFace } from './art';
 
@@ -45,6 +46,7 @@ function CoverDrawing() {
 
 export function Welcome() {
   const hasProfile = useApp((s) => Boolean(s.profile));
+  const installGuide = host.installGuide();
   return (
     <main className="welcome">
       <header className="welcome-top">
@@ -53,6 +55,11 @@ export function Welcome() {
           <b>인천소방본부</b>
           <small>어린이 화재안전교육</small>
         </span>
+        {installGuide && (
+          <a className="install-link" href={installGuide} data-testid="install-link">
+            인터넷 없이 쓰기
+          </a>
+        )}
       </header>
       <div className="welcome-body">
         <div className="welcome-text">

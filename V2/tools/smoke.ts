@@ -4,7 +4,9 @@
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { preview } from 'vite';
 
@@ -66,8 +68,9 @@ async function dragThrough(page: Page, dots: [number, number][]): Promise<void> 
 const attr = (page: Page, name: string): Promise<string | null> => page.locator('.stage svg.plan').first().getAttribute(`data-${name}`);
 const num = async (page: Page, name: string): Promise<number> => Number(await attr(page, name));
 
-async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0], seenHowTo = true): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
-  const ctx = await browser.newContext({ locale: 'ko-KR', ...opts });
+async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0], seenHowTo = true, url = URL_BASE): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
+  // 서비스 워커는 따로 시험한다. 워커가 답하면 page.route 가 요청을 보지 못한다
+  const ctx = await browser.newContext({ locale: 'ko-KR', serviceWorkers: 'block', ...opts });
   const page = await ctx.newPage();
   // tsx 가 함수 이름을 보존하려고 넣는 도우미를 브라우저에도 둔다
   await page.addInitScript('window.__name = (f) => f');
@@ -78,10 +81,107 @@ async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text());
+    if (m.type() === 'error') errors.push(`${m.text()} ${m.location().url}`);
   });
-  await page.goto(URL_BASE);
+  await page.goto(url);
   return { ctx, page, errors };
+}
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.mp3': 'audio/mpeg',
+  '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+};
+
+/** 실제 사이트처럼 뿌리와 /V2/ 를 내주고, 인터넷이 끊긴 상황을 흉내 낸다 */
+async function startSite(port: number): Promise<{ url: string; pages: Map<string, string>; setDown: (down: boolean) => void; close: () => void }> {
+  const dist = path.join(process.cwd(), 'dist');
+  const pages = new Map<string, string>();
+  let down = false;
+  const server = http.createServer((req, res) => {
+    const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
+    if (down) {
+      res.writeHead(503).end();
+      return;
+    }
+    const page = pages.get(pathname);
+    if (page !== undefined) {
+      res.writeHead(200, { 'Content-Type': pathname.endsWith('.js') ? 'text/javascript' : 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }).end(page);
+      return;
+    }
+    const rel = pathname.startsWith('/V2/') ? pathname.slice(4) || 'index.html' : '';
+    const file = path.join(dist, rel);
+    if (!rel || !file.startsWith(dist) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' }).end(fs.readFileSync(file));
+  });
+  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${port}/`, pages, setDown: (v) => (down = v), close: () => server.close() };
+}
+
+const VOICE_COUNT = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/voice/manifest.json'), 'utf8')).items.length as number;
+
+/** 워커가 음성까지 다 받아 둘 때까지 기다린다 */
+async function waitForOfflineCopy(page: Page): Promise<void> {
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  // waitForFunction 은 비동기 조건의 Promise 를 참으로 볼 수 있어 직접 되묻는다
+  const until = Date.now() + 60000;
+  let saved = 0;
+  while (Date.now() < until) {
+    saved = await page.evaluate(async () => {
+      let most = 0;
+      for (const key of await caches.keys()) {
+        if (!key.startsWith('hem2-')) continue;
+        const items = await (await caches.open(key)).keys();
+        most = Math.max(most, items.filter((r) => r.url.endsWith('.mp3')).length);
+      }
+      return most;
+    });
+    if (saved === VOICE_COUNT) return;
+    await page.waitForTimeout(300);
+  }
+  assert.fail(`음성 저장 ${saved}/${VOICE_COUNT}`);
+}
+
+async function voicePlays(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const s = document.documentElement.dataset.voiceState;
+      return s === 'playing' || s === 'ended' || s === 'failed';
+    },
+    undefined,
+    { timeout: 10000 },
+  );
+  const state = await page.evaluate(() => document.documentElement.dataset.voiceState);
+  assert.ok(state === 'playing' || state === 'ended', `음성 상태: ${state}`);
+}
+
+async function checkInstallLink(page: Page): Promise<void> {
+  const box = await page.locator(t('install-link')).boundingBox();
+  assert.ok(box && box.width >= 48 && box.height >= 48, `설치 안내 링크 크기: ${box?.width}x${box?.height}`);
+}
+
+async function imagesLoaded(page: Page): Promise<void> {
+  await page.waitForFunction(() => [...document.images].every((img) => img.complete));
+  const broken = await page.evaluate(() => [...document.images].filter((img) => img.naturalWidth === 0).map((img) => img.src));
+  assert.deepEqual(broken, [], '그림이 깨졌다');
+}
+
+async function fontLoaded(page: Page): Promise<void> {
+  await page.waitForFunction(() => document.fonts.status === 'loaded');
+  const ok = await page.evaluate(() => [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'Jua' && f.status === 'loaded'));
+  assert.ok(ok, 'Jua 글꼴이 실리지 않았다');
 }
 
 async function startAs(page: Page, grade: number): Promise<void> {
@@ -633,6 +733,108 @@ async function main(): Promise<void> {
     assert.ok(await page.locator('.too-small').isVisible());
     assert.equal(await page.locator(t('start')).isVisible(), false);
     await ctx.close();
+  });
+
+  await scenario('오프라인 HTML: 두 번 눌러 열어 바깥 요청 없이 연습과 3D 까지 가고 저장이 남는다', async () => {
+    const file = path.join(process.cwd(), 'offline', 'home-escape-map.html');
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1280, height: 800 }, offline: true, serviceWorkers: 'allow' }, true, pathToFileURL(file).href);
+    const outside: string[] = [];
+    page.on('request', (r) => {
+      if (!/^(file|data|blob):/.test(r.url())) outside.push(r.url());
+    });
+    await page.waitForSelector(t('start'));
+    await imagesLoaded(page);
+    await fontLoaded(page);
+    assert.equal(await page.locator(t('install-link')).count(), 0, '오프라인 판에는 설치 안내가 없다');
+    await startAs(page, 1);
+    await voicePlays(page);
+    await page.click(t('help'));
+    await page.click(t('step-drill'));
+    await page.click(t('drill-start'));
+    await page.waitForSelector(t('player'));
+    await playToEnd(page, (x, y) => clickAt(page, x, y));
+    await page.click(t('drill-call'));
+    await page.waitForSelector(t('praises'));
+    await page.click(t('open-replay'));
+    await page.waitForSelector(t('replay-canvas'), { timeout: 30000 });
+    await page.keyboard.press('Escape');
+    const walls = await num(page, 'walls');
+    await page.reload();
+    assert.ok((await page.locator(t('start')).innerText()).includes('이어서'), '다시 열면 이어서 그린다');
+    await page.click(t('start'));
+    await page.waitForSelector('.studio');
+    assert.equal(await num(page, 'walls'), walls, '저장이 남는다');
+    assert.deepEqual(outside, [], '바깥 요청');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+  });
+
+  await scenario('웹: 한 번 열면 인터넷이 끊겨도 글꼴·그림·음성·3D 와 함께 열린다', async () => {
+    const site = await startSite(4190);
+    try {
+      const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1280, height: 800 }, serviceWorkers: 'allow' }, true, `${site.url}V2/`);
+      await page.waitForSelector(t('start'));
+      assert.equal(await page.locator(t('install-link')).getAttribute('href'), '../download/');
+      await checkInstallLink(page);
+      await waitForOfflineCopy(page);
+      assert.equal((await ctx.request.get(`${site.url}V2/manifest.webmanifest`)).status(), 200);
+
+      site.setDown(true);
+      assert.equal((await ctx.request.get(`${site.url}V2/`)).status(), 503, '끊김 흉내가 켜지지 않았다');
+      await page.reload();
+      await page.waitForSelector(t('start'), { timeout: 15000 });
+      await imagesLoaded(page);
+      await fontLoaded(page);
+      await startAs(page, 3);
+      await voicePlays(page);
+      await page.click(t('help'));
+      assert.ok((await num(page, 'walls')) > 0, '끊긴 채로 그린다');
+      const chunk = fs.readdirSync(path.join(process.cwd(), 'dist', 'assets')).find((f) => /^Replay3D.*\.js$/.test(f))!;
+      const status = await page.evaluate(async (name) => (await window.fetch(`./assets/${name}`)).status, chunk);
+      assert.equal(status, 200, '3D 묶음을 저장본에서 받는다');
+      assert.deepEqual(errors, [], '콘솔 오류');
+      await ctx.close();
+    } finally {
+      site.close();
+    }
+  });
+
+  await scenario('전환: 이전 판 워커가 남은 브라우저도 바로 V2 로 가고, 끊겨도 기본 주소가 열린다', async () => {
+    const site = await startSite(4191);
+    try {
+      // 옛 워커 — 첫 페이지를 저장본에서 내주고, 새 판이 와도 스스로 넘어가지 않는다
+      site.pages.set('/', '<!doctype html><title>이전 판</title><h1 id="old">이전 판</h1><script>navigator.serviceWorker.register("./sw.js")</script>');
+      site.pages.set('/sw.js', `
+        self.addEventListener('install', (e) => e.waitUntil(caches.open('hem-2.1.6').then((c) => c.add('./'))));
+        self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+        self.addEventListener('fetch', (e) => { if (e.request.mode === 'navigate') e.respondWith(caches.match('./')); });
+      `);
+      const ctx = await browser.newContext({ locale: 'ko-KR', viewport: { width: 1280, height: 800 } });
+      const page = await ctx.newPage();
+      await page.goto(site.url);
+      await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+      await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+      await page.reload();
+      assert.equal(await page.locator('#old').count(), 1, '옛 저장본이 뜬다');
+
+      // 새 배포
+      site.pages.set('/', fs.readFileSync(path.join(process.cwd(), 'root-redirect.html'), 'utf8'));
+      site.pages.set('/sw.js', fs.readFileSync(path.join(process.cwd(), 'root-sw.js'), 'utf8'));
+      await page.goto(site.url);
+      await page.waitForURL(`${site.url}V2/`, { timeout: 30000 });
+      await page.waitForSelector(t('start'));
+      await waitForOfflineCopy(page);
+      const keys = await page.evaluate(() => caches.keys());
+      assert.ok(!keys.includes('hem-2.1.6'), `옛 저장본이 지워져야 한다: ${keys.join(', ')}`);
+
+      site.setDown(true);
+      await page.goto(site.url);
+      await page.waitForURL(`${site.url}V2/`, { timeout: 15000 });
+      await page.waitForSelector(t('start'), { timeout: 15000 });
+      await ctx.close();
+    } finally {
+      site.close();
+    }
   });
 
   await browser.close();

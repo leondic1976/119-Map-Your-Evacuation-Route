@@ -9,7 +9,7 @@
 
 | 받는 곳 | 주소 |
 |---|---|
-| 웹에서 바로 열기 | <https://leondic1976.github.io/119-Map-Your-Evacuation-Route/> |
+| 웹에서 바로 열기 (V2 로 간다, [`V2/`](V2/README.md)) | <https://leondic1976.github.io/119-Map-Your-Evacuation-Route/> |
 | PC에 설치하기 (세 갈래 안내) | <https://leondic1976.github.io/119-Map-Your-Evacuation-Route/download/> |
 
 > 이 앱의 확산 해석은 소방 교육자료에서 통용되는 눈높이 수치를 채택한 **교육용 근사 모델**이며,

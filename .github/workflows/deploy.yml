@@ -103,9 +103,12 @@ jobs:
           BASE_PATH: /${{ github.event.repository.name }}
 
       # pack.ts 가 선캐시 목록을 만든 뒤에 넣는다. V2 는 지금 판의 서비스 워커에 들어가지 않는다.
-      - name: V2 를 사이트에 싣기
+      # 기본 주소를 열면 V2 로 간다(대장 #111). download/ 와 latest.json 은 설치판이 쓰므로 그대로 둔다.
+      - name: V2 를 사이트에 싣고 첫 페이지로 잇기
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: cp -r V2/dist out/V2
+        run: |
+          cp -r V2/dist out/V2
+          cp V2/root-redirect.html out/index.html
 
       - name: Pages 업로드
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

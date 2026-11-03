@@ -209,6 +209,13 @@ export function runQaTests(check: Check): void {
     assert.equal(Object.keys(BANDS).length, 3);
   });
 
+  check('[배포] 기본 주소를 열면 V2 로 간다', () => {
+    const page = read(path.join(root, 'root-redirect.html'));
+    assert.ok(page.includes("location.replace('./V2/'") && page.includes('url=./V2/'), '넘기는 페이지가 V2 를 가리키지 않는다');
+    const deploy = read(path.join(root, '..', '.github', 'workflows', 'deploy.yml'));
+    assert.ok(deploy.includes('cp -r V2/dist out/V2') && deploy.includes('cp V2/root-redirect.html out/index.html'), '배포가 V2 를 첫 페이지로 잇지 않는다');
+  });
+
   check('[산출물] 빌드가 상대 경로이고 3D 가 첫 묶음과 나뉜다', () => {
     const dist = path.join(root, 'dist');
     assert.ok(fs.existsSync(dist), '빌드를 먼저 돌린다');

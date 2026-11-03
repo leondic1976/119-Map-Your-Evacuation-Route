@@ -71,6 +71,8 @@ async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0
   const page = await ctx.newPage();
   // tsx 가 함수 이름을 보존하려고 넣는 도우미를 브라우저에도 둔다
   await page.addInitScript('window.__name = (f) => f');
+  // 불이 시작되는 칸은 시각에서 고른다. 어디서 돌려도 같은 판이 되도록 시각을 고정한다
+  await page.addInitScript('Date.now = () => 1700000000000');
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -421,8 +423,8 @@ async function main(): Promise<void> {
     await clickAt(page, nx! + 0.5, ny! + 0.5);
     await page.waitForSelector(t('drill-touch'));
     await page.click(t('drill-touch'));
-    await page.waitForTimeout(1500);
-    assert.equal(await page.locator(t('drill-close')).isEnabled(), true, '지나온 문을 닫을 수 있다');
+    // 걷는 동안에는 꺼져 있다. 느린 기계에서도 걸음이 끝날 때까지 기다린다
+    await page.waitForSelector(`${t('drill-close')}:not([disabled])`, { timeout: 15000 });
     await page.click(t('drill-close'));
     assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'drill-closed');
     await playToEnd(page, (x, y) => clickAt(page, x, y));

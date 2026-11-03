@@ -7,8 +7,8 @@ export interface Host {
   save(key: string, value: unknown): void;
   remove(key: string): void;
   print(): void;
-  /** 음성 MP3 재생. 실패하면 조용히 멈춘다 */
-  playVoice(id: string): void;
+  /** 음성 MP3 재생. 실패하면 조용히 멈춘다. onDone 은 끝나거나 실패했을 때 한 번 부른다 */
+  playVoice(id: string, onDone?: () => void): void;
   stopVoice(): void;
   /** 시작 때 한 번, 2초 안에 끝나는 경보음 */
   alarm(): void;
@@ -48,7 +48,7 @@ class WebHost implements Host {
     window.print();
   }
 
-  playVoice(id: string): void {
+  playVoice(id: string, onDone?: () => void): void {
     this.stopVoice();
     const root = document.documentElement;
     const audio = new Audio(`./voice/${id}.mp3`);
@@ -59,14 +59,18 @@ class WebHost implements Host {
       if (this.audio === audio) root.dataset.voiceState = 'playing';
     });
     audio.addEventListener('ended', () => {
-      if (this.audio === audio) root.dataset.voiceState = 'ended';
+      if (this.audio === audio) {
+        root.dataset.voiceState = 'ended';
+        onDone?.();
+      }
     });
-    audio.addEventListener('error', () => {
-      if (this.audio === audio) root.dataset.voiceState = 'failed';
-    });
-    audio.play().catch(() => {
-      if (this.audio === audio) root.dataset.voiceState = 'failed';
-    });
+    const failed = (): void => {
+      if (this.audio !== audio || root.dataset.voiceState === 'failed') return;
+      root.dataset.voiceState = 'failed';
+      onDone?.();
+    };
+    audio.addEventListener('error', failed);
+    audio.play().catch(failed);
   }
 
   stopVoice(): void {

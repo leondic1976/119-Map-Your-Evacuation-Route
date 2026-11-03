@@ -461,10 +461,28 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const lookAtTmp = new THREE.Vector3();
     const camGoal = new THREE.Vector3();
 
+    // 느린 기기 — 처음 몇 장면을 재 보고 느리면 그림자와 해상도를 낮춘다
+    let frames = 0;
+    let measured = 0;
+    let lowered = false;
+
     const render = () => {
       if (disposed) return;
       raf = requestAnimationFrame(render);
-      const dt = Math.min(0.05, clock.getDelta());
+      const raw = clock.getDelta();
+      if (!lowered && frames >= 3) {
+        measured += raw;
+        if (frames === 15 && measured / 12 > 0.05) {
+          lowered = true;
+          sun.castShadow = false;
+          renderer.setPixelRatio(1);
+          resize();
+          mount.dataset.quality = 'low';
+        }
+      }
+      frames += 1;
+      // 느린 기기에서도 제 속도로 흐른다. 탭을 떠났다 돌아온 때처럼 크게 뛰는 것만 막는다
+      const dt = Math.min(0.5, raw);
       if (time < total) time += dt;
       else setEnded(true);
 

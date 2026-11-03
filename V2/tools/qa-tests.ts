@@ -6,6 +6,7 @@ import path from 'node:path';
 import { LINES, LINE_IDS, type Line } from '../src/content/lines';
 import { BANDS } from '../src/content/bands';
 import { crayonsFor, MARK_NAME } from '../src/content/names';
+import { howToFor, type HowToStep } from '../src/content/howto';
 import { FIX, PRAISE, PROMISES } from '../src/content/report';
 import { SOURCES } from '../src/content/sources';
 import type { Check } from './test';
@@ -129,6 +130,9 @@ export function runQaTests(check: Check): void {
       ...Object.values(PRAISE).map((p) => p.text),
       ...Object.values(FIX).map((p) => p.text),
       ...PROMISES.map((p) => p.text),
+      ...(['draw', 'sort', 'door', 'mark', 'route', 'drill'] as HowToStep[]).flatMap((s) =>
+        (['low', 'mid', 'high'] as const).flatMap((b) => [howToFor(s, b).title, ...howToFor(s, b).steps]),
+      ),
       ...Object.values(MARK_NAME),
       ...(['low', 'mid', 'high'] as const).flatMap((b) => {
         const g = crayonsFor(b);
@@ -197,6 +201,22 @@ export function runQaTests(check: Check): void {
 
   check('[크기] 줄바꿈은 낱말 단위다', () => {
     assert.ok(read(path.join(root, 'src/ui/app.css')).includes('word-break: keep-all'));
+  });
+
+  check('[사용법] 조작이 있는 단계마다 사용법과 움직이는 그림과 음성이 있다', () => {
+    const card = read(path.join(root, 'src/ui/HowToCard.tsx'));
+    for (const s of ['draw', 'sort', 'door', 'mark', 'route', 'drill'] as HowToStep[]) {
+      for (const b of ['low', 'mid', 'high'] as const) {
+        const info = howToFor(s, b);
+        assert.ok(info.steps.length >= 2 && info.steps.length <= 5, `${s} ${b}: 글 ${info.steps.length}줄`);
+        assert.ok(LINE_IDS.includes(info.line), `${s}: ${info.line}`);
+      }
+      assert.ok(card.includes(`case '${s}':`), `${s}: 그림이 없다`);
+    }
+    const route = howToFor('route', 'low').steps.join(' ');
+    assert.ok(route.includes('눌러') && route.includes('화살표'), '나가는 길은 누르기와 화살표를 함께 알려야 한다');
+    const drill = howToFor('drill', 'low').steps.join(' ');
+    assert.ok(drill.includes('눌러') && drill.includes('화살표'), '대피 연습은 누르기와 화살표를 함께 알려야 한다');
   });
 
   check('[단계] 띠에 일곱 단계가 있고 각 단계에 화면이 있다', () => {

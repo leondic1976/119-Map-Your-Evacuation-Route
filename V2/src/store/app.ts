@@ -8,6 +8,7 @@ import { addEdges, emptyPlan, normalize } from '../core/edit';
 import { analyze, unreachableCells } from '../core/grid';
 import { OUT, type Band, type Plan } from '../core/types';
 import { BANDS, bandOfGrade } from '../content/bands';
+import { howToFor, type HowToStep } from '../content/howto';
 import type { LineId } from '../content/lines';
 import type { LookId } from '../content/names';
 import { segEdges, templateById, templatesFor } from '../content/templates';
@@ -46,6 +47,10 @@ export interface AppState {
   asking: StepId | null;
   drill: DrillState | null;
   drillSeed: number;
+  /** 떠 있는 사용법 카드 */
+  howTo: HowToStep | null;
+  /** 이미 본 사용법 */
+  seenHowTo: StepId[];
 }
 
 interface Saved {
@@ -72,6 +77,8 @@ function initialState(): AppState {
     asking: null,
     drill: null,
     drillSeed: Date.now() % 100000,
+    howTo: null,
+    seenHowTo: host.load<StepId[]>('howto') ?? [],
   };
   if (!saved?.plan || !Array.isArray(saved.plan.walls)) return base;
   return {
@@ -120,10 +127,16 @@ export function currentBand(): Band {
   return state.profile ? bandOfGrade(state.profile.grade) : 'low';
 }
 
-/** 말하기 — 글을 바꾸고 소리가 켜져 있으면 MP3 를 튼다 */
-export function say(id: LineId): void {
+/** 말하기 — 글을 바꾸고 소리가 켜져 있으면 MP3 를 튼다. after 는 이 말이 끝나고 다른 말이 없으면 이어서 한다 */
+export function say(id: LineId, after?: LineId): void {
   set({ line: id });
-  if (state.soundOn) host.playVoice(id);
+  const next = after
+    ? () => {
+        if (state.line === id) say(after);
+      }
+    : undefined;
+  if (state.soundOn) host.playVoice(id, next);
+  else if (next) setTimeout(next, 3500);
 }
 
 export function repeatLine(): void {
@@ -137,6 +150,12 @@ export function setSound(on: boolean): void {
 
 export function goto(screen: Screen): void {
   set({ screen });
+}
+
+/** 처음 화면으로 돌아간다. 그린 지도와 이름표는 그대로 남아 이어서 할 수 있다 */
+export function goHome(): void {
+  host.stopVoice();
+  set({ screen: 'welcome', howTo: null, asking: null });
 }
 
 /** 첫 화면의 시작 단추 */
@@ -196,8 +215,28 @@ export function stepLine(step: StepId, band: Band): LineId {
   }
 }
 
+const hasHowTo = (step: StepId): step is HowToStep => step !== 'review';
+
 export function enterStep(step: StepId): void {
-  set({ step, asking: null });
+  set({ step, asking: null, howTo: null });
+  if (hasHowTo(step) && !state.seenHowTo.includes(step)) openHowTo();
+  else say(stepLine(step, currentBand()));
+}
+
+/** 사용법 카드를 연다 */
+export function openHowTo(): void {
+  const step = state.step;
+  if (!hasHowTo(step)) return;
+  set({ howTo: step });
+  say(howToFor(step, currentBand()).line);
+}
+
+/** 사용법 카드를 닫고 단계 안내로 돌아간다 */
+export function closeHowTo(): void {
+  const step = state.step;
+  const seenHowTo = state.seenHowTo.includes(step) ? state.seenHowTo : [...state.seenHowTo, step];
+  host.save('howto', seenHowTo);
+  set({ howTo: null, seenHowTo });
   say(stepLine(step, currentBand()));
 }
 

@@ -1,8 +1,9 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { analyze, sqKey, unreachableCells } from '../core/grid';
+import { analyze, reachableFrom, sqKey, unreachableCells } from '../core/grid';
 import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
 import { findSecondRoute } from '../core/auto';
+import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
 import { extendStroke, nearestDot, nearestEdge, sameDot } from '../core/stroke';
 import { OUT, type MarkId, type OpeningKind, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
@@ -11,6 +12,23 @@ import { segEdges, templateById, templatesFor } from '../content/templates';
 import { chooseTemplate, clearRoute, commit, currentBand, getApp, say, useApp } from '../store/app';
 import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
 import { PlanView } from './PlanView';
+
+/** 화살표 키를 받는다. 사용법 카드나 설정이 떠 있으면 받지 않는다 */
+export function useArrowKeys(onArrow: (dir: ArrowDir) => void): void {
+  const latest = useRef(onArrow);
+  latest.current = onArrow;
+  useEffect(() => {
+    const names: Record<string, ArrowDir> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+    const onKey = (e: KeyboardEvent) => {
+      const dir = names[e.key];
+      if (!dir || getApp().howTo || document.querySelector('.overlay')) return;
+      e.preventDefault();
+      latest.current(dir);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+}
 
 const usePlan = () => {
   const plan = useApp((s) => s.plan);
@@ -315,10 +333,7 @@ export function RouteStep() {
   const hasStart = Boolean(plan.marks.me);
   const firstDone = plan.route[plan.route.length - 1] === OUT;
 
-  const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
-    if (kind !== 'up') return;
-    const square = sqKey(Math.floor(p.x), Math.floor(p.y));
-    const target = layout.cellAt.has(square) ? square : OUT;
+  const choose = (target: string) => {
     const res = tapRoute(plan, layout, which, target);
     if (res.result === 'no-way') say('route-no-way');
     else if (res.result === 'no-start') say('help-fill');
@@ -331,6 +346,26 @@ export function RouteStep() {
       }
     }
   };
+
+  const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
+    if (kind !== 'up') return;
+    const square = sqKey(Math.floor(p.x), Math.floor(p.y));
+    choose(layout.cellAt.has(square) ? square : OUT);
+  };
+
+  // 화살표 키 — 지금 자리에서 그 방향에 있는 문으로 간다
+  const onArrow = (dir: ArrowDir) => {
+    if (!plan.marks.me || done) return;
+    const steps = route.length ? route : [sqKey(Math.floor(plan.marks.me.x), Math.floor(plan.marks.me.y))];
+    const here = layout.cellAt.get(steps[steps.length - 1]!);
+    if (!here) return;
+    const points = routePoints(plan, layout, steps);
+    const from = points[points.length - 1] ?? plan.marks.me;
+    const pick = pickByArrow(from, reachableFrom(layout, here), dir);
+    if (pick) choose(pick.to);
+    else say('route-no-way');
+  };
+  useArrowKeys(onArrow);
 
   const stepsText = route.length
     ? `${route.filter((s) => s !== OUT).length}칸 지남${done ? ', 밖까지 도착' : ''}`
@@ -349,10 +384,11 @@ export function RouteStep() {
         {hasStart && layout.links.length === 0 && <p className="tool-note">문이 없어서 길을 고를 수 없어. 도와줘를 눌러 보자.</p>}
         {!hasStart && <p className="tool-note">내 자리가 아직 없어. 도와줘를 눌러 보자.</p>}
         <button type="button" className="link-btn" data-testid="route-clear" disabled={route.length === 0} onClick={() => clearRoute(which)}>이 길 다시 고르기</button>
+        <p className="tool-note">반짝이는 칸을 누르면 길이 이어져. 화살표 키로도 갈 수 있어.</p>
         <p className="tool-note">지나온 칸을 다시 누르면 거기까지 되돌아가.</p>
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} showRoute glow={candidates} onPointer={onPointer} className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} showRoute glow={candidates} hints={candidates} onPointer={onPointer} className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
       </section>
     </>
   );

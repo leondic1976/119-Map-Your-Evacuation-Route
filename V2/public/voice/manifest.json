@@ -284,6 +284,55 @@
       "hash": "13ae7473ddb749c3"
     },
     {
+      "id": "drill-how",
+      "filename": "drill-how.mp3",
+      "speaker": "ungi",
+      "text": "반짝이는 칸을 눌러서 움직이자. 화살표 키로도 갈 수 있어.",
+      "hash": "2226c736fae74be6"
+    },
+    {
+      "id": "howto-draw",
+      "filename": "howto-draw.mp3",
+      "speaker": "yeongi",
+      "text": "점을 누른 채로 다음 점까지 끌어 봐. 빙 둘러 닫으면 칸이 생겨.",
+      "hash": "4eb19854eb20ed8c"
+    },
+    {
+      "id": "howto-sort",
+      "filename": "howto-sort.mp3",
+      "speaker": "yeongi",
+      "text": "크레용을 하나 고르고, 칠할 칸을 한 번 눌러 봐.",
+      "hash": "5a5c4a95d45b1eff"
+    },
+    {
+      "id": "howto-door",
+      "filename": "howto-door.mp3",
+      "speaker": "yeongi",
+      "text": "문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져.",
+      "hash": "df79b01533a34a45"
+    },
+    {
+      "id": "howto-mark",
+      "filename": "howto-mark.mp3",
+      "speaker": "yeongi",
+      "text": "놓을 표시를 고르고, 지도에서 놓을 자리를 눌러 봐.",
+      "hash": "8b05f72d40d19b82"
+    },
+    {
+      "id": "howto-route",
+      "filename": "howto-route.mp3",
+      "speaker": "yeongi",
+      "text": "반짝이는 칸을 눌러 봐. 화살표 키로도 갈 수 있어. 집 밖까지 가면 길이 완성돼.",
+      "hash": "67f260581390bf62"
+    },
+    {
+      "id": "howto-drill",
+      "filename": "howto-drill.mp3",
+      "speaker": "ilgu",
+      "text": "반짝이는 칸을 눌러서 움직여. 화살표 키로도 갈 수 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.",
+      "hash": "7af89eb0973a6576"
+    },
+    {
       "id": "help-fill",
       "filename": "help-fill.mp3",
       "speaker": "ungi",

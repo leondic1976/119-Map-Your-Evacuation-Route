@@ -5,9 +5,11 @@ import { isVerified } from '../content/sources';
 import {
   cancelAsk,
   enterStep,
+  goHome,
   goto,
   helpStep,
   nextStep,
+  openHowTo,
   repeatLine,
   resetPlan,
   setSound,
@@ -17,8 +19,9 @@ import {
   useApp,
   type StepId,
 } from '../store/app';
-import { GuideAvatar, IconClose, IconHelp, IconMenu, IconNext, IconSpeaker, IconUndo } from './art';
+import { GuideAvatar, IconClose, IconHelp, IconHome, IconMenu, IconNext, IconQuestion, IconSpeaker, IconUndo } from './art';
 import { DrillStep } from './DrillStep';
+import { HowToCard } from './HowToCard';
 import { PrintSheet } from './PrintSheet';
 import { ReviewStep } from './ReviewStep';
 import { DoorStep, DrawStep, MarkStep, RouteStep, SortStep } from './steps';
@@ -80,6 +83,7 @@ function SettingsMenu({ onClose }: { onClose: () => void }) {
           <IconSpeaker on={soundOn} /> 소리 {soundOn ? '켜짐' : '꺼짐'}
         </button>
         <button type="button" className="tool wide" data-testid="edit-tag" onClick={() => goto('nametag')}>이름표 바꾸기</button>
+        <button type="button" className="tool wide" data-testid="menu-home" onClick={goHome}><IconHome /> 처음 화면으로</button>
         {!confirm ? (
           <button type="button" className="tool wide" data-testid="reset" onClick={() => setConfirm(true)}>처음부터 다시 그리기</button>
         ) : (
@@ -128,6 +132,11 @@ function GuideBar() {
         </div>
       ) : (
         <div className="guide-actions">
+          {step !== 'review' && (
+            <button type="button" className="btn" data-testid="how" onClick={openHowTo}>
+              <IconQuestion /> 어떻게 해?
+            </button>
+          )}
           {HAS_HELP.has(step) && (
             <>
               <button type="button" className="btn" data-testid="undo" disabled={!canUndo} onClick={undo}>
@@ -152,6 +161,7 @@ function GuideBar() {
 export function Studio() {
   const step = useApp((s) => s.step);
   const profile = useApp((s) => s.profile);
+  const howTo = useApp((s) => s.howTo);
   const [menu, setMenu] = useState(false);
   const closeMenu = useRef(() => setMenu(false)).current;
   const View = VIEW[step];
@@ -160,6 +170,9 @@ export function Studio() {
     <div className="studio" data-step={step}>
       <header className="top">
         <div className="spiral" aria-hidden="true" />
+        <button type="button" className="icon-btn home-btn" aria-label="처음 화면으로" title="처음 화면으로" data-testid="home" onClick={goHome}>
+          <IconHome />
+        </button>
         <Ribbon />
         <button type="button" className="icon-btn" aria-label="설정" data-testid="menu" onClick={() => setMenu(true)}>
           <IconMenu />
@@ -170,6 +183,7 @@ export function Studio() {
       </main>
       <GuideBar />
       {menu && <SettingsMenu onClose={closeMenu} />}
+      {howTo && <HowToCard step={howTo} />}
       <PrintSheet />
     </div>
   );

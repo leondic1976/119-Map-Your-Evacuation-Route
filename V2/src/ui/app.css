@@ -129,6 +129,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .nametag .big-start { justify-self: center; }
 
 /* 스케치북 틀 */
+.home-btn { flex: none; }
 .studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--paper); }
 .top { position: relative; display: flex; align-items: center; gap: 8px; padding: 18px 12px 8px; }
 .spiral { position: absolute; left: 0; right: 0; top: 0; height: 12px; background-image: radial-gradient(circle at 12px 5px, var(--pencil) 3.4px, transparent 4px); background-size: 28px 12px; opacity: .7; }
@@ -222,6 +223,48 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .flame { animation: sway 1.8s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
 @keyframes sway { from { scale: 1 1; } to { scale: 1.06 .92; } }
 .smoke-sq { transition: opacity .5s; }
+
+/* 눌러야 할 곳 */
+.tap-word {
+  font-family: var(--font); font-size: 25px; text-anchor: middle; fill: #17527f;
+  paint-order: stroke; stroke: #fff; stroke-width: 7px; stroke-linejoin: round;
+}
+.tap-hand { animation: tap-bob 1.1s ease-in-out infinite; }
+@keyframes tap-bob { 50% { transform: translateY(10px); } }
+
+/* 사용법 카드 */
+.howto { width: min(560px, 100%); justify-items: center; text-align: center; }
+.howto h2 { font-size: 28px; }
+.demo { width: 100%; max-width: 440px; height: auto; background: var(--paper); border: 2px solid var(--pencil); border-radius: 12px; }
+.demo-word { font-family: var(--font); font-size: 14px; fill: #466b35; }
+.howto-steps { margin: 0; padding-left: 26px; display: grid; gap: 6px; font-size: 20px; line-height: 1.35; text-align: left; justify-self: stretch; }
+.demo-hand { animation-duration: 5s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+.demo-line { fill: none; stroke: var(--pencil); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.demo-draw-line { stroke-dasharray: 640; animation: demo-draw 5s linear infinite; }
+@keyframes demo-draw { 0%, 10% { stroke-dashoffset: 640; } 70%, 100% { stroke-dashoffset: 0; } }
+.demo-hand-draw { animation-name: demo-hand-draw; }
+@keyframes demo-hand-draw { 0%, 10% { transform: translate(60px, 14px); } 26% { transform: translate(260px, 14px); } 40% { transform: translate(260px, 134px); } 56% { transform: translate(60px, 134px); } 70%, 100% { transform: translate(60px, 14px); } }
+.demo-fill { opacity: 0; animation: demo-fill 5s linear infinite; }
+@keyframes demo-fill { 0%, 54% { opacity: 0; } 58%, 100% { opacity: 1; } }
+.demo-hand-sort { animation-name: demo-hand-sort; }
+@keyframes demo-hand-sort { 0% { transform: translate(120px, 150px); } 20%, 30% { transform: translate(28px, 34px); } 50%, 100% { transform: translate(110px, 40px); } }
+.demo-hand-mark { animation-name: demo-hand-mark; }
+@keyframes demo-hand-mark { 0% { transform: translate(120px, 150px); } 20%, 30% { transform: translate(28px, 36px); } 50%, 100% { transform: translate(120px, 44px); } }
+.demo-door { opacity: 0; animation: demo-fill 5s linear infinite; }
+.demo-hand-door { animation-name: demo-hand-door; }
+@keyframes demo-hand-door { 0% { transform: translate(200px, 150px); } 50%, 100% { transform: translate(110px, 70px); } }
+.demo-glow-a { opacity: 0; animation: demo-glow-a 5s linear infinite; }
+@keyframes demo-glow-a { 0%, 24% { opacity: .55; } 26%, 100% { opacity: 0; } }
+.demo-glow-b { opacity: 0; animation: demo-glow-b 5s linear infinite; }
+@keyframes demo-glow-b { 0%, 26% { opacity: 0; } 28%, 58% { opacity: .55; } 60%, 100% { opacity: 0; } }
+.demo-seg-a { opacity: 0; animation: demo-seg-a 5s linear infinite; }
+@keyframes demo-seg-a { 0%, 24% { opacity: 0; } 26%, 100% { opacity: 1; } }
+.demo-seg-b { opacity: 0; animation: demo-seg-b 5s linear infinite; }
+@keyframes demo-seg-b { 0%, 58% { opacity: 0; } 60%, 100% { opacity: 1; } }
+.demo-hand-route { animation-name: demo-hand-route; }
+@keyframes demo-hand-route { 0% { transform: translate(250px, 60px); } 20%, 28% { transform: translate(160px, 104px); } 52%, 100% { transform: translate(200px, 156px); } }
+.demo-kid-drill { animation: demo-kid 5s ease-in-out infinite; }
+@keyframes demo-kid { 0%, 24% { transform: translate(110px, 38px); } 40%, 58% { transform: translate(110px, 100px); } 74%, 100% { transform: translate(200px, 152px); } }
 
 .card-over {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3;

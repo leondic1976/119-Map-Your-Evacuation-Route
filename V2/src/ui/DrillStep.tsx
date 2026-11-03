@@ -14,7 +14,7 @@ import {
   type DrillState,
 } from '../core/drill';
 import { analyze, sqKey } from '../core/grid';
-import { pointAlong } from '../core/path';
+import { pickByArrow, pointAlong, type ArrowDir } from '../core/path';
 import { OUT, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { FIRE } from '../content/fire';
@@ -22,6 +22,7 @@ import { host } from '../platform/host';
 import { currentBand, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
 import { IconClose, IconCrouch, IconDoor, IconHand, IconPhone, IconPlay, IconStand, KidGlyph } from './art';
 import { PlanView, U } from './PlanView';
+import { useArrowKeys } from './steps';
 
 const STEP_MS = 620;
 
@@ -60,7 +61,7 @@ export function DrillStep() {
     setState(next);
     setPos(next.pt);
     if (app.soundOn) host.alarm();
-    say('drill-start');
+    say('drill-start', 'drill-how');
   };
 
   const animate = (points: Pt[], then: () => void) => {
@@ -120,12 +121,28 @@ export function DrillStep() {
     const square = sqKey(Math.floor(p.x), Math.floor(p.y));
     const target = layout.cellAt.get(square) ?? OUT;
     if (target === state.at) return;
-    const moves = drillMoves(layout, state, config);
-    const mv = moves.find((m) => m.to === target);
+    const mv = drillMoves(layout, state, config).find((m) => m.to === target);
     if (!mv) {
       say('drill-no-door');
       return;
     }
+    tryMove(state, mv);
+  };
+
+  // 화살표 키 — 지금 자리에서 그 방향에 있는 문으로 간다
+  useArrowKeys((dir: ArrowDir) => {
+    if (!state || walking || touch || callCard) return;
+    if (state.phase === 'outside') {
+      goMeet();
+      return;
+    }
+    const mv = pickByArrow(state.pt, drillMoves(layout, state, config), dir);
+    if (mv) tryMove(state, mv);
+    else say('drill-no-door');
+  });
+
+  const tryMove = (from: DrillState, mv: DrillMove) => {
+    const state = from;
     if (state.knownHot.includes(mv.edge) || (mv.hot && !info.touchDoors)) {
       say('drill-hot');
       return;
@@ -182,7 +199,8 @@ export function DrillStep() {
           <ul className="promise">
             <li>진짜 불이 아니다.</li>
             <li>시간제한이 없다.</li>
-            <li>칸을 눌러 밖으로 나가자.</li>
+            <li>반짝이는 칸을 눌러 밖으로 나가자.</li>
+            <li>화살표 키로도 움직여.</li>
           </ul>
         </aside>
         <section className="paper paper-center">
@@ -237,6 +255,7 @@ export function DrillStep() {
             <IconPlay size={28} /> 만나는 곳으로
           </button>
         )}
+        <p className="tool-note">{outside ? '만나는 곳으로 가자.' : '반짝이는 칸을 누르거나 화살표 키를 눌러 움직여.'}</p>
         <p className="tool-note" data-testid="drill-turn">{state.stats.moves}번 움직였어</p>
       </aside>
       <section className="paper">
@@ -246,6 +265,7 @@ export function DrillStep() {
           look={look}
           showRoute
           glow={glow}
+          hints={glow}
           hazard={hazard}
           closedDoors={state.closed}
           onPointer={(kind, p) => {
@@ -266,7 +286,7 @@ export function DrillStep() {
             <button type="button" className="x" aria-label="닫기" data-testid="card-close" onClick={() => setTouch(null)}><IconClose /></button>
             <h3>문을 열기 전에</h3>
             <p>손등으로 문을 살짝 만져 보자.</p>
-            <button type="button" className="big-action" data-testid="drill-touch" onClick={doTouch}>
+            <button type="button" className="big-action" data-testid="drill-touch" autoFocus onClick={doTouch}>
               <IconHand size={30} /> 손등으로 만져 보기
             </button>
           </div>
@@ -276,7 +296,7 @@ export function DrillStep() {
           <div className="card-over" role="dialog" aria-modal="true" aria-label="119 전화">
             <h3>{callCard === 'meet' ? '가족을 만났어' : '문을 닫고 창가로'}</h3>
             <p>{callCard === 'meet' ? '119에 불이 났다고 말하고 우리 집 주소를 알려 주자.' : '나갈 길이 막혔어. 창가에서 119에 구조를 요청하자.'}</p>
-            <button type="button" className="big-action" data-testid="drill-call" onClick={call}>
+            <button type="button" className="big-action" data-testid="drill-call" autoFocus onClick={call}>
               <IconPhone size={30} /> 119에 전화하기
             </button>
           </div>

@@ -46,6 +46,12 @@ export const IconDoor = ({ size = 26 }: { size?: number }) => (
 export const IconWindow = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><rect x="4" y="4" width="16" height="16" rx="1.5" /><path d="M12 4v16M4 12h16" /></Svg>
 );
+export const IconQuestion = ({ size = 26 }: { size?: number }) => (
+  <Svg size={size}><circle cx="12" cy="12" r="9.5" /><path d="M9.2 9.3a2.9 2.9 0 1 1 4.6 2.4c-1 .7-1.8 1.3-1.8 2.6" /><circle cx="12" cy="17.4" r=".7" fill="currentColor" /></Svg>
+);
+export const IconHome = ({ size = 26 }: { size?: number }) => (
+  <Svg size={size}><path d="M3.5 11.5 12 4l8.5 7.5" /><path d="M6 10v10h12V10" /><path d="M10 20v-6h4v6" /></Svg>
+);
 export const IconCheck = ({ size = 22 }: { size?: number }) => (
   <Svg size={size}><path d="M5 12.5l4.5 4.5L19 7" /></Svg>
 );
@@ -79,6 +85,21 @@ export const IconStand = ({ size = 26 }: { size?: number }) => (
 export const IconHand = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v8" /><path d="M8 11l-1.5-1.5a1.5 1.5 0 0 0-2.2 2L8.5 18a5 5 0 0 0 4 2h1a4 4 0 0 0 4-4v-3" /></Svg>
 );
+
+/** 누르는 손가락 — (0,0) 이 손가락 끝이다 */
+export function HandGlyph({ scale = 1 }: { scale?: number }) {
+  return (
+    <g transform={`scale(${scale})`}>
+      <path
+        d="M0 0c2-1 4 0 4 3v12l1-1c2-1 4 0 4 2 2-1 4 0 4 2 2-1 4 0 4 2v8c0 6-4 10-10 10H6c-4 0-6-2-8-5L-10 21c-1-2 0-4 2-4 1 0 2 0 3 1l1 2V3c0-2 2-3 4-3z"
+        fill="#fff"
+        stroke="#33363b"
+        strokeWidth="2.6"
+        strokeLinejoin="round"
+      />
+    </g>
+  );
+}
 
 /** 지도 위 표시 — 100 단위 칸에 맞춘 벡터. (0,0) 이 가운데다 */
 export function MarkGlyph({ id, look }: { id: MarkId; look?: LookId }) {

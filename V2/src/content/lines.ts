@@ -65,6 +65,15 @@ export const LINES = {
   'review': { speaker: 'ilgu', emotion: 'happy', text: '끝까지 해냈어! 잘한 점을 보고, 3D로 다시 본 다음 지도를 인쇄해 보자.', say: '끝까지 해냈어! 잘한 점을 보고, 쓰리디로 다시 본 다음 지도를 인쇄해 보자.', sourceIds: GUIDE },
   'review-no-drill': { speaker: 'ilgu', emotion: 'normal', text: '지도를 인쇄할 수 있어. 대피 연습을 하면 잘한 점도 볼 수 있어.', sourceIds: GUIDE },
   'replay': { speaker: 'ilgu', emotion: 'happy', text: '내가 나온 길을 다시 보자.', sourceIds: GUIDE },
+  'drill-how': { speaker: 'ungi', emotion: 'normal', text: '반짝이는 칸을 눌러서 움직이자. 화살표 키로도 갈 수 있어.', sourceIds: GUIDE },
+
+  'howto-draw': { speaker: 'yeongi', emotion: 'happy', text: '점을 누른 채로 다음 점까지 끌어 봐. 빙 둘러 닫으면 칸이 생겨.', sourceIds: GUIDE },
+  'howto-sort': { speaker: 'yeongi', emotion: 'happy', text: '크레용을 하나 고르고, 칠할 칸을 한 번 눌러 봐.', sourceIds: GUIDE },
+  'howto-door': { speaker: 'yeongi', emotion: 'happy', text: '문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져.', sourceIds: GUIDE },
+  'howto-mark': { speaker: 'yeongi', emotion: 'happy', text: '놓을 표시를 고르고, 지도에서 놓을 자리를 눌러 봐.', sourceIds: GUIDE },
+  'howto-route': { speaker: 'yeongi', emotion: 'happy', text: '반짝이는 칸을 눌러 봐. 화살표 키로도 갈 수 있어. 집 밖까지 가면 길이 완성돼.', sourceIds: GUIDE },
+  'howto-drill': { speaker: 'ilgu', emotion: 'normal', text: '반짝이는 칸을 눌러서 움직여. 화살표 키로도 갈 수 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.', sourceIds: GUIDE },
+
   'help-fill': { speaker: 'ungi', emotion: 'thinking', text: '아직 빠진 게 있어. 내가 채워 줄까?', sourceIds: GUIDE },
 } as const satisfies Record<string, Line>;
 

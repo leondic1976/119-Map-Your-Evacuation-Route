@@ -7,7 +7,7 @@ import { edgeEnds, edgeMid, edgeSides, parseEdge, sqKey } from '../core/grid';
 import { routePoints } from '../core/path';
 import { OUT, type Layout, type MarkId, type Plan, type Pt } from '../core/types';
 import { cellLabel, MARK_NAME, type LookId } from '../content/names';
-import { MarkGlyph } from './art';
+import { HandGlyph, MarkGlyph } from './art';
 
 export const U = 100;
 /** 그림 둘레 여백 — 집 위나 옆으로 나가는 화살표가 잘리지 않을 만큼 둔다 */
@@ -25,6 +25,8 @@ export interface PlanViewProps {
   hotEdge?: string | null;
   /** 반짝이는 칸들 (칸 id · `out`) */
   glow?: string[];
+  /** 손가락과 「여기를 눌러」를 띄울 곳 (칸 id · `out`) */
+  hints?: string[];
   /** 살펴볼 칸 — 밖으로 이어지지 않은 칸 */
   warn?: string[];
   showRoute?: boolean;
@@ -246,6 +248,20 @@ function PlanViewBase(props: PlanViewProps) {
           <text className="mark-label" y={48} fontSize={id === 'alarm' ? 20 : 22}>{MARK_NAME[id]}</text>
         </g>
       ))}
+
+      {/* 눌러야 할 곳 */}
+      {(props.hints ?? []).map((id) => {
+        const cell = layout.byId.get(id);
+        const x = cell ? (cell.anchor.x + 0.5) * U : width * 0.28;
+        // 칸 이름 바로 아래에 놓아 글자가 겹치지 않게 한다
+        const y = cell ? (cell.anchor.y + 0.5) * U + 58 : stripTop + 34;
+        return (
+          <g key={`hint${id}`} className="tap-hint" data-hint={id} transform={`translate(${x} ${y})`} pointerEvents="none">
+            <g className="tap-hand"><HandGlyph scale={1.5} /></g>
+            <text className="tap-word" x={0} y={-12}>여기를 눌러</text>
+          </g>
+        );
+      })}
 
       {/* 점 */}
       {showDots && (

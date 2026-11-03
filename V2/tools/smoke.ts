@@ -66,13 +66,15 @@ async function dragThrough(page: Page, dots: [number, number][]): Promise<void> 
 const attr = (page: Page, name: string): Promise<string | null> => page.locator('.stage svg.plan').first().getAttribute(`data-${name}`);
 const num = async (page: Page, name: string): Promise<number> => Number(await attr(page, name));
 
-async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0]): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
+async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0], seenHowTo = true): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
   const ctx = await browser.newContext({ locale: 'ko-KR', ...opts });
   const page = await ctx.newPage();
   // tsx 가 함수 이름을 보존하려고 넣는 도우미를 브라우저에도 둔다
   await page.addInitScript('window.__name = (f) => f');
   // 불이 시작되는 칸은 시각에서 고른다. 어디서 돌려도 같은 판이 되도록 시각을 고정한다
   await page.addInitScript('Date.now = () => 1700000000000');
+  // 사용법 카드는 따로 시험한다. 다른 시나리오에서는 이미 본 것으로 둔다
+  if (seenHowTo) await page.addInitScript(`localStorage.setItem('home-escape-map-v2:howto', '${JSON.stringify(['draw', 'sort', 'door', 'mark', 'route', 'drill'])}')`);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -306,7 +308,7 @@ async function main(): Promise<void> {
     });
     assert.ok(lit > 1, `3D 가 그려져야 한다: ${lit}`);
     await page.click(t('replay-view'));
-    await page.waitForFunction(() => document.querySelector('[data-testid="replay-caption"]')?.getAttribute('data-ended') === '1', undefined, { timeout: 60000 });
+    await page.waitForFunction(() => document.querySelector('[data-testid="replay-caption"]')?.getAttribute('data-ended') === '1', undefined, { timeout: 180000 });
     await shot(page, '13-replay-end');
     await page.keyboard.press('Escape');
     assert.equal(await page.locator(t('replay')).count(), 0, 'Esc 로 닫힌다');
@@ -514,6 +516,115 @@ async function main(): Promise<void> {
     await page.click(t('repeat'));
     await page.waitForFunction(() => document.documentElement.dataset.voiceState === 'failed', undefined, { timeout: 5000 });
     assert.ok((await page.locator(t('bubble')).innerText()).length > 5, '글은 남는다');
+    await ctx.close();
+  });
+
+  await scenario('사용법: 단계마다 처음 한 번 뜨고 다시 볼 수 있으며, 화살표로 길과 연습을 끝낸다', async () => {
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1366, height: 768 } }, false);
+    await startAs(page, 1);
+    await page.waitForSelector('[data-howto="draw"]');
+    assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'howto-draw');
+    await page.waitForTimeout(1800);
+    await shot(page, '40-howto-draw');
+    await checkTargets(page, '사용법 카드');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator(t('howto')).count(), 0, 'Esc 로 닫힌다');
+    assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'draw-low');
+    // 다시 보기
+    await page.click(t('how'));
+    await page.waitForSelector('[data-howto="draw"]');
+    await page.click(t('howto-ok'));
+    await page.click(t('help'));
+    await page.click(t('next'));
+    await page.waitForSelector('[data-howto="sort"]');
+    await shot(page, '41-howto-sort');
+    await page.click(t('howto-close'));
+    await page.click(t('help'));
+    await page.click(t('next'));
+    await page.waitForSelector('[data-howto="door"]');
+    await page.click(t('howto-ok'));
+    await page.click(t('help'));
+    await page.click(t('next'));
+    await page.waitForSelector('[data-howto="mark"]');
+    await page.click(t('howto-ok'));
+    await page.click(t('help'));
+    await page.click(t('next'));
+    await page.waitForSelector('[data-howto="route"]');
+    await page.waitForTimeout(2200);
+    await shot(page, '42-howto-route');
+    const howText = await page.locator(t('howto')).innerText();
+    assert.ok(howText.includes('눌러') && howText.includes('화살표'), howText);
+    // 카드가 떠 있을 때는 화살표가 길을 고르지 않는다
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await attr(page, 'route'), '');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator(t('howto')).count(), 0, 'Enter 로 닫힌다');
+    // 눌러야 할 곳이 지도에 보인다
+    assert.ok((await page.locator('.stage .tap-hint').count()) >= 1, '여기를 눌러 표시');
+    await shot(page, '43-route-hint');
+    // 네모 집: 내 방은 왼쪽 위, 문은 아래 — 위는 없고 아래는 있다
+    await page.keyboard.press('ArrowUp');
+    assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'route-no-way');
+    await page.keyboard.press('ArrowDown');
+    assert.ok((await attr(page, 'route'))!.split(' ').length >= 2, '화살표로 다음 칸');
+    for (const key of ['ArrowDown', 'ArrowRight', 'ArrowLeft'] as const) {
+      if ((await attr(page, 'route'))!.endsWith('out')) break;
+      await page.keyboard.press(key);
+    }
+    assert.ok((await attr(page, 'route'))!.endsWith('out'), `화살표로 밖까지: ${await attr(page, 'route')}`);
+    await page.click(t('next'));
+
+    // 대피 연습
+    await page.waitForSelector('[data-howto="drill"]');
+    await shot(page, '44-howto-drill');
+    await page.click(t('howto-ok'));
+    await page.click(t('drill-start'));
+    await page.waitForSelector(t('player'));
+    assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'drill-start');
+    await page.waitForFunction(() => document.querySelector('[data-testid="bubble"]')?.getAttribute('data-line') === 'drill-how', undefined, { timeout: 15000 });
+    assert.ok((await page.locator('.stage .tap-hint').count()) >= 1, '연습에도 표시');
+    await shot(page, '45-drill-hint');
+    const route = (await attr(page, 'route'))!.split(' ');
+    for (let i = 0; i < route.length + 4; i++) {
+      if ((await page.locator(t('player')).getAttribute('data-phase')) === 'outside') break;
+      for (const key of ['ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowUp'] as const) {
+        const before = await page.locator(t('player')).getAttribute('data-at');
+        await page.keyboard.press(key);
+        await page.waitForTimeout(150);
+        if ((await page.locator(t('player')).getAttribute('data-at')) !== before) break;
+      }
+      await page.waitForTimeout(1700);
+    }
+    assert.equal(await page.locator(t('player')).getAttribute('data-phase'), 'outside', '화살표로 밖까지 나간다');
+    await page.keyboard.press('ArrowDown');
+    await page.waitForSelector(t('drill-call'), { timeout: 8000 });
+    await page.keyboard.press('Enter');
+    await page.waitForSelector(t('praises'), { timeout: 8000 });
+
+    // 두 번째부터는 뜨지 않는다
+    await page.click(t('step-route'));
+    assert.equal(await page.locator(t('howto')).count(), 0, '본 사용법은 다시 뜨지 않는다');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+  });
+
+  await scenario('처음 화면으로 돌아가도 지도가 남고, 이어서 그릴 수 있다', async () => {
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1024, height: 768 } });
+    await startAs(page, 2);
+    await page.click(t('help'));
+    const walls = await num(page, 'walls');
+    assert.ok(walls > 0);
+    await page.click(t('home'));
+    await page.waitForSelector(t('start'));
+    assert.equal((await page.locator(t('start')).innerText()).includes('이어서'), true);
+    await page.click(t('start'));
+    await page.waitForSelector('.studio');
+    assert.equal(await num(page, 'walls'), walls, '지도가 그대로 있다');
+    await page.click(t('menu'));
+    await page.click(t('menu-home'));
+    await page.waitForSelector(t('start'));
+    assert.equal(await page.locator('.overlay').count(), 0, '설정이 닫혀 있다');
+    assert.deepEqual(errors, [], '콘솔 오류');
     await ctx.close();
   });
 

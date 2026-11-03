@@ -16,7 +16,7 @@ import {
 import { addEdges, addStroke, emptyPlan, normalize, paintCell, placeMark, removeWall, routeCandidates, tapRoute, toggleOpening } from '../src/core/edit';
 import { analyze, hKey, isExterior, shortestPath, sqKey, unreachableCells, vKey } from '../src/core/grid';
 import { stepField } from '../src/core/hazard';
-import { pointAlong, routePoints } from '../src/core/path';
+import { arrowMap, pickByArrow, pointAlong, routePoints, type ArrowDir } from '../src/core/path';
 import { buildReport } from '../src/core/report';
 import { extendStroke, nearestDot, nearestEdge } from '../src/core/stroke';
 import { OUT, type Band, type Plan } from '../src/core/types';
@@ -223,6 +223,49 @@ export function runLogicTests(check: Check): void {
           const near = nearestEdge(solid, p, 0.01);
           assert.equal(near, null, `${t.id}: ${JSON.stringify(p)} 가 벽 ${near} 을 지난다`);
         }
+      }
+    }
+  });
+
+  check('[화살표] 그 방향에 있는 문을 고르고, 없으면 고르지 않는다', () => {
+    const from = { x: 2.5, y: 2.5 };
+    const up = { edge: hKey(2, 1), to: 'a' };
+    const right = { edge: vKey(4, 2), to: 'b' };
+    assert.equal(pickByArrow(from, [up, right], 'up'), up);
+    assert.equal(pickByArrow(from, [up, right], 'right'), right);
+    assert.equal(pickByArrow(from, [up, right], 'down'), null);
+    assert.equal(pickByArrow(from, [up, right], 'left'), null);
+  });
+
+  check('[화살표] 같은 쪽에 문이 둘이면 밖으로 나가는 문이 먼저이고 다른 문도 닿는다', () => {
+    const from = { x: 3.5, y: 2.5 };
+    const near = { edge: hKey(3, 4), to: 'a' };
+    const exit = { edge: hKey(5, 4), to: OUT };
+    const map = arrowMap(from, [near, exit]);
+    assert.ok(Object.values(map).includes(exit), '밖으로 나가는 문에 화살표가 있다');
+    assert.ok(Object.values(map).includes(near), '다른 문도 화살표가 있다');
+    // 정면이 겹치면 밖으로 나가는 문이 그 방향을 갖는다
+    const under = { edge: hKey(3, 4), to: OUT };
+    const also = { edge: hKey(4, 4), to: 'a' };
+    assert.equal(arrowMap({ x: 3.5, y: 2.5 }, [also, under]).down, under);
+  });
+
+  check('[화살표] 시작 본 전종에서 화살표만으로 밖까지 나갈 수 있다', () => {
+    const dirs: ArrowDir[] = ['up', 'down', 'left', 'right'];
+    for (const t of TEMPLATES) {
+      const plan = autoAll(t);
+      const layout = analyze(plan);
+      for (const seed of [0, 1, 2]) {
+        const config = FIRE[t.band];
+        let state = startDrill(plan, seed, config)!;
+        for (const hop of shortestPath(layout, state.at)!) {
+          const moves = drillMoves(layout, state, config);
+          const target = moves.find((m) => m.to === hop.to)!;
+          const dir = dirs.find((d) => pickByArrow(state.pt, moves, d)?.edge === target.edge);
+          assert.ok(dir, `${t.id} seed ${seed}: ${hop.to} 로 가는 화살표가 없다`);
+          state = moveTo(plan, layout, state, target, config);
+        }
+        assert.equal(state.phase, 'outside', t.id);
       }
     }
   });

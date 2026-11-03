@@ -64,6 +64,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith(SCOPE)) return;
+  /* V2 는 같은 사이트의 다른 앱이다. 이 판의 캐시에 섞지 않는다 (V2/docs/DESIGN.md §12) */
+  if (url.pathname.startsWith(`${SCOPE}V2/`)) return;
   if (url.pathname.endsWith('.zip') || url.pathname.endsWith('.exe')) return;
   if (request.mode === 'navigate') {
     event.respondWith(navigate(request));

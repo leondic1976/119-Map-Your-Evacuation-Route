@@ -1,0 +1,294 @@
+{
+  "voice": "Juwonmom",
+  "voiceId": "oZLQ9kHPMuIyd7Ja0YNU",
+  "speed": 1,
+  "items": [
+    {
+      "id": "welcome",
+      "filename": "welcome.mp3",
+      "speaker": "ilgu",
+      "text": "안녕! 나는 일구야. 우리 집 대피지도를 같이 그려 보자.",
+      "hash": "de82060f8ce26026"
+    },
+    {
+      "id": "nametag",
+      "filename": "nametag.mp3",
+      "speaker": "yeongi",
+      "text": "몇 학년인지 골라 줘. 이름은 안 적어도 괜찮아.",
+      "hash": "48ece15b9e78d751"
+    },
+    {
+      "id": "draw-low",
+      "filename": "draw-low.mp3",
+      "speaker": "yeongi",
+      "text": "연한 선을 따라 점과 점을 이어 보자. 쭉 끌어도 되고, 점을 차례로 눌러도 돼.",
+      "hash": "722ebf2043f81cde"
+    },
+    {
+      "id": "draw-mid",
+      "filename": "draw-mid.mp3",
+      "speaker": "yeongi",
+      "text": "연한 선을 따라 집 테두리를 그리고, 벽을 그어서 칸을 나눠 보자.",
+      "hash": "91dbe2ced81287fc"
+    },
+    {
+      "id": "draw-high",
+      "filename": "draw-high.mp3",
+      "speaker": "yeongi",
+      "text": "점을 이어서 우리 집 테두리와 벽을 직접 그려 보자.",
+      "hash": "4baaa26b4a5324a7"
+    },
+    {
+      "id": "draw-first-cell",
+      "filename": "draw-first-cell.mp3",
+      "speaker": "ungi",
+      "text": "우와, 칸이 생겼어! 선으로 둘러싸면 칸이 되는 거야.",
+      "hash": "481f92ac51e047d6"
+    },
+    {
+      "id": "draw-need-cell",
+      "filename": "draw-need-cell.mp3",
+      "speaker": "ungi",
+      "text": "아직 칸이 없어. 선을 빙 둘러서 닫아 보자. 어려우면 도와줘를 눌러.",
+      "hash": "a4e1e82a5a545fa9"
+    },
+    {
+      "id": "sort-low",
+      "filename": "sort-low.mp3",
+      "speaker": "yeongi",
+      "text": "크레용을 고르고 칸을 눌러 칠해 보자. 머무는 칸은 방, 걸어가는 칸은 지나가는 곳이야.",
+      "hash": "62f8946ad814ec45"
+    },
+    {
+      "id": "sort-more",
+      "filename": "sort-more.mp3",
+      "speaker": "yeongi",
+      "text": "크레용을 고르고 칸을 눌러 이름을 붙여 보자. 노란색은 방, 파란색은 지나가는 곳이야.",
+      "hash": "d34c2341e88095b5"
+    },
+    {
+      "id": "sort-why",
+      "filename": "sort-why.mp3",
+      "speaker": "ilgu",
+      "text": "방은 문을 닫으면 불과 연기를 막아 줘. 지나가는 곳은 밖으로 나갈 때 걸어가는 길이야.",
+      "hash": "5f93f622a59a008e"
+    },
+    {
+      "id": "door-low",
+      "filename": "door-low.mp3",
+      "speaker": "yeongi",
+      "text": "벽을 눌러 문을 달아 보자. 밖으로 나가는 문도 꼭 하나 달자.",
+      "hash": "07510b4c87b0b2a0"
+    },
+    {
+      "id": "door-more",
+      "filename": "door-more.mp3",
+      "speaker": "yeongi",
+      "text": "벽을 눌러 문을 달고, 바깥 벽에는 창문도 달아 보자. 밖으로 나가는 문도 꼭 하나 달자.",
+      "hash": "ae2a3f9069bb380e"
+    },
+    {
+      "id": "door-no-exit",
+      "filename": "door-no-exit.mp3",
+      "speaker": "ungi",
+      "text": "밖으로 나가는 문이 아직 없어. 바깥 벽을 눌러 문을 달자.",
+      "hash": "5f7809a5de95b1eb"
+    },
+    {
+      "id": "door-stuck",
+      "filename": "door-stuck.mp3",
+      "speaker": "ungi",
+      "text": "밖으로 이어지지 않는 칸이 있어. 그 칸에도 문을 달아 주자.",
+      "hash": "8fcca3d1fd6c7bfa"
+    },
+    {
+      "id": "door-window-inside",
+      "filename": "door-window-inside.mp3",
+      "speaker": "ungi",
+      "text": "창문은 바깥 벽에 달자.",
+      "hash": "7ce4badce65cec4e"
+    },
+    {
+      "id": "mark-low",
+      "filename": "mark-low.mp3",
+      "speaker": "yeongi",
+      "text": "내가 자는 곳에 내 자리를 놓고, 집 밖에 가족이 만나는 곳을 정하자.",
+      "hash": "b02920197a5b7875"
+    },
+    {
+      "id": "mark-mid",
+      "filename": "mark-mid.mp3",
+      "speaker": "yeongi",
+      "text": "내 자리와 만나는 곳을 정하고, 가스레인지와 소화기가 있는 곳도 표시하자.",
+      "hash": "52ebe29d2e7c7cc9"
+    },
+    {
+      "id": "mark-high",
+      "filename": "mark-high.mp3",
+      "speaker": "yeongi",
+      "text": "내 자리와 만나는 곳을 정하고, 가스레인지, 소화기, 화재 감지기도 표시하자.",
+      "hash": "d287a9b8626869ce"
+    },
+    {
+      "id": "mark-need-inside",
+      "filename": "mark-need-inside.mp3",
+      "speaker": "ungi",
+      "text": "이건 집 안의 칸에 놓자.",
+      "hash": "bee1961fddd45f1d"
+    },
+    {
+      "id": "mark-need-outside",
+      "filename": "mark-need-outside.mp3",
+      "speaker": "ungi",
+      "text": "만나는 곳은 집 밖에 정하자.",
+      "hash": "419474a6f1008b75"
+    },
+    {
+      "id": "route-start",
+      "filename": "route-start.mp3",
+      "speaker": "yeongi",
+      "text": "내 자리에서 시작해. 반짝이는 칸을 차례로 눌러 밖까지 나가 보자.",
+      "hash": "e55af77b6d1e37d3"
+    },
+    {
+      "id": "route-no-way",
+      "filename": "route-no-way.mp3",
+      "speaker": "ungi",
+      "text": "거기로 가는 문이 없어. 반짝이는 곳을 눌러 보자.",
+      "hash": "68f5942836ff788a"
+    },
+    {
+      "id": "route-done",
+      "filename": "route-done.mp3",
+      "speaker": "ilgu",
+      "text": "나가는 길을 찾았어! 정말 잘했어.",
+      "hash": "c70bf3ceeaa6567c"
+    },
+    {
+      "id": "route-second",
+      "filename": "route-second.mp3",
+      "speaker": "ilgu",
+      "text": "불이 첫째 길을 막으면 어떻게 할까? 다른 길도 찾아 보자.",
+      "hash": "be4bf9f1e65bc370"
+    },
+    {
+      "id": "route-no-second",
+      "filename": "route-no-second.mp3",
+      "speaker": "ilgu",
+      "text": "다른 길이 없다면 방문을 닫고 창가에서 일일구에 구조를 요청하자.",
+      "hash": "49f35d8bba3a7b42"
+    },
+    {
+      "id": "drill-ready",
+      "filename": "drill-ready.mp3",
+      "speaker": "ilgu",
+      "text": "이제 연습해 보자. 진짜 불이 아니니까 괜찮아. 시작을 눌러 줘.",
+      "hash": "6c66e803dbf4d1f6"
+    },
+    {
+      "id": "drill-start",
+      "filename": "drill-start.mp3",
+      "speaker": "yeongi",
+      "text": "불이 났어! 불이야 하고 크게 외치고, 침착하게 밖으로 나가자.",
+      "hash": "c56253db0395ba39"
+    },
+    {
+      "id": "drill-smoke",
+      "filename": "drill-smoke.mp3",
+      "speaker": "yeongi",
+      "text": "연기야! 몸을 낮추고 코와 입을 가리자.",
+      "hash": "40f6c4c543e6f524"
+    },
+    {
+      "id": "drill-touch",
+      "filename": "drill-touch.mp3",
+      "speaker": "ungi",
+      "text": "문을 열기 전에 손등으로 살짝 만져 보자.",
+      "hash": "1cda23598c07f1a9"
+    },
+    {
+      "id": "drill-hot",
+      "filename": "drill-hot.mp3",
+      "speaker": "yeongi",
+      "text": "뜨거워! 이 문은 열지 말고 다른 길로 가자.",
+      "hash": "b379d9231d66cef6"
+    },
+    {
+      "id": "drill-cool",
+      "filename": "drill-cool.mp3",
+      "speaker": "ungi",
+      "text": "뜨겁지 않아. 지나가자.",
+      "hash": "449adede8bf7b852"
+    },
+    {
+      "id": "drill-close-tip",
+      "filename": "drill-close-tip.mp3",
+      "speaker": "ungi",
+      "text": "지나온 문을 닫으면 불이 천천히 번져.",
+      "hash": "5fdd63bb79026fa9"
+    },
+    {
+      "id": "drill-closed",
+      "filename": "drill-closed.mp3",
+      "speaker": "ilgu",
+      "text": "문을 닫았어! 아주 잘했어.",
+      "hash": "6770c1dbec4c246c"
+    },
+    {
+      "id": "drill-no-door",
+      "filename": "drill-no-door.mp3",
+      "speaker": "ungi",
+      "text": "거기로 가는 문이 없어. 문이 있는 쪽으로 가자.",
+      "hash": "4a94d2d2ed3cf4a6"
+    },
+    {
+      "id": "drill-outside",
+      "filename": "drill-outside.mp3",
+      "speaker": "ilgu",
+      "text": "밖으로 나왔어! 이제 만나는 곳으로 가자.",
+      "hash": "65bf2cf16c55b1cb"
+    },
+    {
+      "id": "drill-call",
+      "filename": "drill-call.mp3",
+      "speaker": "ilgu",
+      "text": "가족을 만났어! 이제 일일구에 불이 났다고 말하고 우리 집 주소를 알려 주자.",
+      "hash": "e3dac350fc09b6be"
+    },
+    {
+      "id": "drill-rescue",
+      "filename": "drill-rescue.mp3",
+      "speaker": "ilgu",
+      "text": "나갈 길이 막혔어. 문을 닫고 창가에서 일일구에 구조를 요청하자.",
+      "hash": "3155c8984669382c"
+    },
+    {
+      "id": "review",
+      "filename": "review.mp3",
+      "speaker": "ilgu",
+      "text": "끝까지 해냈어! 잘한 점을 보고, 쓰리디로 다시 본 다음 지도를 인쇄해 보자.",
+      "hash": "7e1ac7cb08f4e32e"
+    },
+    {
+      "id": "review-no-drill",
+      "filename": "review-no-drill.mp3",
+      "speaker": "ilgu",
+      "text": "지도를 인쇄할 수 있어. 대피 연습을 하면 잘한 점도 볼 수 있어.",
+      "hash": "eb9f83d3e3e41776"
+    },
+    {
+      "id": "replay",
+      "filename": "replay.mp3",
+      "speaker": "ilgu",
+      "text": "내가 나온 길을 다시 보자.",
+      "hash": "13ae7473ddb749c3"
+    },
+    {
+      "id": "help-fill",
+      "filename": "help-fill.mp3",
+      "speaker": "ungi",
+      "text": "아직 빠진 게 있어. 내가 채워 줄까?",
+      "hash": "681fab5cbb475b0f"
+    }
+  ]
+}

@@ -783,13 +783,19 @@ def download_latest_audio(
         )
     download_dir.mkdir(parents=True, exist_ok=True)
 
-    button = choose_latest_visible(page.get_by_role("button", name=DOWNLOAD_NAME))
-    if button is None:
-        button = choose_latest_visible(
-            page.locator(
-                'button[aria-label*="download" i], button[title*="download" i]'
+    # 생성 완료 표시와 다운로드 단추가 뜨는 때가 조금 어긋난다. 이미 크레딧을 쓴 뒤이므로 기다린다.
+    button = None
+    deadline = time.monotonic() + min(timeout_ms, 30_000) / 1000
+    while button is None and time.monotonic() < deadline:
+        button = choose_latest_visible(page.get_by_role("button", name=DOWNLOAD_NAME))
+        if button is None:
+            button = choose_latest_visible(
+                page.locator(
+                    'button[aria-label*="download" i], button[title*="download" i]'
+                )
             )
-        )
+        if button is None:
+            page.wait_for_timeout(300)
     if button is None:
         raise AutomationError("생성 결과의 다운로드 단추를 찾지 못했다.")
 

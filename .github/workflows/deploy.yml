@@ -53,6 +53,16 @@ jobs:
           npx playwright install --with-deps chromium
           npm run smoke
 
+      # V2 는 독립 프로젝트다(V2/docs/DESIGN.md §12). 자기 검증을 통과해야 함께 실린다.
+      # 브라우저는 바로 위 단계에서 깔았다 — V2 도 같은 Playwright 판을 쓴다.
+      - name: V2 의존성
+        working-directory: V2
+        run: npm ci
+
+      - name: V2 검증
+        working-directory: V2
+        run: npm run verify
+
       - name: 산출물 보관
         uses: actions/upload-artifact@v4
         with:
@@ -91,6 +101,11 @@ jobs:
         run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}
+
+      # pack.ts 가 선캐시 목록을 만든 뒤에 넣는다. V2 는 지금 판의 서비스 워커에 들어가지 않는다.
+      - name: V2 를 사이트에 싣기
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cp -r V2/dist out/V2
 
       - name: Pages 업로드
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

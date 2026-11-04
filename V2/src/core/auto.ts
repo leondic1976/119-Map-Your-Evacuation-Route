@@ -2,14 +2,14 @@
  * 「도와줘」 — 모르는 아이를 막다른 길로 보내지 않는 무난한 기본값.
  * 이미 해 둔 것은 지우지 않고 빈 곳만 채운다.
  */
-import { analyze, edgeSides, isExterior, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
+import { analyze, edgeKeys, edgeLength, edgeSides, isExterior, parseEdge, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
 import { normalize } from './edit';
 import { OUT, type Band, type Cell, type Layout, type Plan, type Pt } from './types';
 
 /** 칸마다 맞닿은 다른 칸의 수 */
-function neighborCounts(plan: Plan, layout: Layout): Map<string, number> {
+function neighborCounts(layout: Layout): Map<string, number> {
   const seen = new Map<string, Set<string>>();
-  for (const edge of plan.walls) {
+  for (const edge of edgeKeys(layout)) {
     const [p, q] = edgeSides(layout, edge);
     const a = layout.cellAt.get(p);
     const b = layout.cellAt.get(q);
@@ -25,7 +25,7 @@ function neighborCounts(plan: Plan, layout: Layout): Map<string, number> {
 /** 칸 표지 채우기 — 다른 칸과 가장 많이 닿은 큰 칸이 지나가는 곳이다 */
 export function autoTag(plan: Plan, band: Band): Plan {
   const layout = analyze(plan);
-  const counts = neighborCounts(plan, layout);
+  const counts = neighborCounts(layout);
   const tags = { ...plan.tags };
   const named = band !== 'low';
 
@@ -36,14 +36,14 @@ export function autoTag(plan: Plan, band: Band): Plan {
     : [...layout.cells].sort(
         (a, b) =>
           (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) ||
-          b.squares.length - a.squares.length ||
+          b.area - a.area ||
           (a.id < b.id ? -1 : 1),
       )[0];
 
   const roomNames = ['main', 'myroom', 'kitchen', 'bath', 'other', 'other', 'other'];
   const used = new Set(layout.cells.map((c) => c.name).filter(Boolean) as string[]);
   const free = roomNames.filter((n) => n === 'other' || !used.has(n));
-  const bigFirst = [...empty].sort((a, b) => b.squares.length - a.squares.length || (a.id < b.id ? -1 : 1));
+  const bigFirst = [...empty].sort((a, b) => b.area - a.area || (a.id < b.id ? -1 : 1));
 
   for (const cell of bigFirst) {
     if (layout.cells.length > 1 && hub && cell.id === hub.id) {
@@ -56,8 +56,8 @@ export function autoTag(plan: Plan, band: Band): Plan {
 }
 
 /** 두 칸이 맞닿은 벽 조각들 */
-function sharedEdges(plan: Plan, layout: Layout, a: string, b: string): string[] {
-  return plan.walls.filter((edge) => {
+function sharedEdges(layout: Layout, a: string, b: string): string[] {
+  return edgeKeys(layout).filter((edge) => {
     const [p, q] = edgeSides(layout, edge);
     const x = layout.cellAt.get(p);
     const y = layout.cellAt.get(q);
@@ -65,7 +65,12 @@ function sharedEdges(plan: Plan, layout: Layout, a: string, b: string): string[]
   });
 }
 
-const middle = <T,>(items: T[]): T => items[Math.floor((items.length - 1) / 2)]!;
+/** 가운데 벽을 고른다. 문이 들어갈 만큼 긴 토막이 있으면 그중에서 고른다 */
+const middle = (items: string[]): string => {
+  const roomy = items.filter((e) => edgeLength(e) >= 0.6);
+  const list = roomy.length ? roomy : items;
+  return list[Math.floor((list.length - 1) / 2)]!;
+};
 
 /** 문 채우기 — 모든 칸이 밖까지 이어지게 문을 단다 */
 export function autoDoors(input: Plan): Plan {
@@ -75,17 +80,17 @@ export function autoDoors(input: Plan): Plan {
   if (layout.cells.length === 0) return plan;
   if (!layout.links.some((l) => l.b === OUT)) {
     const order = [...layout.cells].sort(
-      (a, b) => Number(b.kind === 'pass') - Number(a.kind === 'pass') || b.squares.length - a.squares.length,
+      (a, b) => Number(b.kind === 'pass') - Number(a.kind === 'pass') || b.area - a.area,
     );
     for (const cell of order) {
-      const edges = plan.walls.filter(
+      const edges = edgeKeys(layout).filter(
         (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(layout, e).some((s) => layout.cellAt.get(s) === cell.id),
       );
       if (edges.length) {
         // 아래쪽 겉벽을 먼저 쓴다 — 지도에서 「집 밖」이 아래에 있어 길이 곧게 이어진다
-        const bottom = edges.filter((e) => e.startsWith('h:')).sort((a, b) => Number(b.split(':')[2]) - Number(a.split(':')[2]));
-        const lowY = bottom[0]?.split(':')[2];
-        const pick = bottom.length ? middle(bottom.filter((e) => e.split(':')[2] === lowY)) : middle(edges);
+        const bottom = edges.filter((e) => e.startsWith('h:')).sort((a, b) => parseEdge(b).y - parseEdge(a).y);
+        const lowY = bottom[0] ? parseEdge(bottom[0]).y : null;
+        const pick = bottom.length ? middle(bottom.filter((e) => parseEdge(e).y === lowY)) : middle(edges);
         plan = normalize({ ...plan, openings: { ...plan.openings, [pick]: 'door' } });
         break;
       }
@@ -104,7 +109,7 @@ export function autoDoors(input: Plan): Plan {
       // 지나가는 곳을 먼저 잇는다
       others.sort((a, b) => Number(b.kind === 'pass') - Number(a.kind === 'pass'));
       for (const other of others) {
-        const shared = sharedEdges(plan, layout, cell.id, other.id).filter((e) => !plan.openings[e]);
+        const shared = sharedEdges(layout, cell.id, other.id).filter((e) => !plan.openings[e]);
         if (shared.length) {
           picked = middle(shared);
           break;
@@ -115,12 +120,12 @@ export function autoDoors(input: Plan): Plan {
     if (!picked) {
       // 이어진 칸과 닿지 않는 섬 — 겉벽에 문을 낸다
       const island = stuck[0]!;
-      const edges = plan.walls.filter(
+      const edges = edgeKeys(layout).filter(
         (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(layout, e).some((s) => layout.cellAt.get(s) === island.id),
       );
       if (!edges.length) {
         // 다른 섬과만 닿아 있다
-        const inner = plan.walls.filter((e) => {
+        const inner = edgeKeys(layout).filter((e) => {
           const [p, q] = edgeSides(layout, e);
           const x = layout.cellAt.get(p);
           const y = layout.cellAt.get(q);
@@ -150,7 +155,9 @@ export function autoMarks(input: Plan, band: Band): Plan {
   );
 
   const free = (cell: Cell): Pt | null => {
-    const near = [...cell.squares].sort(
+    // 표시가 벽에 걸리지 않게 너무 작은 조각은 피한다
+    const roomy = cell.squares.filter((s) => s.area >= 0.2);
+    const near = [...(roomy.length ? roomy : cell.squares)].sort(
       (a, b) => Math.hypot(a.center.x - cell.anchor.x, a.center.y - cell.anchor.y) - Math.hypot(b.center.x - cell.anchor.x, b.center.y - cell.anchor.y),
     );
     // 글자가 놓이는 가운데 조각을 피한다
@@ -169,7 +176,7 @@ export function autoMarks(input: Plan, band: Band): Plan {
   const any = layout.cells[0]!;
 
   if (!marks.me) {
-    const home = byName('myroom') ?? [...rooms].sort((a, b) => a.squares.length - b.squares.length)[0] ?? any;
+    const home = byName('myroom') ?? [...rooms].sort((a, b) => a.area - b.area)[0] ?? any;
     const p = free(home);
     if (p) marks.me = p;
   }

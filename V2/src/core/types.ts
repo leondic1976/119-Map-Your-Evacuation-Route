@@ -24,9 +24,9 @@ export type MarkId = 'me' | 'meet' | 'gas' | 'extinguisher' | 'alarm';
 export interface Plan {
   cols: number;
   rows: number;
-  /** 벽 조각 열쇠 (`h:x:y` · `v:x:y` · 대각선 `d:x:y` · `u:x:y`) */
+  /** 벽 조각 열쇠 (`h:x:y` · `v:x:y` · 대각선 `d:x:y` · `u:x:y` · 그 밖의 각도 `s:x1:y1:x2:y2`) */
   walls: string[];
-  /** 벽 조각 열쇠 → 문·창 */
+  /** 벽 토막 열쇠 → 문·창. 엇갈리지 않은 벽은 벽 열쇠와 같다 */
   openings: Record<string, OpeningKind>;
   /** 조각 열쇠(`x,y` · `x,y:ne`) → 칸 표지 */
   tags: Record<string, CellTag>;
@@ -40,11 +40,37 @@ export interface Plan {
 
 export const OUT = 'out';
 
-/** 칸을 이루는 조각 — 네모 하나이거나, 대각선에 나뉜 세모 하나다 */
+/** 칸을 이루는 조각 — 네모 하나이거나, 비스듬한 벽에 나뉜 볼록한 조각 하나다 */
 export interface Piece extends Pt {
   key: string;
   whole: boolean;
   center: Pt;
+  polygon: Pt[];
+  area: number;
+}
+
+/** 이웃한 조각. 맞닿은 변의 가운데(portal)를 지나 건너간다 */
+export interface Neighbor {
+  to: string;
+  sq: Pt;
+  /** 사이에 놓일 수 있는 가로세로 벽 조각 */
+  edge: string;
+  portal: Pt;
+}
+
+/** 벽 토막 — 다른 벽과 엇갈린 자리에서 나뉜 한 구간 */
+export interface EdgeInfo {
+  key: string;
+  wall: string;
+  a: Pt;
+  b: Pt;
+  mid: Pt;
+  /** 양쪽 조각 열쇠. 모눈 밖일 수 있다 */
+  sides: [string, string];
+  t0: number;
+  t1: number;
+  /** 칸에 붙은 벽을 넘어 집 밖으로 삐져나온 꼬리 — 그리지 않는다 */
+  hidden: boolean;
 }
 
 export interface Cell {
@@ -53,6 +79,8 @@ export interface Cell {
   squares: Piece[];
   /** 글자를 놓을 자리 — 무게 중심에 가장 가까운 조각의 가운데 */
   anchor: Pt;
+  /** 넓이(네모 단위) */
+  area: number;
   kind: CellKind | null;
   name: string | null;
 }
@@ -70,6 +98,10 @@ export interface Layout {
   /** 조각 열쇠 → 칸 id. 칸이 아닌 조각은 없다 */
   cellAt: Map<string, string>;
   links: Link[];
-  /** 대각선 벽 조각들 */
-  diagonals: Set<string>;
+  /** 네모 열쇠 → 그 네모의 조각들 */
+  pieces: Map<string, Piece[]>;
+  /** 조각 열쇠 → 이웃 조각들 */
+  adjacent: Map<string, Neighbor[]>;
+  /** 벽 토막 열쇠 → 토막 */
+  edges: Map<string, EdgeInfo>;
 }

@@ -15,7 +15,7 @@ export function howToFor(step: HowToStep, band: Band): HowTo {
     case 'draw':
       return {
         title: '집은 이렇게 그려',
-        steps: ['점을 누른 채로 다음 점까지 끌어.', '점을 하나씩 차례로 눌러도 돼.', '비스듬한 옆 점으로 끌면 비스듬한 벽이 돼.', '빙 둘러 닫으면 칸이 생겨.'],
+        steps: ['점을 누른 채로 다음 점까지 끌어.', '점을 하나씩 차례로 눌러도 돼.', '먼 점까지 곧게 끌면 비스듬한 벽이 돼.', '빙 둘러 닫으면 칸이 생겨.'],
         line: 'howto-draw',
       };
     case 'sort':

@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { DrillState, Snapshot } from '../../core/drill';
-import { analyze, edgeEnds, edgeSides, parseEdge, piecePolygon, sqKey } from '../../core/grid';
+import { fitFurniture, type Footprint } from '../../core/furnish';
+import { analyze, edgeKeys, edgeEnds, edgeSides, parseEdge } from '../../core/grid';
 import { pointAlong, polylineLength, routePoints } from '../../core/path';
-import { OUT, type Cell, type Plan, type Pt } from '../../core/types';
+import { OUT, type Cell, type Layout, type Plan, type Pt } from '../../core/types';
 import { FIRE } from '../../content/fire';
 import { LOOKS, type LookId } from '../../content/names';
 import { IconClose, IconPlay } from '../art';
@@ -78,14 +79,22 @@ function crayonTexture(base: string, stripe: string): THREE.CanvasTexture {
   return tex;
 }
 
-/** 대각선에 나뉜 세모 바닥 */
-function triangleFloor(key: string): THREE.BufferGeometry {
-  const [a, b, c] = piecePolygon(key) as [Pt, Pt, Pt];
+/** 비스듬한 벽에 나뉜 조각의 바닥. 조각은 볼록해서 부채꼴로 나누면 된다 */
+function pieceFloor(polygon: Pt[]): THREE.BufferGeometry {
+  const ox = Math.min(...polygon.map((p) => p.x));
+  const oy = Math.min(...polygon.map((p) => p.y));
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const first = polygon[0]!;
+  for (let i = 1; i < polygon.length - 1; i++) {
+    for (const p of [first, polygon[i + 1]!, polygon[i]!]) {
+      positions.push(p.x, 0, p.y);
+      uvs.push(p.x - ox, p.y - oy);
+    }
+  }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute([a.x, 0, a.y, c.x, 0, c.y, b.x, 0, b.y], 3));
-  const ox = Math.min(a.x, b.x, c.x);
-  const oy = Math.min(a.y, b.y, c.y);
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute([a.x - ox, a.y - oy, c.x - ox, c.y - oy, b.x - ox, b.y - oy], 2));
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -93,41 +102,83 @@ function triangleFloor(key: string): THREE.BufferGeometry {
 /** 열린 문짝의 각도. 벽을 가로로 놓은 틀 안에서 돈다 */
 const doorOpenAngle = (edge: string): number => (parseEdge(edge).o === 'h' ? -1.25 : 1.25);
 
-/** 칸 이름에 맞는 가구를 저절로 놓는다. 아이가 고를 일을 늘리지 않는다 */
-function furnish(group: THREE.Group, cell: Cell, avoid: Set<string>): void {
-  // 가구는 네모 전체에만 놓는다. 세모 조각에는 벽을 뚫고 나간다
-  const free = cell.squares.filter((s) => s.whole && !avoid.has(sqKey(s.x, s.y)));
-  const spot = free[0] ?? null;
-  if (!spot) return;
-  const x = spot.x + 0.5;
-  const z = spot.y + 0.5;
-  const add = (m: THREE.Mesh) => group.add(m);
-  switch (cell.name ?? (cell.kind === 'room' ? 'main' : null)) {
-    case 'main':
-    case 'myroom':
-    case 'other':
-      add(box(0.62, 0.2, 0.85, material(0xf4f0e4), x, 0.12, z));
-      add(box(0.62, 0.1, 0.34, material(0x8cb7d9), x, 0.26, z - 0.22));
-      add(box(0.62, 0.3, 0.05, material(0x9a7a55), x, 0.17, z - 0.45));
-      break;
-    case 'kitchen':
-      add(box(0.8, 0.42, 0.34, material(0xe8e2d0), x, 0.21, z - 0.2));
-      add(box(0.6, 0.3, 0.6, material(0xb98a5e), x, 0.15, z + 0.28));
-      break;
-    case 'bath':
-      add(box(0.3, 0.3, 0.42, material(0xffffff, 0.4), x, 0.15, z));
-      break;
-    case 'living':
-      add(box(0.85, 0.22, 0.34, material(0x7fa3c7), x, 0.11, z - 0.22));
-      add(box(0.85, 0.34, 0.1, material(0x6f93b6), x, 0.17, z - 0.38));
-      add(box(0.46, 0.14, 0.3, material(0xb98a5e), x, 0.07, z + 0.2));
-      break;
-    case 'veranda':
-      add(box(0.3, 0.3, 0.3, material(0x6aa76a), x, 0.15, z));
-      break;
-    default:
-      break;
+/** 가구 한 벌. 등이 -z 이고 앞이 +z 이며, 가운데가 원점이다 */
+interface FurnitureSet extends Footprint {
+  /** [폭, 높이, 깊이, 색, 거칠기, x, y, z] */
+  parts: [number, number, number, number, number, number, number, number][];
+}
+
+const BED: FurnitureSet = {
+  w: 0.62,
+  d: 0.9,
+  parts: [
+    [0.62, 0.2, 0.85, 0xf4f0e4, 0.85, 0, 0.12, 0.025],
+    [0.62, 0.1, 0.34, 0x8cb7d9, 0.85, 0, 0.26, -0.195],
+    [0.62, 0.3, 0.05, 0x9a7a55, 0.85, 0, 0.17, -0.425],
+  ],
+};
+
+/** 칸 이름 → 넓은 칸의 가구, 좁은 칸의 가구 */
+const FURNITURE: Record<string, FurnitureSet[]> = {
+  bed: [BED],
+  kitchen: [
+    {
+      w: 0.8,
+      d: 0.95,
+      parts: [
+        [0.8, 0.42, 0.34, 0xe8e2d0, 0.85, 0, 0.21, -0.305],
+        [0.6, 0.3, 0.6, 0xb98a5e, 0.85, 0, 0.15, 0.175],
+      ],
+    },
+    { w: 0.8, d: 0.34, parts: [[0.8, 0.42, 0.34, 0xe8e2d0, 0.85, 0, 0.21, 0]] },
+  ],
+  bath: [{ w: 0.3, d: 0.42, parts: [[0.3, 0.3, 0.42, 0xffffff, 0.4, 0, 0.15, 0]] }],
+  living: [
+    {
+      w: 0.85,
+      d: 0.78,
+      parts: [
+        [0.85, 0.22, 0.34, 0x7fa3c7, 0.85, 0, 0.11, -0.18],
+        [0.85, 0.34, 0.1, 0x6f93b6, 0.85, 0, 0.17, -0.34],
+        [0.46, 0.14, 0.3, 0xb98a5e, 0.85, 0, 0.07, 0.24],
+      ],
+    },
+    {
+      w: 0.85,
+      d: 0.38,
+      parts: [
+        [0.85, 0.22, 0.34, 0x7fa3c7, 0.85, 0, 0.11, 0.02],
+        [0.85, 0.34, 0.1, 0x6f93b6, 0.85, 0, 0.17, -0.14],
+      ],
+    },
+  ],
+  veranda: [{ w: 0.3, d: 0.3, parts: [[0.3, 0.3, 0.3, 0x6aa76a, 0.85, 0, 0.15, 0]] }],
+};
+
+const FURNITURE_OF: Record<string, string> = { main: 'bed', myroom: 'bed', other: 'bed', kitchen: 'kitchen', bath: 'bath', living: 'living', veranda: 'veranda' };
+
+/**
+ * 칸 이름에 맞는 가구를 저절로 놓는다. 아이가 고를 일을 늘리지 않는다.
+ * 칸 모양에 맞춰 등을 벽에 대고 크기를 줄이므로 세모 칸에도 들어간다. 지나는 길은 비운다.
+ */
+function furnish(group: THREE.Group, plan: Plan, layout: Layout, cell: Cell, keepClear: Pt[][]): boolean {
+  const name = cell.name ?? (cell.kind === 'room' ? 'main' : null);
+  const sets = name ? FURNITURE[FURNITURE_OF[name] ?? ''] : undefined;
+  if (!sets) return false;
+  for (const [i, set] of sets.entries()) {
+    // 작은 한 벌이 남아 있으면 큰 한 벌은 너무 줄이지 않는다
+    const scales = i < sets.length - 1 ? [1, 0.85, 0.7] : [1, 0.85, 0.7, 0.55, 0.45];
+    const spot = fitFurniture(plan, layout, cell, set, { keepClear, scales });
+    if (!spot) continue;
+    const piece = new THREE.Group();
+    piece.position.set(spot.x, 0, spot.y);
+    piece.rotation.y = Math.atan2(spot.front.x, spot.front.y) + (spot.sideways ? Math.PI / 2 : 0);
+    piece.scale.setScalar(spot.scale);
+    for (const [w, h, d, color, rough, x, y, z] of set.parts) piece.add(box(w, h, d, material(color, rough), x, y, z));
+    group.add(piece);
+    return true;
   }
+  return false;
 }
 
 /** 불꽃 — 노이즈 셰이더로 흔들린다 */
@@ -302,7 +353,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     for (const cell of layout.cells) {
       const mat = cell.kind === 'room' ? floorMat.room : cell.kind === 'pass' ? floorMat.pass : floorMat.none;
       for (const s of cell.squares) {
-        const m = s.whole ? new THREE.Mesh(floorGeo, mat) : new THREE.Mesh(triangleFloor(s.key), mat);
+        const m = s.whole ? new THREE.Mesh(floorGeo, mat) : new THREE.Mesh(pieceFloor(s.polygon), mat);
         if (s.whole) {
           m.rotation.x = -Math.PI / 2;
           m.position.set(s.x + 0.5, 0, s.y + 0.5);
@@ -321,10 +372,10 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const exitMat = material(0x2e8b57);
     const walls = new THREE.Group();
     scene.add(walls);
-    for (const edge of plan.walls) {
+    for (const edge of edgeKeys(layout)) {
       const [a, b] = edgeEnds(edge);
       const kind = plan.openings[edge];
-      // 벽을 가로로 놓고 만든 뒤 제 방향으로 돌린다. 대각선 벽은 √2 배 길다
+      // 벽을 가로로 놓고 만든 뒤 제 방향으로 돌린다. 비스듬한 벽은 더 길고, 엇갈린 토막은 더 짧을 수 있다
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const wall = new THREE.Group();
       wall.position.set((a.x + b.x) / 2, 0, (a.y + b.y) / 2);
@@ -336,42 +387,43 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         wall.add(piece(full, WALL_H, WALL_H / 2, 0, wallMat));
         wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
       } else if (kind === 'window') {
-        const side = length - 0.7;
+        const pane = Math.min(0.7, length - 0.12);
+        const side = length - pane;
         wall.add(piece(full, 0.4, 0.2, 0, wallMat));
         wall.add(piece(full, 0.14, WALL_H - 0.07, 0, wallMat));
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(0.35 + side / 4), wallMat));
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, 0.35 + side / 4, wallMat));
-        wall.add(piece(0.7, 0.42, 0.61, 0, glassMat));
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(pane / 2 + side / 4), wallMat));
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, pane / 2 + side / 4, wallMat));
+        wall.add(piece(pane, 0.42, 0.61, 0, glassMat));
         wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
       } else {
-        const side = length - 0.76;
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(0.38 + side / 4), wallMat));
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, 0.38 + side / 4, wallMat));
+        const leaf = Math.min(0.76, length - 0.12);
+        const side = length - leaf;
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(leaf / 2 + side / 4), wallMat));
+        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, leaf / 2 + side / 4, wallMat));
         wall.add(piece(full, 0.14, WALL_H - 0.07, 0, wallMat));
         wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
         const [p, q] = edgeSides(layout, edge);
         const isExit = layout.cellAt.has(p) !== layout.cellAt.has(q);
         // 경첩을 축으로 도는 문짝
         const pivot = new THREE.Group();
-        pivot.position.set(-0.38, 0, 0);
-        pivot.add(box(0.76, WALL_H - 0.16, 0.05, isExit ? exitMat : doorMat, 0.38, (WALL_H - 0.16) / 2, 0));
+        pivot.position.set(-leaf / 2, 0, 0);
+        pivot.add(box(leaf, WALL_H - 0.16, 0.05, isExit ? exitMat : doorMat, leaf / 2, (WALL_H - 0.16) / 2, 0));
         pivot.rotation.y = doorOpenAngle(edge);
         wall.add(pivot);
         doorPanels.set(edge, pivot);
       }
     }
 
-    // 가구 — 지나는 길을 비운다
-    const routeSquares = new Set<string>();
-    for (const snap of drill.timeline) {
-      for (const p of snap.walk) routeSquares.add(sqKey(Math.floor(p.x), Math.floor(p.y)));
-    }
+    // 나가는 길
+    const pathPoints = routePoints(plan, layout, plan.route);
+
+    // 가구 — 걸어간 길과 나가는 길을 비운다
     const furniture = new THREE.Group();
     scene.add(furniture);
-    for (const cell of layout.cells) furnish(furniture, cell, routeSquares);
+    const keepClear = [pathPoints, ...drill.timeline.map((snap) => snap.walk)];
+    const furnished = layout.cells.filter((cell) => furnish(furniture, plan, layout, cell, keepClear)).length;
+    mount.dataset.furnished = String(furnished);
 
-    // 나가는 길 띠
-    const pathPoints = routePoints(plan, layout, plan.route);
     if (pathPoints.length > 1) {
       const ribbon = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0xd6402f, roughness: 0.7, emissive: 0x6a1a10, emissiveIntensity: 0.25 });

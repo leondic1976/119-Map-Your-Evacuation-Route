@@ -7,6 +7,7 @@ import type { DrillState } from '../core/drill';
 import { addEdges, emptyPlan, normalize } from '../core/edit';
 import { analyze, unreachableCells } from '../core/grid';
 import { OUT, type Band, type Plan } from '../core/types';
+import type { View } from '../core/zoom';
 import { BANDS, bandOfGrade } from '../content/bands';
 import { howToFor, type HowToStep } from '../content/howto';
 import type { LineId } from '../content/lines';
@@ -51,6 +52,10 @@ export interface AppState {
   howTo: HowToStep | null;
   /** 이미 본 사용법 */
   seenHowTo: StepId[];
+  /** 지도를 얼마나 크게 어디를 보는지. 없으면 전체 보기다. 저장하지 않는다 */
+  view: View | null;
+  /** 끌면 그리는 대신 종이를 옮긴다 */
+  panMode: boolean;
 }
 
 interface Saved {
@@ -79,6 +84,8 @@ function initialState(): AppState {
     drillSeed: Date.now() % 100000,
     howTo: null,
     seenHowTo: host.load<StepId[]>('howto') ?? [],
+    view: null,
+    panMode: false,
   };
   if (!saved?.plan || !Array.isArray(saved.plan.walls)) return base;
   return {
@@ -137,6 +144,21 @@ export function say(id: LineId, after?: LineId): void {
     : undefined;
   if (state.soundOn) host.playVoice(id, next);
   else if (next) setTimeout(next, 3500);
+}
+
+/** 보는 자리는 저장하지 않으므로 손을 움직일 때마다 저장소를 건드리지 않는다 */
+function setQuiet(patch: Partial<AppState>): void {
+  state = { ...state, ...patch };
+  listeners.forEach((l) => l());
+}
+
+export function setView(view: View | null): void {
+  const next = view && view.scale > 1.001 ? view : null;
+  setQuiet({ view: next, panMode: next ? state.panMode : false });
+}
+
+export function setPanMode(on: boolean): void {
+  setQuiet({ panMode: on });
 }
 
 export function repeatLine(): void {
@@ -376,6 +398,8 @@ export function resetPlan(): void {
     templateId: defaultTemplateId(band),
     past: [],
     drill: null,
+    view: null,
+    panMode: false,
   });
   enterStep('draw');
 }

@@ -2,40 +2,46 @@
  * 지도 고치기. 어떤 조작이든 끝에 `normalize` 를 거쳐 앞뒤가 맞는 지도만 남긴다.
  * 모든 함수는 새 지도를 돌려주고 받은 지도를 바꾸지 않는다.
  */
-import { analyze, cellIdAt, dKey, edgeBetween, edgeInGrid, isExterior, isInterior, parseEdge, pieceCenter, pieceKeyAt, reachableFrom, sqKey, tagFor, uKey } from './grid';
+import { analyze, cellIdAt, edgeEnds, edgeInGrid, edgeMid, isExterior, isInterior, pieceCenter, pieceKeyAt, reachableFrom, segmentEdges, sqKey, tagFor, wallOf } from './grid';
 import { OUT, type CellTag, type Layout, type MarkId, type OpeningKind, type Plan, type Pt } from './types';
 
 export function emptyPlan(cols: number, rows: number): Plan {
   return { cols, rows, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [] };
 }
 
-/** 한 네모에 대각선은 하나만 — 나중에 그은 쪽이 남는다 */
-function withoutCrossings(walls: string[]): string[] {
-  const kept = new Set<string>();
-  for (const key of walls) {
-    const { o, x, y } = parseEdge(key);
-    if (o === 'd') kept.delete(uKey(x, y));
-    if (o === 'u') kept.delete(dKey(x, y));
-    kept.add(key);
+/**
+ * 문과 창을 벽 토막에 맞춘다. 다른 벽이 엇갈려 토막이 바뀌어도 있던 자리에 남는다.
+ * 그 자리가 꼬리 토막이면 쓸 수 있는 옆 토막으로 옮긴다.
+ */
+function placeOpenings(openings: Plan['openings'], layout: Layout): Plan['openings'] {
+  const out: Plan['openings'] = {};
+  const usable = (key: string): boolean => isExterior(layout, key) || isInterior(layout, key);
+  for (const [edge, kind] of Object.entries(openings)) {
+    const wall = wallOf(edge);
+    const pieces = [...layout.edges.values()].filter((e) => e.wall === wall);
+    if (pieces.length === 0) continue;
+    const [a, b] = edgeEnds(wall);
+    const m = edgeMid(edge);
+    const span = Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (m.x - a.x) / (b.x - a.x) : (m.y - a.y) / (b.y - a.y);
+    const near = pieces.filter((e) => e.t0 - 1e-3 <= span && span <= e.t1 + 1e-3);
+    const pick = near.find((e) => usable(e.key)) ?? pieces.find((e) => usable(e.key)) ?? near[0] ?? pieces[0]!;
+    if (!out[pick.key]) out[pick.key] = kind;
   }
-  return [...kept];
+  return out;
 }
 
 /** 벽이 바뀌어도 어긋나지 않게 맞춘다 */
 export function normalize(plan: Plan): Plan {
-  const walls = withoutCrossings(plan.walls).filter((k) => edgeInGrid(plan, k)).sort();
-  const wallSet = new Set(walls);
-  const openings: Plan['openings'] = {};
-  for (const [edge, kind] of Object.entries(plan.openings)) if (wallSet.has(edge)) openings[edge] = kind;
-
+  const walls = [...new Set(plan.walls)].filter((k) => edgeInGrid(plan, k)).sort();
+  const layout = analyze({ ...plan, walls, openings: {} });
+  const openings = placeOpenings(plan.openings, layout);
   const draft: Plan = { ...plan, walls, openings };
-  const layout = analyze(draft);
 
   // 표지 — 칸마다 하나만 남기고, 칸이 아닌 네모의 표지는 지운다
   const tags: Plan['tags'] = {};
   for (const cell of layout.cells) {
     for (const s of cell.squares) {
-      const tag = tagFor(plan.tags, s.key);
+      const tag = tagFor(plan.tags, s);
       if (tag) {
         tags[s.key] = tag;
         break;
@@ -54,7 +60,7 @@ export function normalize(plan: Plan): Plan {
     if (id === 'meet') {
       if (!cellIdAt(layout, at)) marks.meet = at;
     } else if (cellIdAt(layout, at)) {
-      // 대각선이 지나가도 표시가 벽에 걸리지 않게 조각 가운데로 옮긴다
+      // 비스듬한 벽이 지나가도 표시가 벽에 걸리지 않게 조각 가운데로 옮긴다
       marks[id] = pieceCenter(pieceKeyAt(layout, at));
     }
   }
@@ -94,7 +100,7 @@ export function trimRoute(plan: Plan, layout: Layout, route: string[]): string[]
 /** 점을 잇는 획을 벽으로 더한다 */
 export function addStroke(plan: Plan, dots: Pt[]): Plan {
   const add: string[] = [];
-  for (let i = 1; i < dots.length; i++) add.push(edgeBetween(dots[i - 1]!, dots[i]!));
+  for (let i = 1; i < dots.length; i++) add.push(...segmentEdges(dots[i - 1]!, dots[i]!));
   return normalize({ ...plan, walls: [...plan.walls, ...add] });
 }
 
@@ -103,7 +109,8 @@ export function addEdges(plan: Plan, edges: string[]): Plan {
 }
 
 export function removeWall(plan: Plan, edge: string): Plan {
-  return normalize({ ...plan, walls: plan.walls.filter((k) => k !== edge) });
+  const wall = wallOf(edge);
+  return normalize({ ...plan, walls: plan.walls.filter((k) => k !== wall) });
 }
 
 /** 칠하기. 같은 크레용으로 다시 누르면 지운다 */
@@ -124,7 +131,7 @@ export type OpeningResult = { plan: Plan; ok: true } | { plan: Plan; ok: false; 
 
 /** 문·창 달기. 같은 것을 다시 누르면 뗀다 */
 export function toggleOpening(plan: Plan, layout: Layout, edge: string, kind: OpeningKind): OpeningResult {
-  if (!plan.walls.includes(edge)) return { plan, ok: false, why: 'no-wall' };
+  if (!layout.edges.has(edge)) return { plan, ok: false, why: 'no-wall' };
   if (kind === 'window' && !isExterior(layout, edge)) return { plan, ok: false, why: 'window-inside' };
   const openings = { ...plan.openings };
   if (openings[edge] === kind) delete openings[edge];

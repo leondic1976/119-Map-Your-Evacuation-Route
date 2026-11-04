@@ -2,16 +2,32 @@
  * 지도 그림 — 그리기·대피 연습·인쇄가 모두 이 SVG 하나를 쓴다.
  * 네모 한 칸이 100 단위다. 포인터는 네모 단위 좌표로 바꿔서 알려 준다.
  */
-import { memo, useId, useMemo, useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { edgeEnds, edgeMid, edgeSides, isDiagonal, parseEdge, piecePolygon } from '../core/grid';
+import { memo, useEffect, useId, useMemo, useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { edgeAngle, edgeEnds, edgeKeys, edgeLength, edgeMid, edgeNormal, edgeSides, isSlanted } from '../core/grid';
 import { routePoints } from '../core/path';
+import { clampView, fullView, panBy, viewBoxOf, zoomAround, type Box } from '../core/zoom';
 import { OUT, type Layout, type MarkId, type Piece, type Plan, type Pt } from '../core/types';
 import { cellLabel, MARK_NAME, type LookId } from '../content/names';
+import { getApp, setView, useApp } from '../store/app';
 import { HandGlyph, MarkGlyph } from './art';
 
 export const U = 100;
 /** 그림 둘레 여백 — 집 위나 옆으로 나가는 화살표가 잘리지 않을 만큼 둔다 */
 const MARGIN = 84;
+const STRIP_GAP = 34;
+const STRIP_H = 112;
+
+/** 그림 전체의 범위 */
+export const planBox = (plan: Plan): Box => ({
+  x: -MARGIN,
+  y: -MARGIN,
+  w: plan.cols * U + MARGIN * 2,
+  h: plan.rows * U + STRIP_GAP + STRIP_H + MARGIN + 26,
+});
+
+/** 그리다가 손이 화면 가장자리에 이르면 종이가 따라 움직인다 */
+const EDGE_PX = 44;
+const EDGE_SPEED = 7;
 
 export interface PlanViewProps {
   plan: Plan;
@@ -37,7 +53,11 @@ export interface PlanViewProps {
   children?: ReactNode;
   className?: string;
   ariaLabel?: string;
-  onPointer?: (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt, e: RPointerEvent<SVGSVGElement>) => void;
+  /** 크게 보고 옮길 수 있다 */
+  zoomable?: boolean;
+  /** 끄는 손이 가장자리에 이르면 종이가 따라온다 */
+  edgePan?: boolean;
+  onPointer?: (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => void;
 }
 
 const wob = (s: string, n: number): number => {
@@ -57,8 +77,8 @@ function pencilPath(key: string, a: Pt, b: Pt): string {
   return `M${ax} ${ay}Q${mx} ${my} ${bx} ${by}`;
 }
 
-/** 대각선에 나뉜 세모 조각의 꼭짓점 */
-const trianglePoints = (s: Piece): string => piecePolygon(s.key).map((p) => `${p.x * U},${p.y * U}`).join(' ');
+/** 비스듬한 벽에 나뉜 조각의 꼭짓점 */
+const piecePoints = (s: Piece): string => s.polygon.map((p) => `${p.x * U},${p.y * U}`).join(' ');
 
 function PlanViewBase(props: PlanViewProps) {
   const { plan, layout, showDots, guide, stroke, armed, hotEdge, glow, warn, showRoute, hazard, closedDoors } = props;
@@ -70,21 +90,122 @@ function PlanViewBase(props: PlanViewProps) {
 
   const width = plan.cols * U;
   const height = plan.rows * U;
-  const stripTop = height + 34;
-  const stripH = 112;
+  const stripTop = height + STRIP_GAP;
+  const stripH = STRIP_H;
+  const box = planBox(plan);
+  const stored = useApp((s) => s.view);
+  const panMode = useApp((s) => s.panMode);
+  const zoomable = Boolean(props.zoomable);
+  const shown = zoomable && stored ? viewBoxOf(clampView(stored, box), box) : box;
 
-  const toPlan = (e: RPointerEvent<SVGSVGElement>): Pt => {
-    const svg = svgRef.current!;
-    const m = svg.getScreenCTM();
+  // 포인터 — 손가락 둘이면 그리지 않고 지도를 키우고 옮긴다
+  const fingers = useRef(new Map<number, Pt>());
+  const gesture = useRef<'pinch' | 'pan' | null>(null);
+  const lastPan = useRef<Pt>({ x: 0, y: 0 });
+  const lastPinch = useRef<{ dist: number; mid: Pt }>({ dist: 1, mid: { x: 0, y: 0 } });
+  const edgeFrame = useRef(0);
+  const latest = useRef({ box, onPointer: props.onPointer, edgePan: props.edgePan });
+  latest.current = { box, onPointer: props.onPointer, edgePan: props.edgePan };
+
+  /** 화면 좌표 → 그림 좌표 */
+  const toSvg = (c: Pt): Pt => {
+    const m = svgRef.current?.getScreenCTM();
     if (!m) return { x: 0, y: 0 };
-    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    return { x: pt.x / U, y: pt.y / U };
+    const pt = new DOMPoint(c.x, c.y).matrixTransform(m.inverse());
+    return { x: pt.x, y: pt.y };
   };
+  const toPlan = (c: Pt): Pt => {
+    const p = toSvg(c);
+    return { x: p.x / U, y: p.y / U };
+  };
+  const unitsPerPx = (): number => 1 / (svgRef.current?.getScreenCTM()?.a || 1);
+  const currentView = () => clampView(getApp().view ?? fullView(latest.current.box), latest.current.box);
+
+  const pinchInfo = (): { dist: number; mid: Pt } => {
+    const [a, b] = [...fingers.current.values()] as [Pt, Pt];
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+  };
+
+  /** 끄는 손이 가장자리에 머무는 동안 종이를 옮기고, 손 아래 자리가 바뀐 것을 알린다 */
+  const runEdgePan = () => {
+    edgeFrame.current = 0;
+    const svg = svgRef.current;
+    const finger = [...fingers.current.values()][0];
+    if (!svg || !finger || fingers.current.size !== 1 || gesture.current || !latest.current.edgePan || !getApp().view) return;
+    const r = svg.getBoundingClientRect();
+    const dx = finger.x < r.left + EDGE_PX ? -1 : finger.x > r.right - EDGE_PX ? 1 : 0;
+    const dy = finger.y < r.top + EDGE_PX ? -1 : finger.y > r.bottom - EDGE_PX ? 1 : 0;
+    if (!dx && !dy) return;
+    const view = currentView();
+    const step = EDGE_SPEED / view.scale;
+    setView(panBy(view, latest.current.box, dx * step * 1.6, dy * step * 1.6));
+    latest.current.onPointer?.('move', toPlan(finger));
+    edgeFrame.current = requestAnimationFrame(runEdgePan);
+  };
+
+  useEffect(() => () => cancelAnimationFrame(edgeFrame.current), []);
+
   const handle = (kind: 'down' | 'move' | 'up' | 'cancel') => (e: RPointerEvent<SVGSVGElement>) => {
     if (!props.onPointer) return;
+    const client = { x: e.clientX, y: e.clientY };
     if (kind === 'down') e.currentTarget.setPointerCapture(e.pointerId);
-    props.onPointer(kind, toPlan(e), e);
+    if (zoomable) {
+      if (kind === 'down') {
+        fingers.current.set(e.pointerId, client);
+        if (fingers.current.size === 2) {
+          // 그리던 획은 버린다 — 지도를 키우려던 손이다
+          props.onPointer('cancel', toPlan(client));
+          gesture.current = 'pinch';
+          lastPinch.current = pinchInfo();
+          return;
+        }
+        if (panMode || e.button === 1) {
+          gesture.current = 'pan';
+          lastPan.current = client;
+          return;
+        }
+      } else if (kind === 'move') {
+        if (fingers.current.has(e.pointerId)) fingers.current.set(e.pointerId, client);
+        if (gesture.current === 'pinch' && fingers.current.size >= 2) {
+          const now = pinchInfo();
+          const view = currentView();
+          const before = toSvg(lastPinch.current.mid);
+          const zoomed = zoomAround(view, box, (view.scale * now.dist) / lastPinch.current.dist, toSvg(now.mid));
+          setView(panBy(zoomed, box, before.x - toSvg(now.mid).x, before.y - toSvg(now.mid).y));
+          lastPinch.current = now;
+          return;
+        }
+        if (gesture.current === 'pan') {
+          const scale = unitsPerPx();
+          setView(panBy(currentView(), box, (lastPan.current.x - client.x) * scale, (lastPan.current.y - client.y) * scale));
+          lastPan.current = client;
+          return;
+        }
+        if (gesture.current) return;
+        if (props.edgePan && fingers.current.size === 1 && !edgeFrame.current) edgeFrame.current = requestAnimationFrame(runEdgePan);
+      } else {
+        fingers.current.delete(e.pointerId);
+        if (gesture.current) {
+          if (fingers.current.size === 0) gesture.current = null;
+          return;
+        }
+      }
+    }
+    props.onPointer(kind, toPlan(client));
   };
+
+  // 휠 — 손 아래 점을 기준으로 키운다
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || !zoomable) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const view = currentView();
+      setView(zoomAround(view, latest.current.box, view.scale * Math.exp(-e.deltaY * 0.0015), toSvg({ x: e.clientX, y: e.clientY })));
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, [zoomable]);
 
   const route1 = useMemo(() => (showRoute ? routePoints(plan, layout, plan.route) : []), [showRoute, plan, layout]);
   const route2 = useMemo(() => (showRoute ? routePoints(plan, layout, plan.route2) : []), [showRoute, plan, layout]);
@@ -95,8 +216,8 @@ function PlanViewBase(props: PlanViewProps) {
   return (
     <svg
       ref={svgRef}
-      className={`plan ${props.className ?? ''}`}
-      viewBox={`${-MARGIN} ${-MARGIN} ${width + MARGIN * 2} ${stripTop + stripH + MARGIN + 26}`}
+      className={`plan ${zoomable && panMode ? 'cursor-move' : (props.className ?? '')}`}
+      viewBox={`${shown.x} ${shown.y} ${shown.w} ${shown.h}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label={props.ariaLabel ?? '우리 집 지도'}
@@ -104,7 +225,8 @@ function PlanViewBase(props: PlanViewProps) {
       data-rows={plan.rows}
       data-cells={layout.cells.length}
       data-walls={plan.walls.length}
-      data-diagonals={plan.walls.filter(isDiagonal).length}
+      data-diagonals={plan.walls.filter(isSlanted).length}
+      data-scale={(box.w / shown.w).toFixed(2)}
       data-doors={Object.values(plan.openings).filter((o) => o === 'door').length}
       data-windows={Object.values(plan.openings).filter((o) => o === 'window').length}
       data-route={plan.route.join(' ')}
@@ -150,7 +272,7 @@ function PlanViewBase(props: PlanViewProps) {
               s.whole ? (
                 <rect key={s.key} data-piece={s.key} x={s.x * U - 0.5} y={s.y * U - 0.5} width={U + 1} height={U + 1} fill={fill} />
               ) : (
-                <polygon key={s.key} data-piece={s.key} points={trianglePoints(s)} fill={fill} />
+                <polygon key={s.key} data-piece={s.key} points={piecePoints(s)} fill={fill} stroke={fill} strokeWidth={1} />
               ),
             )}
           </g>
@@ -164,7 +286,7 @@ function PlanViewBase(props: PlanViewProps) {
             s.whole ? (
               <rect key={s.key} x={s.x * U + 6} y={s.y * U + 6} width={U - 12} height={U - 12} rx={10} fill="none" stroke="#b5651d" strokeWidth={6} strokeDasharray="14 12" />
             ) : (
-              <polygon key={s.key} points={trianglePoints(s)} fill="none" stroke="#b5651d" strokeWidth={6} strokeDasharray="14 12" />
+              <polygon key={s.key} points={piecePoints(s)} fill="none" stroke="#b5651d" strokeWidth={6} strokeDasharray="14 12" />
             ),
           )}
         </g>
@@ -177,7 +299,7 @@ function PlanViewBase(props: PlanViewProps) {
             s.whole ? (
               <rect key={s.key} x={s.x * U} y={s.y * U} width={U} height={U} fill="#ffffff" opacity=".6" />
             ) : (
-              <polygon key={s.key} points={trianglePoints(s)} fill="#ffffff" opacity=".6" />
+              <polygon key={s.key} points={piecePoints(s)} fill="#ffffff" opacity=".6" />
             ),
           )}
         </g>
@@ -194,7 +316,7 @@ function PlanViewBase(props: PlanViewProps) {
                 {s.whole ? (
                   <rect className="smoke-sq" x={s.x * U} y={s.y * U} width={U} height={U} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
                 ) : (
-                  <polygon className="smoke-sq" points={trianglePoints(s)} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
+                  <polygon className="smoke-sq" points={piecePoints(s)} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
                 )}
                 {lv === 3 && (
                   <g className="flame" style={{ animationDelay: `${(i % 4) * 0.25}s` }} transform={`translate(${s.center.x * U} ${s.center.y * U + 12})`}>
@@ -216,7 +338,7 @@ function PlanViewBase(props: PlanViewProps) {
 
       {/* 벽 */}
       <g className="walls">
-        {plan.walls.map((k) => {
+        {edgeKeys(layout).map((k) => {
           const [a, b] = edgeEnds(k);
           return <path key={k} d={pencilPath(k, a, b)} className={k === hotEdge ? 'wall hot' : 'wall'} />;
         })}
@@ -241,7 +363,7 @@ function PlanViewBase(props: PlanViewProps) {
             className="cell-label"
             x={cell.anchor.x * U}
             y={cell.anchor.y * U}
-            fontSize={label.length > 3 && cell.squares.length < 3 ? 22 : 28}
+            fontSize={label.length > 3 && cell.area < 2.5 ? 22 : 28}
           >
             {label}
           </text>
@@ -310,21 +432,13 @@ function RouteArrow({ points, color }: { points: Pt[]; color: string }) {
   );
 }
 
-const WALL_ANGLE = { h: 0, v: 90, d: 45, u: -45 } as const;
-const SLANT = Math.SQRT1_2;
-/** 벽에서 q 쪽을 향하는 방향 */
-const TOWARD_Q = {
-  h: { x: 0, y: 1 },
-  v: { x: 1, y: 0 },
-  d: { x: -SLANT, y: SLANT },
-  u: { x: SLANT, y: SLANT },
-} as const;
-
 function OpeningShape({ edge, kind, layout, closed, hot }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean }) {
-  const { o } = parseEdge(edge);
   const m = edgeMid(edge);
-  // 문과 창을 가로 100 으로 그린 뒤 벽 가운데로 옮겨 돌린다. 대각선 벽은 더 길어서 양옆에 벽이 남는다
-  const place = `translate(${m.x * U} ${m.y * U}) rotate(${WALL_ANGLE[o]}) translate(-50 0)`;
+  const angle = edgeAngle(edge);
+  const normal = edgeNormal(edge);
+  // 문과 창을 가로 100 으로 그린 뒤 벽 가운데로 옮겨 돌린다. 긴 벽은 양옆에 벽이 남고, 벽보다 크면 줄인다
+  const fit = Math.min(1, edgeLength(edge));
+  const place = `translate(${m.x * U} ${m.y * U}) rotate(${angle}) scale(${fit}) translate(-50 0)`;
   if (kind === 'window') {
     const line = hot ? '#1d5f96' : '#2f7fbf';
     return (
@@ -340,15 +454,17 @@ function OpeningShape({ edge, kind, layout, closed, hot }: { edge: string; kind:
   const qCell = layout.cellAt.get(q);
   const exit = Boolean(pCell) !== Boolean(qCell);
   const color = hot ? '#2f7fbf' : exit ? '#2e8b57' : '#9a5b2a';
-  // 문짝은 방 쪽으로 열린다. 그림 +y 는 대개 q 쪽이고, 세로 벽만 돌아가면서 p 쪽이 된다
+  // 문짝은 방 쪽으로 열린다. 돌린 그림의 +y 가 q 쪽인지 p 쪽인지 재서 고른다
   const roomP = pCell ? layout.byId.get(pCell)?.kind === 'room' : false;
   const roomQ = qCell ? layout.byId.get(qCell)?.kind === 'room' : false;
   const toQ = exit ? Boolean(qCell) : roomQ || !roomP;
-  const swing = (o === 'v' ? !toQ : toQ) ? 1 : -1;
+  const rad = (angle * Math.PI) / 180;
+  const yIsQ = -Math.sin(rad) * normal.x + Math.cos(rad) * normal.y > 0;
+  const swing = yIsQ === toQ ? 1 : -1;
   // 밖으로 나가는 쪽
   const toward = pCell ? 1 : -1;
-  const nx = TOWARD_Q[o].x * toward;
-  const ny = TOWARD_Q[o].y * toward;
+  const nx = normal.x * toward;
+  const ny = normal.y * toward;
   return (
     <g data-door={edge} data-exit={exit ? '1' : '0'}>
       <g transform={place}>

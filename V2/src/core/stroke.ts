@@ -1,11 +1,11 @@
 /**
  * 점 잇기 — 포인터를 따라 점을 이어 간다.
  *
- * 끌면 지나는 점마다 선이 늘어나고, 방금 지나온 점으로 돌아가면 줄어든다.
- * 멀리 떨어진 점을 바로 누르면 가로 또는 세로로 먼저 간 뒤 꺾어 이어 준다.
- * 가로와 세로의 거리가 같으면 대각선으로 곧게 잇는다. 그 밖의 비스듬한 각도는 없어서 삐뚤게 그려질 일이 없다.
+ * 벽의 두 끝은 언제나 점이고, 두 점을 곧게 잇는다. 각도는 정해져 있지 않다.
+ * 끌 때는 손이 지나온 자리가 지금 잡힌 점까지 곧으면 한 줄로 보고, 곧지 않으면 거기서 꺾은 것으로 본다.
+ * 그래서 비스듬한 벽을 그을 수 있으면서도 네모 집을 그리는 아이의 모서리가 깎이지 않는다.
  */
-import { edgeEnds } from './grid';
+import { dotsBetween, edgeEnds } from './grid';
 import type { Plan, Pt } from './types';
 
 export const sameDot = (a: Pt, b: Pt): boolean => a.x === b.x && a.y === b.y;
@@ -18,68 +18,98 @@ export function nearestDot(plan: Plan, p: Pt, radius = 0.5): Pt | null {
   return Math.hypot(p.x - x, p.y - y) <= radius ? { x, y } : null;
 }
 
-/** 획을 dot 까지 잇는다. diagonal 이 false 면 대각선으로 잇지 않고 꺾는다 */
-export function extendStroke(stroke: Pt[], dot: Pt, diagonal = true): Pt[] {
+/** 획을 dot 까지 잇는다. straight 가 false 면 곧게 잇지 않고 가로세로로 꺾는다 */
+export function extendStroke(stroke: Pt[], dot: Pt, straight = true): Pt[] {
   if (stroke.length === 0) return [dot];
   const last = stroke[stroke.length - 1]!;
   if (sameDot(last, dot)) return stroke;
   const before = stroke[stroke.length - 2];
   if (before && sameDot(before, dot)) return stroke.slice(0, -1);
 
-  const out = [...stroke];
-  let at = last;
-  if (diagonal && Math.abs(dot.x - at.x) === Math.abs(dot.y - at.y)) {
-    while (!sameDot(at, dot)) {
-      at = { x: at.x + Math.sign(dot.x - at.x), y: at.y + Math.sign(dot.y - at.y) };
-      out.push(at);
-    }
-    return out;
-  }
+  if (straight) return [...stroke, ...dotsBetween(last, dot).slice(1)];
   // 더 많이 움직인 쪽부터 간다
-  const xFirst = Math.abs(dot.x - at.x) >= Math.abs(dot.y - at.y);
-  const stepX = (): void => {
-    while (at.x !== dot.x) {
-      at = { x: at.x + Math.sign(dot.x - at.x), y: at.y };
-      out.push(at);
-    }
-  };
-  const stepY = (): void => {
-    while (at.y !== dot.y) {
-      at = { x: at.x, y: at.y + Math.sign(dot.y - at.y) };
-      out.push(at);
-    }
-  };
-  if (xFirst) {
-    stepX();
-    stepY();
-  } else {
-    stepY();
-    stepX();
-  }
-  return out;
+  const corner = Math.abs(dot.x - last.x) >= Math.abs(dot.y - last.y) ? { x: dot.x, y: last.y } : { x: last.x, y: dot.y };
+  return [...stroke, ...dotsBetween(last, corner).slice(1), ...dotsBetween(corner, dot).slice(1)];
 }
 
-/** 대각선 줄에서 이만큼(네모 단위) 벗어나면 대각선을 그으려던 것이 아니다 */
-const DIAGONAL_TOLERANCE = 0.25;
+/** 끄는 동안 점을 잡는 거리. 얕은 각도로 지나갈 때 옆 점에 덜 끌린다 */
+export const DRAG_RADIUS = 0.38;
+/** 곧지 않게 온 점은 이만큼 가까이 와야 꺾은 것으로 본다. 비스듬히 스쳐 지나는 점에 꺾이지 않게 한다 */
+const CORNER_RADIUS = 0.25;
 
-/**
- * 끌어 온 궤적이 정말 대각선이었나. 모서리를 둥글게 돌다 점을 건너뛴 손을 대각선으로 읽지 않으려고 본다.
- * 아이가 네모 집을 그리는 중에 모서리가 깎이면 안 된다.
- */
-export function wasDiagonalDrag(from: Pt, to: Pt, samples: Pt[]): boolean {
+/** 줄에서 이만큼(네모 단위) 벗어나면 곧게 끈 것이 아니다. 길수록 손이 더 흔들리므로 조금 너그럽다 */
+const toleranceFor = (length: number): number => Math.min(0.4, 0.19 + 0.05 * length);
+
+/** 끌어 온 궤적이 from 에서 to 까지 곧았나. 잠깐 뒤로 갔다 온 손도 곧은 것이다 */
+export function wasStraightDrag(from: Pt, to: Pt, samples: Pt[]): boolean {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  if (Math.abs(dx) !== Math.abs(dy) || dx === 0) return false;
   const length = Math.hypot(dx, dy);
-  return samples.every((p) => Math.abs((p.x - from.x) * dy - (p.y - from.y) * dx) / length <= DIAGONAL_TOLERANCE);
+  if (length === 0) return false;
+  const limit = toleranceFor(length);
+  return samples.every((p) => Math.abs((p.x - from.x) * dy - (p.y - from.y) * dx) / length <= limit);
 }
 
-/** 포인터 근처의 벽 조각. 문·창·지우개가 쓴다 */
+/** 끄는 중인 획 */
+export interface DragStroke {
+  /** 꺾기로 굳은 점들 */
+  fixed: Pt[];
+  /** 마지막 굳은 점에서 지금 뻗어 있는 끝 */
+  tip: Pt | null;
+  /** 마지막 굳은 점 뒤로 손이 지나온 자리 */
+  trail: Pt[];
+  /** 끝을 잡은 뒤로 손이 지나온 자리 — 거기서 꺾으면 새 궤적이 된다 */
+  sinceTip: Pt[];
+}
+
+export function startDrag(dot: Pt): DragStroke {
+  return { fixed: [dot], tip: null, trail: [], sinceTip: [] };
+}
+
+/** 포인터가 p 로 옮겨 왔다. dot 은 p 근처의 점이고 없으면 null 이다 */
+export function dragMove(live: DragStroke, p: Pt, dot: Pt | null): DragStroke {
+  const trail = [...live.trail, p];
+  const sinceTip = [...live.sinceTip, p];
+  const anchor = live.fixed[live.fixed.length - 1]!;
+  if (!dot) return { ...live, trail, sinceTip };
+  // 굳은 점 위 — 궤적을 새로 시작한다. 그 앞 점까지 돌아가면 꺾은 것을 무른다
+  if (sameDot(dot, anchor)) return { ...live, tip: null, trail: [], sinceTip: [] };
+  const before = live.fixed[live.fixed.length - 2];
+  if (before && sameDot(dot, before)) return { fixed: live.fixed.slice(0, -1), tip: null, trail: [], sinceTip: [] };
+  // 지금 끝 위에 머무는 동안은 궤적이 아니다
+  if (live.tip && sameDot(dot, live.tip)) return { ...live, trail, sinceTip: [] };
+  if (wasStraightDrag(anchor, dot, trail)) return { ...live, tip: dot, trail, sinceTip: [] };
+  // 곧지 않은데 스쳐 지나가는 중이면 아직 꺾은 것이 아니다
+  if (Math.hypot(p.x - dot.x, p.y - dot.y) > CORNER_RADIUS) return { ...live, trail, sinceTip };
+  // 곧지 않다 — 끝에서 꺾었다
+  if (live.tip) {
+    const fixed = [...live.fixed, live.tip];
+    if (wasStraightDrag(live.tip, dot, sinceTip)) return { fixed, tip: dot, trail: sinceTip, sinceTip: [] };
+    return { fixed: bridge(fixed, dot), tip: null, trail: [], sinceTip: [] };
+  }
+  // 끝도 없이 모서리를 돌아왔다 — 건너뛴 모서리를 채운다
+  return { ...live, fixed: bridge(live.fixed, dot), tip: null, trail: [], sinceTip: [] };
+}
+
+/** 곧게 오지 않은 손 — 가로세로로 꺾어 dot 까지 잇는다 */
+function bridge(fixed: Pt[], dot: Pt): Pt[] {
+  const last = fixed[fixed.length - 1]!;
+  const corner = Math.abs(dot.x - last.x) >= Math.abs(dot.y - last.y) ? { x: dot.x, y: last.y } : { x: last.x, y: dot.y };
+  return sameDot(corner, last) || sameDot(corner, dot) ? [...fixed, dot] : [...fixed, corner, dot];
+}
+
+/** 끄는 중인 획이 지나는 점들 */
+export function dragDots(live: DragStroke): Pt[] {
+  const stops = live.tip ? [...live.fixed, live.tip] : live.fixed;
+  return stops.reduce<Pt[]>((out, p) => (out.length ? [...out, ...dotsBetween(out[out.length - 1]!, p).slice(1)] : [p]), []);
+}
+
+/** 포인터 근처의 벽 토막. 문·창·지우개가 쓴다 */
 export function nearestEdge(edges: Iterable<string>, p: Pt, radius = 0.42): string | null {
   let best: string | null = null;
   let bestD = radius;
   for (const key of edges) {
-    // 조각의 끝까지 눌러도 맞게 조각 위 가장 가까운 점까지 잰다
+    // 토막의 끝까지 눌러도 맞게 토막 위 가장 가까운 점까지 잰다
     const [a, b] = edgeEnds(key);
     const vx = b.x - a.x;
     const vy = b.y - a.y;

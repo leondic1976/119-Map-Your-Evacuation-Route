@@ -22,6 +22,7 @@ import { host } from '../platform/host';
 import { currentBand, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
 import { IconClose, IconCrouch, IconDoor, IconHand, IconPhone, IconPlay, IconStand, KidGlyph } from './art';
 import { PlanView, U } from './PlanView';
+import { ZoomControls } from './ZoomControls';
 import { useArrowKeys } from './steps';
 
 const STEP_MS = 620;
@@ -271,6 +272,7 @@ export function DrillStep() {
             if (kind === 'up') tapAt(p);
           }}
           className="cursor-tap"
+          zoomable
           ariaLabel="대피 연습 지도"
         >
           {pos && (
@@ -279,6 +281,7 @@ export function DrillStep() {
             </g>
           )}
         </PlanView>
+        <ZoomControls plan={plan} />
 
         {touch && (
           <div className="card-over" role="dialog" aria-modal="true" aria-label="문 만져 보기">

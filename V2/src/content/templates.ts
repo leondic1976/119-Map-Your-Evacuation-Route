@@ -3,10 +3,10 @@
  * 1~2학년은 둘 다 연한 선으로 깔리고, 3~4학년은 겉모양만, 5~6학년은 고를 때만 깔린다.
  * 「도와줘」는 이 본의 빠진 선을 채운다.
  */
-import { edgeBetween } from '../core/grid';
+import { segmentEdges } from '../core/grid';
 import type { Band } from '../core/types';
 
-/** [x1, y1, x2, y2] — 가로, 세로 또는 45도 대각선 한 줄 */
+/** [x1, y1, x2, y2] — 두 점을 곧게 잇는 한 줄 */
 type Seg = [number, number, number, number];
 
 export interface Template {
@@ -63,6 +63,11 @@ export const TEMPLATES: Template[] = [
     outer: loop([1, 0], [5, 0], [7, 2], [7, 6], [1, 6]),
     inner: [[4, 0, 4, 3], [1, 3, 7, 3]],
   },
+  {
+    id: 'low-roof', band: 'low', name: '뾰족한 집',
+    outer: loop([1, 2], [4, 0], [7, 2], [7, 6], [1, 6]),
+    inner: [[4, 0, 4, 3], [1, 3, 7, 3]],
+  },
   // 3~4학년 10×7
   {
     id: 'mid-square', band: 'mid', name: '네모 집',
@@ -83,6 +88,11 @@ export const TEMPLATES: Template[] = [
     id: 'mid-cut', band: 'mid', name: '비스듬한 집',
     outer: loop([1, 0], [7, 0], [9, 2], [9, 7], [1, 7]),
     inner: [[4, 0, 4, 3], [7, 0, 7, 3], [1, 3, 9, 3], [6, 5, 9, 5], [6, 5, 6, 7]],
+  },
+  {
+    id: 'mid-roof', band: 'mid', name: '뾰족한 집',
+    outer: loop([1, 3], [5, 0], [9, 3], [9, 7], [1, 7]),
+    inner: [[5, 0, 5, 4], [1, 4, 9, 4], [6, 4, 6, 7]],
   },
   // 5~6학년 12×8
   {
@@ -105,19 +115,15 @@ export const TEMPLATES: Template[] = [
     outer: loop([3, 0], [9, 0], [11, 2], [11, 8], [1, 8], [1, 2]),
     inner: [[4, 0, 4, 3], [8, 0, 8, 3], [1, 3, 11, 3], [1, 5, 4, 5], [4, 5, 4, 8], [8, 5, 11, 5], [8, 5, 8, 8]],
   },
+  {
+    id: 'high-roof', band: 'high', name: '뾰족한 집',
+    outer: loop([1, 3], [3, 0], [9, 0], [11, 3], [11, 8], [1, 8]),
+    inner: [[4, 0, 4, 3], [8, 0, 8, 3], [1, 3, 11, 3], [1, 5, 4, 5], [4, 5, 4, 8], [8, 5, 11, 5], [8, 5, 8, 8]],
+  },
 ];
 
 export function segEdges(segs: Seg[]): string[] {
-  const out: string[] = [];
-  for (const [x1, y1, x2, y2] of segs) {
-    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-    const sx = Math.sign(x2 - x1);
-    const sy = Math.sign(y2 - y1);
-    for (let i = 0; i < steps; i++) {
-      out.push(edgeBetween({ x: x1 + sx * i, y: y1 + sy * i }, { x: x1 + sx * (i + 1), y: y1 + sy * (i + 1) }));
-    }
-  }
-  return out;
+  return segs.flatMap(([x1, y1, x2, y2]) => segmentEdges({ x: x1, y: y1 }, { x: x2, y: y2 }));
 }
 
 export function templatesFor(band: Band): Template[] {

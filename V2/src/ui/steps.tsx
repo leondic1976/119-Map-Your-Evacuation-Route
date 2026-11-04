@@ -1,10 +1,10 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { analyze, cellIdAt, edgeEnds, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
+import { analyze, cellIdAt, edgeEnds, edgeKeys, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
 import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
 import { findSecondRoute } from '../core/auto';
 import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
-import { extendStroke, nearestDot, nearestEdge, sameDot, wasDiagonalDrag } from '../core/stroke';
+import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, sameDot, startDrag, type DragStroke } from '../core/stroke';
 import { OUT, type MarkId, type OpeningKind, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
@@ -12,6 +12,7 @@ import { segEdges, templateById, templatesFor } from '../content/templates';
 import { chooseTemplate, clearRoute, commit, currentBand, getApp, say, useApp } from '../store/app';
 import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
 import { PlanView } from './PlanView';
+import { ZoomControls } from './ZoomControls';
 
 /** 화살표 키를 받는다. 사용법 카드나 설정이 떠 있으면 받지 않는다 */
 export function useArrowKeys(onArrow: (dir: ArrowDir) => void): void {
@@ -63,9 +64,8 @@ export function DrawStep() {
   const [armed, setArmed] = useState<Pt | null>(null);
   const drawing = useRef(false);
   const erasing = useRef(false);
-  // 손이 지나온 자리 — 대각선을 그으려던 것인지 모서리를 돌던 것인지 가른다
-  const liveStroke = useRef<Pt[]>([]);
-  const trail = useRef<Pt[]>([]);
+  // 손이 지나온 자리 — 곧게 그으려던 것인지 모서리를 돌던 것인지 가른다
+  const live = useRef<DragStroke | null>(null);
   const hadCell = useRef(layout.cells.length > 0);
 
   const guide = useMemo(() => {
@@ -88,7 +88,7 @@ export function DrawStep() {
       }
       if (!erasing.current) return;
       const app = getApp();
-      const edge = nearestEdge(app.plan.walls, p);
+      const edge = nearestEdge(edgeKeys(analyze(app.plan)), p);
       if (edge) commit(removeWall(app.plan, edge), { merge: kind === 'move' });
       return;
     }
@@ -96,26 +96,17 @@ export function DrawStep() {
       const dot = nearestDot(plan, p);
       if (!dot) return;
       drawing.current = true;
-      liveStroke.current = [dot];
-      trail.current = [];
+      live.current = startDrag(dot);
       setStroke([dot]);
     } else if (kind === 'move') {
-      if (!drawing.current) return;
-      trail.current.push(p);
-      const dot = nearestDot(plan, p, 0.42);
-      const last = liveStroke.current[liveStroke.current.length - 1];
-      if (!dot || !last || sameDot(last, dot)) {
-        // 점 위에 머무는 동안은 궤적이 아니다
-        if (dot) trail.current = [];
-        return;
-      }
-      liveStroke.current = extendStroke(liveStroke.current, dot, wasDiagonalDrag(last, dot, trail.current));
-      trail.current = [];
-      setStroke(liveStroke.current);
+      if (!drawing.current || !live.current) return;
+      live.current = dragMove(live.current, p, nearestDot(plan, p, DRAG_RADIUS));
+      setStroke(dragDots(live.current));
     } else if (kind === 'up') {
       if (!drawing.current) return;
       drawing.current = false;
-      const done = liveStroke.current;
+      const done = live.current ? dragDots(live.current) : [];
+      live.current = null;
       if (done.length > 1) {
         commit(addStroke(plan, done));
         setArmed(null);
@@ -130,6 +121,7 @@ export function DrawStep() {
       setStroke([]);
     } else {
       drawing.current = false;
+      live.current = null;
       setStroke([]);
     }
   };
@@ -161,6 +153,7 @@ export function DrawStep() {
           )}
         </div>
         <p className="tool-note" data-testid="cell-count">칸 {layout.cells.length}개</p>
+        <p className="tool-note">점이 작아 어려우면 돋보기를 눌러 크게 보고 그려 보자.</p>
       </aside>
       <section className="paper">
         <PlanView
@@ -173,8 +166,11 @@ export function DrawStep() {
           showLabels={false}
           className={tool === 'eraser' ? 'cursor-erase' : 'cursor-draw'}
           onPointer={onPointer}
+          zoomable
+          edgePan
           ariaLabel="점을 이어 집을 그리는 모눈 종이"
         />
+        <ZoomControls plan={plan} focus={armed} />
       </section>
     </>
   );
@@ -222,7 +218,8 @@ export function SortStep() {
         <button type="button" className="link-btn" data-testid="sort-why" onClick={() => say('sort-why')}>왜 나눌까?</button>
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} onPointer={onPointer} className="cursor-tap" ariaLabel="칸을 칠하는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 칠하는 지도" />
+        <ZoomControls plan={plan} />
       </section>
     </>
   );
@@ -241,7 +238,7 @@ export function DoorStep() {
   const hasExit = layout.links.some((l) => l.b === OUT);
 
   const onPointer = (type: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
-    const edge = nearestEdge(plan.walls, p);
+    const edge = nearestEdge(edgeKeys(layout), p);
     if (type === 'move') setHover(edge);
     if (type !== 'up' || !edge) return;
     const res = toggleOpening(plan, layout, edge, kind);
@@ -281,7 +278,8 @@ export function DoorStep() {
         )}
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} warn={stuck} hotEdge={hover} onPointer={onPointer} className="cursor-tap" ariaLabel="벽을 눌러 문을 다는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} warn={stuck} hotEdge={hover} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="벽을 눌러 문을 다는 지도" />
+        <ZoomControls plan={plan} />
       </section>
     </>
   );
@@ -326,7 +324,8 @@ export function MarkStep() {
         </div>
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} onPointer={onPointer} className="cursor-tap" ariaLabel="표시를 놓는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="표시를 놓는 지도" />
+        <ZoomControls plan={plan} />
       </section>
     </>
   );
@@ -401,7 +400,8 @@ export function RouteStep() {
         <p className="tool-note">지나온 칸을 다시 누르면 거기까지 되돌아가.</p>
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} showRoute glow={candidates} hints={candidates} onPointer={onPointer} className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} showRoute glow={candidates} hints={candidates} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
+        <ZoomControls plan={plan} />
       </section>
     </>
   );

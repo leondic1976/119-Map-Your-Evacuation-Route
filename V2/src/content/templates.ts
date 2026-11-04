@@ -122,8 +122,9 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
-export function segEdges(segs: Seg[]): string[] {
-  return segs.flatMap(([x1, y1, x2, y2]) => segmentEdges({ x: x1, y: y1 }, { x: x2, y: y2 }));
+/** 줄을 벽 조각으로 바꾼다. density 는 점 간격이고 본은 간격 1 로 적혀 있다 */
+export function segEdges(segs: Seg[], density = 1): string[] {
+  return segs.flatMap(([x1, y1, x2, y2]) => segmentEdges({ x: x1 * density, y: y1 * density }, { x: x2 * density, y: y2 * density }));
 }
 
 export function templatesFor(band: Band): Template[] {

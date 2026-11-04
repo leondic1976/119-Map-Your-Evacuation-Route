@@ -5,7 +5,7 @@
 import { clampView, fullView, viewBoxOf, zoomAround, ZOOM_MAX, ZOOM_STEP } from '../core/zoom';
 import type { Plan, Pt } from '../core/types';
 import { setPanMode, setView, useApp } from '../store/app';
-import { planBox, U } from './PlanView';
+import { planBox, unitOf } from './PlanView';
 
 const Glass = ({ plus }: { plus: boolean }) => (
   <svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
@@ -36,7 +36,7 @@ export function ZoomControls({ plan, focus }: { plan: Plan; focus?: Pt | null })
 
   const change = (scale: number) => {
     const shown = viewBoxOf(view, box);
-    const at = focus ? { x: focus.x * U, y: focus.y * U } : { x: shown.x + shown.w / 2, y: shown.y + shown.h / 2 };
+    const at = focus ? { x: focus.x * unitOf(plan), y: focus.y * unitOf(plan) } : { x: shown.x + shown.w / 2, y: shown.y + shown.h / 2 };
     setView(zoomAround(view, box, scale, at));
   };
 

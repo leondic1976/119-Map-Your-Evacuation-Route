@@ -46,22 +46,31 @@ export interface FitOptions {
   keepClear?: Pt[][];
   /** 줄여 볼 크기들 */
   scales?: number[];
+  /** 가구 크기와 띄울 거리가 지금 점 몇 칸인가(점 간격) */
+  unit?: number;
 }
 
 /** 가구 하나의 자리. 어떤 크기로도 들어가지 않으면 null */
-export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, size: Footprint, options: FitOptions = {}): Placement | null {
+export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, footprint: Footprint, options: FitOptions = {}): Placement | null {
   const edges = [...layout.edges.values()];
   const doors = edges.filter((e) => plan.openings[e.key] === 'door');
   const paths = options.keepClear ?? [];
   const scales = options.scales ?? [1, 0.85, 0.7, 0.55, 0.45];
+  const unit = options.unit ?? 1;
+  const wallGap = WALL_GAP * unit;
+  const size = { w: footprint.w * unit, d: footprint.d * unit };
+  const runLength = (key: string): number => {
+    const run = layout.runOf.get(key);
+    return run ? Math.hypot(run.b.x - run.a.x, run.b.y - run.a.y) : 0;
+  };
 
   const fits = (c: Pt, f: Pt, hw: number, hd: number): boolean => {
     if (cellIdAt(layout, c) !== cell.id) return false;
-    const pw = hw + WALL_GAP;
-    const pd = hd + WALL_GAP;
+    const pw = hw + wallGap;
+    const pd = hd + wallGap;
     if (edges.some((e) => !e.hidden && touches(c, f, pw, pd, e.a, e.b))) return false;
-    if (doors.some((e) => touches(c, f, hw + DOOR_GAP, hd + DOOR_GAP, e.mid, e.mid))) return false;
-    return paths.every((line) => line.every((p, i) => i === 0 || !touches(c, f, hw + PATH_GAP, hd + PATH_GAP, line[i - 1]!, p)));
+    if (doors.some((e) => touches(c, f, hw + DOOR_GAP * unit, hd + DOOR_GAP * unit, e.mid, e.mid))) return false;
+    return paths.every((line) => line.every((p, i) => i === 0 || !touches(c, f, hw + PATH_GAP * unit, hd + PATH_GAP * unit, line[i - 1]!, p)));
   };
 
   // 이 칸을 두른 벽들 — 문과 창이 없는 긴 벽부터 쓴다
@@ -70,9 +79,7 @@ export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, size: Footp
     .sort((p, q) => {
       const free = Number(Boolean(plan.openings[p.key])) - Number(Boolean(plan.openings[q.key]));
       if (free) return free;
-      const lengthP = Math.hypot(p.b.x - p.a.x, p.b.y - p.a.y);
-      const lengthQ = Math.hypot(q.b.x - q.a.x, q.b.y - q.a.y);
-      return lengthQ - lengthP || (p.key < q.key ? -1 : 1);
+      return runLength(q.key) - runLength(p.key) || (p.key < q.key ? -1 : 1);
     });
 
   for (const scale of scales) {
@@ -85,7 +92,7 @@ export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, size: Footp
         const [p] = edgeSides(layout, e.key);
         const inward = cellSideNormal(along, layout.cellAt.get(p) === cell.id);
         for (const t of [0.5, 0.3, 0.7, 0.15, 0.85]) {
-          const off = hd + WALL_GAP + 0.005;
+          const off = hd + wallGap + 0.005;
           const c = { x: e.a.x + (e.b.x - e.a.x) * t + inward.x * off, y: e.a.y + (e.b.y - e.a.y) * t + inward.y * off };
           // 네모의 앞 방향이 안쪽이다. 옆으로 놓으면 가구를 90도 돌려 놓은 셈이 된다
           if (fits(c, inward, hw, hd)) return finish(c, inward, scale, sideways);

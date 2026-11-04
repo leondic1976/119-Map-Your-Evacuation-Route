@@ -249,6 +249,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .tool-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .tool { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; font-size: 19px; }
 .tool.on { background: var(--sun); border-width: 4px; }
+.tool.small { padding: 6px 4px; font-size: 16px; line-height: 1.1; }
 .tool.tall { flex: none; min-height: 72px; font-size: 20px; }
 .tool.wide { width: 100%; flex: none; }
 .tool.nudge { background: var(--sun); animation: nudge 1s ease 2; }

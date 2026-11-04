@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from 'react';
 import { autoDoors, autoMarks, autoRoute, autoTag } from '../core/auto';
 import type { DrillState } from '../core/drill';
+import { densityOf } from '../core/density';
 import { addEdges, emptyPlan, normalize } from '../core/edit';
 import { analyze, unreachableCells } from '../core/grid';
 import { OUT, type Band, type Plan } from '../core/types';
@@ -206,7 +207,7 @@ export function saveProfile(profile: Profile): void {
   const nextBand = bandOfGrade(profile.grade);
   const sameBand = state.profile && bandOfGrade(state.profile.grade) === nextBand;
   const info = BANDS[nextBand];
-  const keep = sameBand || (state.profile === null && state.plan.cols === info.cols && state.plan.walls.length > 0);
+  const keep = sameBand || (state.profile === null && state.plan.cols / densityOf(state.plan) === info.cols && state.plan.walls.length > 0);
   set({
     profile,
     screen: 'studio',
@@ -362,7 +363,7 @@ export function helpStep(step: StepId = state.step): void {
     case 'draw': {
       const t = templateById(state.templateId) ?? templatesFor(band)[0];
       if (t) {
-        next = addEdges(plan, [...segEdges(t.outer), ...segEdges(t.inner)]);
+        next = addEdges(plan, [...segEdges(t.outer, densityOf(plan)), ...segEdges(t.inner, densityOf(plan))]);
         if (!state.templateId) set({ templateId: t.id });
       }
       break;
@@ -435,7 +436,7 @@ export function resetPlan(): void {
   const band = currentBand();
   const info = BANDS[band];
   set({
-    plan: emptyPlan(info.cols, info.rows),
+    plan: emptyPlan(info.cols, info.rows, densityOf(state.plan)),
     templateId: defaultTemplateId(band),
     past: [],
     drill: null,

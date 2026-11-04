@@ -2,13 +2,19 @@
  * 칸의 나열을 그림 위 점의 나열로 바꾼다. 벽을 뚫지 않고 문 가운데를 지난다.
  * 지도 · 대피 연습 · 3D 가 같은 계산을 쓴다.
  */
-import { doorSquareFor, edgeMid, edgeSides, pieceCenter, pieceKeyAt, reachableFrom, simplify, walkInCell } from './grid';
+import { doorSquareFor, edgeMid, edgeNormal, edgeSides, pieceCenter, pieceKeyAt, reachableFrom, simplify, walkInCell } from './grid';
 import { OUT, type Layout, type Plan, type Pt } from './types';
 
-/** 문 밖으로 나선 자리 */
-export function exitPoint(layout: Layout, edge: string): Pt {
+/** 문 밖으로 나선 자리. 점 간격이 좁아도 예전 네모 반 칸만큼 나선다 */
+export function exitPoint(layout: Layout, edge: string, density = 1): Pt {
   const [p, q] = edgeSides(layout, edge);
-  return pieceCenter(layout.cellAt.has(p) ? q : p);
+  const near = pieceCenter(layout.cellAt.has(p) ? q : p);
+  if (density === 1) return near;
+  const m = edgeMid(edge);
+  const n = edgeNormal(edge);
+  const toward = layout.cellAt.has(p) ? 1 : -1;
+  const far = { x: m.x + n.x * toward * 0.5 * density, y: m.y + n.y * toward * 0.5 * density };
+  return layout.cellAt.has(pieceKeyAt(layout, far)) ? near : far;
 }
 
 /** from 칸의 from 점에서 to 칸으로 넘어가는 점들. 첫 점은 넣지 않는다 */
@@ -22,7 +28,7 @@ export function hopPoints(
 ): Pt[] {
   const inside = walkInCell(plan, layout, fromCell, pieceKeyAt(layout, fromPt), doorSquareFor(layout, edge, fromCell)).slice(1);
   const mid = edgeMid(edge);
-  if (toCell === OUT) return [...inside, mid, exitPoint(layout, edge)];
+  if (toCell === OUT) return [...inside, mid, exitPoint(layout, edge, plan.density ?? 1)];
   return [...inside, mid, pieceCenter(doorSquareFor(layout, edge, toCell))];
 }
 

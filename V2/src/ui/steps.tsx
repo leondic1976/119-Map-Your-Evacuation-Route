@@ -1,6 +1,7 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { analyze, cellIdAt, edgeEnds, edgeKeys, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
+import { canChangeDensity, changeDensity, densityOf, DENSITIES } from '../core/density';
 import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
 import { findSecondRoute } from '../core/auto';
 import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
@@ -10,6 +11,7 @@ import { BANDS } from '../content/bands';
 import { crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
 import { segEdges, templateById, templatesFor } from '../content/templates';
 import { chooseTemplate, clearRoute, commit, currentBand, getApp, say, useApp } from '../store/app';
+import { getHandUnit } from './handUnit';
 import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
 import { PlanView } from './PlanView';
 import { ZoomControls } from './ZoomControls';
@@ -53,6 +55,8 @@ function HouseThumb({ id }: { id: string }) {
   );
 }
 
+const DENSITY_LABEL: Record<number, string> = { 1: '넓게', 2: '좁게', 4: '아주 좁게' };
+
 /* ───────────── 1. 집 그리기 ───────────── */
 export function DrawStep() {
   const { plan, layout } = usePlan();
@@ -67,12 +71,13 @@ export function DrawStep() {
   // 손이 지나온 자리 — 곧게 그으려던 것인지 모서리를 돌던 것인지 가른다
   const live = useRef<DragStroke | null>(null);
   const hadCell = useRef(layout.cells.length > 0);
+  const density = densityOf(plan);
 
   const guide = useMemo(() => {
     const t = templateById(templateId);
     if (!t) return [];
-    return info.guide === 'full' ? [...segEdges(t.outer), ...segEdges(t.inner)] : segEdges(t.outer);
-  }, [templateId, info.guide]);
+    return info.guide === 'full' ? [...segEdges(t.outer, density), ...segEdges(t.inner, density)] : segEdges(t.outer, density);
+  }, [templateId, info.guide, density]);
 
   useEffect(() => {
     // 집 모양을 닫으면 이어서 방을 만들자고 한다
@@ -89,7 +94,7 @@ export function DrawStep() {
       }
       if (!erasing.current) return;
       const app = getApp();
-      const edge = nearestEdge(edgeKeys(analyze(app.plan)), p);
+      const edge = nearestEdge(edgeKeys(analyze(app.plan)), p, 0.42 * getHandUnit(app.plan));
       if (edge) commit(removeWall(app.plan, edge), { merge: kind === 'move' });
       return;
     }
@@ -101,7 +106,8 @@ export function DrawStep() {
       setStroke([dot]);
     } else if (kind === 'move') {
       if (!drawing.current || !live.current) return;
-      live.current = dragMove(live.current, p, nearestDot(plan, p, DRAG_RADIUS));
+      const unit = getHandUnit(plan);
+      live.current = dragMove(live.current, p, nearestDot(plan, p, Math.min(0.75, DRAG_RADIUS * unit)), unit);
       setStroke(dragDots(live.current));
     } else if (kind === 'up') {
       if (!drawing.current) return;
@@ -138,6 +144,26 @@ export function DrawStep() {
             <IconEraser /> 지우개
           </button>
         </div>
+        <h3 className="tools-head">점 간격</h3>
+        <div className="tool-row density-row" role="group" aria-label="점 간격">
+          {DENSITIES.map((d) => (
+            <button
+              type="button"
+              key={d}
+              className={density === d ? 'tool small on' : 'tool small'}
+              data-testid={`density-${d}`}
+              aria-pressed={density === d}
+              disabled={!canChangeDensity(plan, d)}
+              onClick={() => {
+                setArmed(null);
+                commit(changeDensity(plan, d));
+              }}
+            >
+              {DENSITY_LABEL[d]}
+            </button>
+          ))}
+        </div>
+        {!canChangeDensity(plan, DENSITIES[0]) && <p className="tool-note">촘촘한 점에 그린 벽이 있어서 더 넓힐 수 없어.</p>}
         <h3 className="tools-head">집 모양 본</h3>
         <div className="thumbs">
           {templatesFor(band).map((t) => (
@@ -231,7 +257,7 @@ export function DoorStep() {
   const hasExit = layout.links.some((l) => l.b === OUT);
 
   const onPointer = (type: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
-    const edge = nearestEdge(edgeKeys(layout), p);
+    const edge = nearestEdge(edgeKeys(layout), p, 0.42 * getHandUnit(plan));
     if (type === 'move') setHover(edge);
     if (type !== 'up' || !edge) return;
     const res = toggleOpening(plan, layout, edge, kind);

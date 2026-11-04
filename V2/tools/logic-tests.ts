@@ -14,6 +14,7 @@ import {
   type DrillState,
 } from '../src/core/drill';
 import { addEdges, addStroke, emptyPlan, normalize, paintCell, placeMark, removeWall, routeCandidates, tapRoute, toggleOpening } from '../src/core/edit';
+import { canChangeDensity, changeDensity, densityOf, straightRuns } from '../src/core/density';
 import { fitFurniture } from '../src/core/furnish';
 import { analyze, cellIdAt, dKey, edgeBetween, edgeKeys, hKey, isExterior, isInterior, pieceCenter, pieceKeyAt, segmentEdges, shortestPath, sqKey, uKey, unreachableCells, vKey } from '../src/core/grid';
 import { stepField } from '../src/core/hazard';
@@ -472,6 +473,98 @@ export function runLogicTests(check: Check): void {
     assert.ok(layout.cellAt.has('0,0'), '다시 네모 하나다');
   });
 
+  /** 본을 점 간격 k 로 깐 지도 */
+  const fineTemplate = (t: Template, k: number): Plan => {
+    const info = BANDS[t.band];
+    return addEdges(emptyPlan(info.cols, info.rows, k), [...segEdges(t.outer, k), ...segEdges(t.inner, k)]);
+  };
+  const fineAll = (t: Template, k: number): Plan => autoRoute(autoMarks(autoDoors(autoTag(fineTemplate(t, k), t.band)), t.band));
+
+  check('[점 간격] 좁히면 벽·칸·문·표시가 같은 자리에 남고, 다시 넓히면 처음과 같다', () => {
+    for (const t of TEMPLATES) {
+      const plan = autoAll(t);
+      const base = analyze(plan);
+      for (const k of [2, 4]) {
+        const fine = changeDensity(plan, k);
+        const layout = analyze(fine);
+        assert.equal(densityOf(fine), k, t.id);
+        assert.equal(fine.cols, plan.cols * k);
+        assert.equal(layout.cells.length, base.cells.length, `${t.id}: 칸 수`);
+        assert.ok(Math.abs(layout.cells.reduce((s, c) => s + c.area, 0) - base.cells.reduce((s, c) => s + c.area, 0) * k * k) < 1e-3, `${t.id}: 넓이`);
+        assert.equal(Object.keys(fine.openings).length, Object.keys(plan.openings).length, `${t.id}: 문 수`);
+        assert.equal(layout.links.length, base.links.length, `${t.id}: 문으로 이어진 수`);
+        assert.equal(layout.cells.filter((c) => c.kind).length, base.cells.filter((c) => c.kind).length, `${t.id}: 칠한 칸`);
+        assert.deepEqual(Object.keys(fine.marks).sort(), Object.keys(plan.marks).sort(), `${t.id}: 표시`);
+        const me = fine.marks.me!;
+        assert.ok(Math.hypot(me.x / k - plan.marks.me!.x, me.y / k - plan.marks.me!.y) < 0.6, `${t.id}: 내 자리가 멀리 가지 않는다`);
+        assert.equal(fine.route[fine.route.length - 1], OUT, `${t.id}: 길이 남는다`);
+        assert.ok(canChangeDensity(fine, 1), `${t.id}: 넓은 점 위의 벽은 다시 넓힐 수 있다`);
+        const back = changeDensity(fine, 1);
+        assert.deepEqual([...back.walls].sort(), [...plan.walls].sort(), `${t.id}: 넓히면 벽이 같다`);
+        assert.equal(analyze(back).cells.length, base.cells.length);
+        assert.equal(densityOf(back), 1);
+      }
+    }
+  });
+
+  check('[점 간격] 촘촘한 점에 그린 벽이 있으면 넓힐 수 없다', () => {
+    const plan = addEdges(emptyPlan(8, 6, 2), segEdges([[1, 1, 4, 1]]));
+    assert.equal(canChangeDensity(plan, 1), false, '끝이 홀수 점이다');
+    assert.equal(changeDensity(plan, 1), plan, '바뀌지 않는다');
+    assert.equal(canChangeDensity(plan, 4), true, '좁히기는 된다');
+    const even = addEdges(emptyPlan(8, 6, 2), segEdges([[2, 2, 8, 2], [2, 2, 8, 8]]));
+    assert.equal(canChangeDensity(even, 1), true);
+    assert.deepEqual(straightRuns(segEdges([[0, 0, 3, 0]])), [{ a: { x: 0, y: 0 }, b: { x: 3, y: 0 } }], '곧은 벽은 한 줄이다');
+    assert.deepEqual(changeDensity(even, 1).walls.filter((w) => w.startsWith('s:')), [], '45도는 그대로 대각선이다');
+  });
+
+  check('[점 간격] 모든 본을 어떤 간격으로든 끝까지 해낼 수 있다', () => {
+    for (const k of [2, 4]) {
+      for (const t of TEMPLATES) {
+        const plan = fineAll(t, k);
+        const layout = analyze(plan);
+        assert.equal(plan.route[plan.route.length - 1], OUT, `${t.id}×${k}: 길`);
+        assert.equal(unreachableCells(layout).length, 0, `${t.id}×${k}: 이어짐`);
+        const points = routePoints(plan, layout, plan.route);
+        assertNoCrossing(plan, `${t.id}×${k}`, points);
+        const marks = Object.entries(plan.marks).filter(([id]) => id !== 'meet').map(([, m]) => m!);
+        marks.forEach((a, i) => marks.slice(i + 1).forEach((b) => assert.ok(Math.hypot(a.x - b.x, a.y - b.y) > 0.5 * k - 1e-6, `${t.id}×${k}: 표시가 겹친다`)));
+        const state = walkOut(plan, 3, t.band);
+        assert.equal(state.end, 'meet', `${t.id}×${k}: 연습`);
+        assert.equal(cellIdAt(layout, plan.marks.meet!), undefined, `${t.id}×${k}: 만나는 곳은 밖`);
+      }
+    }
+  });
+
+  check('[점 간격] 촘촘한 점에서 손이 떨려도 가로세로 벽은 곧고, 모서리는 꺾이며, 비스듬한 벽도 그려진다', () => {
+    const plan = emptyPlan(12, 8, 4);
+    const fineDrag = (points: Pt[], unit = 4): string[] => {
+      let live = startDrag(points[0]!);
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1]!;
+        const b = points[i]!;
+        const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.4);
+        for (let s = 1; s <= n; s++) {
+          const p = { x: a.x + ((b.x - a.x) * s) / n, y: a.y + ((b.y - a.y) * s) / n };
+          live = dragMove(live, p, nearestDot(plan, p, 0.75), unit);
+        }
+      }
+      return addStroke(plan, dragDots(live)).walls;
+    };
+    const wobble = fineDrag([{ x: 4, y: 4 }, { x: 12, y: 4.7 }, { x: 20, y: 3.4 }, { x: 28, y: 4.4 }]);
+    assert.equal(wobble.filter((k) => /^[dus]:/.test(k)).length, 0, '떨려도 가로 벽이다');
+    assert.equal(wobble.length, 24);
+    const corner = fineDrag([{ x: 4, y: 4 }, { x: 20, y: 4 }, { x: 20, y: 16 }]);
+    assert.deepEqual(corner, segEdges([[4, 4, 20, 4], [20, 4, 20, 16]]).sort(), '모서리에서 꺾인다');
+    const slant = fineDrag([{ x: 4, y: 4 }, { x: 20, y: 12 }]);
+    assert.equal(slant.filter((k) => /^[dus]:/.test(k)).length, slant.length, '비스듬한 벽이다');
+    // 크게 보면 손 떨림이 작아져 한 칸짜리 턱도 그린다
+    const step = fineDrag([{ x: 4, y: 4 }, { x: 8, y: 4 }, { x: 8, y: 5 }, { x: 12, y: 5 }], 1);
+    assert.deepEqual(step, segEdges([[4, 4, 8, 4], [8, 4, 8, 5], [8, 5, 12, 5]]).sort());
+    assert.equal(wasStraightDrag({ x: 0, y: 0 }, { x: 8, y: 0 }, [{ x: 4, y: 1 }], 4), true);
+    assert.equal(wasStraightDrag({ x: 0, y: 0 }, { x: 8, y: 0 }, [{ x: 4, y: 1 }], 1), false);
+  });
+
   /** 끌기 흉내 — 점과 점 사이를 촘촘히 지나간다 */
   const drag = (plan: Plan, points: Pt[], step = 0.1): Pt[] => {
     let live = startDrag(points[0]!);
@@ -604,6 +697,20 @@ export function runLogicTests(check: Check): void {
         const spot = fitFurniture(plan, layout, cell, { w: 0.3, d: 0.42 }, { keepClear: [line] });
         assert.ok(spot, `${t.id}: ${cell.id} 자리가 없다`);
         assertFits(plan, cell.id, spot, 0.3, 0.42, t.id);
+      }
+    }
+  });
+
+  check('[점 간격] 가구는 점 간격과 상관없이 같은 크기로 벽을 뚫지 않고 들어간다', () => {
+    const t = TEMPLATES.find((x) => x.id === 'high-roof')!;
+    for (const k of [1, 2, 4]) {
+      const plan = fineAll(t, k);
+      const layout = analyze(plan);
+      const line = routePoints(plan, layout, plan.route);
+      for (const cell of layout.cells) {
+        const spot = fitFurniture(plan, layout, cell, { w: 0.62, d: 0.9 }, { keepClear: [line], unit: k });
+        assert.ok(spot, `×${k}: ${cell.id}`);
+        assertFits(plan, cell.id, spot, 0.62 * k, 0.9 * k, `×${k}`);
       }
     }
   });

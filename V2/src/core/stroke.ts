@@ -40,13 +40,16 @@ const CORNER_RADIUS = 0.25;
 /** 줄에서 이만큼(네모 단위) 벗어나면 곧게 끈 것이 아니다. 길수록 손이 더 흔들리므로 조금 너그럽다 */
 const toleranceFor = (length: number): number => Math.min(0.4, 0.19 + 0.05 * length);
 
-/** 끌어 온 궤적이 from 에서 to 까지 곧았나. 잠깐 뒤로 갔다 온 손도 곧은 것이다 */
-export function wasStraightDrag(from: Pt, to: Pt, samples: Pt[]): boolean {
+/**
+ * 끌어 온 궤적이 from 에서 to 까지 곧았나. 잠깐 뒤로 갔다 온 손도 곧은 것이다.
+ * unit 은 손 떨림이 지금 점 몇 칸에 해당하는지다. 점이 촘촘해도 손은 그대로 떨린다.
+ */
+export function wasStraightDrag(from: Pt, to: Pt, samples: Pt[], unit = 1): boolean {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.hypot(dx, dy);
   if (length === 0) return false;
-  const limit = toleranceFor(length);
+  const limit = toleranceFor(length / unit) * unit;
   return samples.every((p) => Math.abs((p.x - from.x) * dy - (p.y - from.y) * dx) / length <= limit);
 }
 
@@ -66,25 +69,38 @@ export function startDrag(dot: Pt): DragStroke {
   return { fixed: [dot], tip: null, trail: [], sinceTip: [] };
 }
 
-/** 포인터가 p 로 옮겨 왔다. dot 은 p 근처의 점이고 없으면 null 이다 */
-export function dragMove(live: DragStroke, p: Pt, dot: Pt | null): DragStroke {
+/** 촘촘한 점에서 손이 조금 흔들려도 가로세로 벽이 비스듬해지지 않게 한다 */
+function snapAxis(anchor: Pt, dot: Pt, unit: number): Pt {
+  if (unit <= 1) return dot;
+  const dx = Math.abs(dot.x - anchor.x);
+  const dy = Math.abs(dot.y - anchor.y);
+  const room = 0.35 * unit;
+  if (dy <= room && dx >= dy * 3) return { x: dot.x, y: anchor.y };
+  if (dx <= room && dy >= dx * 3) return { x: anchor.x, y: dot.y };
+  return dot;
+}
+
+/** 포인터가 p 로 옮겨 왔다. near 는 p 근처의 점이고 없으면 null 이다. unit 은 `wasStraightDrag` 와 같다 */
+export function dragMove(live: DragStroke, p: Pt, near: Pt | null, unit = 1): DragStroke {
   const trail = [...live.trail, p];
   const sinceTip = [...live.sinceTip, p];
   const anchor = live.fixed[live.fixed.length - 1]!;
-  if (!dot) return { ...live, trail, sinceTip };
+  if (!near) return { ...live, trail, sinceTip };
+  const dot = snapAxis(anchor, near, unit);
   // 굳은 점 위 — 궤적을 새로 시작한다. 그 앞 점까지 돌아가면 꺾은 것을 무른다
   if (sameDot(dot, anchor)) return { ...live, tip: null, trail: [], sinceTip: [] };
   const before = live.fixed[live.fixed.length - 2];
   if (before && sameDot(dot, before)) return { fixed: live.fixed.slice(0, -1), tip: null, trail: [], sinceTip: [] };
   // 지금 끝 위에 머무는 동안은 궤적이 아니다
   if (live.tip && sameDot(dot, live.tip)) return { ...live, trail, sinceTip: [] };
-  if (wasStraightDrag(anchor, dot, trail)) return { ...live, tip: dot, trail, sinceTip: [] };
+  if (wasStraightDrag(anchor, dot, trail, unit)) return { ...live, tip: dot, trail, sinceTip: [] };
   // 곧지 않은데 스쳐 지나가는 중이면 아직 꺾은 것이 아니다
-  if (Math.hypot(p.x - dot.x, p.y - dot.y) > CORNER_RADIUS) return { ...live, trail, sinceTip };
+  if (Math.hypot(p.x - dot.x, p.y - dot.y) > CORNER_RADIUS * unit) return { ...live, trail, sinceTip };
   // 곧지 않다 — 끝에서 꺾었다
   if (live.tip) {
     const fixed = [...live.fixed, live.tip];
-    if (wasStraightDrag(live.tip, dot, sinceTip)) return { fixed, tip: dot, trail: sinceTip, sinceTip: [] };
+    const turned = snapAxis(live.tip, near, unit);
+    if (wasStraightDrag(live.tip, turned, sinceTip, unit)) return { fixed, tip: turned, trail: sinceTip, sinceTip: [] };
     return { fixed: bridge(fixed, dot), tip: null, trail: [], sinceTip: [] };
   }
   // 끝도 없이 모서리를 돌아왔다 — 건너뛴 모서리를 채운다

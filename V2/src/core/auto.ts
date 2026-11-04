@@ -2,7 +2,7 @@
  * 「도와줘」 — 모르는 아이를 막다른 길로 보내지 않는 무난한 기본값.
  * 이미 해 둔 것은 지우지 않고 빈 곳만 채운다.
  */
-import { analyze, edgeKeys, edgeLength, edgeSides, isExterior, parseEdge, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
+import { analyze, edgeKeys, edgeLength, edgeMid, edgeSides, isExterior, parseEdge, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
 import { normalize } from './edit';
 import { OUT, type Band, type Cell, type Layout, type Plan, type Pt } from './types';
 
@@ -68,7 +68,7 @@ function sharedEdges(layout: Layout, a: string, b: string): string[] {
 /** 가운데 벽을 고른다. 문이 들어갈 만큼 긴 토막이 있으면 그중에서 고른다 */
 const middle = (items: string[]): string => {
   const roomy = items.filter((e) => edgeLength(e) >= 0.6);
-  const list = roomy.length ? roomy : items;
+  const list = [...(roomy.length ? roomy : items)].sort((a, b) => edgeMid(a).x - edgeMid(b).x || edgeMid(a).y - edgeMid(b).y);
   return list[Math.floor((list.length - 1) / 2)]!;
 };
 
@@ -148,11 +148,12 @@ export function autoMarks(input: Plan, band: Band): Plan {
   const layout = analyze(plan);
   if (layout.cells.length === 0) return plan;
   const marks = { ...plan.marks };
-  const used = new Set(
-    Object.entries(marks)
-      .filter(([id]) => id !== 'meet')
-      .map(([, m]) => `${m!.x},${m!.y}`),
-  );
+  // 점 간격이 좁아도 표시가 겹치지 않게 예전 네모 한 칸만큼 떨어뜨린다
+  const k = plan.density ?? 1;
+  const used: Pt[] = Object.entries(marks)
+    .filter(([id]) => id !== 'meet')
+    .map(([, m]) => m!);
+  const clear = (p: Pt, gap: number): boolean => used.every((u) => Math.hypot(u.x - p.x, u.y - p.y) >= gap);
 
   const free = (cell: Cell): Pt | null => {
     // 표시가 벽에 걸리지 않게 너무 작은 조각은 피한다
@@ -161,11 +162,14 @@ export function autoMarks(input: Plan, band: Band): Plan {
       (a, b) => Math.hypot(a.center.x - cell.anchor.x, a.center.y - cell.anchor.y) - Math.hypot(b.center.x - cell.anchor.x, b.center.y - cell.anchor.y),
     );
     // 글자가 놓이는 가운데 조각을 피한다
-    for (const s of [...near.slice(1), near[0]!]) {
-      const p = s.center;
-      if (!used.has(`${p.x},${p.y}`)) {
-        used.add(`${p.x},${p.y}`);
-        return p;
+    const around = near.filter((s) => k === 1 || Math.hypot(s.center.x - cell.anchor.x, s.center.y - cell.anchor.y) >= k * 0.9);
+    const order = k === 1 ? [...near.slice(1), near[0]!] : [...around, ...near];
+    for (const gap of k === 1 ? [0.001] : [k * 0.9, 0.001]) {
+      for (const s of order) {
+        if (clear(s.center, gap)) {
+          used.push(s.center);
+          return s.center;
+        }
       }
     }
     return null;
@@ -180,7 +184,7 @@ export function autoMarks(input: Plan, band: Band): Plan {
     const p = free(home);
     if (p) marks.me = p;
   }
-  if (!marks.meet) marks.meet = { x: plan.cols / 2, y: plan.rows + 0.9 };
+  if (!marks.meet) marks.meet = { x: plan.cols / 2, y: plan.rows + 0.9 * k };
   if (band !== 'low') {
     if (!marks.gas) {
       const p = free(byName('kitchen') ?? rooms[rooms.length - 1] ?? any);

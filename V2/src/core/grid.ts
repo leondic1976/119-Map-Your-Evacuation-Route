@@ -14,7 +14,7 @@
  * 벽끼리 엇갈리면 한 벽이 여러 토막이 된다. 토막의 열쇠는 벽 열쇠 뒤에 구간을 붙인다(`s:0:0:2:1#0.5-1`).
  * 엇갈리지 않은 벽은 벽 열쇠가 곧 토막 열쇠다. 문과 창은 토막에 달린다.
  */
-import { OUT, type Cell, type CellTag, type EdgeInfo, type Layout, type Link, type Neighbor, type Piece, type Plan, type Pt } from './types';
+import { OUT, type Cell, type CellTag, type EdgeInfo, type EdgeRun, type Layout, type Link, type Neighbor, type Piece, type Plan, type Pt } from './types';
 
 export const hKey = (x: number, y: number): string => `h:${x}:${y}`;
 export const vKey = (x: number, y: number): string => `v:${x}:${y}`;
@@ -415,6 +415,32 @@ function makeEdges(walls: string[], pieces: Map<string, Piece[]>): Map<string, E
   return edges;
 }
 
+/** 보이는 토막을 곧게 잇는다 */
+function makeRuns(edges: Map<string, EdgeInfo>): EdgeRun[] {
+  const at = (p: Pt): string => `${p.x.toFixed(3)},${p.y.toFixed(3)}`;
+  const dir = (e: EdgeInfo): string => {
+    const [a, b] = wallEnds(e.wall);
+    const n = gcd(b.x - a.x, b.y - a.y) || 1;
+    return `${(b.x - a.x) / n},${(b.y - a.y) / n}`;
+  };
+  const visible = [...edges.values()].filter((e) => !e.hidden);
+  const starts = new Map(visible.map((e) => [`${at(e.a)}|${dir(e)}`, e]));
+  const ends = new Set(visible.map((e) => `${at(e.b)}|${dir(e)}`));
+  const runs: EdgeRun[] = [];
+  for (const e of visible) {
+    const d = dir(e);
+    if (ends.has(`${at(e.a)}|${d}`)) continue;
+    const list = [e];
+    for (;;) {
+      const next = starts.get(`${at(list[list.length - 1]!.b)}|${d}`);
+      if (!next) break;
+      list.push(next);
+    }
+    runs.push({ a: e.a, b: list[list.length - 1]!.b, edges: list });
+  }
+  return runs;
+}
+
 export function analyze(plan: Plan): Layout {
   const walls = new Set(plan.walls);
   const pieces = makePieces(plan, plan.walls);
@@ -502,7 +528,9 @@ export function analyze(plan: Plan): Layout {
   }
   links.sort((l, m) => (l.edge < m.edge ? -1 : 1));
 
-  return { cells, byId: new Map(cells.map((c) => [c.id, c])), cellAt, links, pieces, adjacent, edges };
+  const runs = makeRuns(edges);
+  const runOf = new Map(runs.flatMap((run) => run.edges.map((e): [string, EdgeRun] => [e.key, run])));
+  return { cells, byId: new Map(cells.map((c) => [c.id, c])), cellAt, links, pieces, adjacent, edges, runs, runOf };
 }
 
 /** 화면에 보이는 벽 토막 열쇠들 */

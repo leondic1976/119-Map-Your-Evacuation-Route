@@ -22,8 +22,11 @@ export type OpeningKind = 'door' | 'window';
 export type MarkId = 'me' | 'meet' | 'gas' | 'extinguisher' | 'alarm';
 
 export interface Plan {
+  /** 지금 점 간격으로 센 네모 수 */
   cols: number;
   rows: number;
+  /** 점 간격 — 처음 네모 하나를 몇 칸으로 나눴나(1 · 2 · 4). 없으면 1 이다 */
+  density?: number;
   /** 벽 조각 열쇠 (`h:x:y` · `v:x:y` · 대각선 `d:x:y` · `u:x:y` · 그 밖의 각도 `s:x1:y1:x2:y2`) */
   walls: string[];
   /** 벽 토막 열쇠 → 문·창. 엇갈리지 않은 벽은 벽 열쇠와 같다 */
@@ -56,6 +59,13 @@ export interface Neighbor {
   /** 사이에 놓일 수 있는 가로세로 벽 조각 */
   edge: string;
   portal: Pt;
+}
+
+/** 곧게 이어진 벽 토막들의 묶음. 문과 창을 짧은 토막에 달아도 제 크기로 내려고 함께 본다 */
+export interface EdgeRun {
+  a: Pt;
+  b: Pt;
+  edges: EdgeInfo[];
 }
 
 /** 벽 토막 — 다른 벽과 엇갈린 자리에서 나뉜 한 구간 */
@@ -104,4 +114,8 @@ export interface Layout {
   adjacent: Map<string, Neighbor[]>;
   /** 벽 토막 열쇠 → 토막 */
   edges: Map<string, EdgeInfo>;
+  /** 보이는 토막을 곧게 이은 묶음들 */
+  runs: EdgeRun[];
+  /** 토막 열쇠 → 그 토막이 든 묶음 */
+  runOf: Map<string, EdgeRun>;
 }

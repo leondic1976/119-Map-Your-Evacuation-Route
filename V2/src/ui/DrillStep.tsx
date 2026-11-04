@@ -21,7 +21,7 @@ import { FIRE } from '../content/fire';
 import { host } from '../platform/host';
 import { currentBand, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
 import { IconClose, IconCrouch, IconDoor, IconHand, IconPhone, IconPlay, IconStand, KidGlyph } from './art';
-import { PlanView, U } from './PlanView';
+import { PlanView, unitOf } from './PlanView';
 import { ZoomControls } from './ZoomControls';
 import { useArrowKeys } from './steps';
 
@@ -276,7 +276,7 @@ export function DrillStep() {
           ariaLabel="대피 연습 지도"
         >
           {pos && (
-            <g className="player" transform={`translate(${pos.x * U} ${pos.y * U}) scale(1.15)`} data-testid="player" data-at={state.at} data-phase={state.phase}>
+            <g className="player" transform={`translate(${pos.x * unitOf(plan)} ${pos.y * unitOf(plan)}) scale(1.15)`} data-testid="player" data-at={state.at} data-phase={state.phase}>
               <KidGlyph look={look} crouch={state.crouch} />
             </g>
           )}

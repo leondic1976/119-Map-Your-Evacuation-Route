@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { DrillState, Snapshot } from '../../core/drill';
 import { fitFurniture, type Footprint } from '../../core/furnish';
-import { analyze, edgeKeys, edgeEnds, edgeSides, parseEdge } from '../../core/grid';
+import { analyze, edgeSides, parseEdge } from '../../core/grid';
 import { pointAlong, polylineLength, routePoints } from '../../core/path';
 import { OUT, type Cell, type Layout, type Plan, type Pt } from '../../core/types';
 import { FIRE } from '../../content/fire';
@@ -79,17 +79,17 @@ function crayonTexture(base: string, stripe: string): THREE.CanvasTexture {
   return tex;
 }
 
-/** 비스듬한 벽에 나뉜 조각의 바닥. 조각은 볼록해서 부채꼴로 나누면 된다 */
-function pieceFloor(polygon: Pt[]): THREE.BufferGeometry {
-  const ox = Math.min(...polygon.map((p) => p.x));
-  const oy = Math.min(...polygon.map((p) => p.y));
+/** 조각들의 바닥을 한 덩어리로 만든다. 조각은 볼록해서 부채꼴로 나누면 된다. 점이 촘촘해도 그리기 부담이 늘지 않는다 */
+function piecesFloor(polygons: Pt[][]): THREE.BufferGeometry {
   const positions: number[] = [];
   const uvs: number[] = [];
-  const first = polygon[0]!;
-  for (let i = 1; i < polygon.length - 1; i++) {
-    for (const p of [first, polygon[i + 1]!, polygon[i]!]) {
-      positions.push(p.x, 0, p.y);
-      uvs.push(p.x - ox, p.y - oy);
+  for (const polygon of polygons) {
+    const first = polygon[0]!;
+    for (let i = 1; i < polygon.length - 1; i++) {
+      for (const p of [first, polygon[i + 1]!, polygon[i]!]) {
+        positions.push(p.x, 0, p.y);
+        uvs.push(p.x, p.y);
+      }
     }
   }
   const geometry = new THREE.BufferGeometry();
@@ -162,16 +162,17 @@ const FURNITURE_OF: Record<string, string> = { main: 'bed', myroom: 'bed', other
  * 칸 모양에 맞춰 등을 벽에 대고 크기를 줄이므로 세모 칸에도 들어간다. 지나는 길은 비운다.
  */
 function furnish(group: THREE.Group, plan: Plan, layout: Layout, cell: Cell, keepClear: Pt[][]): boolean {
+  const unit = plan.density ?? 1;
   const name = cell.name ?? (cell.kind === 'room' ? 'main' : null);
   const sets = name ? FURNITURE[FURNITURE_OF[name] ?? ''] : undefined;
   if (!sets) return false;
   for (const [i, set] of sets.entries()) {
     // 작은 한 벌이 남아 있으면 큰 한 벌은 너무 줄이지 않는다
     const scales = i < sets.length - 1 ? [1, 0.85, 0.7] : [1, 0.85, 0.7, 0.55, 0.45];
-    const spot = fitFurniture(plan, layout, cell, set, { keepClear, scales });
+    const spot = fitFurniture(plan, layout, cell, set, { keepClear, scales, unit });
     if (!spot) continue;
     const piece = new THREE.Group();
-    piece.position.set(spot.x, 0, spot.y);
+    piece.position.set(spot.x / unit, 0, spot.y / unit);
     piece.rotation.y = Math.atan2(spot.front.x, spot.front.y) + (spot.sideways ? Math.PI / 2 : 0);
     piece.scale.setScalar(spot.scale);
     for (const [w, h, d, color, rough, x, y, z] of set.parts) piece.add(box(w, h, d, material(color, rough), x, y, z));
@@ -297,6 +298,11 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       return;
     }
     const layout = analyze(plan);
+    // 그림은 처음 네모 단위로 짓는다. 점 간격을 좁혀도 집과 가구의 크기는 그대로다
+    const density = plan.density ?? 1;
+    const world = (p: Pt): Pt => ({ x: p.x / density, y: p.y / density });
+    const planCols = plan.cols / density;
+    const planRows = plan.rows / density;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -310,10 +316,10 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     scene.background = new THREE.Color(0xcfe6f3);
     scene.fog = new THREE.Fog(0xcfe6f3, 22, 48);
 
-    const cx = plan.cols / 2;
-    const cz = plan.rows / 2;
+    const cx = planCols / 2;
+    const cz = planRows / 2;
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    const home = new THREE.Vector3(cx, Math.max(plan.cols, plan.rows) * 0.95, cz + Math.max(plan.cols, plan.rows) * 0.78);
+    const home = new THREE.Vector3(cx, Math.max(planCols, planRows) * 0.95, cz + Math.max(planCols, planRows) * 0.78);
     camera.position.copy(home);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(cx, 0, cz + 0.4);
@@ -328,7 +334,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     sun.target.position.set(cx, 0, cz);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    const span = Math.max(plan.cols, plan.rows) + 4;
+    const span = Math.max(planCols, planRows) + 4;
     Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 1, far: 40 });
     sun.shadow.radius = 4;
     scene.add(sun, sun.target);
@@ -349,18 +355,14 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       pass: new THREE.MeshStandardMaterial({ map: passTex, roughness: 0.95 }),
       none: new THREE.MeshStandardMaterial({ map: newTex, roughness: 0.95 }),
     };
-    const floorGeo = new THREE.PlaneGeometry(1, 1);
-    for (const cell of layout.cells) {
-      const mat = cell.kind === 'room' ? floorMat.room : cell.kind === 'pass' ? floorMat.pass : floorMat.none;
-      for (const s of cell.squares) {
-        const m = s.whole ? new THREE.Mesh(floorGeo, mat) : new THREE.Mesh(pieceFloor(s.polygon), mat);
-        if (s.whole) {
-          m.rotation.x = -Math.PI / 2;
-          m.position.set(s.x + 0.5, 0, s.y + 0.5);
-        }
-        m.receiveShadow = true;
-        scene.add(m);
-      }
+    for (const kind of ['room', 'pass', 'none'] as const) {
+      const polygons = layout.cells
+        .filter((cell) => (cell.kind ?? 'none') === kind)
+        .flatMap((cell) => cell.squares.map((s) => s.polygon.map(world)));
+      if (polygons.length === 0) continue;
+      const m = new THREE.Mesh(piecesFloor(polygons), floorMat[kind]);
+      m.receiveShadow = true;
+      scene.add(m);
     }
 
     // 벽 · 문 · 창
@@ -372,10 +374,10 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const exitMat = material(0x2e8b57);
     const walls = new THREE.Group();
     scene.add(walls);
-    for (const edge of edgeKeys(layout)) {
-      const [a, b] = edgeEnds(edge);
-      const kind = plan.openings[edge];
-      // 벽을 가로로 놓고 만든 뒤 제 방향으로 돌린다. 비스듬한 벽은 더 길고, 엇갈린 토막은 더 짧을 수 있다
+    for (const run of layout.runs) {
+      const a = world(run.a);
+      const b = world(run.b);
+      // 벽을 가로로 놓고 만든 뒤 제 방향으로 돌린다
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const wall = new THREE.Group();
       wall.position.set((a.x + b.x) / 2, 0, (a.y + b.y) / 2);
@@ -383,35 +385,49 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       walls.add(wall);
       const piece = (len: number, h: number, y: number, off: number, mat: THREE.Material) => box(len, h, WALL_T, mat, off, y, 0);
       const full = length + WALL_T;
-      if (!kind) {
-        wall.add(piece(full, WALL_H, WALL_H / 2, 0, wallMat));
-        wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
-      } else if (kind === 'window') {
-        const pane = Math.min(0.7, length - 0.12);
-        const side = length - pane;
-        wall.add(piece(full, 0.4, 0.2, 0, wallMat));
-        wall.add(piece(full, 0.14, WALL_H - 0.07, 0, wallMat));
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(pane / 2 + side / 4), wallMat));
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, pane / 2 + side / 4, wallMat));
-        wall.add(piece(pane, 0.42, 0.61, 0, glassMat));
-        wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
-      } else {
-        const leaf = Math.min(0.76, length - 0.12);
-        const side = length - leaf;
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, -(leaf / 2 + side / 4), wallMat));
-        wall.add(piece(side / 2 + WALL_T, WALL_H, WALL_H / 2, leaf / 2 + side / 4, wallMat));
-        wall.add(piece(full, 0.14, WALL_H - 0.07, 0, wallMat));
-        wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
-        const [p, q] = edgeSides(layout, edge);
-        const isExit = layout.cellAt.has(p) !== layout.cellAt.has(q);
-        // 경첩을 축으로 도는 문짝
-        const pivot = new THREE.Group();
-        pivot.position.set(-leaf / 2, 0, 0);
-        pivot.add(box(leaf, WALL_H - 0.16, 0.05, isExit ? exitMat : doorMat, leaf / 2, (WALL_H - 0.16) / 2, 0));
-        pivot.rotation.y = doorOpenAngle(edge);
-        wall.add(pivot);
-        doorPanels.set(edge, pivot);
-      }
+      wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
+
+      // 줄 위의 문과 창. 앞 구멍과 줄 끝을 넘지 않게 폭을 맞춘다. 자리는 줄 가운데에서 잰다
+      const openings = run.edges
+        .filter((e) => plan.openings[e.key])
+        .map((e) => {
+          const m = world(e.mid);
+          return { edge: e.key, kind: plan.openings[e.key]!, at: Math.hypot(m.x - a.x, m.y - a.y) - length / 2 };
+        })
+        .sort((p, q) => p.at - q.at);
+      let cursor = -length / 2;
+      const solid = (start: number, end: number) => {
+        if (end - start > 0.001) wall.add(piece(end - start + WALL_T, WALL_H, WALL_H / 2, (start + end) / 2, wallMat));
+      };
+      openings.forEach((o, i) => {
+        const next = openings[i + 1];
+        const wanted = o.kind === 'door' ? 0.76 : 0.7;
+        const left = Math.max(0.03, o.at - cursor - 0.06);
+        const right = Math.max(0.03, Math.min(length / 2 - o.at - 0.06, next ? (next.at - o.at) / 2 - 0.03 : Infinity));
+        const half = Math.min(wanted / 2, left, right);
+        const start = o.at - half;
+        const end = o.at + half;
+        solid(cursor, start);
+        cursor = end;
+        const width = end - start;
+        if (o.kind === 'window') {
+          wall.add(piece(width, 0.4, 0.2, o.at, wallMat));
+          wall.add(piece(width, 0.14, WALL_H - 0.07, o.at, wallMat));
+          wall.add(piece(width, 0.42, 0.61, o.at, glassMat));
+        } else {
+          wall.add(piece(width, 0.14, WALL_H - 0.07, o.at, wallMat));
+          const [p, q] = edgeSides(layout, o.edge);
+          const isExit = layout.cellAt.has(p) !== layout.cellAt.has(q);
+          // 경첩을 축으로 도는 문짝
+          const pivot = new THREE.Group();
+          pivot.position.set(start, 0, 0);
+          pivot.add(box(width, WALL_H - 0.16, 0.05, isExit ? exitMat : doorMat, width / 2, (WALL_H - 0.16) / 2, 0));
+          pivot.rotation.y = doorOpenAngle(o.edge);
+          wall.add(pivot);
+          doorPanels.set(o.edge, pivot);
+        }
+      });
+      solid(cursor, length / 2);
     }
 
     // 나가는 길
@@ -428,8 +444,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const ribbon = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0xd6402f, roughness: 0.7, emissive: 0x6a1a10, emissiveIntensity: 0.25 });
       for (let i = 1; i < pathPoints.length; i++) {
-        const a = pathPoints[i - 1]!;
-        const b = pathPoints[i]!;
+        const a = world(pathPoints[i - 1]!);
+        const b = world(pathPoints[i]!);
         const len = Math.hypot(b.x - a.x, b.y - a.y);
         if (len < 0.001) continue;
         const seg = new THREE.Mesh(new THREE.BoxGeometry(len + 0.1, 0.012, 0.1), mat);
@@ -441,7 +457,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     }
 
     // 만나는 곳 깃발과 가족
-    const meet = plan.marks.meet;
+    const meet = plan.marks.meet ? world(plan.marks.meet) : null;
     if (meet) {
       const flag = new THREE.Group();
       flag.position.set(meet.x, 0, meet.y);
@@ -478,11 +494,14 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     for (const cell of layout.cells) {
       const fg = new THREE.Group();
       fg.visible = false;
-      for (const s of cell.squares) {
+      // 점 간격을 좁혀도 불꽃과 연기는 처음 네모마다 하나다
+      const spots = cell.squares.filter((s) => s.x % density === 0 && s.y % density === 0).map((s) => world(s.center));
+      if (spots.length === 0) spots.push(world(cell.anchor));
+      for (const c of spots) {
         const mat = makeFlameMaterial();
         flameMats.push(mat);
         const flame = new THREE.Mesh(flameGeo, mat);
-        flame.position.set(s.center.x, 0.5, s.center.y);
+        flame.position.set(c.x, 0.5, c.y);
         flameMeshes.push(flame);
         fg.add(flame);
       }
@@ -490,11 +509,11 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       flames.set(cell.id, fg);
 
       const sm = new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: 0, depthWrite: false });
-      const sprites = cell.squares.flatMap((s) =>
+      const sprites = spots.flatMap((c) =>
         [0, 1].map((i) => {
           const sprite = new THREE.Sprite(sm);
-          const x = s.center.x - 0.2 + Math.random() * 0.4;
-          const z = s.center.y - 0.2 + Math.random() * 0.4;
+          const x = c.x - 0.2 + Math.random() * 0.4;
+          const z = c.y - 0.2 + Math.random() * 0.4;
           sprite.scale.setScalar(1.1);
           scene.add(sprite);
           return { s: sprite, x, z, ph: i * 1.7 + Math.random() * 3 };
@@ -503,8 +522,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       smokes.set(cell.id, { mat: sm, sprites });
     }
 
-    const { list, total } = buildTimes(drill.timeline);
-    const finalPt: Pt = drill.pt;
+    const { list, total } = buildTimes(drill.timeline.map((snap) => ({ ...snap, walk: snap.walk.map(world) })));
+    const finalPt: Pt = world(drill.pt);
     const levels = FIRE.low.levels;
     const clock = new THREE.Clock();
     let time = 0;

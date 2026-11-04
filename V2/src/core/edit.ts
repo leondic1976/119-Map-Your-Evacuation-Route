@@ -5,8 +5,8 @@
 import { analyze, cellIdAt, edgeEnds, edgeInGrid, edgeMid, isExterior, isInterior, pieceCenter, pieceKeyAt, reachableFrom, segmentEdges, sqKey, tagFor, wallOf } from './grid';
 import { OUT, type CellTag, type Layout, type MarkId, type OpeningKind, type Plan, type Pt } from './types';
 
-export function emptyPlan(cols: number, rows: number): Plan {
-  return { cols, rows, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [] };
+export function emptyPlan(cols: number, rows: number, density = 1): Plan {
+  return { cols: cols * density, rows: rows * density, ...(density > 1 ? { density } : {}), walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [] };
 }
 
 /**

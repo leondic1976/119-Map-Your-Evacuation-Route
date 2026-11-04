@@ -3,17 +3,21 @@
  * 다른 층은 `localStorage`·`Audio`·`window.print` 를 직접 부르지 않는다.
  */
 export interface Host {
+  /** 기기에 오래 남는 저장. 도면만 여기에 둔다 */
   load<T>(key: string): T | null;
   save(key: string, value: unknown): void;
   remove(key: string): void;
+  /** 탭을 닫으면 사라지는 저장. 이름표와 소리, 사용법을 본 기록을 둔다 */
+  loadSession<T>(key: string): T | null;
+  saveSession(key: string, value: unknown): void;
   print(): void;
   /** 음성 MP3 재생. 실패하면 조용히 멈춘다. onDone 은 끝나거나 실패했을 때 한 번 부른다 */
   playVoice(id: string, onDone?: () => void): void;
   stopVoice(): void;
   /** 시작 때 한 번, 2초 안에 끝나는 경보음 */
   alarm(): void;
-  /** 웹에서 연 판을 다음에 인터넷 없이도 열 수 있게 저장해 둔다 */
-  keepForOffline(): void;
+  /** 예전 판이 브라우저에 남긴 서비스 워커와 저장본을 지운다. 화면을 저장해 두지 않는다 */
+  forgetOldCopies(): void;
   /** 설치 안내 주소. 이미 설치했거나 오프라인 판이면 null */
   installGuide(): string | null;
 }
@@ -46,6 +50,23 @@ class WebHost implements Host {
   remove(key: string): void {
     try {
       window.localStorage.removeItem(PREFIX + key);
+    } catch {
+      /* 저장이 막혀도 앱은 돈다 */
+    }
+  }
+
+  loadSession<T>(key: string): T | null {
+    try {
+      const raw = window.sessionStorage.getItem(PREFIX + key);
+      return raw ? (JSON.parse(raw) as T) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveSession(key: string, value: unknown): void {
+    try {
+      window.sessionStorage.setItem(PREFIX + key, JSON.stringify(value));
     } catch {
       /* 저장이 막혀도 앱은 돈다 */
     }
@@ -108,15 +129,18 @@ class WebHost implements Host {
     }
   }
 
-  keepForOffline(): void {
-    if (!isWebBuild() || !('serviceWorker' in navigator)) return;
+  forgetOldCopies(): void {
+    if (!isWebBuild()) return;
+    // 같은 주소를 쓰는 다른 사이트의 것을 건드리지 않게 이 사이트 아래의 것만 지운다
+    const site = new URL('../', window.location.href).href;
     navigator.serviceWorker
-      .register('./sw.js')
-      .then(() => navigator.serviceWorker.ready)
-      .then((registration) => registration.active?.postMessage('warm-voice'))
-      .catch(() => {
-        /* 저장하지 못해도 앱은 돈다 */
-      });
+      ?.getRegistrations()
+      .then((list) => Promise.all(list.filter((r) => r.scope.startsWith(site)).map((r) => r.unregister())))
+      .catch(() => undefined);
+    window.caches
+      ?.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('hem')).map((key) => window.caches.delete(key))))
+      .catch(() => undefined);
   }
 
   installGuide(): string | null {

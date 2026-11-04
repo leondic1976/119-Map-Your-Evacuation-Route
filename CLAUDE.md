@@ -151,10 +151,13 @@ app   →  ui
 ```
 
 - V2 의 서비스 워커는 `V2/tools/sw.template.js` 와 `V2/root-sw.js` 이고, 아래 두 항목은 `tools/sw.template.js`(루트 검증용) 이야기다.
-- 서비스 워커 선캐시는 **앱 껍데기뿐**이다. MP3 는 활성화 뒤 배경에서 받고, ZIP 은 캐시하지 않는다.
-  새 판은 화면이 `skip-waiting` 을 보낼 때만 넘어간다 — 그리던 도중에 바뀌지 않게.
+- 공개되는 V2 웹은 화면을 저장해 두지 않는다(대장 #132). 기기에 오래 남는 것은 도면뿐이고 이름표·설정은 탭을 닫으면 사라진다.
+  `V2/public/sw.js` · `V2/root-sw.js` 는 옛 워커를 넘겨받아 저장본을 지우고 물러나는 워커다. 저장본을 만드는 워커를 되살리지 않는다.
+- 이 아래 서비스 워커·설치 묻기는 이전 판 화면의 검증용이고 공개되지 않는다.
 - 서비스 워커·설치 묻기(`beforeinstallprompt`)는 `platform/host.ts` 의 `installer` 에서만 다룬다. `file://` 과
   오프라인 HTML 에서는 등록하지 않는다. `npm test` 가 경계를 지킨다.
+- 윈도우 프로그램은 스스로 새 판을 받아 창을 닫을 때 설치한다(대장 #131). 묻는 대화상자를 되살리지 않는다. `npm run desktop:update-check` 가 windows 러너에서 지킨다.
+- `/download/` 의 판 기록은 `CHANGELOG.md` 와 Release 에서 만든다(대장 #130, `tools/releases.mjs`).
 - 윈도우 설치 파일은 `.github/workflows/desktop.yml`(windows 러너)이 만들어 Release `desktop` 태그에 덮어쓴다.
   Pages 배포를 막지 않는다. **저장소가 비공개라 Release 주소는 공개 링크가 아니다** — `deploy.yml` 이 받아
   `dist/desktop/` 에 두면 `pack.ts` 가 Pages 의 `download/` 에 싣고, 안내 페이지는 같은 사이트 안만 가리킨다. `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
@@ -163,7 +166,7 @@ app   →  ui
 - 3D 의 사실감(환경광·물리 하늘·PCSS·절차형 PBR 재질·노이즈 불꽃·연기·후처리)은 **전부 코드**로 낸다(설계서 v1.19 §4).
   HDRI·텍스처·모델 파일을 들이지 않고, 재질은 한 장씩 프레임을 양보하며 굽는다. `npm test` 가 바깥 자산 흔적을 잡는다.
 - **판 번호는 `package.json` 한 곳**이고 바뀐 것은 `CHANGELOG.md` 맨 위에 적는다(설계서 v2.0 §7). 배포할 때 둘을 함께 올린다 —
-  설치판은 `download/latest.json` 으로 새 판을 알아채고 조용히 덮어쓴다. `desktop/main.cjs` 가 바깥에 보내는 요청은 이 확인 하나뿐이다.
+  설치판은 `download/latest.json` 으로 새 판을 알아채고 조용히 덮어쓴다. `desktop/main.cjs` 가 바깥에 보내는 요청은 이 확인과 설치판 받기뿐이다.
 - **웹 실행이 첫째 갈래다**(설계서 v1.20). 설치 안내(`/download/`)는 「웹에서 바로 쓰기」를 카드 위 첫 줄에 보이고, 주소는
   하드코딩하지 않고 지금 열린 주소에서 만든다. 탭 아이콘은 웹이 `/icon.svg`, 오프라인이 data URI 다 — 오프라인 HTML 에
   뿌리 절대 경로(`href="/…"`)를 남기지 않는다. 꾸러미 폴더는 웹 서버에 그대로 올려도 돈다. `npm test` 가 지킨다.

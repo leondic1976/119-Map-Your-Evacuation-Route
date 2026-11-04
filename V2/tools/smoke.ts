@@ -78,7 +78,7 @@ async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0
   // 불이 시작되는 칸은 시각에서 고른다. 어디서 돌려도 같은 판이 되도록 시각을 고정한다
   await page.addInitScript('Date.now = () => 1700000000000');
   // 사용법 카드는 따로 시험한다. 다른 시나리오에서는 이미 본 것으로 둔다
-  if (seenHowTo) await page.addInitScript(`localStorage.setItem('home-escape-map-v2:howto', '${JSON.stringify(['draw', 'sort', 'door', 'mark', 'route', 'drill'])}')`);
+  if (seenHowTo) await page.addInitScript(`sessionStorage.setItem('home-escape-map-v2:howto', '${JSON.stringify(['draw', 'sort', 'door', 'mark', 'route', 'drill'])}')`);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -130,30 +130,6 @@ async function startSite(port: number): Promise<{ url: string; pages: Map<string
   return { url: `http://127.0.0.1:${port}/`, pages, setDown: (v) => (down = v), close: () => server.close() };
 }
 
-const VOICE_COUNT = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/voice/manifest.json'), 'utf8')).items.length as number;
-
-/** 워커가 음성까지 다 받아 둘 때까지 기다린다 */
-async function waitForOfflineCopy(page: Page): Promise<void> {
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
-  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-  // waitForFunction 은 비동기 조건의 Promise 를 참으로 볼 수 있어 직접 되묻는다
-  const until = Date.now() + 60000;
-  let saved = 0;
-  while (Date.now() < until) {
-    saved = await page.evaluate(async () => {
-      let most = 0;
-      for (const key of await caches.keys()) {
-        if (!key.startsWith('hem2-')) continue;
-        const items = await (await caches.open(key)).keys();
-        most = Math.max(most, items.filter((r) => r.url.endsWith('.mp3')).length);
-      }
-      return most;
-    });
-    if (saved === VOICE_COUNT) return;
-    await page.waitForTimeout(300);
-  }
-  assert.fail(`음성 저장 ${saved}/${VOICE_COUNT}`);
-}
 
 async function voicePlays(page: Page): Promise<void> {
   await page.waitForFunction(
@@ -1422,37 +1398,68 @@ async function main(): Promise<void> {
     await ctx.close();
   });
 
-  await scenario('웹: 한 번 열면 인터넷이 끊겨도 글꼴·그림·음성·3D 와 함께 열린다', async () => {
+  await scenario('웹: 저장본을 만들지 않고, 기기에 오래 남는 것은 도면뿐이며, 탭을 닫았다 열어도 도면으로 이어 간다', async () => {
     const site = await startSite(4190);
     try {
       const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1280, height: 800 }, serviceWorkers: 'allow' }, true, `${site.url}V2/`);
       await page.waitForSelector(t('start'));
       assert.equal(await page.locator(t('install-link')).getAttribute('href'), '../download/');
       await checkInstallLink(page);
-      await waitForOfflineCopy(page);
-      assert.equal((await ctx.request.get(`${site.url}V2/manifest.webmanifest`)).status(), 200);
-
-      site.setDown(true);
-      assert.equal((await ctx.request.get(`${site.url}V2/`)).status(), 503, '끊김 흉내가 켜지지 않았다');
-      await page.reload();
-      await page.waitForSelector(t('start'), { timeout: 15000 });
       await imagesLoaded(page);
       await fontLoaded(page);
       await startAs(page, 3);
       await voicePlays(page);
       await page.click(t('help'));
-      assert.ok((await num(page, 'walls')) > 0, '끊긴 채로 그린다');
-      const chunk = fs.readdirSync(path.join(process.cwd(), 'dist', 'assets')).find((f) => /^Replay3D.*\.js$/.test(f))!;
-      const status = await page.evaluate(async (name) => (await window.fetch(`./assets/${name}`)).status, chunk);
-      assert.equal(status, 200, '3D 묶음을 저장본에서 받는다');
+      const walls = await num(page, 'walls');
+      assert.ok(walls > 0);
+      await page.waitForTimeout(500);
+      const stored = await page.evaluate(async () => ({
+        workers: (await navigator.serviceWorker.getRegistrations()).length,
+        caches: await caches.keys(),
+        keys: Object.keys(localStorage).sort(),
+      }));
+      assert.equal(stored.workers, 0, '서비스 워커가 없다');
+      assert.deepEqual(stored.caches, [], '저장본이 없다');
+      assert.deepEqual(stored.keys, ['home-escape-map-v2:plan'], '오래 남는 것은 도면뿐이다');
+      assert.equal(await page.evaluate(() => !localStorage.getItem('home-escape-map-v2:plan')!.includes('"name"')), true, '이름표가 들어 있지 않다');
+      assert.equal(await page.locator('link[rel="manifest"]').count(), 0, '브라우저 설치 안내가 없다');
+
+      // 탭을 닫고 새로 연다 — 이름표는 사라지고 도면은 남는다
+      await page.close();
+      const again = await ctx.newPage();
+      await again.addInitScript(`sessionStorage.setItem('home-escape-map-v2:howto', '${JSON.stringify(['draw', 'sort', 'door', 'mark', 'route', 'drill'])}')`);
+      await again.goto(`${site.url}V2/`);
+      await again.waitForSelector(t('start'));
+      assert.match(await again.locator(t('start')).innerText(), /이어서 그리기/, '도면이 있으면 이어서 그린다');
+      await again.click(t('start'));
+      await again.waitForSelector('.studio');
+      assert.equal(await num(again, 'walls'), walls, '도면이 그대로다');
+      assert.equal(await num(again, 'cols'), 10, '학년 단계가 도면 크기로 이어진다');
       assert.deepEqual(errors, [], '콘솔 오류');
       await ctx.close();
+
+      // 예전 판이 남긴 저장은 도면만 옮기고 지운다
+      const oldCtx = await browser.newContext({ locale: 'ko-KR', viewport: { width: 1280, height: 800 } });
+      const oldPage = await oldCtx.newPage();
+      await oldPage.addInitScript(`
+        if (!sessionStorage.getItem('seeded')) {
+          sessionStorage.setItem('seeded', '1');
+          localStorage.setItem('home-escape-map-v2:app', JSON.stringify({ profile: { name: '안전이', grade: 6, look: 'b' }, step: 'draw', soundOn: true, plan: { cols: 12, rows: 8, walls: ['h:1:1', 'h:1:2', 'v:1:1', 'v:2:1'], openings: {}, tags: {}, marks: {}, route: [], route2: [] } }));
+          localStorage.setItem('home-escape-map-v2:howto', '[]');
+        }
+      `);
+      await oldPage.goto(`${site.url}V2/`);
+      await oldPage.waitForSelector(t('start'));
+      await oldPage.waitForTimeout(300);
+      assert.deepEqual(await oldPage.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('home-escape-map'))), [], '옛 저장을 지운다');
+      assert.match(await oldPage.locator(t('start')).innerText(), /이어서 그리기/, '옛 도면을 이어 간다');
+      await oldCtx.close();
     } finally {
       site.close();
     }
   });
 
-  await scenario('전환: 이전 판 워커가 남은 브라우저도 바로 V2 로 가고, 끊겨도 기본 주소가 열린다', async () => {
+  await scenario('전환: 이전 판 워커와 저장본이 남은 브라우저도 저장본을 지우고 새 판으로 간다', async () => {
     const site = await startSite(4191);
     try {
       // 옛 워커 — 첫 페이지를 저장본에서 내주고, 새 판이 와도 스스로 넘어가지 않는다
@@ -1476,14 +1483,14 @@ async function main(): Promise<void> {
       await page.goto(site.url);
       await page.waitForURL(`${site.url}V2/`, { timeout: 30000 });
       await page.waitForSelector(t('start'));
-      await waitForOfflineCopy(page);
-      const keys = await page.evaluate(() => caches.keys());
-      assert.ok(!keys.includes('hem-2.1.6'), `옛 저장본이 지워져야 한다: ${keys.join(', ')}`);
-
-      site.setDown(true);
-      await page.goto(site.url);
-      await page.waitForURL(`${site.url}V2/`, { timeout: 15000 });
-      await page.waitForSelector(t('start'), { timeout: 15000 });
+      const until = Date.now() + 15000;
+      let left: { workers: number; keys: string[] } = { workers: -1, keys: [] };
+      while (Date.now() < until) {
+        left = await page.evaluate(async () => ({ workers: (await navigator.serviceWorker.getRegistrations()).length, keys: await caches.keys() }));
+        if (left.workers === 0 && left.keys.length === 0) break;
+        await page.waitForTimeout(300);
+      }
+      assert.deepEqual(left, { workers: 0, keys: [] }, '옛 워커와 저장본이 지워진다');
       await ctx.close();
     } finally {
       site.close();

@@ -237,25 +237,19 @@ export function runQaTests(check: Check): void {
     assert.ok(deploy.includes('cp V2/root-sw.js out/sw.js'), '이전 판의 워커를 넘겨받지 않는다');
   });
 
-  check('[오프라인] 서비스 워커가 화면을 모두 저장하고 바깥으로 나가지 않는다', () => {
-    const sw = read(path.join(root, 'dist', 'sw.js'));
-    assert.ok(!/https?:\/\//.test(sw) && !/https?:\/\//.test(read(path.join(root, 'root-sw.js'))), '워커에 바깥 주소가 있다');
-    assert.ok(!sw.includes('skipWaiting'), '그리는 도중에 새 판으로 넘어가면 안 된다');
-    const list = (name: string): string[] => JSON.parse(new RegExp(`const ${name} = (\\[[^\\n]*\\]);`).exec(sw)![1]!) as string[];
-    const precache = list('PRECACHE');
-    const voice = list('VOICE');
-    for (const url of precache) {
-      if (url !== './') assert.ok(fs.existsSync(path.join(root, 'dist', url)), `없는 파일: ${url}`);
+  check('[저장] 화면을 저장해 두지 않고, 기기에 오래 남는 것은 도면뿐이다', () => {
+    for (const file of [path.join(root, 'dist', 'sw.js'), path.join(root, 'root-sw.js')]) {
+      const sw = read(file);
+      assert.ok(sw.includes('caches.delete') && sw.includes('registration.unregister'), '옛 저장본을 지우고 물러나야 한다');
+      assert.ok(!sw.includes("'fetch'") && !sw.includes('caches.open') && !sw.includes('.addAll') && !sw.includes('cache.put'), '저장하거나 요청을 가로채면 안 된다');
+      assert.ok(sw.includes("startsWith('hem')"), '같은 주소의 다른 사이트 저장본을 건드리면 안 된다');
     }
-    assert.ok(precache.includes('./') && precache.includes('./manifest.webmanifest'), '첫 화면·매니페스트가 없다');
-    assert.ok(precache.some((u) => /Replay3D.*\.js$/.test(u)), '3D 묶음이 없다');
-    assert.ok(precache.some((u) => u.endsWith('.woff2')) && !precache.some((u) => u.endsWith('.woff')), '글꼴 목록이 다르다');
-    assert.ok(!precache.some((u) => u.endsWith('.mp3')), '음성은 뒤에서 받는다');
-    assert.equal(voice.length, LINE_IDS.length);
-    const manifest = JSON.parse(read(path.join(root, 'public', 'manifest.webmanifest'))) as { start_url: string; scope: string; icons: { src: string }[] };
-    assert.equal(manifest.start_url, './');
-    assert.equal(manifest.scope, './');
-    for (const icon of manifest.icons) assert.ok(fs.existsSync(path.join(root, 'public', icon.src)), icon.src);
+    const host = read(path.join(root, 'src', 'platform', 'host.ts'));
+    assert.ok(!host.includes('serviceWorker\n      .register') && !host.includes('.register('), '워커를 등록하면 안 된다');
+    assert.ok(!fs.existsSync(path.join(root, 'dist', 'manifest.webmanifest')), '브라우저 설치 안내가 남아 있다');
+    const store = read(path.join(root, 'src', 'store', 'app.ts'));
+    const saves = [...store.matchAll(/host\.save\('([^']+)'/g)].map((m) => m[1]);
+    assert.deepEqual(saves, ['plan'], '도면 말고 다른 것을 오래 저장한다');
   });
 
   check('[오프라인] 오프라인 HTML 하나에 다 들어 있고 4MB 를 넘지 않는다', () => {

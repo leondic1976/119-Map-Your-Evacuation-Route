@@ -59,17 +59,33 @@ export interface AppState {
   panMode: boolean;
 }
 
-interface Saved {
+/**
+ * 기기에 오래 남는 것은 도면뿐이다(대장 #132). 나머지는 탭을 닫으면 사라진다.
+ * 다시 열면 도면의 칸 수로 학년 단계를 알아내 이어서 그린다.
+ */
+interface Session {
   profile: Profile | null;
-  plan: Plan;
   step: StepId;
   soundOn: boolean;
+}
+
+/** 저장된 도면의 학년 단계에 맞는 이름표 */
+function profileFromPlan(plan: Plan): Profile | null {
+  if (plan.walls.length === 0) return null;
+  const base = Math.round(plan.cols / (plan.density ?? 1));
+  const grade = base === BANDS.high.cols ? 5 : base === BANDS.mid.cols ? 3 : 1;
+  return { name: '', grade, look: 'a' };
 }
 
 const LOW = BANDS.low;
 
 function initialState(): AppState {
-  const saved = host.load<Saved>('app');
+  // 예전 판은 이름표까지 함께 저장했다. 도면만 옮기고 나머지는 지운다
+  const legacy = host.load<{ plan?: Plan }>('app');
+  const savedPlan = host.load<Plan>('plan') ?? legacy?.plan ?? null;
+  host.remove('app');
+  host.remove('howto');
+  const session = host.loadSession<Session>('app');
   const base: AppState = {
     screen: 'welcome',
     profile: null,
@@ -82,17 +98,18 @@ function initialState(): AppState {
     drill: null,
     drillSeed: Date.now() % 100000,
     howTo: null,
-    seenHowTo: host.load<StepId[]>('howto') ?? [],
+    seenHowTo: host.loadSession<StepId[]>('howto') ?? [],
     view: null,
     panMode: false,
   };
-  if (!saved?.plan || !Array.isArray(saved.plan.walls)) return base;
+  const plan = savedPlan && Array.isArray(savedPlan.walls) ? normalize(savedPlan) : null;
+  const step = session?.step;
   return {
     ...base,
-    profile: saved.profile,
-    plan: normalize(saved.plan),
-    step: STEPS.includes(saved.step) && saved.step !== 'drill' && saved.step !== 'review' ? saved.step : 'draw',
-    soundOn: saved.soundOn !== false,
+    ...(plan ? { plan } : {}),
+    profile: session?.profile ?? (plan ? profileFromPlan(plan) : null),
+    step: step && STEPS.includes(step) && step !== 'drill' && step !== 'review' ? step : 'draw',
+    soundOn: session?.soundOn !== false,
   };
 }
 
@@ -100,13 +117,9 @@ let state: AppState = initialState();
 const listeners = new Set<() => void>();
 
 function persist(): void {
-  const saved: Saved = {
-    profile: state.profile,
-    plan: state.plan,
-    step: state.step,
-    soundOn: state.soundOn,
-  };
-  host.save('app', saved);
+  host.save('plan', state.plan);
+  const session: Session = { profile: state.profile, step: state.step, soundOn: state.soundOn };
+  host.saveSession('app', session);
 }
 
 function set(patch: Partial<AppState>): void {
@@ -199,7 +212,7 @@ export function saveProfile(profile: Profile): void {
   const nextBand = bandOfGrade(profile.grade);
   const sameBand = state.profile && bandOfGrade(state.profile.grade) === nextBand;
   const info = BANDS[nextBand];
-  const keep = sameBand || (state.profile === null && state.plan.cols / densityOf(state.plan) === info.cols && state.plan.walls.length > 0);
+  const keep = sameBand || (state.profile === null && Math.round(state.plan.cols / densityOf(state.plan)) === info.cols && state.plan.walls.length > 0);
   set({
     profile,
     screen: 'studio',
@@ -255,7 +268,7 @@ export function openHowTo(): void {
 export function closeHowTo(): void {
   const step = state.step;
   const seenHowTo = state.seenHowTo.includes(step) ? state.seenHowTo : [...state.seenHowTo, step];
-  host.save('howto', seenHowTo);
+  host.saveSession('howto', seenHowTo);
   set({ howTo: null, seenHowTo });
   say(stepLine(step, currentBand()));
 }

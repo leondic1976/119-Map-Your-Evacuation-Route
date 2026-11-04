@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DESKTOP_DIST_DIR, OFFLINE_ZIP_NAME, desktopAssetNames } from '../src/content/release';
+import { readReleases } from './releases.mjs';
 
 const root = process.cwd();
 const outDir = path.join(root, 'out');
@@ -94,6 +95,23 @@ if (desktopFiles.every((file) => fs.existsSync(file))) {
   desktopNote += ` · latest.json ${pkg.version}`;
 }
 
+/*
+ * 1d. 판 기록 (대장 #130) — 무엇이 바뀌었는지와 받을 수 있는 설치판을 download/releases.json 에 적는다.
+ * 지난 판의 설치판도 함께 실어 안내 페이지에서 받을 수 있게 한다.
+ */
+const releaseList = readReleases(root, pkg.version);
+{
+  const downloadDir = path.join(outDir, 'download');
+  fs.mkdirSync(downloadDir, { recursive: true });
+  const listed = releaseList.map((entry) => {
+    if (!entry.setup) return entry;
+    const source = path.join(distDir, DESKTOP_DIST_DIR, entry.setup.name);
+    if (!fs.existsSync(path.join(downloadDir, entry.setup.name))) fs.copyFileSync(source, path.join(downloadDir, entry.setup.name));
+    return { ...entry, setup: { ...entry.setup, sha256: createHash('sha256').update(fs.readFileSync(source)).digest('hex') } };
+  });
+  fs.writeFileSync(path.join(downloadDir, 'releases.json'), JSON.stringify({ current: pkg.version, releases: listed }, null, 2), 'utf8');
+}
+
 /** CHANGELOG.md 맨 위 판의 글머리 줄들 — 새 판 대화상자에 그대로 실린다 */
 function changelogTop(): string {
   const file = path.join(root, 'CHANGELOG.md');
@@ -166,5 +184,6 @@ process.stdout.write('\n  내보내기 마감\n');
 process.stdout.write(`    기준 경로   ${scope}\n`);
 process.stdout.write(`    꾸러미      ${zipNote}\n`);
 process.stdout.write(`    설치 파일   ${desktopNote}\n`);
+process.stdout.write(`    판 기록     download/releases.json · ${releaseList.length}개 판 · 받을 수 있는 설치판 ${releaseList.filter((r) => r.setup).length}개\n`);
 process.stdout.write(`    매니페스트  out/manifest.webmanifest\n`);
 process.stdout.write(`    서비스 워커 out/sw.js · 선캐시 ${precache.length}개 · 배경 음성 ${voice.length}개 · ${cacheName}\n\n`);

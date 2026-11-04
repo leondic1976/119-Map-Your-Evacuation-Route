@@ -1,13 +1,13 @@
 {
   "name": "home-escape-map-v2",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "license": "MIT",
   "description": "우리집 대피지도 V2 — 점을 이어 집을 그리고, 칸을 눌러 나가는 길을 고르는 초등학생용 화재 대피 학습 프로그램",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsx tools/make-sw.ts",
+    "build": "vite build",
     "build:offline": "tsx tools/offline.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

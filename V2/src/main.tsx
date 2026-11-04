@@ -5,7 +5,7 @@ import './ui/app.css';
 import { App } from './App';
 import { host } from './platform/host';
 
-host.keepForOffline();
+host.forgetOldCopies();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

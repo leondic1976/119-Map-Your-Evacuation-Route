@@ -3639,7 +3639,7 @@
 
 .k-dl-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
   max-width: 1180px;
   margin: 26px auto 0;
@@ -4494,3 +4494,12 @@
   color: #1f6b45;
 }
 
+/* 판 기록 — 어느 판에서 무엇이 바뀌었는지 (대장 #130) */
+.k-dl-releases { max-width: 1120px; margin: 28px auto 0; padding: 0 24px; }
+.k-dl-releases h2 { font-size: 24px; margin: 0 0 6px; }
+.k-dl-releases > p { margin: 0 0 12px; }
+.k-dl-releases > ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.k-dl-releases > ul > li { padding: 10px 14px; background: #fff; border: 1px solid #d5dde4; border-radius: 12px; }
+.k-dl-releases > ul > li.current { border: 2px solid #0b2f51; }
+.k-dl-releases summary { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; font-size: 18px; }
+.k-dl-release-notes { margin: 4px 0 10px; padding-left: 20px; line-height: 1.5; }

@@ -2309,14 +2309,19 @@ async function main(): Promise<void> {
       dl.on('pageerror', (e) => errors.push(e.message));
       await dl.goto(new URL('download/', server.url).href, { waitUntil: 'networkidle' });
       await dl.waitForSelector('[data-screen="download"]');
-      assert((await dl.locator('[data-download-card]').count()) === 3, '설치 갈래가 세 장이 아니다');
+      assert((await dl.locator('[data-download-card]').count()) === 2, '설치 갈래가 두 장이 아니다');
+      assert((await dl.locator('[data-release]').count()) >= 3, '판 기록이 없다');
+      assert((await dl.locator('[data-release].current').count()) === 1, '지금 판이 표시되지 않았다');
+      const releasesRes = await dl.request.get(new URL('download/releases.json', server.url).href);
+      assert(releasesRes.status() === 200, `판 기록 파일 ${releasesRes.status()}`);
+      assert(((await releasesRes.json()) as { releases: unknown[] }).releases.length >= 3, '판 기록 파일이 비었다');
       /* 설치하지 않고 웹에서 바로 쓰는 길이 첫 줄에 있고, 주소는 지금 서버의 것이다 (설계서 v1.20 §2.1) */
       const webHref = await dl.locator('[data-coach="kids-download-web"]').getAttribute('href');
       assert(webHref === '/', `웹 바로 쓰기 주소가 첫 화면이 아니다: ${webHref}`);
       const address = (await dl.locator('[data-web-address]').innerText()).trim();
       assert(address === new URL('/', server.url).href, `웹 주소 표시가 지금 서버와 다르다: ${address}`);
       const text = await dl.locator('[data-screen="download"]').innerText();
-      for (const word of ['설치하지 않아도 돼', '웹에서 바로 쓰기', '브라우저에 설치', '오프라인 꾸러미', '윈도우 설치 파일', '선생님·보호자께', '추가 정보']) assert(text.includes(word), `안내에 ${word}가 없다`);
+      for (const word of ['설치하지 않아도 돼', '웹에서 바로 쓰기', '판 기록', '오프라인 꾸러미', '윈도우 설치 파일', '선생님·보호자께', '추가 정보']) assert(text.includes(word), `안내에 ${word}가 없다`);
       assert(!/점수|등급|순위|대시보드/.test(text), '안내에 점수·대시보드 문구가 있다');
       const zipHref = await dl.locator('[data-coach="kids-download-zip"]').getAttribute('href');
       assert(Boolean(zipHref?.endsWith('/download/home-escape-map-offline.zip')), `꾸러미 주소가 다르다: ${zipHref}`);

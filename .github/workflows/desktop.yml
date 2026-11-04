@@ -43,6 +43,9 @@ jobs:
       - name: 빌드본 실행 검증 (첫 화면 → 이름표 → 그리기 → 저장 · 바깥 요청 0건)
         run: npm run desktop:check -- --packaged
 
+      - name: 자동 업데이트 검증 (받기 · 다른 파일 거부 · 무설치판 교체 · 설치판 조용히 설치)
+        run: npm run desktop:update-check
+
       - name: 산출물 보관
         uses: actions/upload-artifact@v4
         with:

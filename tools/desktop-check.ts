@@ -51,7 +51,10 @@ async function main(): Promise<void> {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.waitForSelector(t('start'), { timeout: 30_000 });
     /* 지난 실행의 저장 자료가 Electron 프로필에 남아 있다 — 처음 켠 PC 처럼 비우고 다시 연다 */
-    await page.evaluate(() => window.localStorage.clear());
+    await page.evaluate(() => {
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+    });
     await page.reload();
     await page.waitForSelector(t('start'), { timeout: 30_000 });
     assert((await page.title()).includes('우리집 대피지도'), `창 제목이 다르다: ${await page.title()}`);
@@ -85,6 +88,8 @@ async function main(): Promise<void> {
     await page.locator(t('start')).click();
     await page.waitForSelector('.studio', { timeout: 15_000 });
     assert((await page.locator('.stage svg.plan').first().getAttribute('data-walls')) === walls, '그린 벽이 그대로 남지 않았다');
+    const stored = await page.evaluate(() => Object.keys(window.localStorage));
+    assert(stored.length === 1 && stored[0] === 'home-escape-map-v2:plan', `도면 말고 다른 것이 저장됐다: ${stored.join(', ')}`);
     assert(outside.length === 0, `바깥 요청 ${outside.length}건: ${outside.slice(0, 3).join(', ')}`);
     assert(errors.length === 0, `페이지 오류: ${errors.slice(0, 2).join(' | ')}`);
     process.stdout.write(`\n  데스크톱 ${packaged ? '빌드본' : '껍데기'} 검증 통과 — 첫 화면 · 그림 · 글꼴 · 음성 · 이름표 · 그리기 · 저장 · 바깥 요청 0건\n\n`);

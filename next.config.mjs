@@ -1,4 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { readReleases } from './tools/releases.mjs';
 
 /** @type {import('next').NextConfig} */
 const basePath = process.env.BASE_PATH || '';
@@ -14,6 +16,8 @@ const sizeOf = (file) => {
 };
 const desktopSetupBytes = sizeOf(`HomeEscapeMap-Setup-${version}.exe`);
 const desktopPortableBytes = sizeOf(`HomeEscapeMap-Portable-${version}.exe`);
+/* 안내 페이지의 판 기록 (대장 #130) */
+const releases = readReleases(fileURLToPath(new URL('.', import.meta.url)), version);
 
 const nextConfig = {
   output: 'export',
@@ -30,6 +34,7 @@ const nextConfig = {
     NEXT_PUBLIC_OFFLINE_ZIP_BYTES: zipBytes,
     NEXT_PUBLIC_DESKTOP_SETUP_BYTES: desktopSetupBytes,
     NEXT_PUBLIC_DESKTOP_PORTABLE_BYTES: desktopPortableBytes,
+    NEXT_PUBLIC_RELEASES: JSON.stringify(releases),
   },
 };
 

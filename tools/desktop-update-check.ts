@@ -7,12 +7,12 @@
  *   - 무설치판은 창을 닫으면 새 파일로 스스로 바뀐다
  *   - 설치판은 묻지 않고 받아 두었다가 창을 닫으면 조용히 설치한다
  */
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { _electron as electron } from '@playwright/test';
 import { desktopAssetNames } from '../src/content/release';
 
 const root = process.cwd();
@@ -54,19 +54,29 @@ const server = http.createServer((req, res) => {
   }
 });
 
+/**
+ * 앱을 켜서 기다렸다가 이용자처럼 창을 닫는다. 자동 구동 도구는 앱을 닫으며 자식 프로세스까지 끝내므로
+ * 닫은 뒤에 도는 설치를 볼 수 없다. 그래서 그냥 실행하고, taskkill 을 /F 없이 불러 창에 닫기를 보낸다.
+ */
 async function run(name: string, env: Record<string, string>, wait: string): Promise<string> {
   const log = path.join(tmp, `${name}.log`);
-  const app = await electron.launch({
-    executablePath: exe,
+  const app = spawn(exe, [], {
     cwd: root,
-    env: { ...process.env, HEM_UPDATE_URL: `http://127.0.0.1:${(server.address() as { port: number }).port}/`, HEM_UPDATE_LOG: log, ...env } as Record<string, string>,
+    stdio: 'ignore',
+    env: { ...process.env, HEM_UPDATE_URL: `http://127.0.0.1:${(server.address() as { port: number }).port}/`, HEM_UPDATE_LOG: log, ...env },
+  });
+  let ended = false;
+  app.on('exit', () => {
+    ended = true;
   });
   const read = (): string => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '');
   try {
-    await app.firstWindow();
-    await until(`${name}: ${wait}`, 120_000, () => read().includes(wait));
+    await until(`${name}: ${wait} (기록: ${read()})`, 120_000, () => read().includes(wait));
+    spawnSync('taskkill', ['/PID', String(app.pid)]);
+    await until(`${name}: 창이 닫힌다`, 30_000, () => ended);
+    await sleep(500);
   } finally {
-    await app.close();
+    if (!ended) spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F']);
   }
   return read();
 }
@@ -93,8 +103,9 @@ async function main(): Promise<void> {
   latest = { version: '99.0.0', setup, portable };
   const old = path.join(tmp, '우리집 대피지도 무설치판.exe');
   fs.writeFileSync(old, 'old');
-  await run('portable', { PORTABLE_EXECUTABLE_FILE: old }, 'ready');
-  await until('무설치판 파일이 바뀐다', 60_000, () => fs.readFileSync(old).equals(portableBytes));
+  const portableLog = await run('portable', { PORTABLE_EXECUTABLE_FILE: old }, 'ready');
+  assert(portableLog.includes('install'), `닫을 때 설치하지 않았다: ${portableLog}`);
+  await until(`무설치판 파일이 바뀐다 (기록: ${portableLog})`, 60_000, () => fs.readFileSync(old).equals(portableBytes));
   process.stdout.write('    OK  무설치판은 창을 닫으면 새 파일로 바뀐다\n');
 
   // 설치판 — 실제로 설치되므로 CI 에서만 한다
@@ -111,7 +122,8 @@ async function main(): Promise<void> {
       return null;
     };
     assert(installed() === null, '이미 설치돼 있다');
-    await run('setup', {}, 'ready');
+    const setupLog = await run('setup', {}, 'ready');
+    assert(setupLog.includes('install'), `닫을 때 설치하지 않았다: ${setupLog}`);
     await until('설치판이 조용히 설치된다', 240_000, () => installed() !== null);
     process.stdout.write(`    OK  설치판은 묻지 않고 받아 창을 닫으면 조용히 설치된다 — ${installed()}\n`);
   }

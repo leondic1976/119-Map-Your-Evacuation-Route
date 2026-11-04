@@ -235,18 +235,26 @@ function install(restart) {
   if (!pending) return;
   updateLog('install');
   if (portableFile) {
-    /* 실행 중인 파일은 바꿀 수 없다 — 앱이 끝나 풀릴 때까지 기다렸다가 바꾼다. 경로는 환경 변수로 넘겨 글자가 깨지지 않게 한다 */
-    const script = 'for($i=0;$i -lt 240;$i++){try{Copy-Item -LiteralPath $env:HEM_SRC -Destination $env:HEM_DST -Force -ErrorAction Stop;Remove-Item -LiteralPath $env:HEM_SRC -Force;exit 0}catch{Start-Sleep -Milliseconds 500}}';
-    spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], {
+    /*
+     * 실행 중인 파일은 바꿀 수 없다 — 앱이 끝나 풀릴 때까지 기다렸다가 바꾼다. 경로는 환경 변수로 넘겨 글자가 깨지지 않게 한다.
+     * PowerShell 은 콘솔 없이 분리해 띄우면 아무것도 하지 않고 끝나므로 cmd 를 쓴다.
+     */
+    const script = '/d /s /c "for /L %i in (1,1,240) do @(copy /y "%HEM_SRC%" "%HEM_DST%" >nul 2>&1 && (del /q "%HEM_SRC%" & exit /b 0) || ping -n 2 127.0.0.1 >nul)"';
+    spawn(process.env.ComSpec || 'cmd.exe', [script], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
+      windowsVerbatimArguments: true,
       env: { ...process.env, HEM_SRC: pending.file, HEM_DST: portableFile },
-    }).unref();
+    })
+      .on('error', (e) => updateLog(`error ${e.message}`))
+      .unref();
     return;
   }
   /* NSIS 설치판 — /S 조용히 덮어쓰기, restart 면 끝나고 --force-run 으로 다시 켠다 */
-  spawn(pending.file, restart ? ['/S', '--force-run'] : ['/S'], { detached: true, stdio: 'ignore' }).unref();
+  spawn(pending.file, restart ? ['/S', '--force-run'] : ['/S'], { detached: true, stdio: 'ignore' })
+    .on('error', (e) => updateLog(`error ${e.message}`))
+    .unref();
 }
 
 /* 창을 닫을 때 받아 둔 새 판을 설치한다 */

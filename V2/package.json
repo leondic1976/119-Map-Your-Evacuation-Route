@@ -1,6 +1,6 @@
 {
   "name": "home-escape-map-v2",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "license": "MIT",
   "description": "우리집 대피지도 V2 — 점을 이어 집을 그리고, 칸을 눌러 나가는 길을 고르는 초등학생용 화재 대피 학습 프로그램",

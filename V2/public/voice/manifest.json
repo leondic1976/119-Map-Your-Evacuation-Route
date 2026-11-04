@@ -46,6 +46,20 @@
       "hash": "481f92ac51e047d6"
     },
     {
+      "id": "draw-make-rooms",
+      "filename": "draw-make-rooms.mp3",
+      "speaker": "yeongi",
+      "text": "집 모양이 다 됐어! 이제 안에 선을 그어서 방을 만들어 보자.",
+      "hash": "289ac7497512e497"
+    },
+    {
+      "id": "draw-rooms-done",
+      "filename": "draw-rooms-done.mp3",
+      "speaker": "yeongi",
+      "text": "방이 생겼어! 방을 다 만들었으면 다음을 눌러 칸을 칠해 보자.",
+      "hash": "8e9107ec848047d2"
+    },
+    {
       "id": "draw-need-cell",
       "filename": "draw-need-cell.mp3",
       "speaker": "ungi",
@@ -72,6 +86,13 @@
       "speaker": "ilgu",
       "text": "방은 문을 닫으면 불과 연기를 막아 줘. 지나가는 곳은 밖으로 나갈 때 걸어가는 길이야.",
       "hash": "5f93f622a59a008e"
+    },
+    {
+      "id": "sort-done",
+      "filename": "sort-done.mp3",
+      "speaker": "yeongi",
+      "text": "다 칠했어! 이제 다음을 눌러 문을 달아 보자.",
+      "hash": "a7202b01ea747718"
     },
     {
       "id": "door-low",
@@ -109,6 +130,13 @@
       "hash": "7ce4badce65cec4e"
     },
     {
+      "id": "door-done",
+      "filename": "door-done.mp3",
+      "speaker": "yeongi",
+      "text": "모든 칸이 밖까지 이어졌어! 이제 다음을 눌러 내 자리를 표시해 보자.",
+      "hash": "5a275fab2ddf9205"
+    },
+    {
       "id": "mark-low",
       "filename": "mark-low.mp3",
       "speaker": "yeongi",
@@ -144,6 +172,13 @@
       "hash": "419474a6f1008b75"
     },
     {
+      "id": "mark-done",
+      "filename": "mark-done.mp3",
+      "speaker": "yeongi",
+      "text": "표시를 다 놓았어! 이제 다음을 눌러 나가는 길을 찾아 보자.",
+      "hash": "7a56ad0f4d114799"
+    },
+    {
       "id": "route-start",
       "filename": "route-start.mp3",
       "speaker": "yeongi",
@@ -163,6 +198,13 @@
       "speaker": "ilgu",
       "text": "나가는 길을 찾았어! 정말 잘했어.",
       "hash": "c70bf3ceeaa6567c"
+    },
+    {
+      "id": "route-next",
+      "filename": "route-next.mp3",
+      "speaker": "ilgu",
+      "text": "이제 다음을 눌러 대피 연습을 해 보자.",
+      "hash": "9330921314896f44"
     },
     {
       "id": "route-second",

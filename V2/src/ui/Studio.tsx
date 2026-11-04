@@ -1,8 +1,9 @@
 /** 스케치북 — 위 단계 띠 · 가운데 종이 · 아래 안내 줄 */
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { lineOf } from '../content/lines';
 import { isVerified } from '../content/sources';
 import {
+  announceDone,
   cancelAsk,
   enterStep,
   goHome,
@@ -14,6 +15,7 @@ import {
   resetPlan,
   setSound,
   STEP_LABEL,
+  stepReady,
   STEPS,
   undo,
   useApp,
@@ -111,6 +113,16 @@ function GuideBar() {
   const canUndo = useApp((s) => s.past.length > 0);
   const line = lineOf(lineId);
   const isLast = step === 'review' || step === 'drill';
+  const plan = useApp((s) => s.plan);
+  const ready = useMemo(() => stepReady(step, plan), [step, plan]);
+
+  // 할 일을 막 끝내면 다음에 무엇을 할지 알려 준다. 끝난 단계에 다시 들어왔을 때는 말하지 않는다
+  const before = useRef({ step, ready });
+  useEffect(() => {
+    const was = before.current;
+    before.current = { step, ready };
+    if (was.step === step && !was.ready && ready) announceDone(step);
+  }, [step, ready]);
 
   return (
     <footer className="guide-bar">
@@ -148,7 +160,7 @@ function GuideBar() {
             </>
           )}
           {!isLast && (
-            <button type="button" className="btn primary" data-testid="next" onClick={() => nextStep()}>
+            <button type="button" className={ready ? 'btn primary ready' : 'btn primary'} data-testid="next" data-ready={ready ? '1' : '0'} onClick={() => nextStep()}>
               다음 <IconNext />
             </button>
           )}

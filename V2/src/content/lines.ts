@@ -25,11 +25,15 @@ export const LINES = {
   'draw-mid': { speaker: 'yeongi', emotion: 'normal', text: '연한 선을 따라 집 테두리를 그리고, 벽을 그어서 칸을 나눠 보자.', sourceIds: GUIDE },
   'draw-high': { speaker: 'yeongi', emotion: 'normal', text: '점을 이어서 우리 집 테두리와 벽을 직접 그려 보자.', sourceIds: GUIDE },
   'draw-first-cell': { speaker: 'ungi', emotion: 'happy', text: '우와, 칸이 생겼어! 선으로 둘러싸면 칸이 되는 거야.', sourceIds: GUIDE },
+  'draw-make-rooms': { speaker: 'yeongi', emotion: 'happy', text: '집 모양이 다 됐어! 이제 안에 선을 그어서 방을 만들어 보자.', sourceIds: GUIDE },
+  'draw-rooms-done': { speaker: 'yeongi', emotion: 'happy', text: '방이 생겼어! 방을 다 만들었으면 다음을 눌러 칸을 칠해 보자.', sourceIds: GUIDE },
   'draw-need-cell': { speaker: 'ungi', emotion: 'thinking', text: '아직 칸이 없어. 선을 빙 둘러서 닫아 보자. 어려우면 도와줘를 눌러.', sourceIds: GUIDE },
 
   'sort-low': { speaker: 'yeongi', emotion: 'normal', text: '크레용을 고르고 칸을 눌러 칠해 보자. 머무는 칸은 방, 걸어가는 칸은 지나가는 곳이야.', sourceIds: GUIDE },
   'sort-more': { speaker: 'yeongi', emotion: 'normal', text: '크레용을 고르고 칸을 눌러 이름을 붙여 보자. 노란색은 방, 파란색은 지나가는 곳이야.', sourceIds: GUIDE },
   'sort-why': { speaker: 'ilgu', emotion: 'normal', text: '방은 문을 닫으면 불과 연기를 막아 줘. 지나가는 곳은 밖으로 나갈 때 걸어가는 길이야.', sourceIds: APT },
+
+  'sort-done': { speaker: 'yeongi', emotion: 'happy', text: '다 칠했어! 이제 다음을 눌러 문을 달아 보자.', sourceIds: GUIDE },
 
   'door-low': { speaker: 'yeongi', emotion: 'normal', text: '벽을 눌러 문을 달아 보자. 밖으로 나가는 문도 꼭 하나 달자.', sourceIds: GUIDE },
   'door-more': { speaker: 'yeongi', emotion: 'normal', text: '벽을 눌러 문을 달고, 바깥 벽에는 창문도 달아 보자. 밖으로 나가는 문도 꼭 하나 달자.', sourceIds: GUIDE },
@@ -37,15 +41,20 @@ export const LINES = {
   'door-stuck': { speaker: 'ungi', emotion: 'thinking', text: '밖으로 이어지지 않는 칸이 있어. 그 칸에도 문을 달아 주자.', sourceIds: GUIDE },
   'door-window-inside': { speaker: 'ungi', emotion: 'thinking', text: '창문은 바깥 벽에 달자.', sourceIds: GUIDE },
 
+  'door-done': { speaker: 'yeongi', emotion: 'happy', text: '모든 칸이 밖까지 이어졌어! 이제 다음을 눌러 내 자리를 표시해 보자.', sourceIds: GUIDE },
+
   'mark-low': { speaker: 'yeongi', emotion: 'normal', text: '내가 자는 곳에 내 자리를 놓고, 집 밖에 가족이 만나는 곳을 정하자.', sourceIds: GUIDE },
   'mark-mid': { speaker: 'yeongi', emotion: 'normal', text: '내 자리와 만나는 곳을 정하고, 가스레인지와 소화기가 있는 곳도 표시하자.', sourceIds: GUIDE },
   'mark-high': { speaker: 'yeongi', emotion: 'normal', text: '내 자리와 만나는 곳을 정하고, 가스레인지, 소화기, 화재 감지기도 표시하자.', sourceIds: GUIDE },
   'mark-need-inside': { speaker: 'ungi', emotion: 'thinking', text: '이건 집 안의 칸에 놓자.', sourceIds: GUIDE },
   'mark-need-outside': { speaker: 'ungi', emotion: 'thinking', text: '만나는 곳은 집 밖에 정하자.', sourceIds: GUIDE },
 
+  'mark-done': { speaker: 'yeongi', emotion: 'happy', text: '표시를 다 놓았어! 이제 다음을 눌러 나가는 길을 찾아 보자.', sourceIds: GUIDE },
+
   'route-start': { speaker: 'yeongi', emotion: 'normal', text: '내 자리에서 시작해. 반짝이는 칸을 차례로 눌러 밖까지 나가 보자.', sourceIds: GUIDE },
   'route-no-way': { speaker: 'ungi', emotion: 'thinking', text: '거기로 가는 문이 없어. 반짝이는 곳을 눌러 보자.', sourceIds: GUIDE },
   'route-done': { speaker: 'ilgu', emotion: 'happy', text: '나가는 길을 찾았어! 정말 잘했어.', sourceIds: GUIDE },
+  'route-next': { speaker: 'ilgu', emotion: 'happy', text: '이제 다음을 눌러 대피 연습을 해 보자.', sourceIds: GUIDE },
   'route-second': { speaker: 'ilgu', emotion: 'thinking', text: '불이 첫째 길을 막으면 어떻게 할까? 다른 길도 찾아 보자.', sourceIds: GUIDE },
   'route-no-second': { speaker: 'ilgu', emotion: 'normal', text: '다른 길이 없다면 방문을 닫고 창가에서 119에 구조를 요청하자.', say: '다른 길이 없다면 방문을 닫고 창가에서 일일구에 구조를 요청하자.', sourceIds: APT },
 

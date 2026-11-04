@@ -180,6 +180,12 @@ export function goHome(): void {
   set({ screen: 'welcome', howTo: null, asking: null });
 }
 
+/** 첫 화면의 「처음부터 다시 하기」 — 이름표는 남기고 종이만 새로 깐다 */
+export function startOver(): void {
+  set({ screen: 'studio' });
+  resetPlan();
+}
+
 /** 첫 화면의 시작 단추 */
 export function startApp(): void {
   if (state.profile) {
@@ -310,6 +316,41 @@ export function missing(step: StepId, plan: Plan = state.plan): boolean {
     default:
       return false;
   }
+}
+
+/** 이 단계에서 할 일을 다 했나. 다 했으면 다음으로 가자고 알려 준다 */
+export function stepReady(step: StepId, plan: Plan = state.plan): boolean {
+  const layout = analyze(plan);
+  if (layout.cells.length === 0) return false;
+  switch (step) {
+    case 'draw':
+      return layout.cells.length >= 2;
+    case 'sort':
+      return layout.cells.every((c) => c.kind);
+    case 'door':
+      return layout.links.some((l) => l.b === OUT) && unreachableCells(layout).length === 0;
+    case 'mark':
+      return BANDS[currentBand()].marks.every((m) => plan.marks[m]);
+    case 'route':
+      return plan.route[plan.route.length - 1] === OUT;
+    default:
+      return false;
+  }
+}
+
+const DONE_LINES: Partial<Record<StepId, [LineId, LineId?]>> = {
+  draw: ['draw-rooms-done'],
+  sort: ['sort-why', 'sort-done'],
+  door: ['door-done'],
+  mark: ['mark-done'],
+  route: ['route-done', 'route-next'],
+};
+
+/** 단계를 막 끝냈을 때 하는 말. 길 찾기는 눌렀을 때 이미 알맞은 말을 했으면 끊지 않는다 */
+export function announceDone(step: StepId): void {
+  if (step === 'route' && ['route-done', 'route-second', 'route-no-second'].includes(state.line)) return;
+  const done = DONE_LINES[step];
+  if (done) say(done[0], done[1]);
 }
 
 /** 「도와줘」 — 지금 단계의 빈 곳을 무난한 값으로 채운다 */

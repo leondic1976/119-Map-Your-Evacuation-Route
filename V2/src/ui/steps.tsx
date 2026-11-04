@@ -75,7 +75,8 @@ export function DrawStep() {
   }, [templateId, info.guide]);
 
   useEffect(() => {
-    if (layout.cells.length > 0 && !hadCell.current) say('draw-first-cell');
+    // 집 모양을 닫으면 이어서 방을 만들자고 한다
+    if (layout.cells.length > 0 && !hadCell.current) say('draw-first-cell', 'draw-make-rooms');
     hadCell.current = layout.cells.length > 0;
   }, [layout.cells.length]);
 
@@ -183,14 +184,6 @@ export function SortStep() {
   const band = currentBand();
   const groups = crayonsFor(band);
   const [crayon, setCrayon] = useState<Crayon>(groups.room[0]!);
-  const untagged = layout.cells.filter((c) => !c.kind).length;
-  const hadUntagged = useRef(untagged > 0);
-
-  // 다 칠하면 왜 나누는지 알려 준다
-  useEffect(() => {
-    if (untagged === 0 && hadUntagged.current) say('sort-why');
-    hadUntagged.current = untagged > 0;
-  }, [untagged]);
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
     if (kind !== 'up') return;
@@ -353,8 +346,9 @@ export function RouteStep() {
       commit(res.plan);
       if (res.result === 'done') {
         if (which === 'route' && info.secondRoute) {
-          say(findSecondRoute(res.plan) ? 'route-second' : 'route-no-second');
-        } else say('route-done');
+          if (findSecondRoute(res.plan)) say('route-second');
+          else say('route-no-second', 'route-next');
+        } else say('route-done', 'route-next');
       }
     }
   };

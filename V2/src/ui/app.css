@@ -64,19 +64,22 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 16px; font-size: 19px; white-space: nowrap; }
 .btn.primary, .big-start, .big-action { background: var(--green); color: #fff; }
 .btn.help { background: var(--sun); }
+/* 할 일을 다 했으면 「다음」 둘레에 물결이 퍼진다. 단추 자리는 움직이지 않는다 */
+.btn.ready { position: relative; }
+.btn.ready::after { content: ''; position: absolute; inset: -3px; border: 4px solid var(--green); border-radius: var(--radius); pointer-events: none; animation: wl-ring 1.8s ease-out infinite; }
 .big-start, .big-action { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 30px; font-size: 26px; }
 .big-action { font-size: 22px; padding: 12px 22px; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; }
 
 /* 첫 화면 */
 .welcome {
+  position: relative; overflow: hidden;
   min-height: 100%;
   display: flex; flex-direction: column;
   padding: 18px 32px;
-  background-color: var(--paper);
-  background-image: linear-gradient(var(--grid) 1.5px, transparent 1.5px), linear-gradient(90deg, var(--grid) 1.5px, transparent 1.5px);
-  background-size: 34px 34px;
+  background: linear-gradient(#d4eefb, #eef7f3 55%, var(--paper));
 }
+.welcome > :not(.welcome-scene) { position: relative; z-index: 1; }
 .welcome-top { display: flex; align-items: center; gap: 10px; }
 .welcome-top img { width: 44px; height: 44px; object-fit: contain; }
 .welcome-top span { display: flex; flex-direction: column; line-height: 1.2; }
@@ -89,24 +92,119 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .welcome-lead { margin: 16px 0; font-size: 22px; line-height: 1.45; color: var(--ink); }
 .welcome-steps { list-style: none; margin: 0 0 22px; padding: 0; display: grid; gap: 8px; font-size: 21px; }
 .welcome-steps b { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 3px solid var(--pencil); border-radius: 50%; background: var(--sun); font-weight: 400; margin-right: 6px; }
+.welcome-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.welcome-confirm { display: grid; gap: 10px; padding: 12px 16px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: var(--radius); box-shadow: 3px 3px 0 var(--pencil); }
+.welcome-confirm p { font-size: 20px; }
 .welcome-art { position: relative; min-width: 0; }
 .cover-art { width: 100%; height: auto; display: block; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 18px; box-shadow: 6px 6px 0 var(--pencil); transform: rotate(-1deg); }
 .welcome-chars { position: absolute; right: -6px; bottom: -18px; display: flex; align-items: flex-end; gap: 0; pointer-events: none; }
 .welcome-chars img { height: clamp(96px, 15vw, 170px); width: auto; margin-left: -18px; }
-.welcome-foot { font-size: 15px; color: var(--ink-2); text-align: center; line-height: 1.5; padding-top: 20px; }
+.welcome-foot { align-self: center; margin-top: 10px; padding: 4px 22px 5px; color: var(--ink-2); text-align: center; line-height: 1.4; word-break: keep-all; background: rgba(255, 253, 246, .92); border: 2px solid var(--pencil); border-radius: 14px; }
+.welcome-foot b { display: block; font-size: 20px; font-weight: 400; color: var(--ink); }
+.welcome-foot small { display: block; font-size: 14px; }
 
-.cv-line { fill: none; stroke: var(--pencil); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: cv-draw 1.6s ease forwards; }
-.cv-line.l2 { animation-delay: 1.4s; animation-duration: .5s; }
-.cv-line.l3 { animation-delay: 1.8s; animation-duration: .7s; }
-.cv-fill { opacity: 0; animation: cv-fade .5s ease forwards; }
-.cv-fill.f1 { animation-delay: 2.5s; }
-.cv-fill.f2 { animation-delay: 2.8s; }
-.cv-fill.f3 { animation-delay: 3.1s; }
-.cv-route { fill: none; stroke: var(--route); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 520; animation: cv-draw 1.2s ease 3.5s forwards; }
-.cv-arrow { fill: var(--route); opacity: 0; animation: cv-fade .3s ease 4.6s forwards; }
-.cv-word text { font-family: var(--font); font-size: 27px; fill: var(--ink); text-anchor: middle; opacity: 0; animation: cv-fade .4s ease 3.3s forwards; }
-@keyframes cv-draw { to { stroke-dashoffset: 0; } }
-@keyframes cv-fade { to { opacity: 1; } }
+/* 첫 화면 표지 — 14 초마다 집을 그리고, 칠하고, 길을 따라 나간다 */
+.cv-all { animation: cv-all 14s linear infinite both; }
+.cv-line { fill: none; stroke: var(--pencil); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1400; }
+.cv-line.l1 { animation: cv-l1 14s ease infinite both; }
+.cv-line.l2 { animation: cv-l2 14s ease infinite both; }
+.cv-line.l3 { animation: cv-l3 14s ease infinite both; }
+.cv-fill.f1 { animation: cv-f1 14s ease infinite both; }
+.cv-fill.f2 { animation: cv-f2 14s ease infinite both; }
+.cv-fill.f3 { animation: cv-f3 14s ease infinite both; }
+.cv-route { fill: none; stroke: var(--route); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; animation: cv-route 14s ease infinite both; }
+.cv-arrow { fill: var(--route); animation: cv-arrow 14s ease infinite both; }
+.cv-word text { font-family: var(--font); font-size: 27px; fill: var(--ink); text-anchor: middle; animation: cv-word 14s ease infinite both; }
+.cv-walker { animation: cv-walker 14s linear infinite both; }
+@keyframes cv-all { 0%, 94% { opacity: 1; } 98%, 100% { opacity: 0; } }
+@keyframes cv-l1 { 0% { stroke-dashoffset: 1400; } 11%, 100% { stroke-dashoffset: 0; } }
+@keyframes cv-l2 { 0%, 11% { stroke-dashoffset: 1400; } 15%, 100% { stroke-dashoffset: 1250; } }
+@keyframes cv-l3 { 0%, 15% { stroke-dashoffset: 1400; } 20%, 100% { stroke-dashoffset: 1000; } }
+@keyframes cv-f1 { 0%, 20% { opacity: 0; } 24%, 100% { opacity: 1; } }
+@keyframes cv-f2 { 0%, 24% { opacity: 0; } 27%, 100% { opacity: 1; } }
+@keyframes cv-f3 { 0%, 27% { opacity: 0; } 30%, 100% { opacity: 1; } }
+@keyframes cv-word { 0%, 28% { opacity: 0; } 32%, 100% { opacity: 1; } }
+@keyframes cv-route { 0%, 32% { stroke-dashoffset: 520; } 44%, 100% { stroke-dashoffset: 152; } }
+@keyframes cv-arrow { 0%, 44% { opacity: 0; } 47%, 100% { opacity: 1; } }
+@keyframes cv-walker {
+  0%, 46% { opacity: 0; transform: translate(215px, 135px); }
+  48%, 50% { opacity: 1; transform: translate(215px, 135px); }
+  62% { transform: translate(215px, 275px); }
+  72% { transform: translate(340px, 275px); }
+  82%, 100% { opacity: 1; transform: translate(340px, 372px); }
+}
+
+/* 첫 화면 배경 — 깜박이는 빛 없이 천천히 움직인다 */
+.welcome-scene { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.sc-sky, .sc-far, .sc-near { transition: transform .5s ease-out; }
+.sc-sky { transform: translate(calc(var(--px, 0) * 5px), calc(var(--py, 0) * 3px)); }
+.sc-far { transform: translate(calc(var(--px, 0) * -8px), calc(var(--py, 0) * -3px)); }
+.sc-near { transform: translate(calc(var(--px, 0) * -18px), calc(var(--py, 0) * -5px)); }
+.sc-rays { animation: sc-spin 36s linear infinite; }
+.sc-sun { animation: sc-breathe 5s ease-in-out infinite; }
+.sc-dot { animation: sc-twinkle 4.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.sc-cloud { animation: sc-drift 70s linear infinite; }
+.sc-cloud.c1 { animation-delay: -8s; }
+.sc-cloud.c2 { animation-duration: 95s; animation-delay: -62s; }
+.sc-cloud.c3 { animation-duration: 120s; animation-delay: -40s; }
+.sc-cloud.c4 { animation-duration: 84s; animation-delay: -50s; }
+.sc-birds { animation: sc-birds 32s linear infinite; }
+.sc-wing { animation: sc-flap .7s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+.sc-tree { animation: sc-sway 4.6s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+.sc-window { animation: sc-glow 5.6s ease-in-out infinite; }
+.sc-flag { animation: sc-wave 1.4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 0 50%; }
+.sc-family { animation: sc-family 34s linear infinite; }
+.sc-bob { animation: sc-bob .56s ease-in-out infinite alternate; }
+.sc-leg { fill: none; animation: sc-step .56s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 0; }
+.sc-leg.back { animation-direction: alternate-reverse; }
+.sc-truck { animation: sc-truck 26s linear infinite; }
+.sc-truck-body { animation: sc-bob .5s ease-in-out infinite alternate; }
+.sc-wheel { animation: sc-spin .9s linear infinite; }
+.sc-119 { font-family: var(--font); font-size: 30px; fill: #fffdf6; text-anchor: middle; }
+@keyframes sc-spin { to { transform: rotate(360deg); } }
+@keyframes sc-breathe { 50% { transform: scale(1.05); } }
+@keyframes sc-twinkle { 0%, 100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes sc-drift { from { transform: translateX(-340px); } to { transform: translateX(1760px); } }
+@keyframes sc-birds { from { transform: translate(1720px, 250px); } to { transform: translate(-200px, 130px); } }
+@keyframes sc-flap { from { transform: scaleY(1); } to { transform: scaleY(-.5); } }
+@keyframes sc-sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.2deg); } }
+@keyframes sc-glow { 0%, 100% { fill: #fff3cf; } 50% { fill: #ffc861; } }
+@keyframes sc-wave { from { transform: skewY(-7deg) scaleX(1); } to { transform: skewY(7deg) scaleX(.9); } }
+@keyframes sc-family {
+  0% { transform: translateX(-180px); opacity: 1; }
+  80% { transform: translateX(1270px); opacity: 1; }
+  94% { transform: translateX(1270px); opacity: 1; }
+  98%, 100% { transform: translateX(1270px); opacity: 0; }
+}
+@keyframes sc-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes sc-step { from { transform: rotate(-20deg); } to { transform: rotate(20deg); } }
+@keyframes sc-truck { from { transform: translateX(-620px); } to { transform: translateX(1500px); } }
+
+/* 첫 화면 앞쪽 — 처음 들어올 때 차례로 나타나고, 캐릭터가 폴짝 뛴다. 시작 단추의 자리는 움직이지 않는다 */
+.welcome-text h1 span, .welcome-text h1 { animation: wl-pop .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+.welcome-lead { animation: wl-rise .6s ease .25s both; }
+.welcome-steps li { animation: wl-rise .5s ease both; }
+.welcome-steps li:nth-child(1) { animation-delay: .4s; }
+.welcome-steps li:nth-child(2) { animation-delay: .55s; }
+.welcome-steps li:nth-child(3) { animation-delay: .7s; }
+.welcome-steps b { animation: wl-beat 6s ease-in-out infinite; }
+.welcome-steps li:nth-child(2) b { animation-delay: 2s; }
+.welcome-steps li:nth-child(3) b { animation-delay: 4s; }
+.welcome .big-start { position: relative; }
+.welcome .big-start::after { content: ''; position: absolute; inset: -3px; border: 4px solid var(--green); border-radius: var(--radius); pointer-events: none; animation: wl-ring 2.4s ease-out infinite; }
+.welcome .big-start .ico { animation: wl-point 1.2s ease-in-out infinite alternate; }
+.welcome-art { transition: transform .5s ease-out; transform: translate(calc(var(--px, 0) * 8px), calc(var(--py, 0) * 5px)); }
+.cover-art { animation: wl-float 6s ease-in-out infinite; }
+.welcome-chars img { transform-origin: 50% 100%; animation: wl-hop 3.6s ease-in-out infinite; }
+.welcome-chars img:nth-child(2) { animation-delay: .5s; }
+.welcome-chars img:nth-child(3) { animation-delay: 1s; }
+@keyframes wl-pop { from { opacity: 0; transform: translateY(18px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes wl-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes wl-beat { 0%, 22%, 100% { transform: scale(1); background: var(--sun); } 10% { transform: scale(1.22); background: #ffc861; } }
+@keyframes wl-ring { from { opacity: .75; transform: scale(1); } 70%, to { opacity: 0; transform: scale(1.14, 1.32); } }
+@keyframes wl-point { from { transform: translateX(-2px); } to { transform: translateX(5px); } }
+@keyframes wl-float { 0%, 100% { transform: rotate(-1deg) translateY(0); } 50% { transform: rotate(-.2deg) translateY(-8px); } }
+@keyframes wl-hop { 0%, 58%, 100% { transform: translateY(0) scale(1); } 64% { transform: translateY(0) scale(1.05, .95); } 74% { transform: translateY(-20px) scale(.98, 1.03); } 84% { transform: translateY(0) scale(1.04, .96); } 90% { transform: translateY(0) scale(1); } }
 
 /* 이름표 */
 .nametag-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -368,5 +466,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 첫 화면은 다 그려진 그림으로 멈춘다 */
+  .welcome-scene *, .cv-all, .cv-walker, .cover-art, .welcome-chars img, .welcome-steps b, .welcome .big-start .ico { animation: none !important; }
+  .welcome .big-start::after, .cv-walker, .btn.ready::after { display: none; }
+  .sc-sky, .sc-far, .sc-near, .welcome-art { transform: none; transition: none; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }

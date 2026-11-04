@@ -999,6 +999,126 @@ async function main(): Promise<void> {
     await touch.ctx.close();
   });
 
+  await scenario('첫 화면: 배경과 캐릭터가 움직이고, 시작 단추는 제자리이며, 움직임 줄이기에서는 멈춘다', async () => {
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1366, height: 768 } });
+    await page.waitForSelector(t('start'));
+    await page.waitForTimeout(1200);
+    const running = () => page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').length);
+    assert.ok((await running()) > 20, `움직임이 돈다: ${await running()}개`);
+    const where = (selector: string) => page.locator(selector).first().evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y };
+    });
+    const truck = await where('.sc-truck');
+    const cloud = await where('.sc-cloud.c1');
+    const button = await where(t('start'));
+    await page.waitForTimeout(1500);
+    assert.ok((await where('.sc-truck')).x > truck.x + 20, '소방차가 지나간다');
+    assert.ok((await where('.sc-cloud.c1')).x > cloud.x + 5, '구름이 흐른다');
+    assert.deepEqual(await where(t('start')), button, '시작 단추는 제자리다');
+    const far = await page.locator('.sc-near').evaluate((el) => getComputedStyle(el).transform);
+    await page.mouse.move(40, 40);
+    await page.mouse.move(1300, 600, { steps: 3 });
+    await page.waitForTimeout(700);
+    assert.notEqual(await page.locator('.sc-near').evaluate((el) => getComputedStyle(el).transform), far, '손을 따라 배경이 움직인다');
+    await page.waitForTimeout(6000);
+    await shot(page, '02b-welcome-motion');
+    const blocked = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.welcome button, .welcome a')].filter((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return r.height < 48 || !hit || !(el === hit || el.contains(hit));
+      }).map((el) => el.textContent),
+    );
+    assert.deepEqual(blocked, [], '배경이 단추를 가리지 않고 크기가 충분하다');
+    const covered = await page.evaluate(() => {
+      const foot = document.querySelector('.welcome-foot')!.getBoundingClientRect();
+      const road = document.querySelector('.sc-lane')!.getBoundingClientRect();
+      return road.bottom > foot.top;
+    });
+    assert.equal(covered, false, '아래 문구가 길을 가리지 않는다');
+    await page.click(t('start'));
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+
+    const still = await fresh(browser, { viewport: { width: 1366, height: 768 }, reducedMotion: 'reduce' });
+    await still.page.waitForSelector(t('start'));
+    await still.page.waitForTimeout(300);
+    const state = await still.page.evaluate(() => ({
+      loops: document.getAnimations().filter((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations === Infinity).length,
+      route: getComputedStyle(document.querySelector('.cv-route')!).strokeDashoffset,
+      word: getComputedStyle(document.querySelector('.cv-word text')!).opacity,
+      whole: getComputedStyle(document.querySelector('.cv-all')!).opacity,
+    }));
+    assert.equal(state.loops, 0, '움직임 줄이기에서는 되풀이하지 않는다');
+    assert.equal(state.whole, '1', '그림이 보인다');
+    assert.equal(state.word, '1', '글자가 보인다');
+    assert.equal(parseFloat(state.route), 152, '길이 끝까지 그려져 있다');
+    await shot(still.page, '02c-welcome-still');
+    await still.ctx.close();
+  });
+
+  await scenario('이어 가기: 집을 닫으면 방을 만들자고 하고, 단계를 끝내면 다음을 알려 주며, 처음부터 다시 할 수 있다', async () => {
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1366, height: 768 } });
+    await startAs(page, 1);
+    const lineIs = async (id: string) => {
+      await page.waitForFunction((want) => document.querySelector('[data-testid="bubble"]')?.getAttribute('data-line') === want, id, { timeout: 15000 });
+    };
+    const ready = () => page.locator(t('next')).getAttribute('data-ready');
+    assert.equal(await ready(), '0');
+    await dragThrough(page, [[1, 0], [7, 0], [7, 6], [1, 6], [1, 0]]);
+    await lineIs('draw-make-rooms');
+    assert.equal(await ready(), '0', '방을 만들기 전에는 재촉하지 않는다');
+    await dragThrough(page, [[4, 0], [4, 6]]);
+    await lineIs('draw-rooms-done');
+    assert.equal(await ready(), '1', '방이 생기면 다음이 눈에 띈다');
+    await shot(page, '03-next-ready');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    await lineIs('sort-done');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    await lineIs('door-done');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    await lineIs('mark-done');
+    await page.click(t('next'));
+    await page.click(t('help'));
+    await lineIs('route-next');
+    // 끝난 단계에 돌아가도 다시 재촉하지 않는다
+    await page.click(t('step-door'));
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'door-low');
+
+    // 처음 화면에서 처음부터 다시 하기
+    await page.click(t('home'));
+    await page.waitForSelector(t('start'));
+    assert.match(await page.locator(t('start')).innerText(), /이어서 그리기/);
+    await page.click(t('start-over'));
+    await shot(page, '04-start-over');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator(t('start')).count(), 1, 'Esc 는 지우지 않는다');
+    await page.click(t('start-over'));
+    await page.click(t('start-over-no'));
+    await page.click(t('start'));
+    await page.waitForSelector('.studio');
+    assert.ok((await num(page, 'walls')) > 0, '그대로 두면 지도가 남는다');
+    await page.click(t('home'));
+    await page.click(t('start-over'));
+    await page.click(t('start-over-yes'));
+    await page.waitForSelector('.studio');
+    assert.equal(await num(page, 'walls'), 0, '종이가 새것이다');
+    assert.equal(await page.locator('.studio').getAttribute('data-step'), 'draw');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+
+    // 처음 온 아이에게는 다시 하기가 없다
+    const first = await fresh(browser, { viewport: { width: 1366, height: 768 } });
+    await first.page.waitForSelector(t('start'));
+    assert.equal(await first.page.locator(t('start-over')).count(), 0);
+    await first.ctx.close();
+  });
+
   await scenario('작은 화면은 안내만 보인다', async () => {
     const { ctx, page } = await fresh(browser, { viewport: { width: 390, height: 844 } });
     assert.ok(await page.locator('.too-small').isVisible());

@@ -73,17 +73,17 @@ export function WelcomeScene() {
 
       <g className="sc-far">
         <path d="M-120 900V712C120 640 330 660 560 706S1010 760 1240 690 1560 650 1720 700V900Z" fill="#cfe9ba" stroke="#a5cc8c" strokeWidth="4" />
-        <House x={600} y={706} s={0.8} roof="#e8a15c" d={0} />
+        <House x={560} y={720} s={0.72} roof="#e8a15c" d={0} />
         <House x={1560} y={694} s={0.8} roof="#7fa3c7" d={1.8} />
-        <House x={930} y={744} s={0.5} roof="#c98fb5" d={3.2} />
+        <House x={60} y={724} s={0.6} roof="#c98fb5" d={3.2} />
         <Tree x={110} y={704} s={0.9} d={0} />
-        <Tree x={480} y={706} s={1} d={0.8} />
+        <Tree x={450} y={722} s={0.8} d={0.8} />
         <Tree x={1110} y={726} s={0.85} d={1.6} />
         <Tree x={1400} y={696} s={0.7} d={0.4} />
       </g>
 
       <g className="sc-near">
-        <g transform="translate(0 -50)">
+        <g transform="translate(0 -22)">
         <path d="M-120 960V786C200 746 520 776 820 790S1380 762 1720 780V960Z" fill="#b4dc96" stroke="#8fbe72" strokeWidth="4" />
         <path d="M-120 806H1720V872H-120Z" fill="#ece5d2" stroke="#33363b" strokeWidth="4" />
         <path className="sc-lane" d="M-120 840H1720" stroke="#fffdf6" strokeWidth="6" strokeDasharray="44 36" />

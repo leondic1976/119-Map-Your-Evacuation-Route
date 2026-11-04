@@ -1,7 +1,6 @@
 /**
- * 집 본. 겉모양(outer)과 안쪽 벽(inner)을 선으로 적는다.
- * 1~2학년은 둘 다 연한 선으로 깔리고, 3~4학년은 겉모양만, 5~6학년은 고를 때만 깔린다.
- * 「도와줘」는 이 본의 빠진 선을 채운다.
+ * 집 모양. 겉모양(outer)과 안쪽 벽(inner)을 선으로 적는다.
+ * 「도와줘」가 첫째 모양의 빠진 선을 채우고, 「아파트 모양」 레이어의 「다른 모양」에서도 고른다.
  */
 import { segmentEdges } from '../core/grid';
 import type { Band } from '../core/types';
@@ -122,9 +121,9 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
-/** 줄을 벽 조각으로 바꾼다. density 는 점 간격이고 본은 간격 1 로 적혀 있다 */
-export function segEdges(segs: Seg[], density = 1): string[] {
-  return segs.flatMap(([x1, y1, x2, y2]) => segmentEdges({ x: x1 * density, y: y1 * density }, { x: x2 * density, y: y2 * density }));
+/** 줄을 벽 조각으로 바꾼다. rx · ry 는 처음 네모 한 칸이 지금 몇 칸인지이고, 가장 가까운 점으로 옮긴다 */
+export function segEdges(segs: Seg[], rx = 1, ry = rx): string[] {
+  return segs.flatMap(([x1, y1, x2, y2]) => segmentEdges({ x: Math.round(x1 * rx), y: Math.round(y1 * ry) }, { x: Math.round(x2 * rx), y: Math.round(y2 * ry) }));
 }
 
 export function templatesFor(band: Band): Template[] {

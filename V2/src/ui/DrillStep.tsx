@@ -199,8 +199,6 @@ export function DrillStep() {
           <ul className="promise">
             <li>진짜 불이 아니다.</li>
             <li>시간제한이 없다.</li>
-            <li>반짝이는 칸을 눌러 밖으로 나가자.</li>
-            <li>화살표 키로도 움직여.</li>
           </ul>
         </aside>
         <section className="paper paper-center">
@@ -255,7 +253,6 @@ export function DrillStep() {
             <IconPlay size={28} /> 만나는 곳으로
           </button>
         )}
-        <p className="tool-note">{outside ? '만나는 곳으로 가자.' : '반짝이는 칸을 누르거나 화살표 키를 눌러 움직여.'}</p>
         <p className="tool-note" data-testid="drill-turn">{state.stats.moves}번 움직였어</p>
       </aside>
       <section className="paper">

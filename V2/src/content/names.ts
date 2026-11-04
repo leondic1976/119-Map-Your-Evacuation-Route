@@ -13,27 +13,31 @@ export interface Crayon {
 const ROOM: Crayon = { id: 'room', kind: 'room', name: null, label: '방' };
 const PASS: Crayon = { id: 'pass', kind: 'pass', name: null, label: '지나가는 곳' };
 
+/** 아파트에 흔한 베란다는 어느 학년이든 고른다 */
+const VERANDA: Crayon = { id: 'veranda', kind: 'room', name: 'veranda', label: '베란다' };
+
 const NAMED_ROOMS: Crayon[] = [
   { id: 'myroom', kind: 'room', name: 'myroom', label: '내 방' },
   { id: 'main', kind: 'room', name: 'main', label: '안방' },
   { id: 'other', kind: 'room', name: 'other', label: '다른 방' },
   { id: 'kitchen', kind: 'room', name: 'kitchen', label: '부엌' },
   { id: 'bath', kind: 'room', name: 'bath', label: '화장실' },
+  { id: 'utility', kind: 'room', name: 'utility', label: '다용도실' },
+  VERANDA,
 ];
 const NAMED_PASS: Crayon[] = [
   { id: 'living', kind: 'pass', name: 'living', label: '거실' },
   { id: 'entry', kind: 'pass', name: 'entry', label: '현관' },
 ];
-const HIGH_ROOMS: Crayon[] = [{ id: 'veranda', kind: 'room', name: 'veranda', label: '베란다' }];
 const HIGH_PASS: Crayon[] = [{ id: 'hall', kind: 'pass', name: 'hall', label: '복도' }];
 
 export function crayonsFor(band: Band): { room: Crayon[]; pass: Crayon[] } {
-  if (band === 'low') return { room: [ROOM], pass: [PASS] };
+  if (band === 'low') return { room: [ROOM, VERANDA], pass: [PASS] };
   if (band === 'mid') return { room: NAMED_ROOMS, pass: NAMED_PASS };
-  return { room: [...NAMED_ROOMS, ...HIGH_ROOMS], pass: [...NAMED_PASS, ...HIGH_PASS] };
+  return { room: NAMED_ROOMS, pass: [...NAMED_PASS, ...HIGH_PASS] };
 }
 
-const ALL = [ROOM, PASS, ...NAMED_ROOMS, ...NAMED_PASS, ...HIGH_ROOMS, ...HIGH_PASS];
+const ALL = [ROOM, PASS, ...NAMED_ROOMS, ...NAMED_PASS, ...HIGH_PASS];
 
 export function cellLabel(kind: CellKind | null, name: string | null): string {
   if (name) return ALL.find((c) => c.name === name)?.label ?? KIND_NAME[kind ?? 'room'];

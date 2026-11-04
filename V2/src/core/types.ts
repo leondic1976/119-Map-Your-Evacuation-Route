@@ -21,12 +21,28 @@ export type OpeningKind = 'door' | 'window';
 
 export type MarkId = 'me' | 'meet' | 'gas' | 'extinguisher' | 'alarm';
 
+/** 집 밖 띠가 놓이는 쪽 */
+export type OutsideSide = 'top' | 'bottom' | 'left' | 'right';
+
+export type ItemKind = 'bed' | 'desk' | 'closet' | 'sofa' | 'table' | 'tv' | 'dining' | 'fridge' | 'sink' | 'toilet' | 'basin' | 'bathtub' | 'washer' | 'plant' | 'shoes';
+
+/** 아이가 놓은 가구. 대피 길을 막지는 않는다 */
+export interface Item extends Pt {
+  kind: ItemKind;
+  /** 가구 앞이 향하는 방향(도). 0 은 아래쪽이다 */
+  angle: number;
+}
+
 export interface Plan {
   /** 지금 점 간격으로 센 네모 수 */
   cols: number;
   rows: number;
-  /** 점 간격 — 처음 네모 하나를 몇 칸으로 나눴나(1 · 2 · 4). 없으면 1 이다 */
+  /** 처음 네모 한 칸이 지금 몇 칸인가. 소수일 수 있고 없으면 1 이다 */
   density?: number;
+  /** 집 밖 띠가 놓이는 쪽. 없으면 아래다 */
+  outside?: OutsideSide;
+  /** 아이가 놓은 가구 */
+  items?: Item[];
   /** 벽 조각 열쇠 (`h:x:y` · `v:x:y` · 대각선 `d:x:y` · `u:x:y` · 그 밖의 각도 `s:x1:y1:x2:y2`) */
   walls: string[];
   /** 벽 토막 열쇠 → 문·창. 엇갈리지 않은 벽은 벽 열쇠와 같다 */

@@ -1,17 +1,17 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { analyze, cellIdAt, edgeEnds, edgeKeys, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
-import { canChangeDensity, changeDensity, densityOf, DENSITIES } from '../core/density';
+import { analyze, cellIdAt, edgeKeys, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
+import { outsideOf, setOutside } from '../core/items';
 import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
 import { findSecondRoute } from '../core/auto';
 import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
 import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, sameDot, startDrag, type DragStroke } from '../core/stroke';
-import { OUT, type MarkId, type OpeningKind, type Pt } from '../core/types';
+import { OUT, type MarkId, type OpeningKind, type OutsideSide, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
-import { segEdges, templateById, templatesFor } from '../content/templates';
-import { chooseTemplate, clearRoute, commit, currentBand, getApp, say, useApp } from '../store/app';
+import { clearRoute, commit, currentBand, getApp, say, setGrid, useApp } from '../store/app';
 import { getHandUnit } from './handUnit';
+import { useLayers } from './Layers';
 import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
 import { PlanView } from './PlanView';
 import { ZoomControls } from './ZoomControls';
@@ -40,29 +40,39 @@ const usePlan = () => {
 };
 const useLook = () => useApp((s) => s.profile?.look ?? 'a');
 
-function HouseThumb({ id }: { id: string }) {
-  const t = templateById(id);
-  if (!t) return null;
-  const band = BANDS[t.band];
-  const lines = [...segEdges(t.outer), ...segEdges(t.inner)];
+const SIDES: { id: OutsideSide; label: string; d: string }[] = [
+  { id: 'top', label: '위', d: 'M12 19V5M6 11l6-6 6 6' },
+  { id: 'bottom', label: '아래', d: 'M12 5v14M6 13l6 6 6-6' },
+  { id: 'left', label: '왼쪽', d: 'M19 12H5M11 6l-6 6 6 6' },
+  { id: 'right', label: '오른쪽', d: 'M5 12h14M13 6l6 6-6 6' },
+];
+
+/** 점 개수 고르기 — 하나씩 늘리고 줄인다. 지금 고른 것이 없으면 가장 가까운 것부터 잰다 */
+function DotStepper({ cols, rows, grids }: { cols: number; rows: number; grids: [number, number][] }) {
+  const dots = (c: number, r: number): number => (c + 1) * (r + 1);
+  const count = dots(cols, rows);
+  let at = 0;
+  grids.forEach(([c, r], i) => {
+    if (Math.abs(dots(c, r) - count) < Math.abs(dots(grids[at]![0], grids[at]![1]) - count)) at = i;
+  });
   return (
-    <svg viewBox={`-1 -1 ${band.cols + 2} ${band.rows + 2}`} width="72" height="54" aria-hidden="true">
-      {lines.map((k) => {
-        const [a, b] = edgeEnds(k);
-        return <line key={k} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#33363b" strokeWidth=".5" strokeLinecap="round" />;
-      })}
-    </svg>
+    <div className="stepper" role="group" aria-label="점 개수">
+      <button type="button" className="tool" data-testid="dots-less" aria-label="점 줄이기" disabled={at === 0} onClick={() => setGrid(grids[at - 1]![0], grids[at - 1]![1])}>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" /></svg>
+      </button>
+      <button type="button" className="tool" data-testid="dots-more" aria-label="점 늘리기" disabled={at === grids.length - 1} onClick={() => setGrid(grids[at + 1]![0], grids[at + 1]![1])}>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h14M12 5v14" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" /></svg>
+      </button>
+      <span className="stepper-count" data-testid="dots-count">{count}개</span>
+    </div>
   );
 }
-
-const DENSITY_LABEL: Record<number, string> = { 1: '넓게', 2: '좁게', 4: '아주 좁게' };
 
 /* ───────────── 1. 집 그리기 ───────────── */
 export function DrawStep() {
   const { plan, layout } = usePlan();
   const band = currentBand();
   const info = BANDS[band];
-  const templateId = useApp((s) => s.templateId);
   const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
   const [stroke, setStroke] = useState<Pt[]>([]);
   const [armed, setArmed] = useState<Pt | null>(null);
@@ -71,13 +81,7 @@ export function DrawStep() {
   // 손이 지나온 자리 — 곧게 그으려던 것인지 모서리를 돌던 것인지 가른다
   const live = useRef<DragStroke | null>(null);
   const hadCell = useRef(layout.cells.length > 0);
-  const density = densityOf(plan);
-
-  const guide = useMemo(() => {
-    const t = templateById(templateId);
-    if (!t) return [];
-    return info.guide === 'full' ? [...segEdges(t.outer, density), ...segEdges(t.inner, density)] : segEdges(t.outer, density);
-  }, [templateId, info.guide, density]);
+  const layers = useLayers(plan, layout);
 
   useEffect(() => {
     // 집 모양을 닫으면 이어서 방을 만들자고 한다
@@ -86,6 +90,10 @@ export function DrawStep() {
   }, [layout.cells.length]);
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
+    if (layers.placing) {
+      if (kind === 'up') layers.tapMap(p);
+      return;
+    }
     if (tool === 'eraser') {
       if (kind === 'down') erasing.current = true;
       if (kind === 'up' || kind === 'cancel') {
@@ -144,60 +152,36 @@ export function DrawStep() {
             <IconEraser /> 지우개
           </button>
         </div>
-        <h3 className="tools-head">점 간격</h3>
-        <div className="tool-row density-row" role="group" aria-label="점 간격">
-          {DENSITIES.map((d) => (
-            <button
-              type="button"
-              key={d}
-              className={density === d ? 'tool small on' : 'tool small'}
-              data-testid={`density-${d}`}
-              aria-pressed={density === d}
-              disabled={!canChangeDensity(plan, d)}
-              onClick={() => {
-                setArmed(null);
-                commit(changeDensity(plan, d));
-              }}
-            >
-              {DENSITY_LABEL[d]}
+        <h3 className="tools-head">점 개수</h3>
+        <DotStepper cols={plan.cols} rows={plan.rows} grids={info.grids} />
+        <h3 className="tools-head">집 밖</h3>
+        <div className="side-pick" role="group" aria-label="집 밖 자리">
+          {SIDES.map((s) => (
+            <button type="button" key={s.id} className={outsideOf(plan) === s.id ? 'tool on' : 'tool'} data-testid={`outside-${s.id}`} aria-label={`집 밖 ${s.label}`} aria-pressed={outsideOf(plan) === s.id} onClick={() => commit(setOutside(plan, s.id))}>
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d={s.d} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           ))}
         </div>
-        {!canChangeDensity(plan, DENSITIES[0]) && <p className="tool-note">촘촘한 점에 그린 벽이 있어서 더 넓힐 수 없어.</p>}
-        <h3 className="tools-head">집 모양 본</h3>
-        <div className="thumbs">
-          {templatesFor(band).map((t) => (
-            <button key={t.id} type="button" className={templateId === t.id ? 'thumb on' : 'thumb'} data-testid={`tpl-${t.id}`} aria-pressed={templateId === t.id} onClick={() => chooseTemplate(t.id)}>
-              <HouseThumb id={t.id} />
-              <span>{t.name}</span>
-            </button>
-          ))}
-          {info.guide === 'none' && (
-            <button type="button" className={!templateId ? 'thumb on' : 'thumb'} data-testid="tpl-none" aria-pressed={!templateId} onClick={() => chooseTemplate(null)}>
-              <span className="thumb-blank" aria-hidden="true" />
-              <span>본 없이</span>
-            </button>
-          )}
-        </div>
+        <h3 className="tools-head">골라 넣기</h3>
+        {layers.buttons}
         <p className="tool-note" data-testid="cell-count">칸 {layout.cells.length}개</p>
-        <p className="tool-note">점이 작아 어려우면 돋보기를 눌러 크게 보고 그려 보자.</p>
       </aside>
       <section className="paper">
         <PlanView
           plan={plan}
           layout={layout}
           showDots
-          guide={guide}
           stroke={stroke}
           armed={armed}
           showLabels={false}
-          className={tool === 'eraser' ? 'cursor-erase' : 'cursor-draw'}
+          className={layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : 'cursor-draw'}
           onPointer={onPointer}
           zoomable
           edgePan
           ariaLabel="점을 이어 집을 그리는 모눈 종이"
         />
         <ZoomControls plan={plan} focus={armed} />
+        {layers.panel}
       </section>
     </>
   );
@@ -230,10 +214,8 @@ export function SortStep() {
       <aside className="tools" aria-label="크레용">
         <h3 className="tools-head">머무는 칸</h3>
         <div className="crayons">{groups.room.map(chip)}</div>
-        <p className="tool-note">문을 닫으면 불과 연기를 막아 줘.</p>
         <h3 className="tools-head">걸어가는 칸</h3>
         <div className="crayons">{groups.pass.map(chip)}</div>
-        <p className="tool-note">밖으로 나갈 때 지나가는 길이야.</p>
         <button type="button" className="link-btn" data-testid="sort-why" onClick={() => say('sort-why')}>왜 나눌까?</button>
       </aside>
       <section className="paper">
@@ -285,15 +267,15 @@ export function DoorStep() {
         </div>
         <ul className="checks">
           <li className={hasExit ? 'done' : ''} data-testid="check-exit">
-            {hasExit ? <IconCheck /> : <IconDot />} 밖으로 나가는 문
+            {hasExit ? <IconCheck /> : <IconDot />} 나가는 문
           </li>
           <li className={stuck.length === 0 && layout.cells.length > 0 ? 'done' : ''} data-testid="check-linked">
-            {stuck.length === 0 ? <IconCheck /> : <IconDot />} 모든 칸이 밖까지 이어짐
+            {stuck.length === 0 ? <IconCheck /> : <IconDot />} 모두 이어짐
           </li>
         </ul>
-        <p className="tool-note">초록 문은 밖으로 나가는 문이야. 다시 누르면 떼어져.</p>
+        <p className="tool-note">다시 누르면 떼어져.</p>
         {(!hasExit || stuck.length > 0) && (
-          <button type="button" className="link-btn" data-testid="door-hint" onClick={onHint}>무엇이 빠졌어?</button>
+          <button type="button" className="link-btn" data-testid="door-hint" onClick={onHint}>뭐가 빠졌어?</button>
         )}
       </aside>
       <section className="paper">
@@ -312,9 +294,11 @@ export function MarkStep() {
   const info = BANDS[band];
   const firstEmpty = info.marks.find((m) => !plan.marks[m]) ?? info.marks[0]!;
   const [tool, setTool] = useState<MarkId>(firstEmpty);
+  const layers = useLayers(plan, layout);
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
     if (kind !== 'up') return;
+    if (layers.tapMap(p)) return;
     const res = placeMark(plan, layout, tool, p);
     if (!res.ok) {
       say(res.why === 'need-outside' ? 'mark-need-outside' : 'mark-need-inside');
@@ -333,18 +317,20 @@ export function MarkStep() {
           {info.marks.map((m) => (
             <button key={m} type="button" className={tool === m ? 'mark-chip on' : 'mark-chip'} data-testid={`mark-${m}`} aria-pressed={tool === m} onClick={() => setTool(m)}>
               <svg viewBox="-36 -36 72 76" width="44" height="44" aria-hidden="true"><MarkGlyph id={m} look={look} /></svg>
-              <span className="mark-text">
+              <span className="mark-text" title={MARK_HINT[m]}>
                 <b>{MARK_NAME[m]}</b>
-                <small>{MARK_HINT[m]}</small>
               </span>
               {plan.marks[m] && <span className="mark-done"><IconCheck size={20} /></span>}
             </button>
           ))}
         </div>
+        <h3 className="tools-head">골라 넣기</h3>
+        {layers.buttons}
       </aside>
       <section className="paper">
         <PlanView plan={plan} layout={layout} look={look} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="표시를 놓는 지도" />
         <ZoomControls plan={plan} />
+        {layers.panel}
       </section>
     </>
   );
@@ -400,7 +386,7 @@ export function RouteStep() {
   useArrowKeys(onArrow);
 
   const stepsText = route.length
-    ? `${route.filter((s) => s !== OUT).length}칸 지남${done ? ', 밖까지 도착' : ''}`
+    ? `${route.filter((s) => s !== OUT).length}칸 지남${done ? ', 도착' : ''}`
     : '아직 고르지 않음';
 
   return (
@@ -413,11 +399,9 @@ export function RouteStep() {
           </div>
         )}
         <p className="tool-note" data-testid="route-status">{stepsText}</p>
-        {hasStart && layout.links.length === 0 && <p className="tool-note">문이 없어서 길을 고를 수 없어. 도와줘를 눌러 보자.</p>}
-        {!hasStart && <p className="tool-note">내 자리가 아직 없어. 도와줘를 눌러 보자.</p>}
-        <button type="button" className="link-btn" data-testid="route-clear" disabled={route.length === 0} onClick={() => clearRoute(which)}>이 길 다시 고르기</button>
-        <p className="tool-note">반짝이는 칸을 누르면 길이 이어져. 화살표 키로도 갈 수 있어.</p>
-        <p className="tool-note">지나온 칸을 다시 누르면 거기까지 되돌아가.</p>
+        {hasStart && layout.links.length === 0 && <p className="tool-note">문이 없어. 도와줘를 눌러 봐.</p>}
+        {!hasStart && <p className="tool-note">내 자리가 없어. 도와줘를 눌러 봐.</p>}
+        <button type="button" className="link-btn" data-testid="route-clear" disabled={route.length === 0} onClick={() => clearRoute(which)}>다시 고르기</button>
       </aside>
       <section className="paper">
         <PlanView plan={plan} layout={layout} look={look} showRoute glow={candidates} hints={candidates} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />

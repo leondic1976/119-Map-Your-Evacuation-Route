@@ -1,15 +1,14 @@
 /**
- * 점 간격 — 네모 하나를 몇 칸으로 나눌지 정한다. 칸이 나뉘어도 집의 크기는 그대로다.
+ * 점 개수 — 같은 크기의 종이에 네모를 몇 칸이나 그릴지 정한다.
  *
- * 지도의 좌표는 언제나 지금 간격의 점 단위다. 간격을 좁히면 모든 좌표가 배로 늘고, 그림은 같은 크기로 그린다.
- * 그래서 칸·문·길 계산은 간격을 몰라도 그대로 돈다. 넓히려면 벽 끝이 모두 넓은 점 위에 있어야 한다.
+ * 지도의 좌표는 언제나 지금 점 단위다. `plan.density` 는 처음 네모 한 칸이 지금 몇 칸인지이고 소수일 수 있다.
+ * 그림은 같은 크기로 그리므로 칸·문·길 계산은 이 값을 몰라도 그대로 돈다.
+ *
+ * 배로 늘리면 벽이 같은 자리에 그대로 남는다. 그 밖의 개수는 벽 끝을 가장 가까운 점으로 옮긴다.
  */
-import { analyze, edgeMid, edgeEnds, pieceCenter, pieceKeyAt, segmentEdges } from './grid';
+import { analyze, edgeEnds, edgeMid, pieceCenter, pieceKeyAt, segmentEdges } from './grid';
 import { normalize } from './edit';
 import { OUT, type MarkId, type Plan, type Pt } from './types';
-
-export const DENSITIES = [1, 2, 4] as const;
-export type Density = (typeof DENSITIES)[number];
 
 export const densityOf = (plan: Plan): number => plan.density ?? 1;
 
@@ -39,29 +38,26 @@ export function straightRuns(walls: string[]): { a: Pt; b: Pt }[] {
   return runs;
 }
 
-/** 이 간격으로 바꿀 수 있나. 좁히기는 늘 되고, 넓히기는 벽 끝이 넓은 점 위에 있을 때만 된다 */
-export function canChangeDensity(plan: Plan, next: number): boolean {
-  const current = densityOf(plan);
-  if (next >= current) return true;
-  const f = current / next;
-  return straightRuns(plan.walls).every(({ a, b }) => [a.x, a.y, b.x, b.y].every((v) => v % f === 0));
-}
+/** 네모 수를 cols×rows 로 바꾼다. 벽·문·표지·표시·가구·길이 비슷한 자리에 남는다 */
+export function changeGrid(plan: Plan, cols: number, rows: number): Plan {
+  if (cols === plan.cols && rows === plan.rows) return plan;
+  const rx = cols / plan.cols;
+  const ry = rows / plan.rows;
+  const free = (p: Pt): Pt => ({ x: p.x * rx, y: p.y * ry });
+  const dot = (p: Pt): Pt => ({ x: Math.round(p.x * rx), y: Math.round(p.y * ry) });
 
-const times = (p: Pt, r: number): Pt => ({ x: p.x * r, y: p.y * r });
+  const walls = [...new Set(straightRuns(plan.walls).flatMap(({ a, b }) => {
+    const from = dot(a);
+    const to = dot(b);
+    return from.x === to.x && from.y === to.y ? [] : segmentEdges(from, to);
+  }))];
 
-/** 점 간격을 바꾼다. 벽·문·표지·표시·길이 같은 자리에 남는다 */
-export function changeDensity(plan: Plan, next: number): Plan {
-  const current = densityOf(plan);
-  if (next === current || !canChangeDensity(plan, next)) return plan;
-  const r = next / current;
-
-  const walls = straightRuns(plan.walls).flatMap(({ a, b }) => segmentEdges(times(a, r), times(b, r)));
-
+  const density = densityOf(plan) * rx;
   const draft: Plan = {
     ...plan,
-    cols: plan.cols * r,
-    rows: plan.rows * r,
-    density: next,
+    cols,
+    rows,
+    density: Math.abs(density - 1) < 1e-9 ? undefined : density,
     walls,
     openings: {},
     tags: {},
@@ -70,28 +66,25 @@ export function changeDensity(plan: Plan, next: number): Plan {
   };
   const fresh = analyze(draft);
 
-  // 문과 창 — 있던 자리의 벽 조각에 단다
+  // 문과 창 — 있던 자리에 가장 가까운 벽 조각에 단다
   const openings: Plan['openings'] = {};
   for (const [edge, kind] of Object.entries(plan.openings)) {
-    const m = times(edgeMid(edge), r);
+    const m = free(edgeMid(edge));
     const near = walls
       .map((wall) => ({ wall, d: Math.hypot(edgeMid(wall).x - m.x, edgeMid(wall).y - m.y) }))
       .sort((p, q) => p.d - q.d || (p.wall < q.wall ? -1 : 1))[0];
     if (near && !openings[near.wall]) openings[near.wall] = kind;
   }
 
-  // 표지 — 조각 가운데가 든 새 네모에 붙인다
+  // 표지 — 조각 가운데가 든 새 조각에 붙인다
   const tags: Plan['tags'] = {};
-  for (const [key, tag] of Object.entries(plan.tags)) {
-    const c = times(pieceCenter(key), r);
-    const hit = pieceKeyAt(fresh, c);
-    tags[hit] = tag;
-  }
+  for (const [key, tag] of Object.entries(plan.tags)) tags[pieceKeyAt(fresh, free(pieceCenter(key)))] = tag;
 
   const marks: Plan['marks'] = {};
-  for (const [id, at] of Object.entries(plan.marks) as [MarkId, Pt][]) marks[id] = times(at, r);
+  for (const [id, at] of Object.entries(plan.marks) as [MarkId, Pt][]) marks[id] = free(at);
 
-  const step = (s: string): string => (s === OUT ? OUT : pieceKeyAt(fresh, times(pieceCenter(s), r)));
+  const step = (s: string): string => (s === OUT ? OUT : pieceKeyAt(fresh, free(pieceCenter(s))));
+  const items = plan.items?.map((item) => ({ ...item, ...free(item) }));
 
-  return normalize({ ...draft, openings, tags, marks, route: plan.route.map(step), route2: plan.route2.map(step) });
+  return normalize({ ...draft, openings, tags, marks, items, route: plan.route.map(step), route2: plan.route2.map(step) });
 }

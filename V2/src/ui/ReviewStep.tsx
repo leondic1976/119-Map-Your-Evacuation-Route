@@ -80,9 +80,14 @@ export function ReviewStep() {
             </>
           ) : (
             <>
-              <h3 className="note-head good">지도가 완성됐어</h3>
-              <p className="note-text">대피 연습을 해 보면 잘한 점을 볼 수 있어.</p>
-              <button type="button" className="tool" data-testid="go-drill" onClick={() => enterStep('drill')}>대피 연습 하러 가기</button>
+              <div className="review-done">
+                <span className="review-badge" aria-hidden="true"><IconCheck size={34} /></span>
+                <h3 className="note-head good">지도가 완성됐어</h3>
+                <p className="note-text">대피 연습을 해 보면 잘한 점을 볼 수 있어.</p>
+                <button type="button" className="big-action" data-testid="go-drill" onClick={() => enterStep('drill')}>
+                  <IconPlay size={26} /> 대피 연습 하러 가기
+                </button>
+              </div>
             </>
           )}
         </div>

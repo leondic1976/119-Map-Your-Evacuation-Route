@@ -2,9 +2,9 @@
  * 앱 상태. 지도가 바뀌는 모든 일은 여기를 거쳐 되돌리기와 저장을 함께 탄다.
  */
 import { useSyncExternalStore } from 'react';
-import { autoDoors, autoMarks, autoRoute, autoTag } from '../core/auto';
+import { autoDoors, autoMarks, autoRoute, autoTag, splitLargestCell } from '../core/auto';
 import type { DrillState } from '../core/drill';
-import { densityOf } from '../core/density';
+import { changeGrid, densityOf } from '../core/density';
 import { addEdges, emptyPlan, normalize } from '../core/edit';
 import { analyze, unreachableCells } from '../core/grid';
 import { OUT, type Band, type Plan } from '../core/types';
@@ -13,6 +13,7 @@ import { BANDS, bandOfGrade } from '../content/bands';
 import { howToFor, type HowToStep } from '../content/howto';
 import type { LineId } from '../content/lines';
 import type { LookId } from '../content/names';
+import { buildHome, homeById } from '../content/homes';
 import { segEdges, templateById, templatesFor } from '../content/templates';
 import { host } from '../platform/host';
 
@@ -40,7 +41,6 @@ export interface AppState {
   screen: Screen;
   profile: Profile | null;
   plan: Plan;
-  templateId: string | null;
   step: StepId;
   past: Plan[];
   soundOn: boolean;
@@ -62,7 +62,6 @@ export interface AppState {
 interface Saved {
   profile: Profile | null;
   plan: Plan;
-  templateId: string | null;
   step: StepId;
   soundOn: boolean;
 }
@@ -75,7 +74,6 @@ function initialState(): AppState {
     screen: 'welcome',
     profile: null,
     plan: emptyPlan(LOW.cols, LOW.rows),
-    templateId: null,
     step: 'draw',
     past: [],
     soundOn: true,
@@ -93,7 +91,6 @@ function initialState(): AppState {
     ...base,
     profile: saved.profile,
     plan: normalize(saved.plan),
-    templateId: saved.templateId,
     step: STEPS.includes(saved.step) && saved.step !== 'drill' && saved.step !== 'review' ? saved.step : 'draw',
     soundOn: saved.soundOn !== false,
   };
@@ -106,7 +103,6 @@ function persist(): void {
   const saved: Saved = {
     profile: state.profile,
     plan: state.plan,
-    templateId: state.templateId,
     step: state.step,
     soundOn: state.soundOn,
   };
@@ -198,10 +194,6 @@ export function startApp(): void {
   }
 }
 
-function defaultTemplateId(band: Band): string | null {
-  return BANDS[band].guide === 'none' ? null : (templatesFor(band)[0]?.id ?? null);
-}
-
 /** 이름표 저장. 학년 단계가 바뀌면 모눈 크기가 달라져 새 종이로 시작한다 */
 export function saveProfile(profile: Profile): void {
   const nextBand = bandOfGrade(profile.grade);
@@ -215,7 +207,6 @@ export function saveProfile(profile: Profile): void {
       ? {}
       : {
           plan: emptyPlan(info.cols, info.rows),
-          templateId: defaultTemplateId(nextBand),
           past: [],
           step: 'draw' as StepId,
           drill: null,
@@ -292,8 +283,34 @@ export function undo(): void {
   set({ plan: prev, past: state.past.slice(0, -1) });
 }
 
-export function chooseTemplate(id: string | null): void {
-  set({ templateId: id });
+/** 처음 네모 수 기준으로 지금 종이가 몇 배인가 */
+function ratioOf(plan: Plan): { rx: number; ry: number } {
+  const info = BANDS[currentBand()];
+  return { rx: plan.cols / info.cols, ry: plan.rows / info.rows };
+}
+
+/** 아파트 모양을 깐다. 점이 너무 적으면 작은 칸이 사라지므로 기본 개수까지 늘린다. 되돌리기로 돌아갈 수 있다 */
+export function applyHome(id: string): void {
+  const home = homeById(id);
+  if (!home) return;
+  const info = BANDS[currentBand()];
+  const blank = changeGrid({ ...state.plan, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [], items: [] }, Math.max(state.plan.cols, info.cols), Math.max(state.plan.rows, info.rows));
+  const { walls, tags } = buildHome(home, blank.cols, blank.rows);
+  commit(normalize({ ...blank, walls, tags }));
+}
+
+/** 다른 모양을 깐다. 지금 그린 선은 지운다 */
+export function applyTemplate(id: string): void {
+  const t = templateById(id);
+  if (!t) return;
+  const blank: Plan = { ...state.plan, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [], items: [] };
+  const { rx, ry } = ratioOf(blank);
+  commit(addEdges(blank, [...segEdges(t.outer, rx, ry), ...segEdges(t.inner, rx, ry)]));
+}
+
+/** 점 개수를 바꾼다. 벽은 가장 가까운 점으로 옮겨 가고, 되돌리기로 돌아갈 수 있다 */
+export function setGrid(cols: number, rows: number): void {
+  commit(changeGrid(state.plan, cols, rows));
 }
 
 export function clearRoute(which: 'route' | 'route2'): void {
@@ -361,10 +378,14 @@ export function helpStep(step: StepId = state.step): void {
   let next = plan;
   switch (step) {
     case 'draw': {
-      const t = templateById(state.templateId) ?? templatesFor(band)[0];
-      if (t) {
-        next = addEdges(plan, [...segEdges(t.outer, densityOf(plan)), ...segEdges(t.inner, densityOf(plan))]);
-        if (!state.templateId) set({ templateId: t.id });
+      // 그린 것을 덮어쓰지 않는다. 칸이 없으면 기본 집을 깔고, 집 모양만 있으면 방을 나눈다. 방이 있으면 그대로 둔다
+      const cells = analyze(plan).cells.length;
+      const t = templatesFor(band)[0];
+      if (cells === 0 && t) {
+        const { rx, ry } = ratioOf(plan);
+        next = addEdges(plan, [...segEdges(t.outer, rx, ry), ...segEdges(t.inner, rx, ry)]);
+      } else if (cells === 1) {
+        next = splitLargestCell(plan);
       }
       break;
     }
@@ -433,11 +454,9 @@ export function retryDrill(): void {
 
 /** 처음부터 — 이름표는 남기고 종이만 새로 깐다 */
 export function resetPlan(): void {
-  const band = currentBand();
-  const info = BANDS[band];
+  const density = densityOf(state.plan);
   set({
-    plan: emptyPlan(info.cols, info.rows, densityOf(state.plan)),
-    templateId: defaultTemplateId(band),
+    plan: { ...emptyPlan(state.plan.cols, state.plan.rows), ...(density !== 1 ? { density } : {}), ...(state.plan.outside ? { outside: state.plan.outside } : {}) },
     past: [],
     drill: null,
     view: null,

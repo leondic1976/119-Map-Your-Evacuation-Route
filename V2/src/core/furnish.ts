@@ -57,6 +57,7 @@ export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, footprint: 
   const paths = options.keepClear ?? [];
   const scales = options.scales ?? [1, 0.85, 0.7, 0.55, 0.45];
   const unit = options.unit ?? 1;
+  // 점이 적으면 벽 틈도 점 단위로 줄어든다
   const wallGap = WALL_GAP * unit;
   const size = { w: footprint.w * unit, d: footprint.d * unit };
   const runLength = (key: string): number => {

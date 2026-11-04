@@ -2,8 +2,9 @@
  * 「도와줘」 — 모르는 아이를 막다른 길로 보내지 않는 무난한 기본값.
  * 이미 해 둔 것은 지우지 않고 빈 곳만 채운다.
  */
-import { analyze, edgeKeys, edgeLength, edgeMid, edgeSides, isExterior, parseEdge, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
+import { analyze, cellIdAt, edgeKeys, edgeLength, edgeMid, edgeSides, hKey, vKey, isExterior, parseEdge, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
 import { normalize } from './edit';
+import { outsideOf, outsideSpot } from './items';
 import { OUT, type Band, type Cell, type Layout, type Plan, type Pt } from './types';
 
 /** 칸마다 맞닿은 다른 칸의 수 */
@@ -41,6 +42,7 @@ export function autoTag(plan: Plan, band: Band): Plan {
       )[0];
 
   const roomNames = ['main', 'myroom', 'kitchen', 'bath', 'other', 'other', 'other'];
+  // 이름이 붙지 않는 학년도 지나가는 칸은 그대로 고른다
   const used = new Set(layout.cells.map((c) => c.name).filter(Boolean) as string[]);
   const free = roomNames.filter((n) => n === 'other' || !used.has(n));
   const bigFirst = [...empty].sort((a, b) => b.area - a.area || (a.id < b.id ? -1 : 1));
@@ -53,6 +55,37 @@ export function autoTag(plan: Plan, band: Band): Plan {
     }
   }
   return normalize({ ...plan, tags });
+}
+
+/**
+ * 칸 하나를 가운데에서 둘로 나누는 벽. 집 모양만 있고 방이 없을 때 「도와줘」가 쓴다.
+ * 더 긴 쪽을 자른다. 그 줄의 양옆이 같은 칸인 곳에만 벽을 놓는다.
+ */
+export function splitLargestCell(plan: Plan): Plan {
+  const layout = analyze(plan);
+  const cell = [...layout.cells].sort((a, b) => b.area - a.area)[0];
+  if (!cell) return plan;
+  const xs = cell.squares.map((s) => s.x);
+  const ys = cell.squares.map((s) => s.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs) + 1;
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys) + 1;
+  // 양옆이 같은 칸인 자리에 벽을 놓는다. 비스듬한 벽에 걸친 네모도 어느 한 곳이 양쪽 다 칸이면 넘겨 긋는다
+  const both = (a: Pt, b: Pt): boolean => cellIdAt(layout, a) === cell.id && cellIdAt(layout, b) === cell.id;
+  const add: string[] = [];
+  if (right - left >= bottom - top) {
+    const x = Math.round((left + right) / 2);
+    for (let y = top; y < bottom; y++) {
+      if ([0.1, 0.5, 0.9].some((f) => both({ x: x - 0.01, y: y + f }, { x: x + 0.01, y: y + f }))) add.push(vKey(x, y));
+    }
+  } else {
+    const y = Math.round((top + bottom) / 2);
+    for (let x = left; x < right; x++) {
+      if ([0.1, 0.5, 0.9].some((f) => both({ x: x + f, y: y - 0.01 }, { x: x + f, y: y + 0.01 }))) add.push(hKey(x, y));
+    }
+  }
+  return normalize({ ...plan, walls: [...plan.walls, ...add] });
 }
 
 /** 두 칸이 맞닿은 벽 조각들 */
@@ -79,18 +112,22 @@ export function autoDoors(input: Plan): Plan {
   let layout = analyze(plan);
   if (layout.cells.length === 0) return plan;
   if (!layout.links.some((l) => l.b === OUT)) {
-    const order = [...layout.cells].sort(
-      (a, b) => Number(b.kind === 'pass') - Number(a.kind === 'pass') || b.area - a.area,
-    );
+    // 현관이 있으면 현관으로 나간다. 베란다로는 나가지 않는다
+    const rank = (c: Cell): number => (c.name === 'entry' ? 0 : c.name === 'veranda' ? 3 : c.kind === 'pass' ? 1 : 2);
+    const order = [...layout.cells].sort((a, b) => rank(a) - rank(b) || b.area - a.area);
     for (const cell of order) {
       const edges = edgeKeys(layout).filter(
         (e) => !plan.openings[e] && isExterior(layout, e) && edgeSides(layout, e).some((s) => layout.cellAt.get(s) === cell.id),
       );
       if (edges.length) {
-        // 아래쪽 겉벽을 먼저 쓴다 — 지도에서 「집 밖」이 아래에 있어 길이 곧게 이어진다
-        const bottom = edges.filter((e) => e.startsWith('h:')).sort((a, b) => parseEdge(b).y - parseEdge(a).y);
-        const lowY = bottom[0] ? parseEdge(bottom[0]).y : null;
-        const pick = bottom.length ? middle(bottom.filter((e) => parseEdge(e).y === lowY)) : middle(edges);
+        // 「집 밖」쪽 겉벽을 먼저 쓴다 — 길이 곧게 이어진다. 현관은 있는 자리의 겉벽을 그대로 쓴다
+        const side = outsideOf(plan);
+        const axis = side === 'top' || side === 'bottom' ? 'h:' : 'v:';
+        const far = side === 'bottom' || side === 'right' ? 1 : -1;
+        const pos = (e: string): number => (axis === 'h:' ? parseEdge(e).y : parseEdge(e).x) * far;
+        const facing = edges.filter((e) => e.startsWith(axis)).sort((a, b) => pos(b) - pos(a));
+        const line = facing[0] ? pos(facing[0]) : null;
+        const pick = facing.length ? middle(facing.filter((e) => pos(e) === line)) : middle(edges);
         plan = normalize({ ...plan, openings: { ...plan.openings, [pick]: 'door' } });
         break;
       }
@@ -104,10 +141,13 @@ export function autoDoors(input: Plan): Plan {
     if (stuck.length === 0) break;
     const stuckIds = new Set(stuck.map((c) => c.id));
     let picked: string | null = null;
-    for (const cell of stuck) {
+    // 거실처럼 지나가는 곳부터 잇는다. 그래야 방이 거실로 이어지고 현관으로 몰리지 않는다
+    const firstPass = [...stuck].sort((a, b) => Number(b.kind === 'pass') - Number(a.kind === 'pass'));
+    for (const cell of firstPass) {
       const others = layout.cells.filter((c) => !stuckIds.has(c.id));
-      // 지나가는 곳을 먼저 잇는다
-      others.sort((a, b) => Number(b.kind === 'pass') - Number(a.kind === 'pass'));
+      // 거실과 복도처럼 지나가는 곳을 먼저 잇는다. 현관으로는 다른 길이 없을 때만 낸다 — 중문은 하나면 된다
+      const reach = (c: Cell): number => (c.name === 'entry' ? 2 : c.kind === 'pass' ? 0 : 1);
+      others.sort((a, b) => reach(a) - reach(b));
       for (const other of others) {
         const shared = sharedEdges(layout, cell.id, other.id).filter((e) => !plan.openings[e]);
         if (shared.length) {
@@ -148,8 +188,8 @@ export function autoMarks(input: Plan, band: Band): Plan {
   const layout = analyze(plan);
   if (layout.cells.length === 0) return plan;
   const marks = { ...plan.marks };
-  // 점 간격이 좁아도 표시가 겹치지 않게 예전 네모 한 칸만큼 떨어뜨린다
-  const k = plan.density ?? 1;
+  // 점이 많아도 표시가 겹치지 않게 처음 네모 한 칸만큼 떨어뜨린다
+  const k = Math.max(1, plan.density ?? 1);
   const used: Pt[] = Object.entries(marks)
     .filter(([id]) => id !== 'meet')
     .map(([, m]) => m!);
@@ -184,7 +224,7 @@ export function autoMarks(input: Plan, band: Band): Plan {
     const p = free(home);
     if (p) marks.me = p;
   }
-  if (!marks.meet) marks.meet = { x: plan.cols / 2, y: plan.rows + 0.9 * k };
+  if (!marks.meet) marks.meet = outsideSpot(plan);
   if (band !== 'low') {
     if (!marks.gas) {
       const p = free(byName('kitchen') ?? rooms[rooms.length - 1] ?? any);

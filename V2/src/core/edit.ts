@@ -3,6 +3,7 @@
  * 모든 함수는 새 지도를 돌려주고 받은 지도를 바꾸지 않는다.
  */
 import { analyze, cellIdAt, edgeEnds, edgeInGrid, edgeMid, isExterior, isInterior, pieceCenter, pieceKeyAt, reachableFrom, segmentEdges, sqKey, tagFor, wallOf } from './grid';
+import { itemsInside } from './items';
 import { OUT, type CellTag, type Layout, type MarkId, type OpeningKind, type Plan, type Pt } from './types';
 
 export function emptyPlan(cols: number, rows: number, density = 1): Plan {
@@ -65,7 +66,8 @@ export function normalize(plan: Plan): Plan {
     }
   }
 
-  const clean: Plan = { ...draft, tags, marks, openings };
+  const items = itemsInside(draft, layout);
+  const clean: Plan = { ...draft, tags, marks, openings, ...(items ? { items } : {}) };
   const fresh = analyze(clean);
   return {
     ...clean,

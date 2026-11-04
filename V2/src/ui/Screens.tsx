@@ -122,14 +122,13 @@ export function Welcome() {
           <CoverDrawing />
           <div className="welcome-chars" aria-hidden="true">
             <img src="./art/yeongi_happy.webp" alt="" />
-            <img className="ilgu" src="./art/ilgu_happy.webp" alt="" />
+            <img src="./art/ilgu_happy.webp" alt="" />
             <img src="./art/ungi_happy.webp" alt="" />
           </div>
         </div>
       </div>
       <p className="welcome-foot">
         <b>소방청 친구들 영이, 일구, 웅이와 함께 우리 가족의 대피 길을 미리 찾아보자!</b>
-        <small>이름표와 지도는 이 기기 안에만 저장된다. 캐릭터 출처: 소방청(공공누리 제1유형)</small>
       </p>
     </main>
   );

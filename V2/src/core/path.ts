@@ -9,7 +9,7 @@ import { OUT, type Layout, type Plan, type Pt } from './types';
 export function exitPoint(layout: Layout, edge: string, density = 1): Pt {
   const [p, q] = edgeSides(layout, edge);
   const near = pieceCenter(layout.cellAt.has(p) ? q : p);
-  if (density === 1) return near;
+  if (density <= 1) return near;
   const m = edgeMid(edge);
   const n = edgeNormal(edge);
   const toward = layout.cellAt.has(p) ? 1 : -1;

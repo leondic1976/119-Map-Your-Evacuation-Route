@@ -21,8 +21,8 @@ export const LINES = {
   'welcome': { speaker: 'ilgu', emotion: 'happy', text: '안녕! 나는 일구야. 우리 집 대피지도를 같이 그려 보자.', sourceIds: GUIDE },
   'nametag': { speaker: 'yeongi', emotion: 'happy', text: '몇 학년인지 골라 줘. 이름은 안 적어도 괜찮아.', sourceIds: GUIDE },
 
-  'draw-low': { speaker: 'yeongi', emotion: 'normal', text: '연한 선을 따라 점과 점을 이어 보자. 쭉 끌어도 되고, 점을 차례로 눌러도 돼.', sourceIds: GUIDE },
-  'draw-mid': { speaker: 'yeongi', emotion: 'normal', text: '연한 선을 따라 집 테두리를 그리고, 벽을 그어서 칸을 나눠 보자.', sourceIds: GUIDE },
+  'draw-low': { speaker: 'yeongi', emotion: 'normal', text: '점과 점을 이어서 우리 집을 그려 보자. 쭉 끌어도 되고, 점을 차례로 눌러도 돼.', sourceIds: GUIDE },
+  'draw-mid': { speaker: 'yeongi', emotion: 'normal', text: '점을 이어서 집 테두리를 그리고, 벽을 그어서 칸을 나눠 보자.', sourceIds: GUIDE },
   'draw-high': { speaker: 'yeongi', emotion: 'normal', text: '점을 이어서 우리 집 테두리와 벽을 직접 그려 보자.', sourceIds: GUIDE },
   'draw-first-cell': { speaker: 'ungi', emotion: 'happy', text: '우와, 칸이 생겼어! 선으로 둘러싸면 칸이 되는 거야.', sourceIds: GUIDE },
   'draw-make-rooms': { speaker: 'yeongi', emotion: 'happy', text: '집 모양이 다 됐어! 이제 안에 선을 그어서 방을 만들어 보자.', sourceIds: GUIDE },

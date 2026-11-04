@@ -7,7 +7,8 @@ import { memo, useEffect, useId, useMemo, useRef, type PointerEvent as RPointerE
 import { edgeAngle, edgeEnds, edgeKeys, edgeLength, edgeMid, edgeNormal, edgeSides, isSlanted } from '../core/grid';
 import { routePoints } from '../core/path';
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, type Box } from '../core/zoom';
-import { OUT, type Layout, type MarkId, type Piece, type Plan, type Pt } from '../core/types';
+import { OUT, type ItemKind, type Layout, type MarkId, type OutsideSide, type Piece, type Plan, type Pt } from '../core/types';
+import { ITEMS } from '../content/items';
 import { cellLabel, MARK_NAME, type LookId } from '../content/names';
 import { getApp, setView, useApp } from '../store/app';
 import { HandGlyph, MarkGlyph } from './art';
@@ -20,13 +21,37 @@ const MARGIN = 84;
 const STRIP_GAP = 34;
 const STRIP_H = 112;
 
-/** 그림 전체의 범위 */
-export const planBox = (plan: Plan): Box => ({
-  x: -MARGIN,
-  y: -MARGIN,
-  w: plan.cols * unitOf(plan) + MARGIN * 2,
-  h: plan.rows * unitOf(plan) + STRIP_GAP + STRIP_H + MARGIN + 26,
-});
+const STRIP_ROOM = STRIP_GAP + STRIP_H + MARGIN + 26;
+
+/** 그림 전체의 범위 — 집 밖 띠가 놓이는 쪽으로 넓어진다 */
+export const planBox = (plan: Plan): Box => {
+  const w = plan.cols * unitOf(plan);
+  const h = plan.rows * unitOf(plan);
+  switch (plan.outside ?? 'bottom') {
+    case 'top':
+      return { x: -MARGIN, y: -STRIP_ROOM, w: w + MARGIN * 2, h: h + MARGIN + STRIP_ROOM };
+    case 'left':
+      return { x: -STRIP_ROOM, y: -MARGIN, w: w + MARGIN + STRIP_ROOM, h: h + MARGIN * 2 };
+    case 'right':
+      return { x: -MARGIN, y: -MARGIN, w: w + MARGIN + STRIP_ROOM, h: h + MARGIN * 2 };
+    default:
+      return { x: -MARGIN, y: -MARGIN, w: w + MARGIN * 2, h: h + MARGIN + STRIP_ROOM };
+  }
+};
+
+/** 집 밖 띠의 자리 */
+function stripRect(side: OutsideSide, w: number, h: number): { x: number; y: number; w: number; h: number } {
+  switch (side) {
+    case 'top':
+      return { x: -30, y: -STRIP_GAP - STRIP_H, w: w + 60, h: STRIP_H };
+    case 'left':
+      return { x: -STRIP_GAP - STRIP_H, y: -30, w: STRIP_H, h: h + 60 };
+    case 'right':
+      return { x: w + STRIP_GAP, y: -30, w: STRIP_H, h: h + 60 };
+    default:
+      return { x: -30, y: h + STRIP_GAP, w: w + 60, h: STRIP_H };
+  }
+}
 
 /** 그리다가 손이 화면 가장자리에 이르면 종이가 따라 움직인다 */
 const EDGE_PX = 44;
@@ -37,7 +62,6 @@ export interface PlanViewProps {
   layout: Layout;
   look?: LookId;
   showDots?: boolean;
-  guide?: string[];
   /** 그리는 중인 획 */
   stroke?: Pt[];
   armed?: Pt | null;
@@ -84,7 +108,7 @@ function pencilPath(key: string, a: Pt, b: Pt, u: number): string {
 const piecePoints = (s: Piece, u: number): string => s.polygon.map((p) => `${p.x * u},${p.y * u}`).join(' ');
 
 function PlanViewBase(props: PlanViewProps) {
-  const { plan, layout, showDots, guide, stroke, armed, hotEdge, glow, warn, showRoute, hazard, closedDoors } = props;
+  const { plan, layout, showDots, stroke, armed, hotEdge, glow, warn, showRoute, hazard, closedDoors } = props;
   const svgRef = useRef<SVGSVGElement>(null);
   // 인쇄용 그림과 화면 그림이 한 문서에 있어 무늬 이름이 겹치면 숨긴 쪽을 가리키게 된다
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
@@ -95,8 +119,8 @@ function PlanViewBase(props: PlanViewProps) {
   const k = plan.density ?? 1;
   const width = plan.cols * u;
   const height = plan.rows * u;
-  const stripTop = height + STRIP_GAP;
-  const stripH = STRIP_H;
+  const side = plan.outside ?? 'bottom';
+  const strip = stripRect(side, width, height);
   const box = planBox(plan);
   const stored = useApp((s) => s.view);
   const panMode = useApp((s) => s.panMode);
@@ -212,15 +236,17 @@ function PlanViewBase(props: PlanViewProps) {
     return () => svg.removeEventListener('wheel', onWheel);
   }, [zoomable]);
 
-  // 점이 많아도 손을 움직일 때마다 다시 만들지 않는다. 처음 간격의 점은 크게 그려 자리를 잡기 쉽게 한다
+  // 점이 많아도 손을 움직일 때마다 다시 만들지 않는다. 배로 늘렸을 때는 처음 점을 크게 그려 자리를 잡기 쉽게 한다
   const dots = useMemo(() => {
     if (!showDots) return null;
+    const whole = Number.isInteger(k) && k > 1;
     const small = k === 2 ? 6 : 4;
+    const each = whole ? 10 : k > 1 ? 8 : 10;
     return (
       <g className="dots">
         {Array.from({ length: plan.rows + 1 }, (_, y) =>
           Array.from({ length: plan.cols + 1 }, (_, x) => (
-            <circle key={`${x},${y}`} cx={x * u} cy={y * u} r={x % k === 0 && y % k === 0 ? 10 : small} className="dot" />
+            <circle key={`${x},${y}`} cx={x * u} cy={y * u} r={!whole ? each : x % k === 0 && y % k === 0 ? 10 : small} className="dot" />
           )),
         )}
       </g>
@@ -279,9 +305,9 @@ function PlanViewBase(props: PlanViewProps) {
       </defs>
 
       {/* 집 밖 띠 */}
-      <g className={glowSet.has(OUT) ? 'strip glow-out' : 'strip'}>
-        <rect x={-30} y={stripTop} width={width + 60} height={stripH} rx={18} fill={pat('crayon-out')} stroke={glowSet.has(OUT) ? '#2f7fbf' : '#9cc489'} strokeWidth={glowSet.has(OUT) ? 8 : 4} strokeDasharray={glowSet.has(OUT) ? undefined : '14 12'} />
-        <text x={0} y={stripTop + 40} className="strip-label">집 밖</text>
+      <g className={glowSet.has(OUT) ? 'strip glow-out' : 'strip'} data-side={side}>
+        <rect x={strip.x} y={strip.y} width={strip.w} height={strip.h} rx={18} fill={pat('crayon-out')} stroke={glowSet.has(OUT) ? '#2f7fbf' : '#9cc489'} strokeWidth={glowSet.has(OUT) ? 8 : 4} strokeDasharray={glowSet.has(OUT) ? undefined : '14 12'} />
+        <text x={strip.x + 30} y={strip.y + 40} className="strip-label">집 밖</text>
       </g>
 
       {/* 칸 색칠 */}
@@ -344,7 +370,7 @@ function PlanViewBase(props: PlanViewProps) {
                   <polygon className="smoke-sq" points={piecePoints(s, u)} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
                 )}
                 {/* 불꽃은 처음 네모마다 하나다 */}
-                {lv === 3 && s.x % k === 0 && s.y % k === 0 && (
+                {lv === 3 && s.x % Math.max(1, Math.round(k)) === 0 && s.y % Math.max(1, Math.round(k)) === 0 && (
                   <g className="flame" style={{ animationDelay: `${(i % 4) * 0.25}s` }} transform={`translate(${s.center.x * u} ${s.center.y * u + 12})`}>
                     <path d="M0-44c17 17 24 30 17 43-3 6-10 9-17 9s-14-3-17-9c-6-12 4-22 9-28 2 7 4 9 7 9 2-7 2-15 1-24z" fill="#f59a23" />
                     <path d="M0-16c7 7 10 13 7 18-1 3-4 4-7 4s-6-1-7-4c-3-5 2-9 4-11 1 3 2 4 3 4 1-3 1-7 0-11z" fill="#ffe08a" />
@@ -354,12 +380,6 @@ function PlanViewBase(props: PlanViewProps) {
             ))}
           </g>
         );
-      })}
-
-      {/* 모눈 점 안내선 */}
-      {guide && guide.filter((g) => !plan.walls.includes(g)).map((g) => {
-        const [a, b] = edgeEnds(g);
-        return <line key={`gd${g}`} className="guide-line" x1={a.x * u} y1={a.y * u} x2={b.x * u} y2={b.y * u} />;
       })}
 
       {/* 벽 */}
@@ -409,6 +429,14 @@ function PlanViewBase(props: PlanViewProps) {
       {route1.length > 1 && <RouteArrow points={route1} color="#d6402f" u={u} />}
       {route2.length > 1 && <RouteArrow points={route2} color="#c97a12" u={u} />}
 
+      {/* 아이가 놓은 가구 */}
+      {(plan.items ?? []).map((item, i) => (
+        <g key={i} className="placed-item" data-item={item.kind} transform={`translate(${item.x * u} ${item.y * u})`} pointerEvents="none">
+          <g transform={`rotate(${item.angle})`}><ItemShape kind={item.kind} /></g>
+          <text className="item-word" y={6}>{ITEMS[item.kind].label}</text>
+        </g>
+      ))}
+
       {/* 표시 */}
       {(Object.entries(plan.marks) as [MarkId, Pt][]).map(([id, at]) => (
         <g key={id} transform={`translate(${at.x * u} ${at.y * u})`} data-mark={id} className="mark">
@@ -420,9 +448,9 @@ function PlanViewBase(props: PlanViewProps) {
       {/* 눌러야 할 곳 */}
       {(props.hints ?? []).map((id) => {
         const cell = layout.byId.get(id);
-        const x = cell ? cell.anchor.x * u : width * 0.28;
+        const x = cell ? cell.anchor.x * u : strip.x + strip.w * (side === 'left' || side === 'right' ? 0.5 : 0.3);
         // 칸 이름 바로 아래에 놓아 글자가 겹치지 않게 한다
-        const y = cell ? cell.anchor.y * u + 58 : stripTop + 34;
+        const y = cell ? cell.anchor.y * u + 58 : strip.y + (side === 'left' || side === 'right' ? strip.h * 0.3 : 34);
         return (
           <g key={`hint${id}`} className="tap-hint" data-hint={id} transform={`translate(${x} ${y})`} pointerEvents="none">
             <g className="tap-hand"><HandGlyph scale={1.5} /></g>
@@ -440,6 +468,29 @@ function PlanViewBase(props: PlanViewProps) {
   );
 }
 
+/** 위에서 본 가구. 앞이 아래쪽이고 크기는 처음 네모 한 칸이 100 이다 */
+export function ItemShape({ kind }: { kind: ItemKind }) {
+  const spec = ITEMS[kind];
+  const w = spec.w * U;
+  const d = spec.d * U;
+  const line = { fill: 'none', stroke: '#33363b', strokeWidth: 3, strokeLinecap: 'round' as const };
+  return (
+    <g>
+      <rect x={-w / 2} y={-d / 2} width={w} height={d} rx={kind === 'plant' || kind === 'toilet' ? 12 : 5} fill={spec.color} stroke="#33363b" strokeWidth={3.5} />
+      {kind === 'bed' && <rect x={-w / 2 + 6} y={-d / 2 + 6} width={w - 12} height={d * 0.26} rx={6} fill="#8cb7d9" stroke="#33363b" strokeWidth={2.5} />}
+      {kind === 'sofa' && <path d={`M${-w / 2} ${-d / 6}H${w / 2}`} {...line} />}
+      {kind === 'tv' && <path d={`M${-w / 2 + 6} 0H${w / 2 - 6}`} stroke="#9fd0ea" strokeWidth={4} />}
+      {(kind === 'closet' || kind === 'shoes') && <path d={`M0 ${-d / 2}V${d / 2}`} {...line} />}
+      {(kind === 'fridge' || kind === 'washer') && <circle r={w * 0.26} {...line} />}
+      {kind === 'sink' && <rect x={-w * 0.2} y={-d * 0.28} width={w * 0.4} height={d * 0.56} rx={5} {...line} />}
+      {kind === 'toilet' && <ellipse cy={d * 0.08} rx={w * 0.3} ry={d * 0.28} {...line} />}
+      {kind === 'basin' && <ellipse rx={w * 0.3} ry={d * 0.28} {...line} />}
+      {kind === 'bathtub' && <rect x={-w * 0.32} y={-d * 0.38} width={w * 0.64} height={d * 0.76} rx={12} {...line} />}
+      {kind === 'plant' && <circle r={w * 0.22} fill="#3e9d5d" />}
+    </g>
+  );
+}
+
 function RouteArrow({ points, color, u }: { points: Pt[]; color: string; u: number }) {
   const b = points[points.length - 1]!;
   const a = points[points.length - 2]!;
@@ -453,7 +504,7 @@ function RouteArrow({ points, color, u }: { points: Pt[]; color: string; u: numb
 
 /** 문과 창의 폭(처음 네모 단위). 점이 촘촘해 벽 토막이 짧아도 곧은 벽이 이어지면 제 크기로 낸다 */
 function openingFit(edge: string, layout: Layout, density: number): number {
-  if (density === 1) return Math.min(1, edgeLength(edge));
+  if (density <= 1) return Math.min(1, edgeLength(edge) / density);
   const run = layout.runOf.get(edge);
   const m = edgeMid(edge);
   if (!run) return Math.min(1, edgeLength(edge) / density);
@@ -483,6 +534,8 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density }: { edge: s
   const qCell = layout.cellAt.get(q);
   const exit = Boolean(pCell) !== Boolean(qCell);
   const color = hot ? '#2f7fbf' : exit ? '#2e8b57' : '#9a5b2a';
+  // 현관과 집 안 사이의 문은 중문이다
+  const inner = !exit && [pCell, qCell].some((id) => id && layout.byId.get(id)?.name === 'entry');
   // 문짝은 방 쪽으로 열린다. 돌린 그림의 +y 가 q 쪽인지 p 쪽인지 재서 고른다
   const roomP = pCell ? layout.byId.get(pCell)?.kind === 'room' : false;
   const roomQ = qCell ? layout.byId.get(qCell)?.kind === 'room' : false;
@@ -495,7 +548,7 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density }: { edge: s
   const nx = normal.x * toward;
   const ny = normal.y * toward;
   return (
-    <g data-door={edge} data-exit={exit ? '1' : '0'}>
+    <g data-door={edge} data-exit={exit ? '1' : '0'} data-inner={inner ? '1' : '0'}>
       <g transform={place}>
         <line x1={8} y1={0} x2={92} y2={0} stroke="#fffdf6" strokeWidth={16} />
         {closed ? (
@@ -507,6 +560,7 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density }: { edge: s
           </>
         )}
       </g>
+      {inner && <text className="door-word" x={m.x * u} y={m.y * u - 18}>중문</text>}
       {exit && (
         <g transform={`translate(${m.x * u + nx * 36} ${m.y * u + ny * 36}) rotate(${(Math.atan2(ny, nx) * 180) / Math.PI})`}>
           <path d="M-14 0H10M2-12L18 0L2 12" fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />

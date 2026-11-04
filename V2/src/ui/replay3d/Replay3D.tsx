@@ -7,9 +7,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { DrillState, Snapshot } from '../../core/drill';
 import { fitFurniture, type Footprint } from '../../core/furnish';
-import { analyze, edgeSides, parseEdge } from '../../core/grid';
+import { analyze, cellIdAt, edgeSides, parseEdge } from '../../core/grid';
 import { pointAlong, polylineLength, routePoints } from '../../core/path';
 import { OUT, type Cell, type Layout, type Plan, type Pt } from '../../core/types';
+import { ITEMS } from '../../content/items';
 import { FIRE } from '../../content/fire';
 import { LOOKS, type LookId } from '../../content/names';
 import { IconClose, IconPlay } from '../art';
@@ -99,8 +100,8 @@ function piecesFloor(polygons: Pt[][]): THREE.BufferGeometry {
   return geometry;
 }
 
-/** 열린 문짝의 각도. 벽을 가로로 놓은 틀 안에서 돈다 */
-const doorOpenAngle = (edge: string): number => (parseEdge(edge).o === 'h' ? -1.25 : 1.25);
+/** 열린 문짝의 각도. 벽을 가로로 놓은 틀 안에서 돈다. 내 시점에서 앞을 막지 않게 벽에 거의 수직으로 활짝 연다 */
+const doorOpenAngle = (edge: string): number => (parseEdge(edge).o === 'h' ? -1.5 : 1.5);
 
 /** 가구 한 벌. 등이 -z 이고 앞이 +z 이며, 가운데가 원점이다 */
 interface FurnitureSet extends Footprint {
@@ -155,7 +156,7 @@ const FURNITURE: Record<string, FurnitureSet[]> = {
   veranda: [{ w: 0.3, d: 0.3, parts: [[0.3, 0.3, 0.3, 0x6aa76a, 0.85, 0, 0.15, 0]] }],
 };
 
-const FURNITURE_OF: Record<string, string> = { main: 'bed', myroom: 'bed', other: 'bed', kitchen: 'kitchen', bath: 'bath', living: 'living', veranda: 'veranda' };
+const FURNITURE_OF: Record<string, string> = { main: 'bed', myroom: 'bed', other: 'bed', kitchen: 'kitchen', bath: 'bath', living: 'living', veranda: 'veranda', utility: 'veranda' };
 
 /**
  * 칸 이름에 맞는 가구를 저절로 놓는다. 아이가 고를 일을 늘리지 않는다.
@@ -271,13 +272,16 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
   const [failed, setFailed] = useState(false);
   const [caption, setCaption] = useState('내 자리에서 시작');
   const [ended, setEnded] = useState(false);
-  const [follow, setFollow] = useState(false);
-  const followRef = useRef(false);
+  // 기본은 내 눈으로 보고, 위쪽 단추를 누르면 위에서 집 전체를 본다
+  const [fromAbove, setFromAbove] = useState(false);
+  const aboveRef = useRef(false);
   const restart = useRef<() => void>(() => undefined);
 
+  const applyView = useRef<(above: boolean) => void>(() => undefined);
   useEffect(() => {
-    followRef.current = follow;
-  }, [follow]);
+    aboveRef.current = fromAbove;
+    applyView.current(fromAbove);
+  }, [fromAbove]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -318,7 +322,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
 
     const cx = planCols / 2;
     const cz = planRows / 2;
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.03, 100);
     const home = new THREE.Vector3(cx, Math.max(planCols, planRows) * 0.95, cz + Math.max(planCols, planRows) * 0.78);
     camera.position.copy(home);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -437,7 +441,21 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const furniture = new THREE.Group();
     scene.add(furniture);
     const keepClear = [pathPoints, ...drill.timeline.map((snap) => snap.walk)];
-    const furnished = layout.cells.filter((cell) => furnish(furniture, plan, layout, cell, keepClear)).length;
+    // 아이가 놓은 가구를 그대로 짓는다. 아무것도 놓지 않은 칸만 저절로 채운다
+    const placedCells = new Set<string>();
+    for (const item of plan.items ?? []) {
+      const here = cellIdAt(layout, item);
+      if (here) placedCells.add(here);
+      const spec = ITEMS[item.kind];
+      const at = world(item);
+      const piece = new THREE.Group();
+      piece.position.set(at.x, 0, at.y);
+      piece.rotation.y = (-item.angle * Math.PI) / 180;
+      for (const [w, h, d, color, x, y, z] of spec.parts) piece.add(box(w, h, d, material(color), x, y, z));
+      furniture.add(piece);
+    }
+    mount.dataset.placed = String(plan.items?.length ?? 0);
+    const furnished = layout.cells.filter((cell) => placedCells.has(cell.id) || furnish(furniture, plan, layout, cell, keepClear)).length;
     mount.dataset.furnished = String(furnished);
 
     if (pathPoints.length > 1) {
@@ -495,7 +513,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const fg = new THREE.Group();
       fg.visible = false;
       // 점 간격을 좁혀도 불꽃과 연기는 처음 네모마다 하나다
-      const spots = cell.squares.filter((s) => s.x % density === 0 && s.y % density === 0).map((s) => world(s.center));
+      const each = Math.max(1, Math.round(density));
+      const spots = cell.squares.filter((s) => s.x % each === 0 && s.y % each === 0).map((s) => world(s.center));
       if (spots.length === 0) spots.push(world(cell.anchor));
       for (const c of spots) {
         const mat = makeFlameMaterial();
@@ -546,8 +565,31 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
 
-    const lookAtTmp = new THREE.Vector3();
-    const camGoal = new THREE.Vector3();
+    // 시점 — 내 눈 높이에서 가는 쪽을 본다. 위에서 보기는 손으로 돌려 볼 수 있다
+    const lookAhead = new THREE.Vector3();
+    let heading = 0;
+    let lastAbove = aboveRef.current;
+    const firstWalk = list.find((e) => e.snap.walk.length >= 2)?.snap.walk;
+    if (firstWalk) {
+      const start = pointAlong(firstWalk, 0);
+      const next = pointAlong(firstWalk, 0.1);
+      heading = Math.atan2(next.x - start.x, next.y - start.y);
+    }
+    const eyeFov = 72;
+    const setMode = (above: boolean) => {
+      controls.enabled = above;
+      kid.root.visible = above;
+      camera.fov = above ? 42 : eyeFov;
+      camera.updateProjectionMatrix();
+      mount.dataset.view = above ? 'above' : 'eye';
+      if (above) {
+        camera.position.copy(home);
+        controls.target.set(cx, 0, cz + 0.4);
+      }
+      lastAbove = above;
+    };
+    setMode(lastAbove);
+    applyView.current = setMode;
 
     // 느린 기기 — 처음 몇 장면을 재 보고 느리면 그림자와 해상도를 낮춘다
     let frames = 0;
@@ -635,14 +677,23 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       }
 
       // 시점
-      if (followRef.current) {
-        const back = kid.root.rotation.y;
-        camGoal.set(pos.x - Math.sin(back) * 2.8, 3.1, pos.y - Math.cos(back) * 2.8);
-        camera.position.lerp(camGoal, 0.05);
-        lookAtTmp.set(pos.x, 0.4, pos.y);
-        controls.target.lerp(lookAtTmp, 0.1);
+      if (aboveRef.current) {
+        controls.update();
+      } else {
+        if (seg.snap.walk.length >= 2) {
+          const ahead = pointAlong(seg.snap.walk, Math.min(1, r + 0.04));
+          if (Math.hypot(ahead.x - pos.x, ahead.y - pos.y) > 0.001) {
+            const want = Math.atan2(ahead.x - pos.x, ahead.y - pos.y);
+            const turn = Math.atan2(Math.sin(want - heading), Math.cos(want - heading));
+            heading += turn * Math.min(1, dt * 6);
+          }
+        }
+        const eye = seg.snap.crouch && seg.snap.at !== OUT ? 0.34 : 0.56;
+        const bob = moving && !reduced ? Math.sin(time * 14) * 0.008 : 0;
+        camera.position.set(pos.x, eye + bob, pos.y);
+        lookAhead.set(pos.x + Math.sin(heading), eye + bob - 0.04, pos.y + Math.cos(heading));
+        camera.lookAt(lookAhead);
       }
-      controls.update();
       renderer.render(scene, camera);
     };
     render();
@@ -664,14 +715,15 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       renderer.domElement.remove();
     };
   }, [plan, drill, look]);
+  // 이 효과 안의 시점은 fromAbove 가 바뀔 때 applyView 로 옮긴다
 
   return (
     <div className="replay" role="dialog" aria-modal="true" aria-label="3D 다시 보기" data-testid="replay">
       <div ref={host} style={{ position: 'absolute', inset: 0 }} />
       <div className="replay-top">
         <button type="button" className="btn" data-testid="replay-close" onClick={onClose}><IconClose /> 닫기</button>
-        <button type="button" className="btn" data-testid="replay-view" aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
-          {follow ? '집 전체 보기' : '나를 따라가기'}
+        <button type="button" className="btn" data-testid="replay-view" aria-pressed={fromAbove} onClick={() => setFromAbove((f) => !f)}>
+          {fromAbove ? '내 눈으로 보기' : '위에서 보기'}
         </button>
         <button type="button" className={ended ? 'btn primary' : 'btn'} data-testid="replay-again" onClick={() => restart.current()}>
           <IconPlay /> 처음부터

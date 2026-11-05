@@ -23,7 +23,7 @@ export type StepId = (typeof STEPS)[number];
 
 export const STEP_LABEL: Record<StepId, string> = {
   draw: '집 그리기',
-  sort: '칸 나누기',
+  sort: '칸 칠하기',
   door: '문 달기',
   mark: '표시하기',
   route: '나가는 길',
@@ -57,6 +57,8 @@ export interface AppState {
   view: View | null;
   /** 끌면 그리는 대신 종이를 옮긴다 */
   panMode: boolean;
+  /** 저장된 도면만 있고 이름표가 없다. 이어서 그리기 전에 이름표를 다시 받는다 */
+  retag: boolean;
 }
 
 /**
@@ -101,6 +103,7 @@ function initialState(): AppState {
     seenHowTo: host.loadSession<StepId[]>('howto') ?? [],
     view: null,
     panMode: false,
+    retag: false,
   };
   const plan = savedPlan && Array.isArray(savedPlan.walls) ? normalize(savedPlan) : null;
   const step = session?.step;
@@ -110,6 +113,7 @@ function initialState(): AppState {
     profile: session?.profile ?? (plan ? profileFromPlan(plan) : null),
     step: step && STEPS.includes(step) && step !== 'drill' && step !== 'review' ? step : 'draw',
     soundOn: session?.soundOn !== false,
+    retag: !session?.profile && Boolean(plan && plan.walls.length > 0),
   };
 }
 
@@ -194,11 +198,18 @@ export function goHome(): void {
 export function startOver(): void {
   set({ screen: 'studio' });
   resetPlan();
+  if (state.retag) {
+    set({ screen: 'nametag', howTo: null });
+    say('nametag');
+  }
 }
 
 /** 첫 화면의 시작 단추 */
 export function startApp(): void {
-  if (state.profile) {
+  if (state.retag) {
+    set({ screen: 'nametag' });
+    say('nametag');
+  } else if (state.profile) {
     set({ screen: 'studio' });
     enterStep(state.step);
   } else {
@@ -212,10 +223,12 @@ export function saveProfile(profile: Profile): void {
   const nextBand = bandOfGrade(profile.grade);
   const sameBand = state.profile && bandOfGrade(state.profile.grade) === nextBand;
   const info = BANDS[nextBand];
+  const wasRetag = state.retag;
   const keep = sameBand || (state.profile === null && Math.round(state.plan.cols / densityOf(state.plan)) === info.cols && state.plan.walls.length > 0);
   set({
     profile,
     screen: 'studio',
+    retag: false,
     ...(keep
       ? {}
       : {
@@ -225,7 +238,27 @@ export function saveProfile(profile: Profile): void {
           drill: null,
         }),
   });
+  // 도면으로 이어 가는 길이다. 할 일이 남은 단계로 가고, 지나온 단계의 사용법은 다시 띄우지 않는다
+  if (wasRetag && keep) {
+    const step = resumeStep(state.plan, nextBand);
+    const seenHowTo = [...new Set<StepId>([...state.seenHowTo, ...STEPS.slice(0, STEPS.indexOf(step)).filter(hasHowTo)])];
+    host.saveSession('howto', seenHowTo);
+    state = { ...state, seenHowTo };
+    enterStep(step);
+    return;
+  }
   enterStep(state.step);
+}
+
+/** 이어서 그릴 때 갈 단계 — 앞에서부터 할 일이 남은 첫 단계다. 다 끝났으면 대피 연습이다 */
+export function resumeStep(plan: Plan, band: Band): StepId {
+  const layout = analyze(plan);
+  if (layout.cells.length < 2) return 'draw';
+  if (layout.cells.some((c) => !c.kind)) return 'sort';
+  if (!layout.links.some((l) => l.b === OUT) || unreachableCells(layout).length > 0) return 'door';
+  if (!BANDS[band].marks.every((m) => plan.marks[m])) return 'mark';
+  if (plan.route[plan.route.length - 1] !== OUT) return 'route';
+  return 'drill';
 }
 
 /** 단계에 들어설 때 할 말 */
@@ -242,17 +275,35 @@ export function stepLine(step: StepId, band: Band): LineId {
     case 'route':
       return 'route-start';
     case 'drill':
-      return 'drill-ready';
+      return analyze(state.plan).cells.length === 0 ? 'draw-need-cell' : 'drill-ready';
     case 'review':
-      return state.drill ? 'review' : 'review-no-drill';
+      if (state.drill) return 'review';
+      if (analyze(state.plan).cells.length === 0) return 'draw-need-cell';
+      return planGaps().length > 0 ? 'review-unfinished' : 'review-no-drill';
   }
 }
 
-const hasHowTo = (step: StepId): step is HowToStep => step !== 'review';
+function hasHowTo(step: StepId): step is HowToStep {
+  return step !== 'review';
+}
+
+/** 지도에서 아직 빠진 단계들. 돌아보기에서 무엇이 남았는지 알려 준다 */
+export function planGaps(plan: Plan = state.plan): StepId[] {
+  const gaps: StepId[] = [];
+  const layout = analyze(plan);
+  if (layout.cells.length === 0) return ['draw'];
+  if (layout.cells.some((c) => !c.kind)) gaps.push('sort');
+  if (!layout.links.some((l) => l.b === OUT) || unreachableCells(layout).length > 0) gaps.push('door');
+  if (!plan.marks.me || !plan.marks.meet) gaps.push('mark');
+  if (plan.route[plan.route.length - 1] !== OUT) gaps.push('route');
+  return gaps;
+}
 
 export function enterStep(step: StepId): void {
   set({ step, asking: null, howTo: null });
-  if (hasHowTo(step) && !state.seenHowTo.includes(step)) openHowTo();
+  // 빈 종이에서는 연습하는 법을 알려도 할 수가 없다. 집을 그리자는 말을 먼저 한다
+  const blocked = step === 'drill' && analyze(state.plan).cells.length === 0;
+  if (hasHowTo(step) && !state.seenHowTo.includes(step) && !blocked) openHowTo();
   else say(stepLine(step, currentBand()));
 }
 
@@ -280,13 +331,20 @@ const MISTAKE_LINES = new Set<LineId>([
   'mark-need-inside',
   'mark-need-outside',
   'route-no-way',
+  'draw-armed',
+  'route-dead-end',
+  'route-same',
+  'item-door',
+  'dots-lost-cell',
 ]);
 
 /** 지도 고치기. merge 면 되돌리기 한 번에 함께 묶인다 */
 export function commit(plan: Plan, opts: { merge?: boolean } = {}): void {
   if (plan === state.plan) return;
   const past = opts.merge ? state.past : [...state.past, state.plan].slice(-60);
-  const line = MISTAKE_LINES.has(state.line) ? stepLine(state.step, currentBand()) : state.line;
+  // 실수를 고쳤을 때 이미 할 일을 다 했으면 처음 말이 아니라 다음에 할 일을 다시 보인다
+  const done = DONE_LINES[state.step];
+  const line = MISTAKE_LINES.has(state.line) ? (done && stepReady(state.step, plan) ? (done[1] ?? done[0]) : stepLine(state.step, currentBand())) : state.line;
   set({ plan, past, line });
 }
 
@@ -323,7 +381,12 @@ export function applyTemplate(id: string): void {
 
 /** 점 개수를 바꾼다. 벽은 가장 가까운 점으로 옮겨 가고, 되돌리기로 돌아갈 수 있다 */
 export function setGrid(cols: number, rows: number): void {
-  commit(changeGrid(state.plan, cols, rows));
+  const before = analyze(state.plan).cells.length;
+  const prevCols = state.plan.cols;
+  const next = changeGrid(state.plan, cols, rows);
+  commit(next);
+  if (analyze(next).cells.length < before) say('dots-lost-cell');
+  else if (densityOf(next) >= 2 && cols > prevCols) say('draw-dense');
 }
 
 export function clearRoute(which: 'route' | 'route2'): void {
@@ -379,7 +442,7 @@ const DONE_LINES: Partial<Record<StepId, [LineId, LineId?]>> = {
 
 /** 단계를 막 끝냈을 때 하는 말. 길 찾기는 눌렀을 때 이미 알맞은 말을 했으면 끊지 않는다 */
 export function announceDone(step: StepId): void {
-  if (step === 'route' && ['route-done', 'route-second', 'route-no-second'].includes(state.line)) return;
+  if (step === 'route' && ['route-done', 'route-second', 'route-no-second', 'route-helped'].includes(state.line)) return;
   const done = DONE_LINES[step];
   if (done) say(done[0], done[1]);
 }
@@ -417,8 +480,11 @@ export function helpStep(step: StepId = state.step): void {
     default:
       break;
   }
+  // 도와줘가 고른 길은 아이가 찾은 길이 아니다. 칭찬하지 않고 따라가 보자고 한다
+  const helpedRoute = step === 'route' && plan.route[plan.route.length - 1] !== OUT && next.route[next.route.length - 1] === OUT;
   commit(next);
   set({ asking: null });
+  if (helpedRoute) say('route-helped');
 }
 
 /** 앞 단계들에서 빠진 것을 모두 채운다 — 연습을 막지 않으려는 마지막 안전망 */

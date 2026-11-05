@@ -10,7 +10,7 @@ import { HOMES, type Home } from '../content/homes';
 import { ITEM_GROUPS, ITEMS } from '../content/items';
 import { templatesFor } from '../content/templates';
 import { segEdges } from '../content/templates';
-import { applyHome, applyTemplate, commit, currentBand } from '../store/app';
+import { applyHome, applyTemplate, commit, currentBand, say } from '../store/app';
 import { edgeEnds } from '../core/grid';
 import { buildHome } from '../content/homes';
 import { IconClose } from './art';
@@ -49,11 +49,16 @@ export type Placing = ItemKind | 'remove' | null;
 export function useLayers(plan: Plan, layout: Layout) {
   const [open, setOpen] = useState<LayerId | null>(null);
   const [placing, setPlacing] = useState<Placing>(null);
+  // 지금 그린 선이 지워지므로 한 번 묻는다
+  const [asking, setAsking] = useState<{ id: string; name: string; apply: (id: string) => void } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(null);
+      if (e.key === 'Escape') {
+        setOpen(null);
+        setAsking(null);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -67,8 +72,20 @@ export function useLayers(plan: Plan, layout: Layout) {
       return true;
     }
     const res = placeItem(plan, layout, placing, p);
-    if (res.ok) commit(res.plan);
+    if (res.ok) {
+      commit(res.plan);
+      // 하나 놓으면 끝난다. 고른 것을 잊어도 다음 손길이 그대로 그리기가 된다
+      setPlacing(null);
+    } else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
     return true;
+  };
+
+  /** 아파트 모양 고르기 — 그린 선이 있으면 먼저 묻는다 */
+  const pickShape = (id: string, name: string, apply: (id: string) => void) => {
+    if (plan.walls.length === 0) {
+      apply(id);
+      setOpen(null);
+    } else setAsking({ id, name, apply });
   };
 
   const buttons = (
@@ -89,14 +106,23 @@ export function useLayers(plan: Plan, layout: Layout) {
 
   const panel = open && (
     <div className="layer" role="dialog" aria-label={LAYER_NAME[open]} data-testid={`layer-${open}-panel`}>
-      <button type="button" className="x" aria-label="닫기" data-testid="layer-close" onClick={() => setOpen(null)}><IconClose /></button>
+      <button type="button" className="x" aria-label="닫기" data-testid="layer-close" onClick={() => { setOpen(null); setAsking(null); }}><IconClose /></button>
       <h3>{LAYER_NAME[open]}</h3>
       <p className="layer-note">{open === 'home' ? '고르면 벽과 칸 이름이 깔려. 안 골라도 돼.' : '고른 뒤 지도를 눌러 놓아. 안 놓아도 돼.'}</p>
+      {open === 'home' && asking && (
+        <div className="layer-ask" role="group" aria-label="아파트 모양 깔기" data-testid="shape-ask">
+          <p>지금 그린 선이 지워져. 「{asking.name}」을 깔까?</p>
+          <div className="tool-row across">
+            <button type="button" className="tool" data-testid="shape-yes" onClick={() => { asking.apply(asking.id); setAsking(null); setOpen(null); }}>깔기</button>
+            <button type="button" className="tool" data-testid="shape-no" onClick={() => setAsking(null)}>그대로 두기</button>
+          </div>
+        </div>
+      )}
       {open === 'home' ? (
         <>
           <div className="layer-grid">
             {HOMES.map((home) => (
-              <button type="button" key={home.id} className="layer-card" data-testid={`home-${home.id}`} onClick={() => { applyHome(home.id); setOpen(null); }}>
+              <button type="button" key={home.id} className="layer-card" data-testid={`home-${home.id}`} onClick={() => pickShape(home.id, home.name, applyHome)}>
                 <HomeThumb home={home} />
                 <b>{home.name}</b>
                 <small>{home.note}</small>
@@ -106,7 +132,7 @@ export function useLayers(plan: Plan, layout: Layout) {
           <h4>다른 모양</h4>
           <div className="layer-grid">
             {templatesFor(currentBand()).map((tpl) => (
-              <button type="button" key={tpl.id} className="layer-card" data-testid={`tpl-${tpl.id}`} onClick={() => { applyTemplate(tpl.id); setOpen(null); }}>
+              <button type="button" key={tpl.id} className="layer-card" data-testid={`tpl-${tpl.id}`} onClick={() => pickShape(tpl.id, tpl.name, applyTemplate)}>
                 <LineThumb lines={[...segEdges(tpl.outer), ...segEdges(tpl.inner)]} cols={BANDS[currentBand()].cols} rows={BANDS[currentBand()].rows} />
                 <b>{tpl.name}</b>
               </button>
@@ -115,6 +141,9 @@ export function useLayers(plan: Plan, layout: Layout) {
         </>
       ) : (
         <>
+          {(plan.items?.length ?? 0) > 0 && (
+            <button type="button" className="tool wide" data-testid="item-remove" onClick={() => { setPlacing('remove'); setOpen(null); }}>놓은 것 치우기</button>
+          )}
           {ITEM_GROUPS.map((group) => (
             <section key={group.label}>
               <h4>{group.label}</h4>
@@ -128,11 +157,16 @@ export function useLayers(plan: Plan, layout: Layout) {
               </div>
             </section>
           ))}
-          <button type="button" className="tool wide" data-testid="item-remove" onClick={() => { setPlacing('remove'); setOpen(null); }}>놓은 것 치우기</button>
         </>
       )}
     </div>
   );
 
-  return { buttons, panel, placing, tapMap };
+  const banner = placing && (
+    <p className="map-note" data-testid="placing-note" role="status">
+      {placing === 'remove' ? '치울 가구를 눌러 봐.' : `${ITEMS[placing].label}: 놓을 자리를 눌러 봐.`}
+    </p>
+  );
+
+  return { buttons, panel, placing, tapMap, banner, isOpen: open !== null };
 }

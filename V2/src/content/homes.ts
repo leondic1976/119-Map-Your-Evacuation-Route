@@ -23,7 +23,7 @@ export const HOMES: Home[] = [
   {
     id: 'home-2',
     name: '방 2개',
-    note: '작은 집',
+    note: '작은 집. 거실과 부엌도 있어',
     art: [
       'RRRRBBEEKKUU',
       'RRRRBBEEKKUU',
@@ -38,7 +38,7 @@ export const HOMES: Home[] = [
   {
     id: 'home-3',
     name: '방 3개',
-    note: '방이 앞뒤로',
+    note: '방이 앞뒤로. 화장실이 둘',
     art: [
       'OOOOBBEEKKKU',
       'OOOOBBEEKKKU',
@@ -53,7 +53,7 @@ export const HOMES: Home[] = [
   {
     id: 'home-3w',
     name: '방 3개 넓게',
-    note: '방이 앞쪽에',
+    note: '방이 앞쪽에. 대피공간도 있어',
     art: [
       'bbBBEEKKKKUU',
       'bbBBEEKKKKUU',
@@ -62,13 +62,13 @@ export const HOMES: Home[] = [
       'OOORRRLLLMMM',
       'OOORRRLLLMMM',
       'OOORRRLLLMMM',
-      'VVVVVVVVVVVV',
+      'VVVVVVVVVVAA',
     ],
   },
   {
     id: 'home-4',
     name: '방 4개',
-    note: '큰 집',
+    note: '큰 집. 대피공간도 있어',
     art: [
       'PPPbBBEEKKKU',
       'PPPbBBEEKKKU',
@@ -77,13 +77,13 @@ export const HOMES: Home[] = [
       'OOORRRLLLMMM',
       'OOORRRLLLMMM',
       'OOORRRLLLMMM',
-      'VVVVVVVVVVVV',
+      'VVVVVVVVVVAA',
     ],
   },
   {
     id: 'home-tower',
     name: '꺾인 집',
-    note: '창이 두 쪽',
+    note: '창이 두 쪽. 거실과 부엌도 있어',
     art: [
       'EEBBOOOO....',
       'EEBBOOOO....',
@@ -98,7 +98,7 @@ export const HOMES: Home[] = [
   {
     id: 'home-long',
     name: '긴 집',
-    note: '앞뒤로 창',
+    note: '앞뒤로 창. 복도도 있어',
     art: [
       'EEBBKKKKKKUU',
       'EEBBKKKKKKUU',
@@ -122,6 +122,7 @@ const SPACE: Record<string, { kind: CellKind; name: string }> = {
   B: { kind: 'room', name: 'bath' },
   b: { kind: 'room', name: 'bath' },
   V: { kind: 'room', name: 'veranda' },
+  A: { kind: 'room', name: 'refuge' },
   L: { kind: 'pass', name: 'living' },
   E: { kind: 'pass', name: 'entry' },
   H: { kind: 'pass', name: 'hall' },

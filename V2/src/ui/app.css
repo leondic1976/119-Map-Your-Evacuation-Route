@@ -36,7 +36,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 .app-root { height: 100%; }
 .too-small { display: none; }
-@media (max-width: 719px) {
+/* 폰처럼 좁거나 낮은 화면은 점을 눌러 그릴 수 없다 */
+@media (max-width: 719px), (max-height: 479px) {
   .app-root { display: none; }
   .too-small {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -237,33 +238,42 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .rib b { flex: none; display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 50%; background: #e9e4d2; font-weight: 400; }
 .rib.on { background: var(--sun); border-width: 3px; }
 .rib.on b { background: var(--pencil); color: #fff; }
+/* 좁아져도 단계 이름은 모두 읽을 수 있다. 번호 아래로 내려 폭을 줄인다 */
 @media (max-width: 1099px) {
-  .rib span { display: none; }
-  .rib.on span { display: inline; }
-  .ribbon { grid-template-columns: repeat(7, auto); }
+  .rib { font-size: 15px; gap: 3px; padding: 2px; }
+  .rib b { width: 22px; height: 22px; }
+}
+@media (max-width: 899px) {
+  .ribbon { gap: 4px; }
+  .rib { flex-direction: column; gap: 0; font-size: 13px; line-height: 1.1; padding: 1px; }
+  .rib b { width: 20px; height: 20px; }
 }
 
 .stage { min-height: 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; padding: 4px 10px; }
-.tools { min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; display: flex; flex-direction: column; gap: 6px; padding: 4px 6px 8px 2px; }
-.tools-head { font-size: 14px; color: var(--ink-2); margin-top: 2px; }
+.tools { min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; display: flex; flex-direction: column; gap: 6px; padding: 4px 6px 8px 2px; }
+.tools-head { font-size: 15px; color: var(--ink-2); margin-top: 2px; line-height: 1.2; }
 .tool-row { display: flex; flex-direction: column; gap: 6px; }
 .tool { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 2px; font-size: 16px; line-height: 1.15; }
 .stepper { display: grid; grid-template-columns: repeat(2, minmax(var(--hit), 1fr)); gap: 4px; }
 .stepper .tool { padding: 0; }
-.stepper-count { grid-column: 1 / -1; text-align: center; font-size: 14px; color: var(--ink-2); }
+.stepper-count { grid-column: 1 / -1; text-align: center; font-size: 15px; color: var(--ink-2); }
 .side-pick { display: grid; grid-template-columns: repeat(2, minmax(var(--hit), 1fr)); gap: 4px; }
 .side-pick .tool { padding: 0; }
 /* 레이어 — 필요할 때만 여는 판 */
-.layer { position: absolute; left: 8px; top: 8px; bottom: 8px; z-index: 4; width: min(320px, calc(100% - 80px)); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 16px; box-shadow: 4px 4px 0 var(--pencil); }
+.layer { position: absolute; left: 8px; top: 8px; bottom: 8px; z-index: 4; width: min(400px, calc(100% - 80px)); scrollbar-width: thin; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 16px; box-shadow: 4px 4px 0 var(--pencil); }
 .layer h3 { font-size: 21px; padding-right: 48px; }
 .layer h4 { margin: 6px 0 2px; font-size: 16px; font-weight: 400; color: var(--ink-2); }
+.layer-ask { display: grid; gap: 8px; padding: 10px; background: var(--sun); border: 3px solid var(--pencil); border-radius: 12px; font-size: 17px; line-height: 1.3; }
+.tool-row.across { flex-direction: row; }
+.tool-row.across .tool { flex: 1; padding: 6px 8px; }
 .layer-note { font-size: 15px; color: var(--ink-2); line-height: 1.35; padding-right: 44px; }
 .layer .x { position: absolute; right: 8px; top: 8px; }
 .layer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.layer-grid.items { grid-template-columns: repeat(3, 1fr); }
+.layer-grid.items { grid-template-columns: repeat(4, 1fr); }
+.layer-grid.items svg { width: 36px; height: 36px; }
 .layer-card { display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: var(--hit); padding: 4px 2px; background: #fff; border: 2px solid var(--pencil); border-radius: 12px; font-size: 15px; line-height: 1.15; cursor: pointer; }
 .layer-card b { font-weight: 400; }
-.layer-card small { font-size: 13px; color: var(--ink-2); }
+.layer-card small { font-size: 14px; color: var(--ink-2); text-align: center; line-height: 1.2; }
 .layer-card.on { background: var(--sun); }
 .layer-card svg { max-width: 100%; height: auto; }
 .tool.on { background: var(--sun); border-width: 4px; }
@@ -272,7 +282,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .tool.wide { width: 100%; flex: none; }
 .tool.nudge { background: var(--sun); animation: nudge 1s ease 2; }
 @keyframes nudge { 50% { transform: scale(1.06); } }
-.tool-note { font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.tool-note { font-size: 15px; line-height: 1.3; color: var(--ink-2); }
 .link-btn { padding: 4px 2px; font-size: 15px; box-shadow: none; border-width: 2px; }
 
 
@@ -296,6 +306,48 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .mark-done { position: absolute; right: 2px; top: 2px; color: var(--green-d); }
 .promise { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 18px; line-height: 1.35; }
 
+/* 키가 낮은 창 — 왼쪽 패널을 두 줄로 펴서 잘리지 않게 하고 아래 줄을 줄여 지도를 키운다 */
+@media (min-width: 1024px) and (max-height: 799px) {
+  /* 대피 연습과 돌아보기는 단추가 적어 한 줄로 충분하다 */
+  .studio:not([data-step="drill"]):not([data-step="review"]) .stage { grid-template-columns: 208px minmax(0, 1fr); }
+  .studio:not([data-step="drill"]):not([data-step="review"]) .tools { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 5px; }
+  .tools-head, .tool-note, .link-btn, .stepper, .side-pick, .tool.wide, .checks { grid-column: 1 / -1; }
+  .studio:not([data-step="drill"]):not([data-step="review"]) .tool-row,
+  .studio:not([data-step="drill"]):not([data-step="review"]) .crayons,
+  .studio:not([data-step="drill"]):not([data-step="review"]) .marks-list { display: contents; }
+  .side-pick { grid-template-columns: repeat(4, 1fr); }
+  .stepper { grid-template-columns: 1fr 1fr 1fr; align-items: center; }
+  .stepper-count { grid-column: auto; }
+  .tools.review-tools .tool.tall { min-height: 64px; }
+  .top { padding: 15px 10px 4px; }
+  .guide-bar { min-height: 78px; padding: 4px 10px 6px; }
+  .guide-who { width: 66px; height: 70px; }
+  .guide-avatar { max-width: 66px; max-height: 70px; }
+  .bubble { padding: 6px 12px; font-size: 18px; line-height: 1.25; }
+  .btn { padding: 6px 12px; font-size: 18px; }
+}
+@media (min-width: 1024px) and (max-height: 620px) {
+  .top { padding: 13px 8px 2px; }
+  .guide-bar { padding: 2px 8px 4px; }
+  .bubble { font-size: 16px; padding: 4px 10px; }
+  .tool.tall { min-height: var(--hit); }
+  .studio:not([data-step="drill"]):not([data-step="review"]) .tools { gap: 3px; padding: 2px 6px 2px 2px; }
+  .tools-head { margin: 0; }
+}
+/* 좁고 낮은 창 — 아래 줄과 왼쪽 도구를 줄여 종이 자리를 지킨다 */
+@media (max-width: 1023px) and (max-height: 799px) {
+  .top { padding: 15px 8px 2px; }
+  .guide-bar { gap: 6px; padding: 2px 8px 4px; min-height: 0; }
+  .guide-who { width: 56px; height: 60px; }
+  .guide-avatar { max-width: 56px; max-height: 60px; }
+  .bubble { flex-basis: calc(100% - 70px); padding: 4px 10px; font-size: 17px; line-height: 1.25; }
+  .btn { padding: 4px 12px; font-size: 17px; }
+  .tools { max-height: 24vh; }
+}
+
+/* 종이 위 안내 한 줄 */
+.map-note { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 3; max-width: calc(100% - 140px); padding: 6px 14px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 12px; font-size: 18px; line-height: 1.25; text-align: center; pointer-events: none; }
+
 /* 종이 */
 .paper {
   position: relative; min-width: 0; min-height: 0;
@@ -305,6 +357,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   border: 3px solid var(--pencil); border-radius: 16px;
   overflow: hidden;
 }
+.empty-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; width: min(420px, calc(100% - 32px)); display: grid; gap: 12px; justify-items: center; padding: 20px; text-align: center; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 18px; box-shadow: 6px 6px 0 var(--pencil); font-size: 21px; line-height: 1.35; }
 .paper-center .big-start { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; }
 .paper-center .big-start:active { transform: translate(calc(-50% + 2px), calc(-50% + 2px)); }
 .plan { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -321,7 +374,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .wall.hot { stroke: var(--blue); }
 .stroke-live { fill: none; stroke: var(--blue); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
 .placed-item rect, .placed-item ellipse, .placed-item circle { vector-effect: none; }
-.item-word { font-family: var(--font); font-size: 18px; fill: var(--ink); text-anchor: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; }
+.item-word { font-family: var(--font); font-size: 18px; fill: var(--ink); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; pointer-events: none; }
 .door-word { font-family: var(--font); font-size: 18px; fill: #6b3e16; text-anchor: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; pointer-events: none; }
 .dot { fill: #9aa8ad; }
 .dot.armed { fill: var(--blue); stroke: #fff; stroke-width: 4; }
@@ -417,7 +470,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .stepper { grid-template-columns: repeat(2, var(--hit)); }
   .stepper .tool, .side-pick .tool { padding: 0; }
   .stepper-count { grid-column: 1 / -1; }
-  .crayons { flex: 1 1 100%; }
+  /* 좁은 창에서는 크레용을 옆으로 늘어놓아 종이 자리를 남긴다 */
+  .crayons { flex: 0 1 auto; flex-direction: row; flex-wrap: wrap; }
+  .crayon { padding: 2px 8px; }
+  .tools { max-height: 34vh; overflow-y: auto; }
   .marks-list { display: flex; flex-wrap: wrap; }
   .tool.tall { flex: 1; min-height: 60px; }
   .checks { flex: 1 1 100%; }
@@ -435,13 +491,17 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .review-done { margin: auto; width: 100%; display: grid; justify-items: center; gap: 12px; text-align: center; }
 .review-badge { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border: 3px solid var(--pencil); border-radius: 50%; background: var(--sun); color: var(--green-d); }
 .review-done .big-action { width: 100%; }
+.gap-list { width: 100%; display: grid; gap: 6px; }
 .note-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 19px; line-height: 1.35; }
 .note-list li { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: flex-start; }
 .note-list li span:not(.note-dot) { flex: 1 1 70%; }
 .note-dot { flex: none; width: 14px; height: 14px; margin: 6px 4px 0; border-radius: 50%; background: #e3a62a; border: 2px solid var(--pencil); }
 @media (max-width: 1023px) {
-  .review-paper { grid-template-columns: 1fr; grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
-  .review-notes { border-left: 0; border-top: 3px solid var(--pencil); }
+  .review-paper { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .review-notes { border-left: 0; border-top: 3px solid var(--pencil); max-height: 56%; }
+  .gap-list { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .review-done { gap: 6px; }
+  .review-badge { display: none; }
 }
 
 /* 덮개 */
@@ -467,10 +527,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .top, .stage, .guide-bar, .overlay, .replay, .too-small { display: none !important; }
   .studio { display: block; height: auto; }
   .app-root { display: block !important; }
-  .print-sheet { display: block; color: #000; font-size: 15pt; }
+  .print-sheet { display: block; color: #000; font-size: 13.5pt; }
   .print-sheet h1 { font-size: 24pt; text-align: center; margin-bottom: 8pt; }
   .print-sheet h2 { font-size: 17pt; margin: 10pt 0 4pt; }
-  .print-map { height: 135mm; border: 1.5pt solid #000; }
+  .print-map { height: 118mm; border: 1.5pt solid #000; }
   .print-sheet ol { margin: 0; padding-left: 18pt; line-height: 1.5; }
   .print-legend { display: flex; gap: 16pt; justify-content: center; margin-top: 6pt; }
   .print-legend span { display: inline-flex; align-items: center; gap: 4pt; }

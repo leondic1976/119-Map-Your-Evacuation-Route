@@ -136,6 +136,7 @@ export function Welcome() {
 
 export function NameTag() {
   const profile = useApp((s) => s.profile);
+  const retag = useApp((s) => s.retag);
   const [name, setName] = useState(profile?.name ?? '');
   const [grade, setGrade] = useState<number | null>(profile?.grade ?? null);
   const [look, setLook] = useState<LookId>(profile?.look ?? LOOKS[0].id);
@@ -154,6 +155,7 @@ export function NameTag() {
         }}
       >
         <h1>내 이름표</h1>
+        {retag && <p className="field-note" data-testid="retag-note">그린 지도는 그대로 있어. 이름과 내 모습을 다시 골라 줘.</p>}
 
         <fieldset>
           <legend>몇 학년이야?</legend>

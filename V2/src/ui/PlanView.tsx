@@ -3,8 +3,9 @@
  * 처음 네모 한 칸이 100 단위다. 점 간격을 좁혀도 그림 크기는 그대로이고 점 하나의 크기만 줄어든다.
  * 포인터는 지금 점 단위 좌표로 바꿔서 알려 준다.
  */
-import { memo, useEffect, useId, useMemo, useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { edgeAngle, edgeEnds, edgeKeys, edgeLength, edgeMid, edgeNormal, edgeSides, isSlanted } from '../core/grid';
+import { arrangeLabels, type Label, type Rect } from '../core/labels';
 import { routePoints } from '../core/path';
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, type Box } from '../core/zoom';
 import { OUT, type ItemKind, type Layout, type MarkId, type OutsideSide, type Piece, type Plan, type Pt } from '../core/types';
@@ -74,6 +75,8 @@ export interface PlanViewProps {
   warn?: string[];
   showRoute?: boolean;
   showLabels?: boolean;
+  /** 이름 없는 칸의 물음표. 인쇄물에는 넣지 않는다 */
+  showUnknown?: boolean;
   /** 대피 연습 위험 단계: 칸 id → 0 없음 · 1 옅음 · 2 짙음 · 3 막힘 */
   hazard?: Record<string, 0 | 1 | 2 | 3>;
   closedDoors?: string[];
@@ -126,6 +129,23 @@ function PlanViewBase(props: PlanViewProps) {
   const panMode = useApp((s) => s.panMode);
   const zoomable = Boolean(props.zoomable);
   const shown = zoomable && stored ? viewBoxOf(clampView(stored, box), box) : box;
+
+  // 지도가 작게 그려져도 글자는 읽을 수 있어야 한다. 화면에서 지금 그림 1 단위가 몇 픽셀인지 재서 글자 크기를 정한다
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = svg.getBoundingClientRect();
+      setSize((p) => (p.w === r.width && p.h === r.height ? p : { w: r.width, h: r.height }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+  const ppu = size.w > 0 && size.h > 0 ? Math.min(size.w / shown.w, size.h / shown.h) : 0;
+  const fit = (units: number, minPx: number): number => (ppu > 0 ? Math.min(units * 3.4, Math.max(units, minPx / ppu)) : units);
 
   // 포인터 — 손가락 둘이면 그리지 않고 지도를 키우고 옮긴다
   const fingers = useRef(new Map<number, Pt>());
@@ -259,6 +279,34 @@ function PlanViewBase(props: PlanViewProps) {
   const warnSet = new Set(warn ?? []);
   const closedSet = new Set(closedDoors ?? []);
 
+  // 글자 자리 — 표시 이름, 칸 이름, 가구 이름 순서로 잡아 서로와 표시 그림에 겹치지 않게 한다
+  const labelInfo = useMemo(() => {
+    const textW = (s: string, f: number): number => s.length * f * 0.98 + 8;
+    const list: (Label & { text: string; size: number; cls: string })[] = [];
+    const glyphs: Rect[] = (Object.values(plan.marks) as Pt[]).map((m) => ({ x: m.x * u, y: m.y * u - 2, w: 70, h: 78 }));
+    for (const [id, at] of Object.entries(plan.marks) as [MarkId, Pt][]) {
+      const size = fit(id === 'alarm' ? 20 : 22, 14);
+      list.push({ id: `m-${id}`, x: at.x * u, y: at.y * u + 40 + size * 0.6, w: textW(MARK_NAME[id], size), h: size * 1.15, text: MARK_NAME[id], size, cls: 'mark-label' });
+    }
+    if (showLabels) {
+      for (const cell of layout.cells.filter((c) => c.kind)) {
+        const text = cellLabel(cell.kind, cell.name);
+        const size = fit(text.length > 3 && cell.area < 2.5 ? 22 : 28, 15);
+        list.push({ id: `c-${cell.id}`, x: cell.anchor.x * u, y: cell.anchor.y * u, w: textW(text, size), h: size * 1.15, text, size, cls: 'cell-label' });
+      }
+    }
+    (plan.items ?? []).forEach((item, i) => {
+      const text = ITEMS[item.kind].label;
+      const size = fit(18, 13);
+      list.push({ id: `i-${i}`, x: item.x * u, y: item.y * u, w: textW(text, size), h: size * 1.15, text, size, cls: 'item-word' });
+    });
+    return { list, spots: arrangeLabels(list, glyphs) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, layout, showLabels, u, ppu]);
+  const stripFont = fit(26, 15);
+  const tapFont = fit(25, 15);
+  const cellFont = fit(28, 15);
+
   return (
     <svg
       ref={svgRef}
@@ -307,7 +355,7 @@ function PlanViewBase(props: PlanViewProps) {
       {/* 집 밖 띠 */}
       <g className={glowSet.has(OUT) ? 'strip glow-out' : 'strip'} data-side={side}>
         <rect x={strip.x} y={strip.y} width={strip.w} height={strip.h} rx={18} fill={pat('crayon-out')} stroke={glowSet.has(OUT) ? '#2f7fbf' : '#9cc489'} strokeWidth={glowSet.has(OUT) ? 8 : 4} strokeDasharray={glowSet.has(OUT) ? undefined : '14 12'} />
-        <text x={strip.x + 30} y={strip.y + 40} className="strip-label">집 밖</text>
+        <text x={strip.x + 16} y={strip.y + 20 + stripFont / 2} className="strip-label" style={{ fontSize: stripFont }}>집 밖</text>
       </g>
 
       {/* 칸 색칠 */}
@@ -392,7 +440,7 @@ function PlanViewBase(props: PlanViewProps) {
 
       {/* 문과 창 */}
       {Object.entries(plan.openings).map(([edge, kind]) => (
-        <OpeningShape key={edge} edge={edge} kind={kind} layout={layout} closed={closedSet.has(edge)} hot={edge === hotEdge} u={u} density={k} />
+        <OpeningShape key={edge} edge={edge} kind={kind} layout={layout} closed={closedSet.has(edge)} hot={edge === hotEdge} u={u} density={k} wordSize={fit(18, 13)} />
       ))}
 
       {/* 그리는 중인 획 */}
@@ -400,22 +448,8 @@ function PlanViewBase(props: PlanViewProps) {
         <polyline className="stroke-live" points={stroke.map((p) => `${p.x * u},${p.y * u}`).join(' ')} />
       )}
 
-      {/* 칸 이름 */}
-      {showLabels && layout.cells.filter((c) => c.kind).map((cell) => {
-        const label = cellLabel(cell.kind, cell.name);
-        return (
-          <text
-            key={`l${cell.id}`}
-            className="cell-label"
-            x={cell.anchor.x * u}
-            y={cell.anchor.y * u}
-            fontSize={label.length > 3 && cell.area < 2.5 ? 22 : 28}
-          >
-            {label}
-          </text>
-        );
-      })}
-      {showLabels && props.glow === undefined && props.showDots !== true && layout.cells.filter((c) => !c.kind).map((cell) => (
+      {/* 이름을 아직 안 정한 칸 */}
+      {showLabels && props.showUnknown !== false && props.glow === undefined && props.showDots !== true && layout.cells.filter((c) => !c.kind).map((cell) => (
         <text key={`q${cell.id}`} className="cell-unknown" x={cell.anchor.x * u} y={cell.anchor.y * u}>?</text>
       ))}
 
@@ -433,7 +467,6 @@ function PlanViewBase(props: PlanViewProps) {
       {(plan.items ?? []).map((item, i) => (
         <g key={i} className="placed-item" data-item={item.kind} transform={`translate(${item.x * u} ${item.y * u})`} pointerEvents="none">
           <g transform={`rotate(${item.angle})`}><ItemShape kind={item.kind} /></g>
-          <text className="item-word" y={6}>{ITEMS[item.kind].label}</text>
         </g>
       ))}
 
@@ -441,20 +474,27 @@ function PlanViewBase(props: PlanViewProps) {
       {(Object.entries(plan.marks) as [MarkId, Pt][]).map(([id, at]) => (
         <g key={id} transform={`translate(${at.x * u} ${at.y * u})`} data-mark={id} className="mark">
           <MarkGlyph id={id} look={props.look} />
-          <text className="mark-label" y={48} fontSize={id === 'alarm' ? 20 : 22}>{MARK_NAME[id]}</text>
         </g>
       ))}
+
+      {/* 글자 — 길과 가구 위에 얹어 가려지지 않게 한다 */}
+      <g className="labels" pointerEvents="none">
+        {labelInfo.list.map((l) => {
+          const spot = labelInfo.spots.get(l.id) ?? l;
+          return <text key={l.id} className={l.cls} data-label={l.id} x={spot.x} y={spot.y} style={{ fontSize: l.size }}>{l.text}</text>;
+        })}
+      </g>
 
       {/* 눌러야 할 곳 */}
       {(props.hints ?? []).map((id) => {
         const cell = layout.byId.get(id);
         const x = cell ? cell.anchor.x * u : strip.x + strip.w * (side === 'left' || side === 'right' ? 0.5 : 0.3);
         // 칸 이름 바로 아래에 놓아 글자가 겹치지 않게 한다
-        const y = cell ? cell.anchor.y * u + 58 : strip.y + (side === 'left' || side === 'right' ? strip.h * 0.3 : 34);
+        const y = cell ? cell.anchor.y * u + cellFont * 0.6 + tapFont * 0.5 + 18 : strip.y + (side === 'left' || side === 'right' ? strip.h * 0.3 : 34);
         return (
           <g key={`hint${id}`} className="tap-hint" data-hint={id} transform={`translate(${x} ${y})`} pointerEvents="none">
             <g className="tap-hand"><HandGlyph scale={1.5} /></g>
-            <text className="tap-word" x={0} y={-12}>여기를 눌러</text>
+            <text className="tap-word" x={0} y={-12} style={{ fontSize: tapFont }}>여기를 눌러</text>
           </g>
         );
       })}
@@ -487,6 +527,8 @@ export function ItemShape({ kind }: { kind: ItemKind }) {
       {kind === 'basin' && <ellipse rx={w * 0.3} ry={d * 0.28} {...line} />}
       {kind === 'bathtub' && <rect x={-w * 0.32} y={-d * 0.38} width={w * 0.64} height={d * 0.76} rx={12} {...line} />}
       {kind === 'plant' && <circle r={w * 0.22} fill="#3e9d5d" />}
+      {kind === 'partition' && <path d={`M${-w / 2 + 6} 0H${w / 2 - 6}`} stroke="#e0603f" strokeWidth={3} strokeDasharray="8 6" />}
+      {kind === 'hatch' && <rect x={-w * 0.32} y={-d * 0.32} width={w * 0.64} height={d * 0.64} rx={4} fill="#e0603f" stroke="#33363b" strokeWidth={2.5} />}
     </g>
   );
 }
@@ -512,7 +554,7 @@ function openingFit(edge: string, layout: Layout, density: number): number {
   return Math.min(1, Math.max(edgeLength(edge), room * 2) / density);
 }
 
-function OpeningShape({ edge, kind, layout, closed, hot, u, density }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean; u: number; density: number }) {
+function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean; u: number; density: number; wordSize: number }) {
   const m = edgeMid(edge);
   const angle = edgeAngle(edge);
   const normal = edgeNormal(edge);
@@ -560,7 +602,7 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density }: { edge: s
           </>
         )}
       </g>
-      {inner && <text className="door-word" x={m.x * u} y={m.y * u - 18}>중문</text>}
+      {inner && <text className="door-word" x={m.x * u} y={m.y * u - 6 - wordSize / 2} style={{ fontSize: wordSize }}>중문</text>}
       {exit && (
         <g transform={`translate(${m.x * u + nx * 36} ${m.y * u + ny * 36}) rotate(${(Math.atan2(ny, nx) * 180) / Math.PI})`}>
           <path d="M-14 0H10M2-12L18 0L2 12" fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />

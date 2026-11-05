@@ -58,7 +58,7 @@ export const TEMPLATES: Template[] = [
     inner: [[4, 0, 4, 3], [1, 3, 4, 3]],
   },
   {
-    id: 'low-cut', band: 'low', name: '비스듬한 집',
+    id: 'low-cut', band: 'low', name: '기울어진 집',
     outer: loop([1, 0], [5, 0], [7, 2], [7, 6], [1, 6]),
     inner: [[4, 0, 4, 3], [1, 3, 7, 3]],
   },
@@ -84,7 +84,7 @@ export const TEMPLATES: Template[] = [
     inner: [[3, 0, 3, 4], [6, 0, 6, 4], [0, 4, 5, 4], [3, 4, 3, 7]],
   },
   {
-    id: 'mid-cut', band: 'mid', name: '비스듬한 집',
+    id: 'mid-cut', band: 'mid', name: '기울어진 집',
     outer: loop([1, 0], [7, 0], [9, 2], [9, 7], [1, 7]),
     inner: [[4, 0, 4, 3], [7, 0, 7, 3], [1, 3, 9, 3], [6, 5, 9, 5], [6, 5, 6, 7]],
   },
@@ -110,7 +110,7 @@ export const TEMPLATES: Template[] = [
     inner: [[3, 0, 3, 4], [6, 0, 6, 2], [9, 0, 9, 2], [3, 2, 12, 2], [0, 4, 6, 4], [3, 4, 3, 8]],
   },
   {
-    id: 'high-cut', band: 'high', name: '비스듬한 집',
+    id: 'high-cut', band: 'high', name: '기울어진 집',
     outer: loop([3, 0], [9, 0], [11, 2], [11, 8], [1, 8], [1, 2]),
     inner: [[4, 0, 4, 3], [8, 0, 8, 3], [1, 3, 11, 3], [1, 5, 4, 5], [4, 5, 4, 8], [8, 5, 11, 5], [8, 5, 8, 8]],
   },

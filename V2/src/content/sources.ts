@@ -9,9 +9,10 @@ export interface Source {
 
 export const SOURCES: Source[] = [
   { id: 'app-guide', title: '이 앱의 사용 안내 문장 (안전 지식이 아닌 조작 안내)', publisher: '우리집 대피지도', verified: true },
-  { id: 'nfa-apt-fire', title: '아파트 화재 피난행동요령', publisher: '소방청', url: 'https://www.nfa.go.kr/', verified: false },
-  { id: 'nfa-fire-manual', title: '화재 피난안전 매뉴얼', publisher: '소방청', url: 'https://www.nfa.go.kr/', verified: false },
-  { id: 'safekorea-fire', title: '국민행동요령 — 화재', publisher: '행정안전부 국민재난안전포털', url: 'https://www.safekorea.go.kr/', verified: false },
+  // 2026-11-05 원문과 문장을 하나씩 대조했다(대장 #134). 소방 전문가의 검수를 대신하지는 않는다
+  { id: 'nfa-apt-fire', title: '아파트 입주자 화재 피난행동요령', publisher: '소방청 등 관계부처 합동', url: 'https://www.incheon.go.kr/119/NE030101/2165632', verified: true },
+  { id: 'safekorea-fire', title: '국민행동요령 — 화재', publisher: '행정안전부 국민안전24', url: 'https://www.safekorea.go.kr/safekorea-kor/acts/nacts/action-guide.do?category=fires&menuSn=4', verified: true },
+  { id: 'mois-kids-fire', title: '안전 배움터 — 화재 발생 시 요령', publisher: '행정안전부 어린이 누리집', url: 'https://www.mois.go.kr/chd/sub/a06/fire/screen.do', verified: true },
 ];
 
 export function isVerified(sourceIds: string[]): boolean {

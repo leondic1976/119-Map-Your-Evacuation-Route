@@ -1,9 +1,9 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { analyze, cellIdAt, edgeKeys, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
-import { outsideOf, setOutside } from '../core/items';
+import { itemIndexAt, moveItem, outsideOf, setOutside } from '../core/items';
 import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
-import { findSecondRoute } from '../core/auto';
+import { hasOtherRoute } from '../core/auto';
 import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
 import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, sameDot, startDrag, type DragStroke } from '../core/stroke';
 import { OUT, type MarkId, type OpeningKind, type OutsideSide, type Pt } from '../core/types';
@@ -82,6 +82,18 @@ export function DrawStep() {
   const live = useRef<DragStroke | null>(null);
   const hadCell = useRef(layout.cells.length > 0);
   const layers = useLayers(plan, layout);
+  const pastLength = useApp((s) => s.past.length);
+  const lastPast = useRef(pastLength);
+  const armedTold = useRef(false);
+
+  // 되돌렸거나 판을 열었으면 잡아 둔 점을 놓는다. 안 그러면 다음 누름이 또 벽이 된다
+  useEffect(() => {
+    if (pastLength < lastPast.current) setArmed(null);
+    lastPast.current = pastLength;
+  }, [pastLength]);
+  useEffect(() => {
+    if (layers.isOpen || layers.placing) setArmed(null);
+  }, [layers.isOpen, layers.placing]);
 
   useEffect(() => {
     // 집 모양을 닫으면 이어서 방을 만들자고 한다
@@ -107,7 +119,8 @@ export function DrawStep() {
       return;
     }
     if (kind === 'down') {
-      const dot = nearestDot(plan, p);
+      // 점이 촘촘하면 손가락이 점 사이에 닿아도 가까운 점을 잡는다
+      const dot = nearestDot(plan, p, getHandUnit(plan) > 1 ? 0.75 : undefined);
       if (!dot) return;
       drawing.current = true;
       live.current = startDrag(dot);
@@ -131,7 +144,13 @@ export function DrawStep() {
         else if (armed) {
           commit(addStroke(plan, extendStroke([armed], dot)));
           setArmed(dot);
-        } else setArmed(dot);
+        } else {
+          setArmed(dot);
+          if (!armedTold.current) {
+            armedTold.current = true;
+            say('draw-armed');
+          }
+        }
       }
       setStroke([]);
     } else {
@@ -154,7 +173,7 @@ export function DrawStep() {
         </div>
         <h3 className="tools-head">점 개수</h3>
         <DotStepper cols={plan.cols} rows={plan.rows} grids={info.grids} />
-        <h3 className="tools-head">집 밖</h3>
+        <h3 className="tools-head">집 밖은 어느 쪽?</h3>
         <div className="side-pick" role="group" aria-label="집 밖 자리">
           {SIDES.map((s) => (
             <button type="button" key={s.id} className={outsideOf(plan) === s.id ? 'tool on' : 'tool'} data-testid={`outside-${s.id}`} aria-label={`집 밖 ${s.label}`} aria-pressed={outsideOf(plan) === s.id} onClick={() => commit(setOutside(plan, s.id))}>
@@ -181,6 +200,10 @@ export function DrawStep() {
           ariaLabel="점을 이어 집을 그리는 모눈 종이"
         />
         <ZoomControls plan={plan} focus={armed} />
+        {armed && !layers.placing && (
+          <p className="map-note" data-testid="armed-note" role="status">파란 점에서 이어져. 잘못 눌렀으면 파란 점을 다시 눌러.</p>
+        )}
+        {layers.banner}
         {layers.panel}
       </section>
     </>
@@ -212,9 +235,9 @@ export function SortStep() {
   return (
     <>
       <aside className="tools" aria-label="크레용">
-        <h3 className="tools-head">머무는 칸</h3>
+        <h3 className="tools-head">노란색 칸</h3>
         <div className="crayons">{groups.room.map(chip)}</div>
-        <h3 className="tools-head">걸어가는 칸</h3>
+        <h3 className="tools-head">파란색 칸</h3>
         <div className="crayons">{groups.pass.map(chip)}</div>
         <button type="button" className="link-btn" data-testid="sort-why" onClick={() => say('sort-why')}>왜 나눌까?</button>
       </aside>
@@ -295,9 +318,41 @@ export function MarkStep() {
   const firstEmpty = info.marks.find((m) => !plan.marks[m]) ?? info.marks[0]!;
   const [tool, setTool] = useState<MarkId>(firstEmpty);
   const layers = useLayers(plan, layout);
+  // 놓은 가구는 끌어서 옮긴다. 움직이지 않고 떼면 보통 누름이다
+  const grab = useRef<{ index: number; from: Pt; moved: boolean } | null>(null);
+  const [dragTo, setDragTo] = useState<Pt | null>(null);
+  const hasItems = (plan.items?.length ?? 0) > 0;
+  const k = Math.max(1, plan.density ?? 1);
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
+    if (kind === 'down' && !layers.placing) {
+      const index = itemIndexAt(plan, p, 0.42 * k);
+      grab.current = index >= 0 ? { index, from: p, moved: false } : null;
+      return;
+    }
+    if (kind === 'move') {
+      const g = grab.current;
+      if (g && (g.moved || Math.hypot(p.x - g.from.x, p.y - g.from.y) > 0.2 * k)) {
+        g.moved = true;
+        setDragTo(p);
+      }
+      return;
+    }
+    if (kind === 'cancel') {
+      grab.current = null;
+      setDragTo(null);
+      return;
+    }
     if (kind !== 'up') return;
+    const held = grab.current;
+    grab.current = null;
+    setDragTo(null);
+    if (held?.moved) {
+      const res = moveItem(plan, layout, held.index, p);
+      if (res.ok) commit(res.plan);
+      else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
+      return;
+    }
     if (layers.tapMap(p)) return;
     const res = placeMark(plan, layout, tool, p);
     if (!res.ok) {
@@ -309,6 +364,9 @@ export function MarkStep() {
     const next = info.marks.find((m) => !res.plan.marks[m]);
     if (next) setTool(next);
   };
+
+  const held = grab.current;
+  const shown = held && dragTo ? { ...plan, items: (plan.items ?? []).map((it, i) => (i === held.index ? { ...it, x: dragTo.x, y: dragTo.y } : it)) } : plan;
 
   return (
     <>
@@ -326,10 +384,12 @@ export function MarkStep() {
         </div>
         <h3 className="tools-head">골라 넣기</h3>
         {layers.buttons}
+        {hasItems && <p className="tool-note" data-testid="item-move-note">놓은 가구는 끌어서 옮겨.</p>}
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="표시를 놓는 지도" />
+        <PlanView plan={shown} layout={layout} look={look} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="표시를 놓는 지도" />
         <ZoomControls plan={plan} />
+        {layers.banner}
         {layers.panel}
       </section>
     </>
@@ -349,18 +409,27 @@ export function RouteStep() {
   const candidates = useMemo(() => routeCandidates(plan, layout, which), [plan, layout, which]);
   const hasStart = Boolean(plan.marks.me);
   const firstDone = plan.route[plan.route.length - 1] === OUT;
+  const otherWay = useMemo(() => hasOtherRoute(plan), [plan]);
+  // 더 갈 곳이 없으면 돌아갈 칸을 반짝여 막다른 길에 남겨 두지 않는다
+  const deadEnd = !done && candidates.length === 0 && route.length > 1;
+  const backCell = deadEnd ? layout.cellAt.get(route[route.length - 2]!) : undefined;
+  const glow = backCell ? [backCell] : candidates;
+  const cellsOf = (steps: string[]): string => steps.map((s) => (s === OUT ? OUT : layout.cellAt.get(s))).join('|');
 
   const choose = (target: string) => {
     const res = tapRoute(plan, layout, which, target);
     if (res.result === 'no-way') say('route-no-way');
     else if (res.result === 'no-start') say('help-fill');
+    else if (which === 'route2' && res.result === 'done' && cellsOf(res.plan.route2) === cellsOf(plan.route)) say('route-same');
     else {
       commit(res.plan);
       if (res.result === 'done') {
         if (which === 'route' && info.secondRoute) {
-          if (findSecondRoute(res.plan)) say('route-second');
+          if (hasOtherRoute(res.plan)) say('route-second');
           else say('route-no-second', 'route-next');
         } else say('route-done', 'route-next');
+      } else if (res.result === 'added' && routeCandidates(res.plan, layout, which).length === 0) {
+        say('route-dead-end');
       }
     }
   };
@@ -395,16 +464,18 @@ export function RouteStep() {
         {info.secondRoute && (
           <div className="tool-row">
             <button type="button" className={which === 'route' ? 'tool on' : 'tool'} data-testid="route-first" aria-pressed={which === 'route'} onClick={() => setWhich('route')}>첫째 길</button>
-            <button type="button" className={which === 'route2' ? 'tool on' : 'tool'} data-testid="route-second" aria-pressed={which === 'route2'} disabled={!firstDone} onClick={() => setWhich('route2')}>둘째 길</button>
+            <button type="button" className={which === 'route2' ? 'tool on' : 'tool'} data-testid="route-second" aria-pressed={which === 'route2'} disabled={!firstDone || !otherWay} onClick={() => setWhich('route2')}>둘째 길</button>
           </div>
         )}
+        {info.secondRoute && firstDone && !otherWay && <p className="tool-note" data-testid="route-no-other">다른 길이 없어. 문을 더 달면 찾을 수 있어.</p>}
         <p className="tool-note" data-testid="route-status">{stepsText}</p>
         {hasStart && layout.links.length === 0 && <p className="tool-note">문이 없어. 도와줘를 눌러 봐.</p>}
+        {hasStart && layout.links.length > 0 && route.length <= 1 && candidates.length === 0 && <p className="tool-note" data-testid="route-no-door">내 자리 칸에 문이 없어. 도와줘를 눌러 봐.</p>}
         {!hasStart && <p className="tool-note">내 자리가 없어. 도와줘를 눌러 봐.</p>}
         <button type="button" className="link-btn" data-testid="route-clear" disabled={route.length === 0} onClick={() => clearRoute(which)}>다시 고르기</button>
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} showRoute glow={candidates} hints={candidates} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} showRoute glow={glow} hints={glow} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
         <ZoomControls plan={plan} />
       </section>
     </>

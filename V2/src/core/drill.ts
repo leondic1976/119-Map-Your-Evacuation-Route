@@ -87,9 +87,9 @@ export function seeded(seed: number): () => number {
   };
 }
 
-function startField(source: string, single: boolean, config: DrillConfig): Field {
-  // 칸이 하나뿐이면 시작 때 값이 낮아야 나갈 시간이 있다
-  return { [source]: single ? config.levels.light : config.params.max };
+function startField(source: string, soft: boolean, config: DrillConfig): Field {
+  // 칸이 하나뿐이거나 나가는 길 위에서만 불이 날 수 있으면 옅은 연기로 시작해야 나갈 시간이 있다
+  return { [source]: soft ? config.levels.light : config.params.max };
 }
 
 /** 가장 짧은 길로 가면 나갈 수 있는 판인가 */
@@ -99,16 +99,19 @@ export function canEscape(
   source: string,
   grace: number,
   config: DrillConfig,
+  soft = false,
 ): boolean {
   const path = shortestPath(layout, start);
   if (!path) return false;
-  let field = startField(source, layout.cells.length === 1, config);
+  let field = startField(source, soft || layout.cells.length === 1, config);
   const edges = fieldEdges(layout, []);
   let turn = 0;
   for (const hop of path) {
     if (hop.to !== OUT && (field[hop.to] ?? 0) >= config.levels.hot) return false;
     turn += 1;
     if (turn > grace) field = stepField(field, edges, [source], config.params);
+    // 움직이면 위험도 함께 번진다. 도착했을 때 칸이 막혀 있으면 나갈 수 없다
+    if (hop.to !== OUT && (field[hop.to] ?? 0) >= config.levels.blocked) return false;
   }
   return true;
 }
@@ -120,7 +123,7 @@ export function pickSource(
   start: string,
   seed: number,
   config: DrillConfig,
-): { source: string; grace: number } {
+): { source: string; grace: number; soft?: boolean } {
   const random = seeded(seed + 1);
   const others = layout.cells.map((c) => c.id).filter((id) => id !== start);
   if (others.length === 0) return { source: start, grace: 0 };
@@ -134,6 +137,11 @@ export function pickSource(
     if (gasCell && safe.includes(gasCell) && random() < 0.6) return { source: gasCell, grace };
     return { source: safe[Math.floor(random() * safe.length)]!, grace };
   }
+  // 일렬로 이어진 집 — 어느 칸에서 불이 나도 나가는 길 위다. 옅은 연기로 시작해 몸을 낮추고 지나가게 한다
+  for (let grace = 0; grace <= 12; grace++) {
+    const safe = others.filter((id) => canEscape(layout, start, id, grace, config, true));
+    if (safe.length > 0) return { source: safe[Math.floor(random() * safe.length)]!, grace, soft: true };
+  }
   // 밖으로 이어지지 않는 지도라도 시작은 시킨다
   return { source: others[0]!, grace: 0 };
 }
@@ -144,8 +152,8 @@ export function startDrill(plan: Plan, seed: number, config: DrillConfig): Drill
   if (!me) return null;
   const at = cellIdAt(layout, me);
   if (!at) return null;
-  const { source, grace } = pickSource(plan, layout, at, seed, config);
-  const field = startField(source, layout.cells.length === 1, config);
+  const { source, grace, soft } = pickSource(plan, layout, at, seed, config);
+  const field = startField(source, Boolean(soft) || layout.cells.length === 1, config);
   const first: Snapshot = { turn: 0, at, crouch: false, field, closed: [], walk: [me] };
   return {
     turn: 0,
@@ -225,12 +233,14 @@ export function moveTo(
   const closed = state.closed.filter((e) => e !== move.edge);
   const level = move.to === OUT ? 0 : (field[move.to] ?? 0);
   const inHazard = level >= config.levels.light;
+  // 연기 안내는 연기에 들어간 뒤에 나온다. 안내를 들은 뒤에도 서서 움직였을 때만 서 있었다고 센다
+  const wasInHazard = (state.field[state.at] ?? 0) >= config.levels.light;
   const stats: DrillStats = {
     ...state.stats,
     moves: state.stats.moves + 1,
     doorsPassed: state.stats.doorsPassed + 1,
-    crouchedInHazard: state.stats.crouchedInHazard + (inHazard && state.crouch ? 1 : 0),
-    stoodInHazard: state.stats.stoodInHazard + (inHazard && !state.crouch ? 1 : 0),
+    crouchedInHazard: state.stats.crouchedInHazard + ((inHazard || wasInHazard) && state.crouch ? 1 : 0),
+    stoodInHazard: state.stats.stoodInHazard + (wasInHazard && !state.crouch ? 1 : 0),
   };
   const visited = [...state.visited, move.to];
   const walk = [state.pt, ...hop];
@@ -257,8 +267,10 @@ export function moveTo(
   };
 }
 
-export function setCrouch(state: DrillState, crouch: boolean): DrillState {
-  return { ...state, crouch };
+/** 몸을 낮추거나 일으킨다. 연기 속에서 낮추면 잘한 일로 센다 */
+export function setCrouch(state: DrillState, crouch: boolean, config?: DrillConfig): DrillState {
+  const counts = crouch && !state.crouch && config && (state.field[state.at] ?? 0) >= config.levels.light;
+  return { ...state, crouch, stats: counts ? { ...state.stats, crouchedInHazard: state.stats.crouchedInHazard + 1 } : state.stats };
 }
 
 /** 문을 만져 본다. 뜨거우면 기억한다 */

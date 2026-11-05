@@ -35,6 +35,8 @@ export const ITEMS: Record<ItemKind, ItemSpec> = {
   washer: { id: 'washer', label: '세탁기', w: 0.36, d: 0.36, color: '#dfe6ea', parts: [[0.36, 0.44, 0.36, 0xdfe6ea, 0, 0.22, 0]] },
   plant: { id: 'plant', label: '화분', w: 0.28, d: 0.28, color: '#6aa76a', parts: [[0.2, 0.14, 0.2, 0xb98a5e, 0, 0.07, 0], [0.28, 0.26, 0.28, 0x6aa76a, 0, 0.27, 0]] },
   shoes: { id: 'shoes', label: '신발장', w: 0.6, d: 0.24, color: '#c79a6b', parts: [[0.6, 0.5, 0.24, 0xc79a6b, 0, 0.25, 0]] },
+  partition: { id: 'partition', label: '경량칸막이', w: 0.8, d: 0.1, color: '#f1eadb', parts: [[0.8, 0.68, 0.06, 0xf1eadb, 0, 0.34, 0]] },
+  hatch: { id: 'hatch', label: '아래층 문', w: 0.5, d: 0.5, color: '#d9dfe3', parts: [[0.5, 0.03, 0.5, 0xd9dfe3, 0, 0.015, 0], [0.34, 0.035, 0.34, 0xe0603f, 0, 0.018, 0]] },
 };
 
 export const ITEM_GROUPS: ItemGroup[] = [
@@ -43,4 +45,5 @@ export const ITEM_GROUPS: ItemGroup[] = [
   { label: '주방', items: ['dining', 'fridge', 'sink'] },
   { label: '화장실', items: ['toilet', 'basin', 'bathtub'] },
   { label: '베란다와 현관', items: ['washer', 'plant', 'shoes'] },
+  { label: '현관으로 못 나갈 때 쓰는 곳', items: ['partition', 'hatch'] },
 ];

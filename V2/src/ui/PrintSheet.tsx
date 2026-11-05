@@ -14,7 +14,7 @@ export function PrintSheet() {
     <div className="print-sheet" aria-hidden="true">
       <h1>{profile?.name ? `${profile.name}의 우리집 대피지도` : '우리집 대피지도'}</h1>
       <div className="print-map">
-        <PlanView plan={plan} layout={layout} look={profile?.look ?? 'a'} showRoute />
+        <PlanView plan={plan} layout={layout} look={profile?.look ?? 'a'} showRoute showUnknown={false} />
       </div>
       <div className="print-legend">
         <span><i className="sw room" /> 방</span>

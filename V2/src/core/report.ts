@@ -3,7 +3,7 @@
  * 여기서는 열쇠만 고르고 문장은 콘텐츠에 있다.
  */
 import type { DrillState } from './drill';
-import { findSecondRoute } from './auto';
+import { hasOtherRoute } from './auto';
 import type { Band, Plan } from './types';
 
 export type PraiseId =
@@ -31,10 +31,11 @@ export function buildReport(state: DrillState, plan: Plan, band: Band): { praise
   if (praises.length === 0) praises.push('tried');
 
   const fixes: FixId[] = [];
-  if (s.stoodInHazard > 0) fixes.push('crouch');
+  // 안내를 듣고 몸을 낮췄다면 잘한 점이다. 한 번도 낮추지 않았을 때만 다음에 해 볼 것으로 남긴다
+  if (s.stoodInHazard > 0 && s.crouchedInHazard === 0) fixes.push('crouch');
   if (band !== 'low' && s.doorsChecked === 0) fixes.push('touch');
   if (band === 'high' && s.doorsClosed === 0) fixes.push('close');
   if (state.end === 'meet' && !s.followedRoute) fixes.push('route');
-  if (band === 'high' && plan.route2.length === 0 && findSecondRoute(plan)) fixes.push('second');
+  if (band === 'high' && plan.route2.length === 0 && hasOtherRoute(plan)) fixes.push('second');
   return { praises, fixes: fixes.slice(0, 3) };
 }

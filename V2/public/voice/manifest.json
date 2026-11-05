@@ -60,6 +60,27 @@
       "hash": "8e9107ec848047d2"
     },
     {
+      "id": "draw-armed",
+      "filename": "draw-armed.mp3",
+      "speaker": "ungi",
+      "text": "파란 점에서 이어져. 다음 점을 누르고, 잘못 눌렀으면 파란 점을 다시 눌러.",
+      "hash": "5f86360c49941b6c"
+    },
+    {
+      "id": "draw-dense",
+      "filename": "draw-dense.mp3",
+      "speaker": "ungi",
+      "text": "점이 아주 촘촘해. 손가락으로 그릴 때는 크게 보기를 누르면 쉬워.",
+      "hash": "f359f19c37912516"
+    },
+    {
+      "id": "dots-lost-cell",
+      "filename": "dots-lost-cell.mp3",
+      "speaker": "ungi",
+      "text": "점을 줄였더니 칸이 없어졌어. 되돌리기를 누르면 다시 돌아와.",
+      "hash": "2221edea0d26cc5b"
+    },
+    {
       "id": "draw-need-cell",
       "filename": "draw-need-cell.mp3",
       "speaker": "ungi",
@@ -70,22 +91,22 @@
       "id": "sort-low",
       "filename": "sort-low.mp3",
       "speaker": "yeongi",
-      "text": "크레용을 고르고 칸을 눌러 칠해 보자. 머무는 칸은 방, 걸어가는 칸은 지나가는 곳이야.",
-      "hash": "62f8946ad814ec45"
+      "text": "크레용을 고르고 칸을 눌러 칠해 보자. 문을 닫을 수 있는 곳은 노란색, 걸어서 지나가는 곳은 파란색이야.",
+      "hash": "7a7c5687846cac61"
     },
     {
       "id": "sort-more",
       "filename": "sort-more.mp3",
       "speaker": "yeongi",
-      "text": "크레용을 고르고 칸을 눌러 이름을 붙여 보자. 노란색은 방, 파란색은 지나가는 곳이야.",
-      "hash": "d34c2341e88095b5"
+      "text": "크레용을 고르고 칸을 눌러 이름을 붙여 보자. 노란색은 문을 닫을 수 있는 곳, 파란색은 지나가는 곳이야.",
+      "hash": "e042c61cd96bac6f"
     },
     {
       "id": "sort-why",
       "filename": "sort-why.mp3",
       "speaker": "ilgu",
-      "text": "방은 문을 닫으면 불과 연기를 막아 줘. 지나가는 곳은 밖으로 나갈 때 걸어가는 길이야.",
-      "hash": "5f93f622a59a008e"
+      "text": "방은 문을 닫으면 불과 연기가 늦게 들어와. 지나가는 곳은 밖으로 나갈 때 걸어가는 길이야.",
+      "hash": "ce7c5d1d40a984d9"
     },
     {
       "id": "sort-done",
@@ -165,6 +186,13 @@
       "hash": "bee1961fddd45f1d"
     },
     {
+      "id": "item-door",
+      "filename": "item-door.mp3",
+      "speaker": "ungi",
+      "text": "문 앞은 비워 두자. 다른 자리에 놓아 보자.",
+      "hash": "d9205df5d16a6e0a"
+    },
+    {
       "id": "mark-need-outside",
       "filename": "mark-need-outside.mp3",
       "speaker": "ungi",
@@ -200,6 +228,27 @@
       "hash": "c70bf3ceeaa6567c"
     },
     {
+      "id": "route-helped",
+      "filename": "route-helped.mp3",
+      "speaker": "ilgu",
+      "text": "길을 골라 놓았어. 빨간 길을 눈으로 따라가 보고, 다음을 눌러 연습해 보자.",
+      "hash": "4052cacc71e635b2"
+    },
+    {
+      "id": "route-dead-end",
+      "filename": "route-dead-end.mp3",
+      "speaker": "ungi",
+      "text": "여기서는 더 갈 곳이 없어. 반짝이는 칸을 눌러 돌아가 보자.",
+      "hash": "7a0fcbcf5cf24bce"
+    },
+    {
+      "id": "route-same",
+      "filename": "route-same.mp3",
+      "speaker": "ungi",
+      "text": "첫째 길과 같은 길이야. 지나온 칸을 눌러 돌아가서 다른 길로 가 보자.",
+      "hash": "c5f6226bc702d25a"
+    },
+    {
       "id": "route-next",
       "filename": "route-next.mp3",
       "speaker": "ilgu",
@@ -217,8 +266,8 @@
       "id": "route-no-second",
       "filename": "route-no-second.mp3",
       "speaker": "ilgu",
-      "text": "다른 길이 없다면 방문을 닫고 창가에서 일일구에 구조를 요청하자.",
-      "hash": "49f35d8bba3a7b42"
+      "text": "다른 길이 없다면 방문을 닫고 창가에서 일일구에 전화해 도와 달라고 하자.",
+      "hash": "28540d9996fc3103"
     },
     {
       "id": "drill-ready",
@@ -231,8 +280,8 @@
       "id": "drill-start",
       "filename": "drill-start.mp3",
       "speaker": "yeongi",
-      "text": "불이 났어! 불이야 하고 크게 외치고, 침착하게 밖으로 나가자.",
-      "hash": "c56253db0395ba39"
+      "text": "불이 났어! 불이야 하고 크게 외치고, 밖으로 나가자.",
+      "hash": "85a3cd6b1592de8e"
     },
     {
       "id": "drill-smoke",
@@ -245,8 +294,8 @@
       "id": "drill-touch",
       "filename": "drill-touch.mp3",
       "speaker": "ungi",
-      "text": "문을 열기 전에 손등으로 살짝 만져 보자.",
-      "hash": "1cda23598c07f1a9"
+      "text": "문을 열기 전에 손등으로 문손잡이를 살짝 만져 보자.",
+      "hash": "ef83220697610e74"
     },
     {
       "id": "drill-hot",
@@ -301,8 +350,8 @@
       "id": "drill-rescue",
       "filename": "drill-rescue.mp3",
       "speaker": "ilgu",
-      "text": "나갈 길이 막혔어. 문을 닫고 창가에서 일일구에 구조를 요청하자.",
-      "hash": "3155c8984669382c"
+      "text": "나갈 길이 막혔어. 대피공간이나 경량칸막이가 있으면 그쪽으로 가고, 없으면 문을 닫고 창가에서 일일구에 전화하자.",
+      "hash": "8ccc94c4a405f045"
     },
     {
       "id": "review",
@@ -317,6 +366,13 @@
       "speaker": "ilgu",
       "text": "지도를 인쇄할 수 있어. 대피 연습을 하면 잘한 점도 볼 수 있어.",
       "hash": "eb9f83d3e3e41776"
+    },
+    {
+      "id": "review-unfinished",
+      "filename": "review-unfinished.mp3",
+      "speaker": "ungi",
+      "text": "아직 빠진 곳이 있어. 빠진 곳을 채우면 지도가 완성돼.",
+      "hash": "8da39a91cedafa77"
     },
     {
       "id": "replay",
@@ -336,8 +392,8 @@
       "id": "howto-draw",
       "filename": "howto-draw.mp3",
       "speaker": "yeongi",
-      "text": "점을 누른 채로 다음 점까지 끌어 봐. 빙 둘러 닫으면 칸이 생겨.",
-      "hash": "4eb19854eb20ed8c"
+      "text": "점을 누른 채로 다음 점까지 끌어 봐. 점을 하나씩 차례로 눌러도 돼. 먼 점까지 끌면 기울어진 벽도 돼. 빙 둘러 닫으면 칸이 생겨.",
+      "hash": "80dbf0ff40d55a2c"
     },
     {
       "id": "howto-sort",
@@ -350,8 +406,8 @@
       "id": "howto-door",
       "filename": "howto-door.mp3",
       "speaker": "yeongi",
-      "text": "문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져.",
-      "hash": "df79b01533a34a45"
+      "text": "문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져. 바깥 벽에 단 문은 밖으로 나가는 문이야.",
+      "hash": "431182843c7792c8"
     },
     {
       "id": "howto-mark",
@@ -373,6 +429,20 @@
       "speaker": "ilgu",
       "text": "반짝이는 칸을 눌러서 움직여. 화살표 키로도 갈 수 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.",
       "hash": "7af89eb0973a6576"
+    },
+    {
+      "id": "howto-drill-mid",
+      "filename": "howto-drill-mid.mp3",
+      "speaker": "ilgu",
+      "text": "반짝이는 칸을 눌러서 움직여. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐. 집 밖까지 나가 보자.",
+      "hash": "85ae4b51df75082f"
+    },
+    {
+      "id": "howto-drill-high",
+      "filename": "howto-drill-high.mp3",
+      "speaker": "ilgu",
+      "text": "반짝이는 칸을 눌러서 움직여. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐. 지나온 문은 문 닫기로 닫을 수 있어.",
+      "hash": "9b7c4327638abc54"
     },
     {
       "id": "help-fill",

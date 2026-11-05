@@ -17,7 +17,10 @@ import { IconClose, IconPlay } from '../art';
 
 const WALL_H = 0.72;
 const WALL_T = 0.09;
-const SEG_SECONDS = 0.55;
+/** 한 칸 걷는 데 걸리는 초. 내 눈 높이에서 무엇이 지나가는지 볼 수 있을 만큼 천천히 걷는다 */
+const SEG_SECONDS = 1.05;
+/** 가족 앞에서 멈출 거리. 더 다가가면 얼굴이 화면 밖으로 나가고 몸통만 보인다 */
+const FAMILY_STOP = 1.3;
 
 interface Props {
   plan: Plan;
@@ -35,15 +38,15 @@ interface Timed {
 
 /** 기록을 시간표로 바꾼다 */
 function buildTimes(timeline: Snapshot[]): { list: Timed[]; total: number } {
-  let t = 0.6;
+  let t = 1;
   const list: Timed[] = [];
   for (const snap of timeline) {
     const length = polylineLength(snap.walk);
-    const dur = snap.walk.length < 2 ? 0.2 : Math.max(0.5, length * SEG_SECONDS);
+    const dur = snap.walk.length < 2 ? 0.2 : Math.max(1.2, length * SEG_SECONDS);
     list.push({ snap, from: t, to: t + dur, length });
     t += dur;
   }
-  return { list, total: t + 1.6 };
+  return { list, total: t + 3.6 };
 }
 
 function material(color: number, roughness = 0.85): THREE.MeshStandardMaterial {
@@ -476,6 +479,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
 
     // 만나는 곳 깃발과 가족
     const meet = plan.marks.meet ? world(plan.marks.meet) : null;
+    const adults: THREE.Group[] = [];
+    const family = meet ? new THREE.Vector3(meet.x + 0.57, 0.66, meet.y - 0.04) : null;
     if (meet) {
       const flag = new THREE.Group();
       flag.position.set(meet.x, 0, meet.y);
@@ -492,7 +497,21 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         face.castShadow = true;
         const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.116, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), material(i ? 0x4a2d2d : 0x2b211b));
         hairCap.position.y = 0.77;
-        adult.add(torso, face, hairCap);
+        // 내 쪽을 바라보는 얼굴과 흔드는 손
+        const eyeMat = material(0x2b211b);
+        for (const side of [-1, 1]) {
+          const eye = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), eyeMat);
+          eye.position.set(side * 0.04, 0.78, 0.102);
+          adult.add(eye);
+        }
+        const smile = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 12, Math.PI), material(0x8a3b2a));
+        smile.position.set(0, 0.74, 0.104);
+        smile.rotation.z = Math.PI;
+        const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.26, 4, 8), material(i ? 0x7b6fb0 : 0x4f8fa8));
+        arm.position.set(0.15, 0.68, 0);
+        arm.rotation.z = -0.5;
+        adult.add(torso, face, hairCap, smile, arm);
+        adults.push(adult);
         flag.add(adult);
       }
       scene.add(flag);
@@ -576,6 +595,12 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       heading = Math.atan2(next.x - start.x, next.y - start.y);
     }
     const eyeFov = 72;
+    const familyDir = new THREE.Vector3();
+    const familyNdc = new THREE.Vector3();
+    const lastWalk = list[list.length - 1]?.snap.walk;
+    // 가족에게 다가오는 쪽 — 마지막에 이쪽에서 멈춘다
+    const approach = lastWalk && family ? { x: lastWalk[0]!.x - family.x, y: lastWalk[0]!.y - family.z } : { x: 0, y: 1 };
+    const approachLen = Math.hypot(approach.x, approach.y) || 1;
     const setMode = (above: boolean) => {
       controls.enabled = above;
       kid.root.visible = above;
@@ -670,7 +695,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         pivot.rotation.y += (goal - pivot.rotation.y) * 0.14;
       });
 
-      const words = captionFor(seg.snap, drill, list.length, idx, time >= total - 1.2, levels.light);
+      const words = captionFor(seg.snap, drill, list.length, idx, time >= total - 2.6, levels.light);
       if (words !== lastCaption) {
         lastCaption = words;
         setCaption(words);
@@ -690,10 +715,36 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         }
         const eye = seg.snap.crouch && seg.snap.at !== OUT ? 0.34 : 0.56;
         const bob = moving && !reduced ? Math.sin(time * 14) * 0.008 : 0;
-        camera.position.set(pos.x, eye + bob, pos.y);
-        lookAhead.set(pos.x + Math.sin(heading), eye + bob - 0.04, pos.y + Math.cos(heading));
-        camera.lookAt(lookAhead);
+        const toFamily = drill.end === 'meet' && family && idx === list.length - 1 && seg.snap.at === OUT;
+        if (toFamily) {
+          // 만나는 곳 — 가족 앞에서 멈추고 가족을 바라본다
+          const gap = Math.hypot(pos.x - family.x, pos.y - family.z);
+          const stop = gap < FAMILY_STOP;
+          const cx2 = stop ? family.x + (approach.x / approachLen) * FAMILY_STOP : pos.x;
+          const cz2 = stop ? family.z + (approach.y / approachLen) * FAMILY_STOP : pos.y;
+          const ease = Math.min(1, dt * 5);
+          camera.position.set(camera.position.x + (cx2 - camera.position.x) * ease, eye + bob, camera.position.z + (cz2 - camera.position.z) * ease);
+          const want = Math.atan2(family.x - camera.position.x, family.z - camera.position.z);
+          const turn = Math.atan2(Math.sin(want - heading), Math.cos(want - heading));
+          heading += turn * Math.min(1, dt * 4);
+          const far = Math.max(0.3, Math.hypot(family.x - camera.position.x, family.z - camera.position.z));
+          lookAhead.set(camera.position.x + Math.sin(heading), eye + bob + (family.y - eye) / far, camera.position.z + Math.cos(heading));
+          camera.lookAt(lookAhead);
+          camera.updateMatrixWorld();
+          familyNdc.copy(family).project(camera);
+          mount.dataset.familyInView = familyNdc.z < 1 && Math.abs(familyNdc.x) < 0.9 && Math.abs(familyNdc.y) < 0.9 ? '1' : '0';
+          mount.dataset.familyDist = camera.position.distanceTo(familyDir.set(family.x, camera.position.y, family.z)).toFixed(2);
+        } else {
+          camera.position.set(pos.x, eye + bob, pos.y);
+          lookAhead.set(pos.x + Math.sin(heading), eye + bob - 0.04, pos.y + Math.cos(heading));
+          camera.lookAt(lookAhead);
+        }
       }
+      // 가족은 나를 바라본다
+      adults.forEach((adult) => {
+        adult.getWorldPosition(familyDir);
+        adult.rotation.y = Math.atan2(camera.position.x - familyDir.x, camera.position.z - familyDir.z);
+      });
       renderer.render(scene, camera);
     };
     render();
@@ -739,7 +790,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
 }
 
 function captionFor(snap: Snapshot, drill: DrillState, count: number, idx: number, ending: boolean, light: number): string {
-  if (ending) return drill.end === 'rescue' ? '문을 닫고 구조를 요청했어' : '가족과 만났어';
+  if (ending) return drill.end === 'rescue' ? '문을 닫고 119에 알렸어' : '가족과 만났어';
   if (idx === 0) return '내 자리에서 시작';
   if (idx === count - 1 && drill.end === 'meet') return '만나는 곳으로 가는 중';
   if (snap.at === OUT) return '밖으로 나왔어';

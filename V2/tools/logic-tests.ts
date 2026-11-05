@@ -15,7 +15,9 @@ import {
 } from '../src/core/drill';
 import { addEdges, addStroke, emptyPlan, normalize, paintCell, placeMark, removeWall, routeCandidates, tapRoute, toggleOpening } from '../src/core/edit';
 import { changeGrid, densityOf, straightRuns } from '../src/core/density';
-import { facingAt, outsideSpot, placeItem, removeItemAt, setOutside } from '../src/core/items';
+import { clearOfDoors, DOOR_CLEAR, facingAt, itemIndexAt, moveItem, outsideSpot, placeItem, removeItemAt, setOutside } from '../src/core/items';
+import { arrangeLabels, rectsOverlap } from '../src/core/labels';
+import { hasOtherRoute } from '../src/core/auto';
 import { fitFurniture } from '../src/core/furnish';
 import { analyze, cellIdAt, dKey, edgeBetween, edgeKeys, hKey, isExterior, isInterior, pieceCenter, pieceKeyAt, segmentEdges, shortestPath, sqKey, uKey, unreachableCells, vKey } from '../src/core/grid';
 import { stepField } from '../src/core/hazard';
@@ -29,6 +31,10 @@ import { FIRE } from '../src/content/fire';
 import { buildHome, HOMES } from '../src/content/homes';
 import { ITEM_GROUPS, ITEMS } from '../src/content/items';
 import { crayonsFor } from '../src/content/names';
+import { howToFor } from '../src/content/howto';
+import { LINES } from '../src/content/lines';
+import { PROMISES } from '../src/content/report';
+import { SOURCES } from '../src/content/sources';
 import { segEdges, TEMPLATES, templatesFor, type Template } from '../src/content/templates';
 import type { Check } from './test';
 
@@ -647,7 +653,183 @@ export function runLogicTests(check: Check): void {
     layout = analyze(plan);
     assert.equal(layout.cells.length, 0);
     assert.equal(plan.items!.length, 0, '칸이 없어지면 가구도 없어진다');
-    for (const group of ITEM_GROUPS) for (const kind of group.items) assert.ok(ITEMS[kind].parts.length > 0 && ITEMS[kind].label.length <= 3, kind);
+    for (const group of ITEM_GROUPS) for (const kind of group.items) assert.ok(ITEMS[kind].parts.length > 0 && ITEMS[kind].label.length <= 5, kind);
+  });
+
+  check('[#133 가구] 문 앞은 밀어서 비우고, 밀 수 없으면 놓지 않으며, 끌어 옮길 수 있다', () => {
+    let plan = addEdges(emptyPlan(8, 6), box(1, 1, 6, 5));
+    const door = hKey(3, 1);
+    plan = { ...plan, openings: { [door]: 'door' } };
+    let layout = analyze(plan);
+    const near = placeItem(plan, layout, 'bed', { x: 3.5, y: 1.1 });
+    assert.equal(near.ok, true);
+    const item = near.plan.items![0]!;
+    assert.ok(Math.hypot(item.x - 3.5, item.y - 1) >= DOOR_CLEAR - 1e-6, '문 앞에서 밀려난다');
+    const onDoor = clearOfDoors(plan, layout, { x: 3.5, y: 1 + 1e-4 });
+    assert.ok(onDoor && Math.hypot(onDoor.x - 3.5, onDoor.y - 1) >= DOOR_CLEAR - 1e-6, '문 바로 위를 눌러도 칸 쪽으로 민다');
+    // 작은 칸의 문 앞 — 밀 자리가 칸 안에 없으면 놓지 않는다
+    const tiny = { ...addEdges(emptyPlan(8, 6), box(1, 1, 2, 2)), openings: { [hKey(1, 1)]: 'door' as const, [hKey(1, 2)]: 'door' as const } };
+    const tinyLayout = analyze(tiny);
+    const refused = placeItem(tiny, tinyLayout, 'bed', { x: 1.5, y: 1.5 });
+    assert.equal(refused.ok, false);
+    assert.equal(!refused.ok && refused.why, 'door');
+    assert.equal(itemIndexAt(near.plan, { x: 9, y: 9 }, 0.4), -1);
+    assert.equal(itemIndexAt(near.plan, { x: item.x + 0.1, y: item.y }, 0.4), 0);
+    const moved = moveItem(near.plan, layout, 0, { x: 5, y: 4 });
+    assert.equal(moved.ok, true);
+    assert.deepEqual([moved.plan.items![0]!.x, moved.plan.items![0]!.y], [5, 4]);
+    assert.equal(moveItem(near.plan, layout, 0, { x: 7.5, y: 5.5 }).ok, false, '집 밖으로는 옮기지 않는다');
+    layout = analyze(moved.plan);
+    assert.equal(layout.cells.length, 1);
+  });
+
+  check('[#134 촘촘한 점] 손 떨림으로 끝점이 한 점 어긋나도 가로 벽이 기울지 않고, 일부러 기울이면 기운다', () => {
+    const unit = 2;
+    let live = startDrag({ x: 4, y: 4 });
+    live = dragMove(live, { x: 8, y: 4.4 }, { x: 8, y: 4 }, unit);
+    live = dragMove(live, { x: 12, y: 4.9 }, { x: 12, y: 5 }, unit);
+    assert.deepEqual(dragDots(live).map((p) => p.y), dragDots(live).map(() => 4), '한 점 어긋난 끝을 같은 줄로 잡는다');
+    let slanted = startDrag({ x: 4, y: 4 });
+    slanted = dragMove(slanted, { x: 7, y: 7 }, { x: 7, y: 7 }, unit);
+    slanted = dragMove(slanted, { x: 10, y: 10 }, { x: 10, y: 10 }, unit);
+    const end = dragDots(slanted)[dragDots(slanted).length - 1]!;
+    assert.deepEqual(end, { x: 10, y: 10 }, '크게 기울인 벽은 그대로다');
+    assert.deepEqual(nearestDot(emptyPlan(32, 24), { x: 5.5, y: 5.5 }), null, '기본 거리로는 점 사이를 잡지 않는다');
+    assert.ok(nearestDot(emptyPlan(32, 24), { x: 5.5, y: 5.5 }, 0.75), '촘촘하면 점 사이를 눌러도 가까운 점을 잡는다');
+  });
+
+  check('[#133 글자] 글자끼리와 표시 그림에 겹치지 않게 비켜 놓는다', () => {
+    const labels = [
+      { id: 'a', x: 100, y: 100, w: 80, h: 26 },
+      { id: 'b', x: 110, y: 104, w: 80, h: 26 },
+      { id: 'c', x: 100, y: 100, w: 60, h: 26 },
+      { id: 'd', x: 90, y: 96, w: 60, h: 26 },
+    ];
+    const glyph = { x: 100, y: 60, w: 70, h: 40 };
+    const spots = arrangeLabels(labels, [glyph]);
+    const rects = labels.map((l) => ({ ...l, ...spots.get(l.id)! }));
+    for (const r of rects) assert.ok(!rectsOverlap(r, glyph), `${r.id} 이 그림과 겹친다`);
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) assert.ok(!rectsOverlap(rects[i]!, rects[j]!), `${rects[i]!.id}·${rects[j]!.id}`);
+    assert.deepEqual(spots.get('a'), { x: 100, y: 100 }, '겹치지 않으면 그 자리다');
+  });
+
+  check('[#133 연습] 안내를 듣고 낮추면 고칠 점이 없고, 낮추지 않으면 남으며, 둘이 함께 나오지 않는다', () => {
+    const config = FIRE.mid;
+    let plan = addEdges(emptyPlan(10, 7), [...box(1, 1, 4, 3), ...box(4, 1, 7, 3), ...box(1, 3, 7, 5)]);
+    plan = autoTag(plan, 'mid');
+    plan = autoRoute(autoMarks(autoDoors(plan), 'mid'));
+    const layout = analyze(plan);
+    const start = startDrill(plan, 3, config)!;
+    assert.ok(start);
+    const walkOut = (crouchWhenWarned: boolean, ignoreFirst = false): DrillState => {
+      let s = start;
+      let warned = 0;
+      for (let guard = 0; guard < 30 && s.phase === 'inside'; guard++) {
+        // 다음 칸에 연기가 있다고 가정해 모든 칸을 옅은 연기로 채운다 — 안내가 들어간 뒤에 나오는 상황이다
+        s = { ...s, field: Object.fromEntries(layout.cells.map((c) => [c.id, config.levels.light])) };
+        const path = shortestPath(layout, s.at)!;
+        const move = drillMoves(layout, s, config).find((m) => m.to === path[0]!.to)!;
+        if (guard > 0) {
+          warned += 1;
+          if (crouchWhenWarned && (!ignoreFirst || warned > 1)) s = setCrouch(s, true, config);
+        }
+        s = moveTo(plan, layout, s, { ...move, hot: false }, config);
+      }
+      return finishMeet(plan, layout, s);
+    };
+    const obeyed = buildReport(walkOut(true), plan, 'mid');
+    assert.ok(obeyed.praises.includes('crouch'), '낮췄으니 잘한 점이다');
+    assert.ok(!obeyed.fixes.includes('crouch'), '안내대로 했으면 고칠 점이 아니다');
+    const late = buildReport(walkOut(true, true), plan, 'mid');
+    assert.ok(!(late.praises.includes('crouch') && late.fixes.includes('crouch')), '같은 일을 칭찬하며 고치라고 하지 않는다');
+    const ignored = buildReport(walkOut(false), plan, 'mid');
+    assert.ok(ignored.fixes.includes('crouch') && !ignored.praises.includes('crouch'), '끝까지 서 있었으면 다음에 해 볼 것이다');
+    const pressed = setCrouch({ ...start, field: { [start.at]: config.levels.light } }, true, config);
+    assert.equal(pressed.stats.crouchedInHazard, 1, '연기 속에서 누른 것도 센다');
+    assert.equal(setCrouch(start, true, config).stats.crouchedInHazard, 0, '연기가 없을 때는 세지 않는다');
+  });
+
+  check('[#134 연습] 일렬로 이어진 집도 어느 칸에서 불이 나든 나갈 수 있다', () => {
+    // 방 → 지나가는 곳 → 밖. 내 자리에서 나가려면 불이 난 칸을 꼭 지난다
+    const base = addEdges(emptyPlan(8, 6), [...box(1, 1, 3, 3), ...box(3, 1, 5, 3), ...box(5, 1, 7, 3)]);
+    const links = { [vKey(3, 1)]: 'door' as const, [vKey(5, 1)]: 'door' as const, [vKey(7, 1)]: 'door' as const };
+    const plan: Plan = { ...base, openings: links, marks: { me: { x: 1.5, y: 1.5 }, meet: { x: 4, y: 6.9 } } };
+    const layout = analyze(plan);
+    const startCell = cellIdAt(layout, plan.marks.me!)!;
+    for (const band of ['low', 'mid', 'high'] as const) {
+      for (let seed = 0; seed < 100; seed++) {
+        const config = FIRE[band];
+        const picked = pickSource(plan, layout, startCell, seed, config);
+        assert.equal(picked.soft, true, '모든 칸이 나가는 길 위라 옅은 연기로 시작한다');
+        let s = startDrill(plan, seed, config)!;
+        assert.equal(s.field[s.source], config.levels.light);
+        for (let guard = 0; guard < 10 && s.phase === 'inside'; guard++) {
+          const path = shortestPath(layout, s.at)!;
+          const move = drillMoves(layout, s, config).find((m) => m.to === path[0]!.to)!;
+          assert.equal(move.hot, false, `${band} seed ${seed} 차례 ${guard}: 문이 뜨거우면 안 된다`);
+          assert.equal(isTrapped(layout, s, config), false);
+          s = moveTo(plan, layout, s, move, config);
+        }
+        assert.equal(s.phase, 'outside', `${band} seed ${seed}`);
+      }
+    }
+  });
+
+  check('[#134 아파트] 모든 모양 × 학년 × 시드에서 가장 짧은 길로 나갈 수 있고, 대피공간으로는 나가지 않는다', () => {
+    for (const band of ['low', 'mid', 'high'] as const) {
+      const info = BANDS[band];
+      for (const home of HOMES) {
+        const blank = emptyPlan(info.cols, info.rows);
+        const built = buildHome(home, blank.cols, blank.rows);
+        const plan = autoRoute(autoMarks(autoDoors(autoTag(normalize({ ...blank, ...built }), band)), band));
+        const layout = analyze(plan);
+        for (const link of layout.links.filter((l) => l.b === OUT)) {
+          const name = layout.byId.get(link.a)?.name;
+          assert.ok(name !== 'refuge' && name !== 'veranda', `${home.id}: ${name} 로 나가지 않는다`);
+        }
+        for (let seed = 0; seed < 30; seed++) {
+          const config = FIRE[band];
+          let s = startDrill(plan, seed, config)!;
+          for (let guard = 0; guard < 30 && s.phase === 'inside'; guard++) {
+            const path = shortestPath(layout, s.at)!;
+            const move = drillMoves(layout, s, config).find((m) => m.to === path[0]!.to)!;
+            assert.equal(move.hot, false, `${band} ${home.id} seed ${seed}`);
+            s = moveTo(plan, layout, s, move, config);
+          }
+          assert.equal(s.phase, 'outside', `${band} ${home.id} seed ${seed}`);
+        }
+      }
+    }
+    const refuges = HOMES.filter((h) => h.art.some((row) => row.includes('A'))).map((h) => h.id);
+    assert.deepEqual(refuges, ['home-3w', 'home-4'], '대피공간이 있는 평면');
+  });
+
+  check('[#133 길] 다른 길이 있는지 바르게 안다', () => {
+    const base = addEdges(emptyPlan(8, 6), [...box(1, 1, 3, 3), ...box(3, 1, 5, 3)]);
+    const one: Plan = { ...base, openings: { [vKey(3, 1)]: 'door', [vKey(5, 1)]: 'door' }, marks: { me: { x: 1.5, y: 1.5 } } };
+    const routed = autoRoute(one);
+    assert.equal(routed.route[routed.route.length - 1], OUT);
+    assert.equal(hasOtherRoute(routed), false, '문이 한 줄뿐이면 다른 길이 없다');
+    const two: Plan = { ...routed, openings: { ...routed.openings, [vKey(1, 1)]: 'door' } };
+    assert.equal(hasOtherRoute(two), true, '문을 더 달면 다른 길이 있다');
+    assert.equal(hasOtherRoute({ ...routed, marks: {} }), false, '내 자리가 없으면 길도 없다');
+  });
+
+  check('[#134 안전 문장] 모든 출처를 대조했고, 어려운 말과 예전 출처가 남지 않았다', () => {
+    assert.ok(SOURCES.every((s) => s.verified), '모든 출처 대조');
+    assert.ok(SOURCES.filter((s) => s.id !== 'app-guide').every((s) => s.url?.startsWith('https://')), '공식 자료 주소');
+    assert.equal(SOURCES.some((s) => s.id === 'nfa-fire-manual'), false);
+    const said = Object.values(LINES).map((l) => l.text).join(' ');
+    for (const word of ['침착하게', '구조를 요청', '머무는 칸', '걸어가는 칸', '비스듬한']) assert.ok(!said.includes(word), word);
+    const promises = PROMISES.map((p) => p.text).join(' ');
+    for (const word of ['대피공간', '경량칸막이', '엘리베이터', '손등', '젖은 수건', '창문을 닫고']) assert.ok(promises.includes(word), word);
+    assert.ok(crayonsFor('mid').room.some((c) => c.name === 'refuge') && crayonsFor('high').room.some((c) => c.name === 'refuge'));
+    assert.ok(crayonsFor('mid').pass.some((c) => c.name === 'stairs'));
+    for (const name of ['kitchen', 'bath']) assert.ok(crayonsFor('low').room.some((c) => c.name === name), name);
+    assert.ok(crayonsFor('low').pass.some((c) => c.name === 'living'));
+    assert.ok(ITEM_GROUPS.flatMap((g) => g.items).includes('partition'));
+    for (const band of ['low', 'mid', 'high'] as const) assert.ok(LINES[howToFor('drill', band).line], band);
+    assert.notEqual(howToFor('drill', 'low').line, howToFor('drill', 'high').line, '학년마다 할 일이 달라 듣는 말도 다르다');
   });
 
   check('[점 개수] 모든 모양을 어떤 배수로든 끝까지 해낼 수 있다', () => {

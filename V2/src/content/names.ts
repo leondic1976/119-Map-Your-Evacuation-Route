@@ -15,24 +15,29 @@ const PASS: Crayon = { id: 'pass', kind: 'pass', name: null, label: '지나가�
 
 /** 아파트에 흔한 베란다는 어느 학년이든 고른다 */
 const VERANDA: Crayon = { id: 'veranda', kind: 'room', name: 'veranda', label: '베란다' };
+const KITCHEN: Crayon = { id: 'kitchen', kind: 'room', name: 'kitchen', label: '부엌' };
+const BATH: Crayon = { id: 'bath', kind: 'room', name: 'bath', label: '화장실' };
+const LIVING: Crayon = { id: 'living', kind: 'pass', name: 'living', label: '거실' };
 
 const NAMED_ROOMS: Crayon[] = [
   { id: 'myroom', kind: 'room', name: 'myroom', label: '내 방' },
   { id: 'main', kind: 'room', name: 'main', label: '안방' },
   { id: 'other', kind: 'room', name: 'other', label: '다른 방' },
-  { id: 'kitchen', kind: 'room', name: 'kitchen', label: '부엌' },
-  { id: 'bath', kind: 'room', name: 'bath', label: '화장실' },
+  KITCHEN,
+  BATH,
   { id: 'utility', kind: 'room', name: 'utility', label: '다용도실' },
   VERANDA,
+  { id: 'refuge', kind: 'room', name: 'refuge', label: '대피공간' },
 ];
 const NAMED_PASS: Crayon[] = [
-  { id: 'living', kind: 'pass', name: 'living', label: '거실' },
+  LIVING,
   { id: 'entry', kind: 'pass', name: 'entry', label: '현관' },
+  { id: 'stairs', kind: 'pass', name: 'stairs', label: '계단' },
 ];
 const HIGH_PASS: Crayon[] = [{ id: 'hall', kind: 'pass', name: 'hall', label: '복도' }];
 
 export function crayonsFor(band: Band): { room: Crayon[]; pass: Crayon[] } {
-  if (band === 'low') return { room: [ROOM, VERANDA], pass: [PASS] };
+  if (band === 'low') return { room: [ROOM, KITCHEN, BATH, VERANDA], pass: [PASS, LIVING] };
   if (band === 'mid') return { room: NAMED_ROOMS, pass: NAMED_PASS };
   return { room: NAMED_ROOMS, pass: [...NAMED_PASS, ...HIGH_PASS] };
 }

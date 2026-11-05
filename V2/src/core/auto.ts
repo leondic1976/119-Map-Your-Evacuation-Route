@@ -113,7 +113,7 @@ export function autoDoors(input: Plan): Plan {
   if (layout.cells.length === 0) return plan;
   if (!layout.links.some((l) => l.b === OUT)) {
     // 현관이 있으면 현관으로 나간다. 베란다로는 나가지 않는다
-    const rank = (c: Cell): number => (c.name === 'entry' ? 0 : c.name === 'veranda' ? 3 : c.kind === 'pass' ? 1 : 2);
+    const rank = (c: Cell): number => (c.name === 'entry' ? 0 : c.name === 'veranda' || c.name === 'refuge' ? 3 : c.kind === 'pass' ? 1 : 2);
     const order = [...layout.cells].sort((a, b) => rank(a) - rank(b) || b.area - a.area);
     for (const cell of order) {
       const edges = edgeKeys(layout).filter(
@@ -265,6 +265,27 @@ export function autoRoute(input: Plan): Plan {
 export function autoRoute2(input: Plan): Plan {
   const second = findSecondRoute(input);
   return second ? { ...input, route2: second } : input;
+}
+
+/** 첫째 길과 다른 길이 하나라도 있나. 지나온 칸을 다시 지나지 않는 길만 센다 */
+export function hasOtherRoute(plan: Plan): boolean {
+  const me = plan.marks.me;
+  if (!me) return false;
+  const layout = analyze(plan);
+  const start = layout.cellAt.get(pieceKeyAt(layout, me));
+  if (!start) return false;
+  const first = plan.route.map((s) => (s === OUT ? OUT : layout.cellAt.get(s))).join('|');
+  let budget = 20000;
+  const walk = (at: string, seen: string[]): boolean => {
+    if (budget-- <= 0) return false;
+    for (const n of reachableFrom(layout, at)) {
+      if (n.to === OUT) {
+        if ([...seen, OUT].join('|') !== first) return true;
+      } else if (!seen.includes(n.to) && walk(n.to, [...seen, n.to])) return true;
+    }
+    return false;
+  };
+  return walk(start, [start]);
 }
 
 export function findSecondRoute(plan: Plan): string[] | null {

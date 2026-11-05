@@ -15,7 +15,7 @@ export function howToFor(step: HowToStep, band: Band): HowTo {
     case 'draw':
       return {
         title: '집은 이렇게 그려',
-        steps: ['점을 누른 채로 다음 점까지 끌어.', '점을 하나씩 차례로 눌러도 돼.', '먼 점까지 곧게 끌면 비스듬한 벽이 돼.', '빙 둘러 닫으면 칸이 생겨.'],
+        steps: ['점을 누른 채로 다음 점까지 끌어.', '점을 하나씩 차례로 눌러도 돼.', '먼 점까지 끌면 기울어진 벽도 돼.', '빙 둘러 닫으면 칸이 생겨.'],
         line: 'howto-draw',
       };
     case 'sort':
@@ -47,7 +47,7 @@ export function howToFor(step: HowToStep, band: Band): HowTo {
       if (band !== 'low') steps.push('문 앞에서 물어보면 손등으로 만져 봐.');
       if (band === 'high') steps.push('지나온 문은 문 닫기 단추로 닫을 수 있어.');
       steps.push('집 밖으로 나가서 만나는 곳까지 가면 끝이야.');
-      return { title: '대피 연습은 이렇게 해', steps, line: 'howto-drill' };
+      return { title: '대피 연습은 이렇게 해', steps, line: band === 'low' ? 'howto-drill' : band === 'mid' ? 'howto-drill-mid' : 'howto-drill-high' };
     }
   }
 }

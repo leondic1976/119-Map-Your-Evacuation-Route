@@ -24,7 +24,7 @@ export type MarkId = 'me' | 'meet' | 'gas' | 'extinguisher' | 'alarm';
 /** 집 밖 띠가 놓이는 쪽 */
 export type OutsideSide = 'top' | 'bottom' | 'left' | 'right';
 
-export type ItemKind = 'bed' | 'desk' | 'closet' | 'sofa' | 'table' | 'tv' | 'dining' | 'fridge' | 'sink' | 'toilet' | 'basin' | 'bathtub' | 'washer' | 'plant' | 'shoes';
+export type ItemKind = 'bed' | 'desk' | 'closet' | 'sofa' | 'table' | 'tv' | 'dining' | 'fridge' | 'sink' | 'toilet' | 'basin' | 'bathtub' | 'washer' | 'plant' | 'shoes' | 'partition' | 'hatch';
 
 /** 아이가 놓은 가구. 대피 길을 막지는 않는다 */
 export interface Item extends Pt {

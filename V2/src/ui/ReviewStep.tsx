@@ -5,8 +5,8 @@ import { buildReport } from '../core/report';
 import { FIX, PRAISE } from '../content/report';
 import { isVerified } from '../content/sources';
 import { host } from '../platform/host';
-import { currentBand, enterStep, retryDrill, say, useApp } from '../store/app';
-import { IconCheck, IconCube, IconPencil, IconPlay, IconPrint } from './art';
+import { currentBand, enterStep, fillForDrill, planGaps, retryDrill, say, STEP_LABEL, useApp } from '../store/app';
+import { IconCheck, IconCube, IconHelp, IconPencil, IconPlay, IconPrint } from './art';
 import { PlanView } from './PlanView';
 
 const Replay3D = lazy(() => import('./replay3d/Replay3D'));
@@ -23,6 +23,8 @@ export function ReviewStep() {
   const layout = useMemo(() => analyze(plan), [plan]);
   const report = useMemo(() => (drill ? buildReport(drill, plan, currentBand()) : null), [drill, plan]);
   const [replay, setReplay] = useState(false);
+  const gaps = useMemo(() => planGaps(plan), [plan]);
+  const empty = layout.cells.length === 0;
 
   return (
     <>
@@ -40,12 +42,16 @@ export function ReviewStep() {
             <IconCube size={30} /> 3D로 다시 보기
           </button>
         )}
-        <button type="button" className="tool tall" data-testid="print" onClick={() => host.print()}>
-          <IconPrint size={30} /> 지도 인쇄하기
-        </button>
-        <button type="button" className="tool tall" data-testid="retry" onClick={retryDrill}>
-          <IconPlay size={28} /> 다시 연습하기
-        </button>
+        {!empty && (
+          <>
+            <button type="button" className="tool tall" data-testid="print" onClick={() => host.print()}>
+              <IconPrint size={30} /> 지도 인쇄하기
+            </button>
+            <button type="button" className="tool tall" data-testid="retry" onClick={retryDrill}>
+              <IconPlay size={28} /> {drill ? '다시 연습하기' : '연습하러 가기'}
+            </button>
+          </>
+        )}
         <button type="button" className="tool tall" data-testid="edit-map" onClick={() => enterStep('draw')}>
           <IconPencil size={28} /> 지도 고치기
         </button>
@@ -78,9 +84,30 @@ export function ReviewStep() {
                 </>
               )}
             </>
+          ) : empty ? (
+            <div className="review-done" data-testid="review-empty">
+              <h3 className="note-head next">아직 지도가 없어</h3>
+              <p className="note-text">집을 그리면 여기에서 지도를 볼 수 있어.</p>
+              <button type="button" className="big-action" data-testid="go-draw" onClick={() => enterStep('draw')}>
+                <IconPencil size={26} /> 집 그리러 가기
+              </button>
+            </div>
+          ) : gaps.length > 0 ? (
+            <div className="review-done" data-testid="review-gaps">
+              <h3 className="note-head next">아직 빠진 곳이 있어</h3>
+              <p className="note-text">눌러서 고치거나, 한 번에 채울 수 있어.</p>
+              <div className="gap-list">
+                {gaps.map((step) => (
+                  <button type="button" key={step} className="tool wide" data-testid={`gap-${step}`} onClick={() => enterStep(step)}>{STEP_LABEL[step]}</button>
+                ))}
+              </div>
+              <button type="button" className="big-action" data-testid="fill-gaps" onClick={() => { fillForDrill(); say('review-no-drill'); }}>
+                <IconHelp /> 한 번에 채워 줘
+              </button>
+            </div>
           ) : (
             <>
-              <div className="review-done">
+              <div className="review-done" data-testid="review-complete">
                 <span className="review-badge" aria-hidden="true"><IconCheck size={34} /></span>
                 <h3 className="note-head good">지도가 완성됐어</h3>
                 <p className="note-text">대피 연습을 해 보면 잘한 점을 볼 수 있어.</p>

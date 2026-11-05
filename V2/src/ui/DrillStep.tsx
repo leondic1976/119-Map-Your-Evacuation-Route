@@ -19,8 +19,8 @@ import { OUT, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { FIRE } from '../content/fire';
 import { host } from '../platform/host';
-import { currentBand, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
-import { IconClose, IconCrouch, IconDoor, IconHand, IconPhone, IconPlay, IconStand, KidGlyph } from './art';
+import { currentBand, enterStep, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
+import { IconClose, IconCrouch, IconDoor, IconHand, IconPencil, IconPhone, IconPlay, IconStand, KidGlyph } from './art';
 import { PlanView, unitOf } from './PlanView';
 import { ZoomControls } from './ZoomControls';
 import { useArrowKeys } from './steps';
@@ -58,7 +58,10 @@ export function DrillStep() {
     fillForDrill();
     const app = getApp();
     const next = startDrill(app.plan, app.drillSeed, config);
-    if (!next) return;
+    if (!next) {
+      say('draw-need-cell');
+      return;
+    }
     setState(next);
     setPos(next.pt);
     if (app.soundOn) host.alarm();
@@ -194,7 +197,7 @@ export function DrillStep() {
   if (!state) {
     return (
       <>
-        <aside className="tools" aria-label="연습 준비">
+        <aside className="tools" aria-label="연습 준비" data-empty={layout.cells.length === 0 ? '1' : '0'}>
           <h3 className="tools-head">연습 약속</h3>
           <ul className="promise">
             <li>진짜 불이 아니다.</li>
@@ -203,9 +206,18 @@ export function DrillStep() {
         </aside>
         <section className="paper paper-center">
           <PlanView plan={plan} layout={layout} look={look} showRoute showLabels />
-          <button type="button" className="big-start" data-testid="drill-start" onClick={begin}>
-            <IconPlay size={30} /> 연습 시작
-          </button>
+          {layout.cells.length === 0 ? (
+            <div className="empty-note" data-testid="drill-empty">
+              <p>아직 지도가 없어. 집을 먼저 그려 보자.</p>
+              <button type="button" className="big-action" data-testid="go-draw" onClick={() => enterStep('draw')}>
+                <IconPencil size={26} /> 집 그리러 가기
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="big-start" data-testid="drill-start" onClick={begin}>
+              <IconPlay size={30} /> 연습 시작
+            </button>
+          )}
         </section>
       </>
     );
@@ -227,7 +239,7 @@ export function DrillStep() {
           aria-pressed={state.crouch}
           disabled={outside}
           onClick={() => {
-            setState(setCrouch(state, !state.crouch));
+            setState(setCrouch(state, !state.crouch, config));
             setCrouchNudge(false);
           }}
         >
@@ -294,7 +306,7 @@ export function DrillStep() {
         {callCard && (
           <div className="card-over" role="dialog" aria-modal="true" aria-label="119 전화">
             <h3>{callCard === 'meet' ? '가족을 만났어' : '문을 닫고 창가로'}</h3>
-            <p>{callCard === 'meet' ? '119에 불이 났다고 말하고 우리 집 주소를 알려 주자.' : '나갈 길이 막혔어. 창가에서 119에 구조를 요청하자.'}</p>
+            <p>{callCard === 'meet' ? '119에 불이 났다고 말하고 우리 집 주소를 알려 주자.' : '대피공간이나 경량칸막이가 있으면 그쪽으로 가자. 없으면 불에서 먼 방의 문을 닫고 젖은 수건으로 틈을 막자. 그리고 119에 어디 있는지 알려 주자.'}</p>
             <button type="button" className="big-action" data-testid="drill-call" autoFocus onClick={call}>
               <IconPhone size={30} /> 119에 전화하기
             </button>

@@ -74,7 +74,7 @@ function snapAxis(anchor: Pt, dot: Pt, unit: number): Pt {
   if (unit <= 1) return dot;
   const dx = Math.abs(dot.x - anchor.x);
   const dy = Math.abs(dot.y - anchor.y);
-  const room = 0.35 * unit;
+  const room = 0.55 * unit;
   if (dy <= room && dx >= dy * 3) return { x: dot.x, y: anchor.y };
   if (dx <= room && dy >= dx * 3) return { x: anchor.x, y: dot.y };
   return dot;

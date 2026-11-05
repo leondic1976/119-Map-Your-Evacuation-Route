@@ -3,7 +3,7 @@
  * 가장 가까운 벽에 등을 대도록 저절로 돌려서, 돌리는 조작을 늘리지 않는다.
  * 집 밖 자리도 여기서 다룬다.
  */
-import { analyze, cellIdAt, edgeKeys, edgeEnds } from './grid';
+import { analyze, cellIdAt, edgeKeys, edgeEnds, edgeMid } from './grid';
 import { normalize } from './edit';
 import type { Item, ItemKind, Layout, OutsideSide, Plan, Pt } from './types';
 
@@ -27,28 +27,78 @@ export function facingAt(layout: Layout, p: Pt): number {
   return (Math.atan2(-front.x, front.y) * 180) / Math.PI + 0;
 }
 
-export type PlaceItemResult = { plan: Plan; ok: true } | { plan: Plan; ok: false };
+export type PlaceItemResult = { plan: Plan; ok: true } | { plan: Plan; ok: false; why: 'outside' | 'door' };
+
+/** 문 앞에서 비울 거리(처음 네모 단위). 대피할 때 문이 막히면 안 된다 */
+export const DOOR_CLEAR = 0.62;
+
+/** 가구가 문 앞을 막지 않게 조금 밀어 준다. 밀 자리가 없으면 null 이다 */
+export function clearOfDoors(plan: Plan, layout: Layout, at: Pt): Pt | null {
+  const k = Math.max(1, plan.density ?? 1);
+  const need = DOOR_CLEAR * k;
+  const cell = cellIdAt(layout, at);
+  let p = at;
+  const doors = Object.entries(plan.openings).filter(([, o]) => o === 'door').map(([edge]) => edgeMid(edge));
+  for (let round = 0; round < 3; round++) {
+    let moved = false;
+    for (const door of doors) {
+      const dx = p.x - door.x;
+      const dy = p.y - door.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= need - 1e-6) continue;
+      // 문 바로 위를 눌렀으면 칸 가운데 쪽으로 민다
+      const c = layout.byId.get(cell ?? '');
+      const fx = d > 1e-3 ? dx / d : (c ? c.anchor.x - door.x : 0);
+      const fy = d > 1e-3 ? dy / d : (c ? c.anchor.y - door.y : 1);
+      const len = Math.hypot(fx, fy) || 1;
+      p = { x: door.x + (fx / len) * need, y: door.y + (fy / len) * need };
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  const blocked = doors.some((door) => Math.hypot(p.x - door.x, p.y - door.y) < need - 1e-6);
+  return blocked || cellIdAt(layout, p) !== cell ? null : p;
+}
 
 export function placeItem(plan: Plan, layout: Layout, kind: ItemKind, at: Pt): PlaceItemResult {
-  if (!cellIdAt(layout, at)) return { plan, ok: false };
-  const item: Item = { kind, x: at.x, y: at.y, angle: facingAt(layout, at) };
+  if (!cellIdAt(layout, at)) return { plan, ok: false, why: 'outside' };
+  const spot = clearOfDoors(plan, layout, at);
+  if (!spot) return { plan, ok: false, why: 'door' };
+  const item: Item = { kind, x: spot.x, y: spot.y, angle: facingAt(layout, spot) };
   return { plan: { ...plan, items: [...(plan.items ?? []), item] }, ok: true };
 }
 
-/** 누른 자리 근처의 가구를 치운다. 없으면 그대로다 */
-export function removeItemAt(plan: Plan, at: Pt, radius: number): Plan {
-  const items = plan.items ?? [];
+/** 누른 자리의 가구 번호. 없으면 -1 이다 */
+export function itemIndexAt(plan: Plan, at: Pt, radius: number): number {
   let hit = -1;
   let best = radius;
-  items.forEach((item, i) => {
+  (plan.items ?? []).forEach((item, i) => {
     const d = Math.hypot(item.x - at.x, item.y - at.y);
     if (d < best) {
       best = d;
       hit = i;
     }
   });
+  return hit;
+}
+
+/** 놓은 가구를 옮긴다. 다시 가장 가까운 벽을 등진다 */
+export function moveItem(plan: Plan, layout: Layout, index: number, to: Pt): PlaceItemResult {
+  const items = plan.items ?? [];
+  const item = items[index];
+  if (!item) return { plan, ok: false, why: 'outside' };
+  if (!cellIdAt(layout, to)) return { plan, ok: false, why: 'outside' };
+  const spot = clearOfDoors(plan, layout, to);
+  if (!spot) return { plan, ok: false, why: 'door' };
+  const moved: Item = { ...item, x: spot.x, y: spot.y, angle: facingAt(layout, spot) };
+  return { plan: { ...plan, items: items.map((it, i) => (i === index ? moved : it)) }, ok: true };
+}
+
+/** 누른 자리 근처의 가구를 치운다. 없으면 그대로다 */
+export function removeItemAt(plan: Plan, at: Pt, radius: number): Plan {
+  const hit = itemIndexAt(plan, at, radius);
   if (hit < 0) return plan;
-  return { ...plan, items: items.filter((_, i) => i !== hit) };
+  return { ...plan, items: (plan.items ?? []).filter((_, i) => i !== hit) };
 }
 
 /** 칸 밖으로 나간 가구를 뺀다 */

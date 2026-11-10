@@ -1720,7 +1720,8 @@ async function main(): Promise<void> {
     assert.ok(party.bursts >= 3 && party.confetti >= 80 && party.running >= 80, `축포와 색종이가 움직인다: ${JSON.stringify(party)}`);
     assert.equal(party.wide, true, '불꽃놀이가 화면을 가득 채운다');
     assert.equal(party.blocks, false, '축하 그림이 단추를 가리지 않는다');
-    await page.waitForTimeout(1600);
+    // 폭죽은 솟아오르는 데 1초쯤 걸린다. 느린 기기에서도 여러 송이가 터질 만큼 기다린다
+    await page.waitForTimeout(2600);
     const sparks = await page.evaluate(() => {
       const c = document.querySelector<HTMLCanvasElement>('[data-testid="celebrate-fire"]')!;
       const data = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;

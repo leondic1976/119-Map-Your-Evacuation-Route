@@ -53,7 +53,8 @@ export interface FitOptions {
 /** 가구 하나의 자리. 어떤 크기로도 들어가지 않으면 null */
 export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, footprint: Footprint, options: FitOptions = {}): Placement | null {
   const edges = [...layout.edges.values()];
-  const doors = edges.filter((e) => plan.openings[e.key] === 'door');
+  const openSet = new Set(layout.openEdges);
+  const doors = edges.filter((e) => plan.openings[e.key] === 'door' || plan.openings[e.key] === 'gap' || openSet.has(e.key));
   const paths = options.keepClear ?? [];
   const scales = options.scales ?? [1, 0.85, 0.7, 0.55, 0.45];
   const unit = options.unit ?? 1;
@@ -78,7 +79,7 @@ export function fitFurniture(plan: Plan, layout: Layout, cell: Cell, footprint: 
   const borders = edges
     .filter((e) => !e.hidden && edgeSides(layout, e.key).some((s) => layout.cellAt.get(s) === cell.id))
     .sort((p, q) => {
-      const free = Number(Boolean(plan.openings[p.key])) - Number(Boolean(plan.openings[q.key]));
+      const free = Number(Boolean(plan.openings[p.key]) || openSet.has(p.key)) - Number(Boolean(plan.openings[q.key]) || openSet.has(q.key));
       if (free) return free;
       return runLength(q.key) - runLength(p.key) || (p.key < q.key ? -1 : 1);
     });

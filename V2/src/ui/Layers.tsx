@@ -3,7 +3,7 @@
  * 왼쪽 패널에는 여는 단추만 둔다.
  */
 import { useEffect, useState } from 'react';
-import { placeItem, removeItemAt } from '../core/items';
+import { ITEM_SIZES, itemSize, placeItem, removeItem, removeItemAt, resizeItem, turnItem } from '../core/items';
 import type { ItemKind, Layout, Plan, Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { HOMES, type Home } from '../content/homes';
@@ -14,7 +14,8 @@ import { applyHome, applyTemplate, commit, currentBand, say } from '../store/app
 import { edgeEnds } from '../core/grid';
 import { buildHome } from '../content/homes';
 import { IconClose } from './art';
-import { ItemShape } from './PlanView';
+import { CursorGhost } from './CursorGhost';
+import { ItemShape, unitOf } from './PlanView';
 
 export type LayerId = 'home' | 'items';
 
@@ -49,6 +50,12 @@ export type Placing = ItemKind | 'remove' | null;
 export function useLayers(plan: Plan, layout: Layout) {
   const [open, setOpen] = useState<LayerId | null>(null);
   const [placing, setPlacing] = useState<Placing>(null);
+  // 고쳐 볼 가구 — 막 놓았거나 눌러 고른 것이다. 돌리고 크기를 바꾸고 치운다
+  const [selected, setSelected] = useState<number | null>(null);
+  const picked = selected !== null ? plan.items?.[selected] : undefined;
+  useEffect(() => {
+    if (selected !== null && !plan.items?.[selected]) setSelected(null);
+  }, [plan.items, selected]);
   // 지금 그린 선이 지워지므로 한 번 묻는다
   const [asking, setAsking] = useState<{ id: string; name: string; apply: (id: string) => void } | null>(null);
 
@@ -76,6 +83,8 @@ export function useLayers(plan: Plan, layout: Layout) {
       commit(res.plan);
       // 하나 놓으면 끝난다. 고른 것을 잊어도 다음 손길이 그대로 그리기가 된다
       setPlacing(null);
+      // 막 놓은 가구는 바로 돌리고 크기를 바꿀 수 있다
+      setSelected((res.plan.items?.length ?? 1) - 1);
     } else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
     return true;
   };
@@ -90,7 +99,7 @@ export function useLayers(plan: Plan, layout: Layout) {
 
   const buttons = (
     <>
-      <button type="button" className={open === 'home' ? 'tool on' : 'tool'} data-testid="layer-home" aria-expanded={open === 'home'} onClick={() => { setPlacing(null); setOpen(open === 'home' ? null : 'home'); }}>
+      <button type="button" className={open === 'home' ? 'tool on' : 'tool'} data-testid="layer-home" aria-expanded={open === 'home'} onClick={() => { setPlacing(null); setSelected(null); setOpen(open === 'home' ? null : 'home'); }}>
         {LAYER_NAME.home}
       </button>
       <button type="button" className={open === 'items' || placing ? 'tool on' : 'tool'} data-testid="layer-items" aria-expanded={open === 'items'} onClick={() => setOpen(open === 'items' ? null : 'items')}>
@@ -149,7 +158,7 @@ export function useLayers(plan: Plan, layout: Layout) {
               <h4>{group.label}</h4>
               <div className="layer-grid items">
                 {group.items.map((kind) => (
-                  <button type="button" key={kind} className={placing === kind ? 'layer-card on' : 'layer-card'} data-testid={`item-${kind}`} onClick={() => { setPlacing(kind); setOpen(null); }}>
+                  <button type="button" key={kind} className={placing === kind ? 'layer-card on' : 'layer-card'} data-testid={`item-${kind}`} onClick={() => { setPlacing(kind); setSelected(null); setOpen(null); }}>
                     <svg viewBox="-60 -60 120 120" width="44" height="44" aria-hidden="true"><ItemShape kind={kind} /></svg>
                     <b>{ITEMS[kind].label}</b>
                   </button>
@@ -168,5 +177,33 @@ export function useLayers(plan: Plan, layout: Layout) {
     </p>
   );
 
-  return { buttons, panel, placing, tapMap, banner, isOpen: open !== null };
+  const sizeAt = picked ? ITEM_SIZES.reduce((best, s, i) => (Math.abs(s - itemSize(picked)) < Math.abs(ITEM_SIZES[best]! - itemSize(picked)) ? i : best), 0) : 0;
+  const u = unitOf(plan);
+
+  /** 고른 가구를 고치는 막대 — 동서남북으로 돌리고, 키우고 줄이고, 치운다 */
+  const bar = picked && selected !== null && !placing && !open && (
+    <div className="item-bar" role="group" aria-label={`${ITEMS[picked.kind].label} 고치기`} data-testid="item-bar" data-kind={picked.kind}>
+      <b>{ITEMS[picked.kind].label}</b>
+      <button type="button" className="tool" data-testid="item-turn" aria-label="오른쪽으로 돌리기" onClick={() => commit(turnItem(plan, selected))}>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12a7 7 0 1 1 3 5.7M5 12V6M5 12h6" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        돌리기
+      </button>
+      <button type="button" className="tool" data-testid="item-smaller" disabled={sizeAt === 0} onClick={() => commit(resizeItem(plan, selected, -1))}>작게</button>
+      <button type="button" className="tool" data-testid="item-bigger" disabled={sizeAt === ITEM_SIZES.length - 1} onClick={() => commit(resizeItem(plan, selected, 1))}>크게</button>
+      <button type="button" className="tool" data-testid="item-delete" onClick={() => { commit(removeItem(plan, selected)); setSelected(null); }}>치우기</button>
+      <button type="button" className="tool on" data-testid="item-ok" onClick={() => setSelected(null)}>다 됐어</button>
+    </div>
+  );
+
+  /** 고른 가구 둘레의 점선 — 지도 그림 안에 넣는다 */
+  const ring = picked && !placing && (
+    <circle className="item-ring" data-testid="item-ring" cx={picked.x * u} cy={picked.y * u} r={Math.max(ITEMS[picked.kind].w, ITEMS[picked.kind].d) * 62 * itemSize(picked) + 8} pointerEvents="none" />
+  );
+
+  /** 놓는 동안 손 아래에 따라다니는 가구 그림 */
+  const ghost = placing && placing !== 'remove' && (
+    <CursorGhost name={placing}><ItemShape kind={placing} /></CursorGhost>
+  );
+
+  return { buttons, panel, placing, tapMap, banner, bar, ring, ghost, selected, select: setSelected, isOpen: open !== null };
 }

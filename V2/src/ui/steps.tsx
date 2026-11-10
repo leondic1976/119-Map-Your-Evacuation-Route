@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { analyze, cellIdAt, edgeKeys, pieceKeyAt, reachableFrom, unreachableCells } from '../core/grid';
 import { itemIndexAt, moveItem, outsideOf, setOutside } from '../core/items';
-import { placeMark, paintCell, removeWall, addStroke, routeCandidates, tapRoute, toggleOpening } from '../core/edit';
+import { placeMark, paintCell, eraseWall, addStroke, dragRoute, routeCandidates, routeCells, tapRoute, toggleOpening, type RouteTap } from '../core/edit';
 import { hasOtherRoute } from '../core/auto';
 import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
 import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, sameDot, startDrag, type DragStroke } from '../core/stroke';
@@ -12,6 +12,7 @@ import { crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names'
 import { clearRoute, commit, currentBand, getApp, say, setGrid, useApp } from '../store/app';
 import { getHandUnit } from './handUnit';
 import { useLayers } from './Layers';
+import { CursorGhost } from './CursorGhost';
 import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
 import { PlanView } from './PlanView';
 import { ZoomControls } from './ZoomControls';
@@ -115,10 +116,12 @@ export function DrawStep() {
       if (!erasing.current) return;
       const app = getApp();
       const edge = nearestEdge(edgeKeys(analyze(app.plan)), p, 0.42 * getHandUnit(app.plan));
-      if (edge) commit(removeWall(app.plan, edge), { merge: kind === 'move' });
+      // 긴 벽의 가운데를 한 칸만 지우면 문 없는 입구가 되고, 이어서 옆까지 지우면 벽이 사라진다
+      if (edge) commit(eraseWall(app.plan, edge), { merge: kind === 'move' });
       return;
     }
     if (kind === 'down') {
+      layers.select(null);
       // 점이 촘촘하면 손가락이 점 사이에 닿아도 가까운 점을 잡는다
       const dot = nearestDot(plan, p, getHandUnit(plan) > 1 ? 0.75 : undefined);
       if (!dot) return;
@@ -184,6 +187,7 @@ export function DrawStep() {
         <h3 className="tools-head">골라 넣기</h3>
         {layers.buttons}
         <p className="tool-note" data-testid="cell-count">칸 {layout.cells.length}개</p>
+        {tool === 'eraser' && <p className="tool-note" data-testid="eraser-note">벽을 한 칸만 지우면 문 없는 입구가 돼.</p>}
       </aside>
       <section className="paper">
         <PlanView
@@ -193,13 +197,17 @@ export function DrawStep() {
           stroke={stroke}
           armed={armed}
           showLabels={false}
-          className={layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : 'cursor-draw'}
+          className={layers.ghost ? 'cursor-none' : layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : 'cursor-draw'}
           onPointer={onPointer}
           zoomable
           edgePan
           ariaLabel="점을 이어 집을 그리는 모눈 종이"
-        />
+        >
+          {layers.ring}
+        </PlanView>
         <ZoomControls plan={plan} focus={armed} />
+        {layers.ghost}
+        {layers.bar}
         {armed && !layers.placing && (
           <p className="map-note" data-testid="armed-note" role="status">파란 점에서 이어져. 잘못 눌렀으면 파란 점을 다시 눌러.</p>
         )}
@@ -287,7 +295,13 @@ export function DoorStep() {
               <IconWindow /> 창문
             </button>
           )}
+          <button type="button" className={kind === 'gap' ? 'tool on' : 'tool'} data-testid="tool-gap" aria-pressed={kind === 'gap'} onClick={() => setKind('gap')}>
+            <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M3 12h4M17 12h4M7 7v10M17 7v10" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" /><path d="M10 12h4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="1 3" /></svg>
+            트인 곳
+          </button>
         </div>
+        {kind === 'gap' && <p className="tool-note" data-testid="gap-note">문짝 없이 뚫린 입구야. 그냥 지나가.</p>}
+        {layout.openEdges.length > 0 && <p className="tool-note" data-testid="open-note">거실과 부엌처럼 트인 칸끼리는 점선이야. 문이 없어도 지나가.</p>}
         <ul className="checks">
           <li className={hasExit ? 'done' : ''} data-testid="check-exit">
             {hasExit ? <IconCheck /> : <IconDot />} 나가는 문
@@ -349,11 +363,22 @@ export function MarkStep() {
     setDragTo(null);
     if (held?.moved) {
       const res = moveItem(plan, layout, held.index, p);
-      if (res.ok) commit(res.plan);
-      else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
+      if (res.ok) {
+        commit(res.plan);
+        layers.select(held.index);
+      } else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
       return;
     }
     if (layers.tapMap(p)) return;
+    // 놓은 가구를 누르면 고쳐 볼 수 있다. 고친 뒤 빈 자리를 누르면 고르기가 풀린다
+    if (held) {
+      layers.select(held.index);
+      return;
+    }
+    if (layers.selected !== null) {
+      layers.select(null);
+      return;
+    }
     const res = placeMark(plan, layout, tool, p);
     if (!res.ok) {
       say(res.why === 'need-outside' ? 'mark-need-outside' : 'mark-need-inside');
@@ -384,11 +409,18 @@ export function MarkStep() {
         </div>
         <h3 className="tools-head">골라 넣기</h3>
         {layers.buttons}
-        {hasItems && <p className="tool-note" data-testid="item-move-note">놓은 가구는 끌어서 옮겨.</p>}
+        {hasItems && <p className="tool-note" data-testid="item-move-note">놓은 가구는 끌어서 옮기고, 누르면 돌리거나 크기를 바꿔.</p>}
       </aside>
       <section className="paper">
-        <PlanView plan={shown} layout={layout} look={look} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="표시를 놓는 지도" />
+        <PlanView plan={shown} layout={layout} look={look} onPointer={onPointer} zoomable className={layers.placing === 'remove' || layers.selected !== null ? 'cursor-tap' : 'cursor-none'} ariaLabel="표시를 놓는 지도">
+          {!dragTo && layers.ring}
+        </PlanView>
         <ZoomControls plan={plan} />
+        {layers.ghost}
+        {!layers.placing && layers.selected === null && (
+          <CursorGhost name={`mark-${tool}`}><MarkGlyph id={tool} look={look} /></CursorGhost>
+        )}
+        {layers.bar}
         {layers.banner}
         {layers.panel}
       </section>
@@ -414,7 +446,19 @@ export function RouteStep() {
   const deadEnd = !done && candidates.length === 0 && route.length > 1;
   const backCell = deadEnd ? layout.cellAt.get(route[route.length - 2]!) : undefined;
   const glow = backCell ? [backCell] : candidates;
-  const cellsOf = (steps: string[]): string => steps.map((s) => (s === OUT ? OUT : layout.cellAt.get(s))).join('|');
+  const cellsOf = (steps: string[]): string => routeCells(layout, steps).join('|');
+
+  /** 길이 바뀐 뒤에 할 말 */
+  const announce = (res: RouteTap) => {
+    if (res.result === 'done') {
+      if (which === 'route' && info.secondRoute) {
+        if (hasOtherRoute(res.plan)) say('route-second');
+        else say('route-no-second', 'route-next');
+      } else say('route-done', 'route-next');
+    } else if (res.result === 'added' && routeCandidates(res.plan, layout, which).length === 0) {
+      say('route-dead-end');
+    }
+  };
 
   const choose = (target: string) => {
     const res = tapRoute(plan, layout, which, target);
@@ -423,21 +467,54 @@ export function RouteStep() {
     else if (which === 'route2' && res.result === 'done' && cellsOf(res.plan.route2) === cellsOf(plan.route)) say('route-same');
     else {
       commit(res.plan);
-      if (res.result === 'done') {
-        if (which === 'route' && info.secondRoute) {
-          if (hasOtherRoute(res.plan)) say('route-second');
-          else say('route-no-second', 'route-next');
-        } else say('route-done', 'route-next');
-      } else if (res.result === 'added' && routeCandidates(res.plan, layout, which).length === 0) {
-        say('route-dead-end');
-      }
+      announce(res);
     }
   };
 
-  const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
-    if (kind !== 'up') return;
+  // 끌어서 긋기 — 손이 지나는 자리를 따라 길이 생긴다. 벽은 넘지 못하고 문과 트인 곳으로만 건너간다
+  const drag = useRef<{ at: string; drew: boolean; blocked: boolean; last: RouteTap | null } | null>(null);
+  const under = (p: Pt): string => {
     const piece = pieceKeyAt(layout, p);
-    choose(layout.cellAt.has(piece) ? piece : OUT);
+    return layout.cellAt.has(piece) ? piece : OUT;
+  };
+
+  const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
+    if (kind === 'down') {
+      drag.current = { at: under(p), drew: false, blocked: false, last: null };
+      return;
+    }
+    if (kind === 'cancel') {
+      drag.current = null;
+      return;
+    }
+    const held = drag.current;
+    if (kind === 'move') {
+      if (!held) return;
+      const now = under(p);
+      if (now === held.at) return;
+      // 처음 넘어갈 때는 누른 자리부터 잇는다
+      const targets = held.drew ? [now] : [held.at, now];
+      held.at = now;
+      for (const target of targets) {
+        const res = dragRoute(getApp().plan, layout, which, target);
+        if (res.result === 'no-way') held.blocked = true;
+        else if (res.result !== 'same' && res.result !== 'no-start') {
+          if (which === 'route2' && res.result === 'done' && cellsOf(res.plan.route2) === cellsOf(res.plan.route)) continue;
+          commit(res.plan, { merge: held.drew });
+          held.drew = true;
+          held.blocked = false;
+          held.last = res;
+        }
+      }
+      return;
+    }
+    drag.current = null;
+    if (held?.drew) {
+      if (held.blocked) say('route-no-way');
+      else if (held.last) announce(held.last);
+      return;
+    }
+    choose(under(p));
   };
 
   // 화살표 키 — 지금 자리에서 그 방향에 있는 문으로 간다
@@ -455,7 +532,7 @@ export function RouteStep() {
   useArrowKeys(onArrow);
 
   const stepsText = route.length
-    ? `${route.filter((s) => s !== OUT).length}칸 지남${done ? ', 도착' : ''}`
+    ? `${routeCells(layout, route).filter((s) => s !== OUT).length}칸 지남${done ? ', 도착' : ''}`
     : '아직 고르지 않음';
 
   return (
@@ -469,6 +546,7 @@ export function RouteStep() {
         )}
         {info.secondRoute && firstDone && !otherWay && <p className="tool-note" data-testid="route-no-other">다른 길이 없어. 문을 더 달면 찾을 수 있어.</p>}
         <p className="tool-note" data-testid="route-status">{stepsText}</p>
+        <p className="tool-note" data-testid="route-drag-note">칸을 눌러도 되고, 손으로 끌어 길을 그어도 돼. 벽은 못 지나가.</p>
         {hasStart && layout.links.length === 0 && <p className="tool-note">문이 없어. 도와줘를 눌러 봐.</p>}
         {hasStart && layout.links.length > 0 && route.length <= 1 && candidates.length === 0 && <p className="tool-note" data-testid="route-no-door">내 자리 칸에 문이 없어. 도와줘를 눌러 봐.</p>}
         {!hasStart && <p className="tool-note">내 자리가 없어. 도와줘를 눌러 봐.</p>}

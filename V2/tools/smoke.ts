@@ -238,7 +238,8 @@ async function playToEnd(page: Page, tap: (x: number, y: number) => Promise<void
       const route = (svg.getAttribute('data-route') ?? '').split(' ');
       const cellOf = (k: string) => document.querySelector(`.stage [data-cell] [data-piece="${k}"]`)?.closest('[data-cell]')?.getAttribute('data-cell') ?? null;
       const ids = route.map((s) => (s === 'out' ? 'out' : cellOf(s)));
-      return { next: route[ids.indexOf(at) + 1] ?? null, rows: 0 };
+      // 끌어서 그은 길은 한 칸 안에 조각이 여럿이다. 지금 칸의 마지막 조각 다음이 다음 칸이다
+      return { next: route[ids.lastIndexOf(at) + 1] ?? null, rows: 0 };
     });
     assert.ok(next.next, '길의 다음 칸이 있어야 한다');
     if (next.next === 'out') {
@@ -359,9 +360,18 @@ async function main(): Promise<void> {
     const before = await num(page, 'walls');
     await page.click(t('tool-eraser'));
     await clickAt(page, 4, 0.5);
-    assert.equal(await num(page, 'walls'), before - 1, '지우개');
+    // 긴 벽을 한 칸만 지우면 벽이 없어지는 것이 아니라 문 없는 입구가 된다(대장 #137)
+    assert.equal(await num(page, 'gaps'), 1, '지우개로 한 칸만 지우면 틈이 된다');
+    assert.equal(await num(page, 'cells'), 3, '칸은 그대로 나뉘어 있다');
+    assert.equal(await page.locator(t('eraser-note')).count(), 1, '지우개가 틈을 만든다고 적혀 있다');
+    await clickAt(page, 4, 1.5);
+    assert.equal(await num(page, 'gaps'), 0, '옆까지 지우면 틈도 사라진다');
+    assert.equal(await num(page, 'walls'), before - 2, '지우개');
+    assert.equal(await num(page, 'cells'), 2, '벽이 끊겨 두 칸이 합쳐진다');
+    await page.click(t('undo'));
     await page.click(t('undo'));
     assert.equal(await num(page, 'walls'), before, '되돌리기');
+    assert.equal(await num(page, 'gaps'), 0);
     await page.click(t('tool-pencil'));
 
     await page.click(t('next'));
@@ -557,25 +567,27 @@ async function main(): Promise<void> {
     await page.click(t('step-door'));
     const me = await page.locator('.stage [data-mark="me"]').getAttribute('transform');
     const m = /translate\(([\d.]+) ([\d.]+)\)/.exec(me!)!;
-    const mx = Number(m[1]) / 100;
-    const my = Number(m[2]) / 100;
-    const myCell = await page.evaluate(([x, y]) => {
+    // 그림은 처음 네모가 100 이고, 새 종이는 그보다 촘촘하다. 지금 점 한 칸의 그림 크기로 나눠 점 단위로 읽는다
+    const unit = 100 / (await num(page, 'density'));
+    const mx = Number(m[1]) / unit;
+    const my = Number(m[2]) / unit;
+    const myCell = await page.evaluate(([x, y, u]) => {
       const cells = [...document.querySelectorAll('.stage [data-cell]')];
       for (const c of cells) {
-        const rects = [...c.querySelectorAll('rect')].map((r) => ({ x: Number(r.getAttribute('x')) + 0.5, y: Number(r.getAttribute('y')) + 0.5 }));
-        if (rects.some((r) => r.x === Math.floor(x!) * 100 && r.y === Math.floor(y!) * 100)) return rects;
+        const rects = [...c.querySelectorAll('rect')].map((r) => ({ x: Math.round((Number(r.getAttribute('x')) + 0.5) / u!), y: Math.round((Number(r.getAttribute('y')) + 0.5) / u!) }));
+        if (rects.some((r) => r.x === Math.floor(x!) && r.y === Math.floor(y!))) return rects;
       }
       return [];
-    }, [mx, my]);
-    const topY = Math.min(...myCell.map((r) => r.y)) / 100;
+    }, [mx, my, unit]);
+    const topY = Math.min(...myCell.map((r) => r.y));
     assert.equal(topY, 0, '내 방은 위쪽 겉벽에 닿는다');
     const onTop = myCell.find((r) => r.y === 0)!;
-    await clickAt(page, onTop.x / 100 + 0.5, 0);
+    await clickAt(page, onTop.x + 0.5, 0);
     await page.click(t('step-route'));
     await page.click(t('route-second'));
     assert.equal(await page.locator(t('route-second')).getAttribute('aria-pressed'), 'true');
     // 집 밖을 누르면 내 방에서 곧장 나간다
-    await clickAt(page, 6, 8.9);
+    await clickAt(page, (await num(page, 'cols')) / 2, (await num(page, 'rows')) + 0.9);
     assert.ok((await attr(page, 'route2'))!.endsWith('out'), '둘째 길이 밖까지 간다');
     await shot(page, '33-high-route2');
     await page.click(t('next'));
@@ -834,7 +846,8 @@ async function main(): Promise<void> {
     await page.click(t('layer-home'));
     await page.click(t('tpl-high-cut'));
     await page.click(t('help'));
-    assert.equal(await num(page, 'diagonals'), 4, '본의 대각선을 채운다');
+    // 새 종이는 처음 네모보다 촘촘해 비스듬한 벽이 더 많은 조각으로 나뉜다
+    assert.ok((await num(page, 'diagonals')) >= 4, '본의 대각선을 채운다');
     await shot(page, '51-diag-draw');
     await page.click(t('next'));
     await page.click(t('help'));
@@ -842,11 +855,13 @@ async function main(): Promise<void> {
     await shot(page, '52-diag-sort');
     await page.click(t('next'));
     // 대각선 벽에 창문과 문을 단다
+    // 본은 처음 네모 단위로 적혀 있다. 새 종이의 점 단위로 바꿔 누른다
+    const tight = await num(page, 'density');
     await page.click(t('tool-window'));
-    await clickAt(page, 9.5, 0.5);
+    await clickAt(page, 9.5 * tight, 0.5 * tight);
     assert.equal(await num(page, 'windows'), 1, '대각선 벽에 창문');
     await page.click(t('tool-door'));
-    await clickAt(page, 10.5, 1.5);
+    await clickAt(page, 10.5 * tight, 1.5 * tight);
     assert.equal(await num(page, 'doors'), 1, '대각선 벽에 문');
     assert.equal(await page.locator('.stage [data-door^="d:"]').getAttribute('data-exit'), '1', '밖으로 나가는 문');
     await page.click(t('help'));
@@ -877,7 +892,7 @@ async function main(): Promise<void> {
     await page.reload();
     await page.click(t('start'));
     await page.waitForSelector('.studio');
-    assert.equal(await num(page, 'diagonals'), 4, '저장이 남는다');
+    assert.ok((await num(page, 'diagonals')) >= 4, '저장이 남는다');
     assert.deepEqual(errors, [], '콘솔 오류');
     await ctx.close();
   });
@@ -1076,11 +1091,11 @@ async function main(): Promise<void> {
       return { x: r.x, y: r.y };
     });
     const truck = await where('.sc-truck');
-    const cloud = await where('.sc-cloud.c1');
+    const cloud = await where('.sc-cloud');
     const button = await where(t('start'));
     await page.waitForTimeout(1500);
     assert.ok((await where('.sc-truck')).x > truck.x + 20, '소방차가 지나간다');
-    assert.ok((await where('.sc-cloud.c1')).x > cloud.x + 5, '구름이 흐른다');
+    assert.ok((await where('.sc-cloud')).x > cloud.x + 5, '구름이 흐른다');
     assert.deepEqual(await where(t('start')), button, '시작 단추는 제자리다');
     const far = await page.locator('.sc-near').evaluate((el) => getComputedStyle(el).transform);
     await page.mouse.move(40, 40);
@@ -1190,7 +1205,9 @@ async function main(): Promise<void> {
     const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1366, height: 768 } });
     await startAs(page, 6);
     const count = () => page.locator(t('dots-count')).innerText();
-    assert.equal(await count(), '117개', '5~6학년 기본');
+    // 새 종이는 처음 네모(12×8)보다 촘촘한 15×10 이다(대장 #137)
+    assert.equal(await count(), '176개', '5~6학년 기본');
+    assert.equal(await num(page, 'cols'), 15);
     await checkTargets(page, '점 개수');
     const panel = await page.locator('.tools').first().boundingBox();
     // 키가 낮은 창에서는 잘리지 않게 두 줄로 편다
@@ -1199,8 +1216,7 @@ async function main(): Promise<void> {
     assert.equal(await page.locator('.guide-line').count(), 0, '연한 점선이 없다');
 
     // 줄이면 점이 적어지고, 늘리면 많아진다
-    await page.click(t('dots-less'));
-    await page.click(t('dots-less'));
+    for (let i = 0; i < 4; i++) await page.click(t('dots-less'));
     assert.equal(await count(), '63개', '50% 안팎으로 준다');
     assert.equal(await page.locator(t('dots-less')).isDisabled(), true, '더 줄지 않는다');
     await shot(page, '80-dots-few');
@@ -1323,7 +1339,20 @@ async function main(): Promise<void> {
     await page.click(t('next'));
     await page.click(t('help'));
     assert.equal(await page.locator('.stage [data-door][data-exit="1"]').count(), 1, '밖으로 나가는 문은 하나');
-    assert.ok((await page.locator('.stage [data-door][data-inner="1"]').count()) >= 1, '중문이 있다');
+    // 현관과 거실은 트인 칸이라 문 없이 이어진다(대장 #140). 그 사이 벽을 눌러 문을 달면 그 문이 중문이다
+    assert.equal(await page.locator('.stage [data-door][data-inner="1"]').count(), 0, '도와줘는 트인 칸 사이에 문을 달지 않는다');
+    const opens = await num(page, 'opens');
+    assert.ok(opens > 0, '트인 칸끼리 맞닿은 곳이 점선이다');
+    const near = await page.evaluate(() => {
+      const label = [...document.querySelectorAll('.stage .cell-label')].find((el) => el.textContent === '현관')!.getBoundingClientRect();
+      const cx = label.left + label.width / 2;
+      const cy = label.top + label.height / 2;
+      const walls = [...document.querySelectorAll('.stage .wall.open')].map((el) => el.getBoundingClientRect()).map((r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 }));
+      return walls.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0]!;
+    });
+    await page.mouse.click(near.x, near.y);
+    assert.ok((await page.locator('.stage [data-door][data-inner="1"]').count()) >= 1, '현관 옆 트인 곳에 문을 달면 중문이다');
+    assert.ok((await num(page, 'opens')) < opens, '문을 단 사이는 점선이 아니다');
     await shot(page, '95-home-door');
     await page.click(t('next'));
     await page.click(t('help'));
@@ -1429,6 +1458,310 @@ async function main(): Promise<void> {
       await shot(page, `02d-welcome-${viewport.width}`);
       await ctx.close();
     }
+  });
+
+  await scenario('첫 화면 겹침: 하늘 것은 위에, 땅 것은 아래에 있고 글·표지·캐릭터·단추와 서로 겹치지 않는다', async () => {
+    // 움직임 한 바퀴(48 초)를 2 초씩 건너뛰며 전부 잰다. 길 위의 소방차와 가족만 길과 겹쳐도 된다
+    const sweep = async (page: Page, label: string): Promise<void> => {
+      const found = new Set<string>();
+      for (let i = 0; i < 26; i++) {
+        const hits = await page.evaluate((step) => {
+          if (step) for (const a of document.getAnimations()) a.currentTime = Number(a.currentTime ?? 0) + 2000;
+          const q = (sel: string) => [...document.querySelectorAll<HTMLElement>(sel)];
+          const ink = (sel: string) => q(sel).flatMap((el) => {
+            const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            const out: Range[] = [];
+            for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+              if (!n.textContent?.trim()) continue;
+              const range = document.createRange();
+              range.selectNodeContents(n);
+              out.push(range);
+            }
+            return out;
+          });
+          const shown = (el: HTMLElement) => getComputedStyle(el).display !== 'none' && getComputedStyle(el).opacity !== '0';
+          const groups: Record<string, (HTMLElement | Range)[]> = {
+            로고: q('.welcome-top img, .welcome-top span'), 설치안내: q('.install-link'), 제목: ink('.welcome-text h1'), 안내글: ink('.welcome-lead'),
+            차례: q('.welcome-steps'), 단추: q('.welcome-actions > *'), 묻는칸: q('.welcome-confirm'), 표지: q('.cover-art'), 캐릭터: q('.welcome-chars img'), 아래문구: q('.welcome-foot'),
+            해: q('.sky-sun'), 새: q('.sky-birds').filter(shown), 구름: q('.sky-clouds path'),
+            집과나무: q('.sc-far > g'), 깃발: q('.sc-meet'), 가족: q('.sc-family').filter(shown), 소방차: q('.sc-truck'), 길: q('.sc-road'),
+          };
+          const boxes: { name: string; r: DOMRect }[] = [];
+          for (const [name, els] of Object.entries(groups)) for (const el of els) {
+            const r = el.getBoundingClientRect();
+            if (r.width && r.right > 0 && r.left < innerWidth) boxes.push({ name, r });
+          }
+          const meets = (a: DOMRect, b: DOMRect) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+          const inside = new Set(['단추|묻는칸', '묻는칸|단추', '가족|길', '길|가족', '소방차|길', '길|소방차']);
+          const out: string[] = [];
+          boxes.forEach((a, x) => boxes.slice(x + 1).forEach((b) => {
+            if (a.name === b.name && a.name !== '캐릭터' && a.name !== '집과나무' && a.name !== '단추') return;
+            if (inside.has(`${a.name}|${b.name}`)) return;
+            if (meets(a.r, b.r)) out.push(`${a.name}×${b.name}`);
+          }));
+          if (document.documentElement.scrollHeight > innerHeight + 1) out.push('세로로 넘친다');
+          if (document.documentElement.scrollWidth > innerWidth + 1) out.push('가로로 넘친다');
+          return { out, seen: Object.entries(groups).filter(([, els]) => els.length).map(([name]) => name) };
+        }, i);
+        hits.out.forEach((h) => found.add(h));
+        if (i === 0) for (const name of ['해', '구름', '집과나무', '깃발', '소방차', '길', '설치안내']) assert.ok(hits.seen.includes(name), `${label} ${name} 이(가) 있다`);
+      }
+      assert.deepEqual([...found], [], label);
+    };
+    const sizes = [[1920, 1080], [1920, 950], [1536, 730], [1366, 768], [1366, 650], [1280, 720], [1180, 820], [1024, 768], [1024, 700], [2560, 1080]] as const;
+    for (const [width, height] of sizes) {
+      const { ctx, page } = await fresh(browser, { viewport: { width, height } });
+      await page.waitForSelector(t('start'));
+      await page.waitForTimeout(900);
+      await sweep(page, `${width}×${height}`);
+      await ctx.close();
+    }
+    // 이어서 그리기와 처음부터 다시 하기, 그리고 한 번 묻는 칸이 떠도 땅 그림에 닿지 않는다
+    for (const [width, height] of [[1366, 768], [1024, 700], [1366, 650], [1280, 720], [1536, 730], [1920, 950]] as const) {
+      const { ctx, page } = await fresh(browser, { viewport: { width, height } });
+      await page.click(t('start'));
+      await page.click(t('grade-3'));
+      await page.click(t('tag-done'));
+      await page.waitForSelector('.studio');
+      await page.click(t('home'));
+      await page.waitForSelector(t('start-over'));
+      await page.waitForTimeout(900);
+      await sweep(page, `${width}×${height} 이어서`);
+      await page.click(t('start-over'));
+      await page.waitForSelector(t('start-over-yes'));
+      await sweep(page, `${width}×${height} 묻는 칸`);
+      if (width === 1366 && height === 768) await shot(page, '02e-welcome-confirm');
+      await ctx.close();
+    }
+  });
+
+  await scenario('#137: 모눈종이에 틈을 남겨 그리고, 트인 칸과 틈으로 길을 끌어 긋고, 가구를 돌리고 키우며, 불이 천천히 자라고, 가족을 만나면 축포가 터진다', async () => {
+    const { ctx, page, errors } = await fresh(browser, { viewport: { width: 1366, height: 768 } });
+    await startAs(page, 3);
+    const line = () => page.locator(t('bubble')).getAttribute('data-line');
+    const dragBy = async (points: [number, number][]) => {
+      const first = await toScreen(page, points[0]![0], points[0]![1]);
+      await page.mouse.move(first.x, first.y);
+      await page.mouse.down();
+      for (const [x, y] of points.slice(1)) {
+        const p = await toScreen(page, x, y);
+        await page.mouse.move(p.x, p.y, { steps: 6 });
+      }
+      await page.mouse.up();
+    };
+
+    // 모눈종이 — 새 종이는 촘촘하고, 줄이 깔리고, 점은 작고 연하다
+    assert.equal(await num(page, 'cols'), 12, '3~4학년 새 종이는 12×9');
+    assert.equal(await num(page, 'rows'), 9);
+    const paper = await page.evaluate(() => {
+      const dots = [...document.querySelectorAll<SVGCircleElement>('.stage .dots circle.dot')];
+      const svg = document.querySelector('.stage svg.plan') as SVGSVGElement;
+      const px = svg.getScreenCTM()!.a;
+      const rgb = getComputedStyle(dots[0]!).fill.match(/\d+/g)!.map(Number);
+      const order = [...svg.children];
+      const above = order.indexOf(document.querySelector('.stage .dots')!) > order.indexOf(document.querySelector('.stage .walls')!);
+      return { above, lines: document.querySelectorAll('.stage .grid .grid-line').length, dots: dots.length, r: Math.max(...dots.map((d) => d.r.baseVal.value)) * px, light: Math.min(...rgb) };
+    });
+    assert.equal(paper.lines, 13 + 10, '모눈 줄이 깔린다');
+    assert.equal(paper.above, true, '점은 칸 색칠 위에 있어 집 안에서도 보인다');
+    assert.equal(paper.dots, 13 * 10);
+    assert.ok(paper.r <= 5, `점이 작다: 반지름 ${paper.r.toFixed(1)}px`);
+    assert.ok(paper.light >= 170, `점이 연하다: ${paper.light}`);
+
+    // 테두리에 입구를 한 칸 남기고 그려도 집이 닫히고, 그 자리가 문 없는 입구가 된다
+    await dragThrough(page, [[1, 1], [11, 1], [11, 8], [1, 8], [1, 2]]);
+    assert.equal(await num(page, 'cells'), 1, '틈을 남겨도 집이 닫힌다');
+    assert.equal(await num(page, 'gaps'), 1, '남긴 자리가 틈이다');
+    assert.equal(await page.locator('.stage [data-gap][data-exit="1"]').count(), 1, '겉벽의 틈은 나가는 곳이다');
+    await dragThrough(page, [[6, 1], [6, 8]]);
+    assert.equal(await num(page, 'cells'), 2);
+    await shot(page, '137-a-gap');
+
+    // 거실과 부엌처럼 트인 칸끼리는 문 없이 이어진다
+    await page.click(t('next'));
+    await page.click(t('crayon-living'));
+    await clickAt(page, 3.5, 4.5);
+    await page.click(t('crayon-kitchen'));
+    await clickAt(page, 8.5, 4.5);
+    assert.equal(await num(page, 'opens'), 7, '맞닿은 벽이 점선이 된다');
+    assert.equal(await page.locator('.stage .wall.open').count(), 7);
+    await page.click(t('next'));
+    assert.ok((await page.locator(t('check-exit')).getAttribute('class'))!.includes('done'), '틈이 나가는 문 노릇을 한다');
+    assert.ok((await page.locator(t('check-linked')).getAttribute('class'))!.includes('done'), '문을 달지 않아도 모두 이어진다');
+    assert.equal(await page.locator(t('open-note')).count(), 1);
+    assert.equal(await num(page, 'doors'), 0);
+
+    // 트인 곳 도구 — 벽을 누르면 문짝 없는 입구가 되고, 다시 누르면 벽으로 돌아온다
+    await page.click(t('tool-gap'));
+    await clickAt(page, 11, 4.5);
+    assert.equal(await num(page, 'gaps'), 2, '트인 곳을 낸다');
+    await clickAt(page, 11, 4.5);
+    assert.equal(await num(page, 'gaps'), 1, '다시 누르면 벽이다');
+    await shot(page, '137-b-open');
+
+    // 표시하기 — 손 아래에 놓을 것의 모양이 따라다닌다
+    await page.click(t('next'));
+    const hover = await toScreen(page, 8.5, 6.5);
+    await page.mouse.move(hover.x - 30, hover.y);
+    await page.mouse.move(hover.x, hover.y);
+    const ghost = page.locator(t('cursor-ghost'));
+    assert.equal(await ghost.getAttribute('data-ghost'), 'mark-me', '내 자리를 놓을 때는 내 모습이 따라다닌다');
+    assert.equal(await ghost.evaluate((el) => getComputedStyle(el).display), 'block');
+    assert.equal(await page.locator('.stage svg.plan').first().evaluate((el) => getComputedStyle(el).cursor), 'none', '화살표 대신 그림이다');
+    const ghostAt = await ghost.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform));
+    assert.ok(Math.abs(ghostAt.e - hover.x) < 1 && Math.abs(ghostAt.f - hover.y) < 1, '손 아래에 있다');
+    await page.mouse.click(hover.x, hover.y);
+    assert.ok((await attr(page, 'marks'))!.includes('me'));
+    await clickAt(page, 6, 9.9);
+    assert.ok((await attr(page, 'marks'))!.includes('meet'));
+
+    // 가구 — 놓는 동안 그 가구가 따라다니고, 놓은 뒤 돌리고 크기를 바꾼다
+    await page.click(t('layer-items'));
+    await page.click(t('item-sofa'));
+    const spot = await toScreen(page, 3.5, 5);
+    await page.mouse.move(spot.x + 20, spot.y);
+    await page.mouse.move(spot.x, spot.y);
+    assert.equal(await page.locator(t('cursor-ghost')).getAttribute('data-ghost'), 'sofa', '소파 그림이 따라다닌다');
+    await page.mouse.click(spot.x, spot.y);
+    const item = page.locator('.stage .placed-item > g');
+    assert.equal(await item.count(), 1);
+    await page.waitForSelector(t('item-bar'));
+    assert.equal(await page.locator(t('item-ring')).count(), 1, '고른 가구에 점선이 둘린다');
+    const angle0 = Number(await item.getAttribute('data-angle'));
+    const turns = new Set<number>();
+    for (let i = 0; i < 4; i++) {
+      await page.click(t('item-turn'));
+      const a = Number(await item.getAttribute('data-angle'));
+      assert.equal(a % 90, 0, '동서남북으로만 돈다');
+      turns.add(a);
+    }
+    assert.equal(turns.size, 4, `네 방향을 돈다 (처음 ${angle0}도)`);
+    await page.click(t('item-bigger'));
+    assert.equal(await item.getAttribute('data-size'), '1.25', '커진다');
+    await page.click(t('item-smaller'));
+    await page.click(t('item-smaller'));
+    assert.equal(await item.getAttribute('data-size'), '0.8', '작아진다');
+    await page.click(t('item-bigger'));
+    await page.click(t('item-bigger'));
+    await checkTargets(page, '가구 막대');
+    await shot(page, '137-c-item');
+    await page.click(t('item-ok'));
+    assert.equal(await page.locator(t('item-bar')).count(), 0);
+    // 놓은 가구를 누르면 다시 고친다. 치울 수도 있다
+    await page.mouse.click(spot.x, spot.y);
+    await page.waitForSelector(t('item-bar'));
+    assert.equal(await item.getAttribute('data-size'), '1.25', '크기가 남아 있다');
+    await page.click(t('item-ok'));
+    await page.click(t('layer-items'));
+    await page.click(t('item-plant'));
+    await clickAt(page, 9.5, 2.5);
+    await page.click(t('item-delete'));
+    assert.equal(await page.locator('.stage .placed-item').count(), 1, '막대로 치운다');
+
+    // 나가는 길 — 손으로 끌어 긋는다. 부엌에서 트인 곳을 지나 거실로, 거실에서 틈으로 밖까지
+    await page.click(t('next'));
+    assert.equal(await page.locator(t('route-drag-note')).count(), 1);
+    await dragBy([[8.5, 6.5], [7.5, 6.5], [6.5, 4.5], [5.5, 4.5], [3.5, 6.5], [2.5, 3.5], [1.5, 1.5], [0.3, 1.5]]);
+    const route = (await attr(page, 'route'))!.split(' ');
+    assert.equal(route[route.length - 1], 'out', `끌어서 밖까지 간다: ${route.join(' ')}`);
+    assert.ok(route.length > 6, '지나간 자리가 그대로 길이다');
+    assert.equal(await line(), 'route-done');
+    assert.equal(await page.locator(t('route-status')).innerText(), '2칸 지남, 도착');
+    // 길은 벽을 지나지 않는다 — 부엌과 거실 사이는 트인 곳으로만 건넌다
+    await page.click(t('undo'));
+    assert.equal((await attr(page, 'route'))!, '', '끌어서 그은 길은 되돌리기 한 번에 사라진다');
+    await dragBy([[8.5, 6.5], [9.5, 6.5], [10.5, 6.5], [11.6, 6.5]]);
+    assert.ok(!(await attr(page, 'route'))!.endsWith('out'), '벽은 넘지 못한다');
+    assert.equal(await line(), 'route-no-way');
+    await page.click(t('route-clear'));
+    await dragBy([[8.5, 6.5], [7.5, 6.5], [6.5, 4.5], [5.5, 4.5], [3.5, 6.5], [2.5, 3.5], [1.5, 1.5], [0.3, 1.5]]);
+    assert.ok((await attr(page, 'route'))!.endsWith('out'));
+    await shot(page, '137-d-route');
+
+    // 대피 연습 — 불은 작게 시작하고, 연기가 보이며, 움직일수록 자란다
+    await page.click(t('next'));
+    await page.click(t('drill-start'));
+    await page.waitForSelector(t('player'));
+    const fire = page.locator('.stage [data-source="1"]');
+    assert.equal(await fire.count(), 1, '불이 난 칸이 있다');
+    const heat0 = Number(await fire.getAttribute('data-heat'));
+    assert.ok(heat0 > 0 && heat0 < 60, `작게 시작한다: ${heat0}`);
+    assert.equal(await fire.getAttribute('data-flames'), '1', '불꽃 하나로 시작한다');
+    assert.ok((await page.locator('.stage .smoke-puff').count()) >= 1, '연기가 보인다');
+    await shot(page, '137-e-fire-start');
+    await playToEnd(page, (x, y) => clickAt(page, x, y));
+    assert.ok(Number(await fire.getAttribute('data-heat')) > heat0, '움직이는 동안 불이 자란다');
+
+    // 가족을 만나면 축포가 터지고 소리가 난다
+    await page.waitForSelector(t('celebrate'));
+    assert.match(await page.locator('.celebrate-banner').innerText(), /대피 성공/);
+    assert.match(await page.locator('.card-over h3').innerText(), /가족을 만났어/);
+    const overlap = await page.evaluate(() => {
+      const a = document.querySelector('.celebrate-banner')!.getBoundingClientRect();
+      const b = document.querySelector('.card-over')!.getBoundingClientRect();
+      return a.bottom > b.top + 0.5;
+    });
+    assert.equal(overlap, false, '축하 띠와 카드가 겹치지 않는다');
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.cheer), '1', '축하 소리를 한 번 낸다');
+    const party = await page.evaluate(() => ({
+      bursts: Number(document.querySelector<HTMLElement>('[data-testid="celebrate-fire"]')?.dataset.bursts ?? 0),
+      wide: (() => {
+        const r = document.querySelector('.celebrate')!.getBoundingClientRect();
+        return r.width >= innerWidth - 1 && r.height >= innerHeight - 1;
+      })(),
+      confetti: document.querySelectorAll('.celebrate-confetti i').length,
+      running: document.getAnimations().filter((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.target?.closest?.('.celebrate')).length,
+      blocks: (() => {
+        const b = document.querySelector('[data-testid="drill-call"]')!.getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return !hit || !hit.closest('[data-testid="drill-call"]');
+      })(),
+    }));
+    assert.ok(party.bursts >= 3 && party.confetti >= 80 && party.running >= 80, `축포와 색종이가 움직인다: ${JSON.stringify(party)}`);
+    assert.equal(party.wide, true, '불꽃놀이가 화면을 가득 채운다');
+    assert.equal(party.blocks, false, '축하 그림이 단추를 가리지 않는다');
+    await page.waitForTimeout(1600);
+    const sparks = await page.evaluate(() => {
+      const c = document.querySelector<HTMLCanvasElement>('[data-testid="celebrate-fire"]')!;
+      const data = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let lit = 0;
+      for (let i = 3; i < data.length; i += 4 * 7) if (data[i]! > 40) lit += 1;
+      return { bursts: Number(c.dataset.bursts), lit };
+    });
+    assert.ok(sparks.bursts >= 6, `폭죽이 잇달아 터진다: ${sparks.bursts}송이`);
+    assert.ok(sparks.lit > 300, `불씨가 화면에 그려진다: ${sparks.lit}`);
+    await shot(page, '137-f-celebrate');
+    await page.click(t('drill-call'));
+    await page.waitForSelector(t('praises'));
+
+    // 3D — 끝 장면에 축포가 터지고, 놓은 가구는 고른 크기로 나온다
+    await page.click(t('open-replay'));
+    await page.waitForSelector(t('replay-canvas'), { timeout: 20000 });
+    const stage3d = page.locator(`${t('replay')} > div`).first();
+    assert.equal(await stage3d.getAttribute('data-placed'), '1');
+    await page.waitForFunction(() => document.querySelector('[data-testid="replay"] > div')?.getAttribute('data-fireworks') === '1', undefined, { timeout: 90000 });
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.cheer), '2', '3D 끝에서도 축하 소리를 낸다');
+    assert.match(await page.locator(t('replay-caption')).innerText(), /대피 성공/);
+    await page.waitForTimeout(900);
+    await shot(page, '137-g-replay-fireworks');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+
+    // 소리를 끄면 축하 소리도 나지 않고, 움직임 줄이기에서는 멈춘 그림이다
+    const quiet = await seeded(browser, 3, fullHome('mid'), { viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+    await quiet.page.click(t('menu'));
+    await quiet.page.click(t('sound-toggle'));
+    await quiet.page.click(t('menu-close'));
+    await quiet.page.click(t('step-drill'));
+    await quiet.page.click(t('drill-start'));
+    await quiet.page.waitForSelector(t('player'));
+    await playToEnd(quiet.page, (x, y) => clickAt(quiet.page, x, y));
+    await quiet.page.waitForSelector(t('celebrate'));
+    assert.equal(await quiet.page.evaluate(() => document.documentElement.dataset.cheer ?? '0'), '0', '소리를 끄면 축하 소리도 없다');
+    assert.equal(await quiet.page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.getComputedTiming().iterations === Infinity).length), 0, '움직임 줄이기에서는 되풀이하지 않는다');
+    assert.deepEqual(quiet.errors, [], '콘솔 오류');
+    await quiet.ctx.close();
   });
 
   await scenario('작은 화면은 안내만 보인다', async () => {
@@ -1665,6 +1998,8 @@ async function main(): Promise<void> {
 
     const dense = await fresh(browser, { viewport: { width: 1280, height: 800 } });
     await startAs(dense.page, 1);
+    // 새 종이는 기본 범위의 가장 촘촘한 쪽에서 시작한다. 줄였다가 다시 늘려도 기본 범위 안이다
+    for (let i = 0; i < 2; i++) await dense.page.click(t('dots-less'));
     for (let i = 0; i < 2; i++) await dense.page.click(t('dots-more'));
     assert.notEqual(await dense.page.locator(t('bubble')).getAttribute('data-line'), 'draw-dense', '기본 범위에서는 말하지 않는다');
     await dense.page.click(t('dots-more'));
@@ -1920,7 +2255,9 @@ async function main(): Promise<void> {
       await again.click(t('tag-done'));
       await again.waitForSelector('.studio');
       assert.equal(await num(again, 'walls'), walls, '도면이 그대로다');
-      assert.equal(await num(again, 'cols'), 10, '학년 단계가 도면 크기로 이어진다');
+      // 3~4학년의 새 종이는 12×9 다. 처음 네모(10×7)로 학년 단계를 알아낸다
+      assert.equal(await num(again, 'cols'), 12, '학년 단계가 도면 크기로 이어진다');
+      assert.equal(Math.round(12 / (await num(again, 'density'))), 10, '처음 네모는 3~4학년의 10칸이다');
       assert.deepEqual(errors, [], '콘솔 오류');
       await ctx.close();
 

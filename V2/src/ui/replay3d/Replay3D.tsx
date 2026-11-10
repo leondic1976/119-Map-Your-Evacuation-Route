@@ -13,6 +13,8 @@ import { OUT, type Cell, type Layout, type Plan, type Pt } from '../../core/type
 import { ITEMS } from '../../content/items';
 import { FIRE } from '../../content/fire';
 import { LOOKS, type LookId } from '../../content/names';
+import { host as platform } from '../../platform/host';
+import { getApp } from '../../store/app';
 import { IconClose, IconPlay } from '../art';
 
 const WALL_H = 0.72;
@@ -235,6 +237,20 @@ function smokeTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
+/** 축포의 불씨 — 가운데가 밝고 가장자리가 흐린 동그라미 */
+function sparkTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)');
+  r.addColorStop(0.35, 'rgba(255,255,255,.9)');
+  r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
 function hexOf(css: string): number {
   return new THREE.Color(css).getHex();
 }
@@ -381,6 +397,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const exitMat = material(0x2e8b57);
     const walls = new THREE.Group();
     scene.add(walls);
+    const openSet = new Set(layout.openEdges);
     for (const run of layout.runs) {
       const a = world(run.a);
       const b = world(run.b);
@@ -391,23 +408,38 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       wall.rotation.y = -Math.atan2(b.y - a.y, b.x - a.x);
       walls.add(wall);
       const piece = (len: number, h: number, y: number, off: number, mat: THREE.Material) => box(len, h, WALL_T, mat, off, y, 0);
-      const full = length + WALL_T;
-      wall.add(piece(full, 0.03, WALL_H + 0.015, 0, trimMat));
+      // 위쪽 테두리는 벽이 있는 데에만 얹는다. 트인 곳 위에는 아무것도 없다
+      const trim = (start: number, end: number) => {
+        if (end - start > 0.001) wall.add(piece(end - start + WALL_T, 0.03, WALL_H + 0.015, (start + end) / 2, trimMat));
+      };
 
-      // 줄 위의 문과 창. 앞 구멍과 줄 끝을 넘지 않게 폭을 맞춘다. 자리는 줄 가운데에서 잰다
+      // 줄 위의 문과 창, 틈, 트인 칸끼리 맞닿은 곳. 앞 구멍과 줄 끝을 넘지 않게 폭을 맞춘다. 자리는 줄 가운데에서 잰다
       const openings = run.edges
-        .filter((e) => plan.openings[e.key])
+        .filter((e) => plan.openings[e.key] || openSet.has(e.key))
         .map((e) => {
           const m = world(e.mid);
-          return { edge: e.key, kind: plan.openings[e.key]!, at: Math.hypot(m.x - a.x, m.y - a.y) - length / 2 };
+          const ea = world(e.a);
+          const eb = world(e.b);
+          return { edge: e.key, kind: (plan.openings[e.key] ?? 'gap') as string, at: Math.hypot(m.x - a.x, m.y - a.y) - length / 2, len: Math.hypot(eb.x - ea.x, eb.y - ea.y) };
         })
         .sort((p, q) => p.at - q.at);
       let cursor = -length / 2;
       const solid = (start: number, end: number) => {
-        if (end - start > 0.001) wall.add(piece(end - start + WALL_T, WALL_H, WALL_H / 2, (start + end) / 2, wallMat));
+        if (end - start > 0.001) {
+          wall.add(piece(end - start + WALL_T, WALL_H, WALL_H / 2, (start + end) / 2, wallMat));
+          trim(start, end);
+        }
       };
       openings.forEach((o, i) => {
         const next = openings[i + 1];
+        if (o.kind === 'gap') {
+          // 문짝도 벽도 없이 토막 전체가 트여 있다
+          const start = Math.max(cursor, o.at - o.len / 2);
+          const end = Math.min(length / 2, o.at + o.len / 2);
+          solid(cursor, start);
+          cursor = Math.max(cursor, end);
+          return;
+        }
         const wanted = o.kind === 'door' ? 0.76 : 0.7;
         const left = Math.max(0.03, o.at - cursor - 0.06);
         const right = Math.max(0.03, Math.min(length / 2 - o.at - 0.06, next ? (next.at - o.at) / 2 - 0.03 : Infinity));
@@ -417,6 +449,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         solid(cursor, start);
         cursor = end;
         const width = end - start;
+        trim(start, end);
         if (o.kind === 'window') {
           wall.add(piece(width, 0.4, 0.2, o.at, wallMat));
           wall.add(piece(width, 0.14, WALL_H - 0.07, o.at, wallMat));
@@ -454,6 +487,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const piece = new THREE.Group();
       piece.position.set(at.x, 0, at.y);
       piece.rotation.y = (-item.angle * Math.PI) / 180;
+      piece.scale.setScalar(item.size ?? 1);
       for (const [w, h, d, color, x, y, z] of spec.parts) piece.add(box(w, h, d, material(color), x, y, z));
       furniture.add(piece);
     }
@@ -524,6 +558,9 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     // 불과 연기
     const flameMats: THREE.ShaderMaterial[] = [];
     const flames = new Map<string, THREE.Group>();
+    // 불이 시작된 칸의 불꽃 — 시작한 자리에서 가까운 순서다. 값이 오를수록 하나씩 늘고 커진다
+    const sourceFlames: THREE.Mesh[] = [];
+    const origin = world(drill.origin ?? drill.pt);
     const smokes = new Map<string, { mat: THREE.SpriteMaterial; sprites: { s: THREE.Sprite; x: number; z: number; ph: number }[] }>();
     const smokeTex = smokeTexture();
     const flameGeo = new THREE.PlaneGeometry(0.8, 1);
@@ -535,14 +572,18 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const each = Math.max(1, Math.round(density));
       const spots = cell.squares.filter((s) => s.x % each === 0 && s.y % each === 0).map((s) => world(s.center));
       if (spots.length === 0) spots.push(world(cell.anchor));
-      for (const c of spots) {
+      const isSource = cell.id === drill.source;
+      if (isSource) spots.sort((p, q) => Math.hypot(p.x - origin.x, p.y - origin.y) - Math.hypot(q.x - origin.x, q.y - origin.y));
+      spots.forEach((c, i) => {
         const mat = makeFlameMaterial();
         flameMats.push(mat);
         const flame = new THREE.Mesh(flameGeo, mat);
-        flame.position.set(c.x, 0.5, c.y);
+        const at = isSource && i === 0 ? origin : c;
+        flame.position.set(at.x, 0.5, at.y);
         flameMeshes.push(flame);
+        if (isSource) sourceFlames.push(flame);
         fg.add(flame);
-      }
+      });
       scene.add(fg);
       flames.set(cell.id, fg);
 
@@ -568,8 +609,44 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     let lastCaption = '';
     let raf = 0;
     let disposed = false;
+    // 축포 — 가족을 만나면 가족 뒤 하늘에서 터진다. 점 뭉치를 코드로 움직인다
+    const BURST_COLORS = [0xf59a23, 0x3e9d5d, 0x2f7fbf, 0xe3a62a, 0xd9558c, 0x8a5fc4];
+    const sparkTex = sparkTexture();
+    const bursts: { points: THREE.Points; dirs: Float32Array; at: THREE.Vector3; delay: number }[] = [];
+    let cheered = false;
+    let party = 0;
+    if (drill.end === 'meet' && family && meet) {
+      const lastStart = drill.timeline[drill.timeline.length - 1]?.walk[0];
+      const from = lastStart ? world(lastStart) : { x: meet.x, y: meet.y - 1 };
+      const bx = family.x - from.x;
+      const bz = family.z - from.y;
+      const bl = Math.hypot(bx, bz) || 1;
+      for (let i = 0; i < 8; i++) {
+        const count = 150;
+        const dirs = new Float32Array(count * 3);
+        for (let n = 0; n < count; n++) {
+          const th = Math.random() * Math.PI * 2;
+          const ph = Math.acos(2 * Math.random() - 1);
+          const sp = 0.75 + Math.random() * 0.35;
+          dirs[n * 3] = Math.sin(ph) * Math.cos(th) * sp;
+          dirs[n * 3 + 1] = Math.cos(ph) * sp;
+          dirs[n * 3 + 2] = Math.sin(ph) * Math.sin(th) * sp;
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+        const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: BURST_COLORS[i % BURST_COLORS.length], map: sparkTex, size: 0.13, transparent: true, opacity: 0, depthWrite: false }));
+        points.visible = false;
+        points.frustumCulled = false;
+        scene.add(points);
+        const back = 2.2 + (i % 3) * 1.1;
+        const side = (i - 3.5) * 0.8;
+        bursts.push({ points, dirs, at: new THREE.Vector3(family.x + (bx / bl) * back - (bz / bl) * side, 1.9 + (i % 2) * 0.7 + (i % 3) * 0.25, family.z + (bz / bl) * back + (bx / bl) * side), delay: i * 0.34 });
+      }
+    }
     restart.current = () => {
       time = 0;
+      party = 0;
+      cheered = false;
       setEnded(false);
     };
 
@@ -670,13 +747,29 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         const b = curr[cell.id] ?? 0;
         const v = a + (b - a) * r;
         const flame = flames.get(cell.id)!;
-        flame.visible = v >= levels.blocked - 1;
+        if (cell.id === drill.source) {
+          // 불은 시작한 자리에서 작게 시작해 값이 오를수록 넓어지고 커진다
+          const grown = Math.max(0, Math.min(1, (v - 45) / 55));
+          const count = v >= levels.blocked - 1 ? sourceFlames.length : v >= levels.light ? Math.max(1, Math.round(sourceFlames.length * grown * 0.8)) : 0;
+          const size = 0.4 + 0.6 * grown;
+          flame.visible = count > 0;
+          sourceFlames.forEach((mesh, i) => {
+            mesh.visible = i < count;
+            mesh.scale.setScalar(size);
+            mesh.position.y = 0.5 * size;
+          });
+          mount.dataset.flames = String(count);
+        } else {
+          flame.visible = v >= levels.blocked - 1;
+        }
         const smoke = smokes.get(cell.id)!;
-        const target = v < levels.light ? 0 : Math.min(0.62, 0.14 + (v / 100) * 0.5);
+        const target = v < levels.light ? 0 : Math.min(0.7, 0.14 + (v / 100) * 0.56);
         smoke.mat.opacity += (target - smoke.mat.opacity) * 0.08;
         smoke.sprites.forEach((sp) => {
-          const lift = reduced ? 0.4 : ((time * 0.14 + sp.ph) % 1) * 0.5;
-          sp.s.position.set(sp.x, WALL_H * 0.7 + lift, sp.z);
+          // 연기는 짙어질수록 크게 피어올라 천장 아래에 깔린다
+          const lift = reduced ? 0.4 : ((time * 0.14 + sp.ph) % 1) * 0.6;
+          sp.s.position.set(sp.x + (reduced ? 0 : Math.sin(time * 0.5 + sp.ph) * 0.08), WALL_H * 0.62 + lift, sp.z);
+          sp.s.scale.setScalar(1.05 + smoke.mat.opacity * 1.5);
           sp.s.visible = smoke.mat.opacity > 0.01;
         });
       }
@@ -694,6 +787,30 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         const goal = closedNow.has(edge) ? 0 : doorOpenAngle(edge);
         pivot.rotation.y += (goal - pivot.rotation.y) * 0.14;
       });
+
+      // 축포 — 끝 장면에서 차례로 터지고 되풀이한다
+      if (bursts.length && time >= total - 2.6) {
+        party += dt;
+        if (!cheered) {
+          cheered = true;
+          mount.dataset.fireworks = '1';
+          if (getApp().soundOn) platform.cheer();
+        }
+        for (const b of bursts) {
+          const life = reduced ? 0.7 : ((party - b.delay) % 2.6 + 2.6) % 2.6;
+          const shown = (reduced || party >= b.delay) && life < 1.9;
+          b.points.visible = shown;
+          if (!shown) continue;
+          const reach = 1.1 * (1 - Math.exp(-3.2 * life));
+          const drop = 0.22 * life * life;
+          const pos = b.points.geometry.getAttribute('position') as THREE.BufferAttribute;
+          for (let n = 0; n < pos.count; n++) pos.setXYZ(n, b.at.x + b.dirs[n * 3]! * reach, b.at.y + b.dirs[n * 3 + 1]! * reach - drop, b.at.z + b.dirs[n * 3 + 2]! * reach);
+          pos.needsUpdate = true;
+          (b.points.material as THREE.PointsMaterial).opacity = Math.max(0, Math.min(1, life * 6)) * Math.max(0, 1 - Math.max(0, life - 1) / 0.9);
+        }
+      } else if (bursts.length) {
+        for (const b of bursts) b.points.visible = false;
+      }
 
       const words = captionFor(seg.snap, drill, list.length, idx, time >= total - 2.6, levels.light);
       if (words !== lastCaption) {
@@ -761,7 +878,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
         else mat?.dispose?.();
       });
-      [roomTex, passTex, newTex, smokeTex].forEach((t) => t.dispose());
+      [roomTex, passTex, newTex, smokeTex, sparkTex].forEach((t) => t.dispose());
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -790,7 +907,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
 }
 
 function captionFor(snap: Snapshot, drill: DrillState, count: number, idx: number, ending: boolean, light: number): string {
-  if (ending) return drill.end === 'rescue' ? '문을 닫고 119에 알렸어' : '가족과 만났어';
+  if (ending) return drill.end === 'rescue' ? '문을 닫고 119에 알렸어' : '대피 성공! 가족과 만났어';
   if (idx === 0) return '내 자리에서 시작';
   if (idx === count - 1 && drill.end === 'meet') return '만나는 곳으로 가는 중';
   if (snap.at === OUT) return '밖으로 나왔어';

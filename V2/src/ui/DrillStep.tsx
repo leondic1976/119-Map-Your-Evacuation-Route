@@ -13,13 +13,14 @@ import {
   type DrillMove,
   type DrillState,
 } from '../core/drill';
-import { analyze, cellIdAt } from '../core/grid';
+import { analyze, cellIdAt, edgeMid } from '../core/grid';
 import { pickByArrow, pointAlong, type ArrowDir } from '../core/path';
 import { OUT, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { FIRE } from '../content/fire';
 import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
+import { Celebration } from './Celebration';
 import { IconClose, IconCrouch, IconDoor, IconHand, IconPencil, IconPhone, IconPlay, IconStand, KidGlyph } from './art';
 import { PlanView, unitOf } from './PlanView';
 import { ZoomControls } from './ZoomControls';
@@ -124,7 +125,9 @@ export function DrillStep() {
     }
     const target = cellIdAt(layout, p) ?? OUT;
     if (target === state.at) return;
-    const mv = drillMoves(layout, state, config).find((m) => m.to === target);
+    // 같은 칸으로 가는 문이 여럿이면 지금 자리에서 가까운 문으로 간다
+    const far = (m: DrillMove): number => Math.hypot(edgeMid(m.edge).x - state.pt.x, edgeMid(m.edge).y - state.pt.y);
+    const mv = drillMoves(layout, state, config).filter((m) => m.to === target).sort((a, b) => far(a) - far(b))[0];
     if (!mv) {
       say('drill-no-door');
       return;
@@ -150,7 +153,12 @@ export function DrillStep() {
       say('drill-hot');
       return;
     }
-    const needTouch = info.touchDoors && !state.checked.includes(mv.edge) && (mv.hot || state.stats.doorsChecked === 0);
+    // 문짝이 없는 트인 곳은 만져 볼 문이 없다. 건너편이 뜨거우면 눈에 보이므로 가지 않는다
+    if (mv.open && mv.hot) {
+      say('drill-hot');
+      return;
+    }
+    const needTouch = info.touchDoors && !mv.open && !state.checked.includes(mv.edge) && (mv.hot || state.stats.doorsChecked === 0);
     if (needTouch) {
       setTouch(mv);
       say('drill-touch');
@@ -182,6 +190,8 @@ export function DrillStep() {
     const meet = plan.marks.meet;
     const finish = () => {
       setCallCard('meet');
+      // 가족을 만났다 — 축포와 함께 알린다
+      if (getApp().soundOn) host.cheer();
       say('drill-call');
     };
     if (meet) animate([state.pt, meet], finish);
@@ -276,6 +286,8 @@ export function DrillStep() {
           glow={glow}
           hints={glow}
           hazard={hazard}
+          heat={state.field}
+          fire={{ cell: state.source, at: state.origin }}
           closedDoors={state.closed}
           onPointer={(kind, p) => {
             if (kind === 'up') tapAt(p);
@@ -303,8 +315,9 @@ export function DrillStep() {
           </div>
         )}
 
+        {callCard === 'meet' && <Celebration />}
         {callCard && (
-          <div className="card-over" role="dialog" aria-modal="true" aria-label="119 전화">
+          <div className={callCard === 'meet' ? 'card-over card-win' : 'card-over'} role="dialog" aria-modal="true" aria-label="119 전화">
             <h3>{callCard === 'meet' ? '가족을 만났어' : '문을 닫고 창가로'}</h3>
             <p>{callCard === 'meet' ? '119에 불이 났다고 말하고 우리 집 주소를 알려 주자.' : '대피공간이나 경량칸막이가 있으면 그쪽으로 가자. 없으면 불에서 먼 방의 문을 닫고 젖은 수건으로 틈을 막자. 그리고 119에 어디 있는지 알려 주자.'}</p>
             <button type="button" className="big-action" data-testid="drill-call" autoFocus onClick={call}>

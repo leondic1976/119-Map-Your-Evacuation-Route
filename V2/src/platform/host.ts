@@ -16,6 +16,8 @@ export interface Host {
   stopVoice(): void;
   /** 시작 때 한 번, 2초 안에 끝나는 경보음 */
   alarm(): void;
+  /** 대피에 성공했을 때 한 번 — 축포 터지는 소리와 짧은 팡파르. 파일 없이 코드로 낸다 */
+  cheer(): void;
   /** 예전 판이 브라우저에 남긴 서비스 워커와 저장본을 지운다. 화면을 저장해 두지 않는다 */
   forgetOldCopies(): void;
   /** 설치 안내 주소. 이미 설치했거나 오프라인 판이면 null */
@@ -124,6 +126,66 @@ class WebHost implements Host {
         osc.stop(ctx.currentTime + i * 0.5 + 0.4);
       }
       window.setTimeout(() => void ctx.close(), 2200);
+    } catch {
+      /* 소리가 없어도 다 된다 */
+    }
+  }
+
+  cheer(): void {
+    try {
+      const ctx = new window.AudioContext();
+      const out = ctx.createGain();
+      out.gain.value = 0.16;
+      out.connect(ctx.destination);
+      const t0 = ctx.currentTime + 0.05;
+      // 팡파르 — 도 미 솔 도, 그리고 길게 끄는 화음
+      const note = (freq: number, at: number, len: number, type: OscillatorType, vol: number): void => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, t0 + at);
+        g.gain.linearRampToValueAtTime(vol, t0 + at + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + at + len);
+        osc.connect(g);
+        g.connect(out);
+        osc.start(t0 + at);
+        osc.stop(t0 + at + len + 0.05);
+      };
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, i * 0.16, 0.5, 'triangle', 0.5));
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f) => note(f, 0.72, 1.7, 'triangle', 0.26));
+      [1568, 2093, 2637, 2093, 3136].forEach((f, i) => note(f, 1 + i * 0.13, 0.3, 'sine', 0.14));
+      // 축포 — 올라가는 휘파람과 터지는 소리
+      const noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.6), ctx.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 2;
+      [0, 0.5, 1, 1.6, 2.1, 2.6, 3].forEach((at, i) => {
+        const rise = ctx.createOscillator();
+        const rg = ctx.createGain();
+        rise.type = 'sine';
+        rise.frequency.setValueAtTime(500 + i * 60, t0 + at);
+        rise.frequency.exponentialRampToValueAtTime(1500 + i * 90, t0 + at + 0.22);
+        rg.gain.setValueAtTime(0.05, t0 + at);
+        rg.gain.exponentialRampToValueAtTime(0.001, t0 + at + 0.24);
+        rise.connect(rg);
+        rg.connect(out);
+        rise.start(t0 + at);
+        rise.stop(t0 + at + 0.26);
+        const pop = ctx.createBufferSource();
+        pop.buffer = noise;
+        const band = ctx.createBiquadFilter();
+        band.type = 'bandpass';
+        band.frequency.value = 900 + (i % 3) * 500;
+        band.Q.value = 0.7;
+        const pg = ctx.createGain();
+        pg.gain.value = 0.55;
+        pop.connect(band);
+        band.connect(pg);
+        pg.connect(out);
+        pop.start(t0 + at + 0.24);
+      });
+      document.documentElement.dataset.cheer = String(Number(document.documentElement.dataset.cheer ?? 0) + 1);
+      window.setTimeout(() => void ctx.close(), 5200);
     } catch {
       /* 소리가 없어도 다 된다 */
     }

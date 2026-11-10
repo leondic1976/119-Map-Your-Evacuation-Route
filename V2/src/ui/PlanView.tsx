@@ -9,6 +9,7 @@ import { arrangeLabels, type Label, type Rect } from '../core/labels';
 import { routePoints } from '../core/path';
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, type Box } from '../core/zoom';
 import { OUT, type ItemKind, type Layout, type MarkId, type OutsideSide, type Piece, type Plan, type Pt } from '../core/types';
+import { itemSize } from '../core/items';
 import { ITEMS } from '../content/items';
 import { cellLabel, MARK_NAME, type LookId } from '../content/names';
 import { getApp, setView, useApp } from '../store/app';
@@ -79,6 +80,10 @@ export interface PlanViewProps {
   showUnknown?: boolean;
   /** 대피 연습 위험 단계: 칸 id → 0 없음 · 1 옅음 · 2 짙음 · 3 막힘 */
   hazard?: Record<string, 0 | 1 | 2 | 3>;
+  /** 위험 값(0~100). 있으면 연기가 값에 따라 서서히 짙어진다 */
+  heat?: Record<string, number>;
+  /** 위험이 시작된 칸과 자리. 불꽃이 여기서부터 넓어진다 */
+  fire?: { cell: string; at: Pt };
   closedDoors?: string[];
   children?: ReactNode;
   className?: string;
@@ -256,17 +261,32 @@ function PlanViewBase(props: PlanViewProps) {
     return () => svg.removeEventListener('wheel', onWheel);
   }, [zoomable]);
 
-  // 점이 많아도 손을 움직일 때마다 다시 만들지 않는다. 배로 늘렸을 때는 처음 점을 크게 그려 자리를 잡기 쉽게 한다
+  // 모눈종이 — 연한 줄을 긋고 줄이 만나는 자리에 작은 점을 찍는다(대장 #137). 점이 많아도 손을 움직일 때마다 다시 만들지 않는다.
+  // 배로 늘렸을 때는 처음 점과 처음 줄을 조금 진하게 그려 자리를 잡기 쉽게 한다
+  const grid = useMemo(() => {
+    if (!showDots) return null;
+    const whole = Number.isInteger(k) && k > 1;
+    const main = (n: number): boolean => whole && n % k === 0;
+    const line = (key: string, d: string, strong: boolean) => <path key={key} d={d} className={strong ? 'grid-line strong' : 'grid-line'} />;
+    return (
+      <g className="grid" pointerEvents="none">
+        <rect className="grid-sheet" x={-16} y={-16} width={width + 32} height={height + 32} rx={12} />
+        {Array.from({ length: plan.rows + 1 }, (_, y) => line(`r${y}`, `M0 ${y * u}H${width}`, main(y)))}
+        {Array.from({ length: plan.cols + 1 }, (_, x) => line(`c${x}`, `M${x * u} 0V${height}`, main(x)))}
+      </g>
+    );
+  }, [showDots, plan.rows, plan.cols, u, k, width, height]);
+  // 점은 칸 색칠과 벽 위에 찍는다. 집 안에서도 점이 보여야 안쪽 벽을 그린다
   const dots = useMemo(() => {
     if (!showDots) return null;
     const whole = Number.isInteger(k) && k > 1;
-    const small = k === 2 ? 6 : 4;
-    const each = whole ? 10 : k > 1 ? 8 : 10;
+    const each = k >= 4 ? 3 : k > 1.6 ? 4 : 5;
+    const main = (n: number): boolean => whole && n % k === 0;
     return (
       <g className="dots">
         {Array.from({ length: plan.rows + 1 }, (_, y) =>
           Array.from({ length: plan.cols + 1 }, (_, x) => (
-            <circle key={`${x},${y}`} cx={x * u} cy={y * u} r={!whole ? each : x % k === 0 && y % k === 0 ? 10 : small} className="dot" />
+            <circle key={`${x},${y}`} cx={x * u} cy={y * u} r={main(x) && main(y) ? each + 2 : each} className={main(x) && main(y) ? 'dot strong' : 'dot'} />
           )),
         )}
       </g>
@@ -278,6 +298,7 @@ function PlanViewBase(props: PlanViewProps) {
   const glowSet = new Set(glow ?? []);
   const warnSet = new Set(warn ?? []);
   const closedSet = new Set(closedDoors ?? []);
+  const openEdgeSet = useMemo(() => new Set(layout.openEdges), [layout]);
 
   // 글자 자리 — 표시 이름, 칸 이름, 가구 이름 순서로 잡아 서로와 표시 그림에 겹치지 않게 한다
   const labelInfo = useMemo(() => {
@@ -324,6 +345,9 @@ function PlanViewBase(props: PlanViewProps) {
       data-scale={(box.w / shown.w).toFixed(2)}
       data-doors={Object.values(plan.openings).filter((o) => o === 'door').length}
       data-windows={Object.values(plan.openings).filter((o) => o === 'window').length}
+      data-gaps={Object.values(plan.openings).filter((o) => o === 'gap').length}
+      data-opens={layout.openEdges.length}
+      data-links={layout.links.length}
       data-route={plan.route.join(' ')}
       data-route2={plan.route2.join(' ')}
       data-marks={Object.keys(plan.marks).sort().join(' ')}
@@ -346,6 +370,11 @@ function PlanViewBase(props: PlanViewProps) {
           <rect width="20" height="20" fill="#f4efdc" />
           <path d="M0 10h20" stroke="#e4dcbd" strokeWidth="3" />
         </pattern>
+        <radialGradient id={`smoke-${uid}`}>
+          <stop offset="0" stopColor="#4d5057" stopOpacity=".85" />
+          <stop offset=".6" stopColor="#5c5f66" stopOpacity=".45" />
+          <stop offset="1" stopColor="#5c5f66" stopOpacity="0" />
+        </radialGradient>
         <pattern id={`crayon-out-${uid}`} width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(18)">
           <rect width="24" height="24" fill="#dcefcf" />
           <path d="M0 8h24M0 18h24" stroke="#bcdcA6" strokeWidth="3" opacity=".8" />
@@ -357,6 +386,9 @@ function PlanViewBase(props: PlanViewProps) {
         <rect x={strip.x} y={strip.y} width={strip.w} height={strip.h} rx={18} fill={pat('crayon-out')} stroke={glowSet.has(OUT) ? '#2f7fbf' : '#9cc489'} strokeWidth={glowSet.has(OUT) ? 8 : 4} strokeDasharray={glowSet.has(OUT) ? undefined : '14 12'} />
         <text x={strip.x + 16} y={strip.y + 20 + stripFont / 2} className="strip-label" style={{ fontSize: stripFont }}>집 밖</text>
       </g>
+
+      {/* 모눈종이 */}
+      {grid}
 
       {/* 칸 색칠 */}
       {layout.cells.map((cell) => {
@@ -407,25 +439,43 @@ function PlanViewBase(props: PlanViewProps) {
       {/* 위험 — 붉은 점멸 없이 천천히 번지는 모습만 보인다 */}
       {hazard && layout.cells.map((cell) => {
         const lv = hazard[cell.id] ?? 0;
-        if (lv === 0) return null;
+        const v = props.heat?.[cell.id] ?? (lv === 3 ? 100 : lv === 2 ? 70 : lv === 1 ? 30 : 0);
+        const fire = props.fire?.cell === cell.id ? props.fire : null;
+        if (lv === 0 && !fire) return null;
+        // 연기는 값에 따라 서서히 짙어진다
+        const haze = lv === 0 ? 0 : Math.min(0.5, 0.1 + v * 0.004);
+        // 불꽃과 연기 뭉치는 처음 네모마다 하나다
+        const each = Math.max(1, Math.round(k));
+        const spots = cell.squares.filter((s) => s.x % each === 0 && s.y % each === 0);
+        const base = spots.length ? spots : cell.squares.slice(0, 1);
+        // 불은 시작한 자리에서 작게 시작해 값이 오를수록 넓어진다. 다른 칸은 다 찼을 때 불이 붙는다
+        const near = fire ? [...base].sort((a, b) => Math.hypot(a.center.x - fire.at.x, a.center.y - fire.at.y) - Math.hypot(b.center.x - fire.at.x, b.center.y - fire.at.y)) : base;
+        const grown = Math.max(0, Math.min(1, (v - 45) / 55));
+        const burning = fire ? near.slice(0, v >= 100 ? near.length : Math.max(1, Math.round(near.length * grown * 0.8))) : v >= 100 ? base : [];
+        const flameSize = fire ? 0.55 + 0.45 * grown : 1;
         return (
-          <g key={`h${cell.id}`} data-hazard={lv}>
-            {cell.squares.map((s, i) => (
-              <g key={s.key}>
-                {s.whole ? (
-                  <rect className="smoke-sq" x={s.x * u} y={s.y * u} width={u} height={u} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
-                ) : (
-                  <polygon className="smoke-sq" points={piecePoints(s, u)} fill="#5c5f66" opacity={lv === 1 ? 0.18 : lv === 2 ? 0.42 : 0.5} />
-                )}
-                {/* 불꽃은 처음 네모마다 하나다 */}
-                {lv === 3 && s.x % Math.max(1, Math.round(k)) === 0 && s.y % Math.max(1, Math.round(k)) === 0 && (
-                  <g className="flame" style={{ animationDelay: `${(i % 4) * 0.25}s` }} transform={`translate(${s.center.x * u} ${s.center.y * u + 12})`}>
+          <g key={`h${cell.id}`} data-hazard={lv} data-heat={Math.round(v)} data-flames={burning.length} data-source={fire ? '1' : '0'}>
+            {haze > 0 && cell.squares.map((s) =>
+              s.whole ? (
+                <rect key={s.key} className="smoke-sq" x={s.x * u} y={s.y * u} width={u} height={u} fill="#5c5f66" opacity={haze} />
+              ) : (
+                <polygon key={s.key} className="smoke-sq" points={piecePoints(s, u)} fill="#5c5f66" opacity={haze} />
+              ),
+            )}
+            {haze > 0 && base.map((s, i) => (
+              <circle key={`p${s.key}`} className="smoke-puff" style={{ animationDelay: `${-(i % 5) * 0.9}s` }} cx={s.center.x * u} cy={s.center.y * u} r={48} fill={pat('smoke')} opacity={Math.min(0.9, 0.25 + v * 0.007)} />
+            ))}
+            {burning.map((s, i) => {
+              const at = fire && i === 0 ? fire.at : s.center;
+              return (
+                <g key={`f${s.key}`} transform={`translate(${at.x * u} ${at.y * u + 12}) scale(${flameSize})`}>
+                  <g className="flame" style={{ animationDelay: `${(i % 4) * 0.25}s` }}>
                     <path d="M0-44c17 17 24 30 17 43-3 6-10 9-17 9s-14-3-17-9c-6-12 4-22 9-28 2 7 4 9 7 9 2-7 2-15 1-24z" fill="#f59a23" />
                     <path d="M0-16c7 7 10 13 7 18-1 3-4 4-7 4s-6-1-7-4c-3-5 2-9 4-11 1 3 2 4 3 4 1-3 1-7 0-11z" fill="#ffe08a" />
                   </g>
-                )}
-              </g>
-            ))}
+                </g>
+              );
+            })}
           </g>
         );
       })}
@@ -434,7 +484,10 @@ function PlanViewBase(props: PlanViewProps) {
       <g className="walls">
         {edgeKeys(layout).map((key) => {
           const [a, b] = edgeEnds(key);
-          return <path key={key} d={pencilPath(key, a, b, u)} className={key === hotEdge ? 'wall hot' : 'wall'} />;
+          // 트인 칸끼리 맞닿은 곳은 벽이 없는 셈이라 연한 점선으로만 보인다. 틈은 틈 그림이 따로 그린다
+          if (plan.openings[key] === 'gap') return null;
+          const open = openEdgeSet.has(key);
+          return <path key={key} d={open ? `M${a.x * u} ${a.y * u}L${b.x * u} ${b.y * u}` : pencilPath(key, a, b, u)} data-open={open ? '1' : undefined} className={key === hotEdge ? 'wall hot' : open ? 'wall open' : 'wall'} />;
         })}
       </g>
 
@@ -466,7 +519,7 @@ function PlanViewBase(props: PlanViewProps) {
       {/* 아이가 놓은 가구 */}
       {(plan.items ?? []).map((item, i) => (
         <g key={i} className="placed-item" data-item={item.kind} transform={`translate(${item.x * u} ${item.y * u})`} pointerEvents="none">
-          <g transform={`rotate(${item.angle})`}><ItemShape kind={item.kind} /></g>
+          <g transform={`rotate(${item.angle}) scale(${itemSize(item)})`} data-angle={Math.round(item.angle)} data-size={itemSize(item)}><ItemShape kind={item.kind} /></g>
         </g>
       ))}
 
@@ -501,7 +554,7 @@ function PlanViewBase(props: PlanViewProps) {
 
       {/* 점 */}
       {dots}
-      {showDots && armed && <circle cx={armed.x * u} cy={armed.y * u} r={k === 1 ? 19 : 14} className="dot armed" />}
+      {showDots && armed && <circle cx={armed.x * u} cy={armed.y * u} r={k <= 1.6 ? 15 : 11} className="dot armed" />}
 
       {props.children}
     </svg>
@@ -576,6 +629,24 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize }:
   const qCell = layout.cellAt.get(q);
   const exit = Boolean(pCell) !== Boolean(qCell);
   const color = hot ? '#2f7fbf' : exit ? '#2e8b57' : '#9a5b2a';
+  if (kind === 'gap') {
+    // 틈 — 문짝 없이 트인 입구다. 벽이 끊긴 자리를 양 끝의 짧은 기둥으로 보인다
+    const len = (edgeLength(edge) / density) * 100;
+    const out = pCell ? 1 : -1;
+    return (
+      <g data-gap={edge} data-exit={exit ? '1' : '0'}>
+        <g transform={`translate(${m.x * u} ${m.y * u}) rotate(${angle})`}>
+          <line x1={-len / 2 + 5} y1={0} x2={len / 2 - 5} y2={0} stroke={hot ? '#2f7fbf' : '#aab5b9'} strokeWidth={4} strokeDasharray="3 11" strokeLinecap="round" />
+          <path d={`M${-len / 2}-11V11M${len / 2}-11V11`} fill="none" stroke={hot ? '#2f7fbf' : '#33363b'} strokeWidth={8} strokeLinecap="round" />
+        </g>
+        {exit && (
+          <g transform={`translate(${m.x * u + normal.x * out * 36} ${m.y * u + normal.y * out * 36}) rotate(${(Math.atan2(normal.y * out, normal.x * out) * 180) / Math.PI})`}>
+            <path d="M-14 0H10M2-12L18 0L2 12" fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        )}
+      </g>
+    );
+  }
   // 현관과 집 안 사이의 문은 중문이다
   const inner = !exit && [pCell, qCell].some((id) => id && layout.byId.get(id)?.name === 'entry');
   // 문짝은 방 쪽으로 열린다. 돌린 그림의 +y 가 q 쪽인지 p 쪽인지 재서 고른다

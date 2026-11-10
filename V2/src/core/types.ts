@@ -17,7 +17,8 @@ export interface CellTag {
   name: string | null;
 }
 
-export type OpeningKind = 'door' | 'window';
+/** 문 · 창 · 틈(문짝 없이 트인 입구) */
+export type OpeningKind = 'door' | 'window' | 'gap';
 
 export type MarkId = 'me' | 'meet' | 'gas' | 'extinguisher' | 'alarm';
 
@@ -31,6 +32,10 @@ export interface Item extends Pt {
   kind: ItemKind;
   /** 가구 앞이 향하는 방향(도). 0 은 아래쪽이다 */
   angle: number;
+  /** 크기 배율. 없으면 1 이다 */
+  size?: number;
+  /** 아이가 직접 돌렸다. 옮겨도 벽을 따라 다시 돌리지 않는다 */
+  turned?: boolean;
 }
 
 export interface Plan {
@@ -116,6 +121,10 @@ export interface Link {
   edge: string;
   a: string;
   b: string;
+  /** 문짝이 없어 닫을 수 없다 — 틈이거나 트인 칸끼리 맞닿은 곳이다 */
+  open?: boolean;
+  /** 트인 칸끼리 맞닿아 저절로 이어진 곳 */
+  auto?: boolean;
 }
 
 export interface Layout {
@@ -124,6 +133,8 @@ export interface Layout {
   /** 조각 열쇠 → 칸 id. 칸이 아닌 조각은 없다 */
   cellAt: Map<string, string>;
   links: Link[];
+  /** 트인 칸끼리 맞닿아 벽이 없는 셈인 토막들. 그림에서 연한 점선으로 보인다 */
+  openEdges: string[];
   /** 네모 열쇠 → 그 네모의 조각들 */
   pieces: Map<string, Piece[]>;
   /** 조각 열쇠 → 이웃 조각들 */

@@ -44,6 +44,13 @@ export function routePoints(plan: Plan, layout: Layout, route: string[]): Pt[] {
     const step = route[i]!;
     const to = step === OUT ? OUT : layout.cellAt.get(step);
     if (!to) break;
+    if (to === at) {
+      // 같은 칸 안 — 끌어서 그은 자리를 조각을 따라 지난다
+      const walk = walkInCell(plan, layout, at, pieceKeyAt(layout, pt), step).slice(1);
+      out.push(...walk);
+      pt = walk[walk.length - 1] ?? pt;
+      continue;
+    }
     const via = reachableFrom(layout, at)
       .filter((n) => n.to === to)
       .sort((a, b) => dist(edgeMid(a.edge), pt) - dist(edgeMid(b.edge), pt))[0];

@@ -79,7 +79,11 @@ function profileFromPlan(plan: Plan): Profile | null {
   return { name: '', grade, look: 'a' };
 }
 
-const LOW = BANDS.low;
+/** 새 종이 — 학년 단계의 처음 네모보다 촘촘한 모눈으로 시작한다(대장 #137) */
+export function freshPlan(band: Band): Plan {
+  const info = BANDS[band];
+  return changeGrid(emptyPlan(info.cols, info.rows), info.start[0], info.start[1]);
+}
 
 function initialState(): AppState {
   // 예전 판은 이름표까지 함께 저장했다. 도면만 옮기고 나머지는 지운다
@@ -91,7 +95,7 @@ function initialState(): AppState {
   const base: AppState = {
     screen: 'welcome',
     profile: null,
-    plan: emptyPlan(LOW.cols, LOW.rows),
+    plan: freshPlan('low'),
     step: 'draw',
     past: [],
     soundOn: true,
@@ -232,7 +236,7 @@ export function saveProfile(profile: Profile): void {
     ...(keep
       ? {}
       : {
-          plan: emptyPlan(info.cols, info.rows),
+          plan: freshPlan(nextBand),
           past: [],
           step: 'draw' as StepId,
           drill: null,

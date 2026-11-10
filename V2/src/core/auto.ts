@@ -3,7 +3,7 @@
  * 이미 해 둔 것은 지우지 않고 빈 곳만 채운다.
  */
 import { analyze, cellIdAt, edgeKeys, edgeLength, edgeMid, edgeSides, hKey, vKey, isExterior, parseEdge, pieceKeyAt, reachableFrom, shortestPath, unreachableCells } from './grid';
-import { normalize } from './edit';
+import { normalize, routeCells } from './edit';
 import { outsideOf, outsideSpot } from './items';
 import { OUT, type Band, type Cell, type Layout, type Plan, type Pt } from './types';
 
@@ -274,7 +274,7 @@ export function hasOtherRoute(plan: Plan): boolean {
   const layout = analyze(plan);
   const start = layout.cellAt.get(pieceKeyAt(layout, me));
   if (!start) return false;
-  const first = plan.route.map((s) => (s === OUT ? OUT : layout.cellAt.get(s))).join('|');
+  const first = routeCells(layout, plan.route).join('|');
   let budget = 20000;
   const walk = (at: string, seen: string[]): boolean => {
     if (budget-- <= 0) return false;
@@ -295,7 +295,7 @@ export function findSecondRoute(plan: Plan): string[] | null {
   const startKey = pieceKeyAt(layout, me);
   const start = layout.cellAt.get(startKey);
   if (!start) return null;
-  const ids = plan.route.map((s) => (s === OUT ? OUT : layout.cellAt.get(s)));
+  const ids = routeCells(layout, plan.route);
   const edges = new Set<string>();
   for (let i = 1; i < ids.length; i++) {
     const n = reachableFrom(layout, ids[i - 1]!).find((m) => m.to === ids[i]);

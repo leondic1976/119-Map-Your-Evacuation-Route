@@ -77,32 +77,51 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   position: relative; overflow: hidden;
   min-height: 100%;
   display: flex; flex-direction: column;
-  padding: 18px 32px;
+  padding: 18px 32px 10px;
   background: linear-gradient(#d4eefb, #eef7f3 55%, var(--paper));
+  /* 배경 그림의 한 칸(viewBox 1600×900 의 1)이 화면에서 차지하는 길이와, 땅 그림이 차지하는 아래쪽 띠의 높이 */
+  --u: max(100vw / 1600, 100vh / 900);
+  --scene: calc(var(--u) * 216 + 12px);
 }
-.welcome > :not(.welcome-scene) { position: relative; z-index: 1; }
+.welcome > :not(.welcome-scene, .welcome-sky) { position: relative; z-index: 1; }
 .welcome-top { display: flex; align-items: center; gap: 10px; }
 .welcome-top img { width: 44px; height: 44px; object-fit: contain; }
 .welcome-top span { display: flex; flex-direction: column; line-height: 1.2; }
 .welcome-top b { font-weight: 400; font-size: 18px; }
 .welcome-top small { font-size: 15px; color: var(--ink-2); }
 .install-link { margin-left: auto; min-height: var(--hit); display: inline-flex; align-items: center; padding: 0 14px; font-size: 17px; color: var(--ink); text-underline-offset: 4px; }
-.welcome-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 5fr) 6fr; gap: 28px; align-items: center; padding: 10px 0 56px; max-width: 1240px; width: 100%; margin: 0 auto; }
-.welcome-text h1 { font-size: clamp(46px, 6vw, 76px); line-height: 1.08; }
+/* 아래쪽은 땅 그림의 띠만큼 비운다. 58px 는 아래 문구와 그 둘레다 */
+.welcome-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 5fr) 6fr; gap: 28px; align-items: center; padding: 10px 0 calc(var(--scene) - 58px); max-width: 1240px; width: 100%; margin: 0 auto; }
+.welcome-text h1 { font-size: clamp(46px, min(6vw, 9vh), 76px); line-height: 1.08; }
 .welcome-text h1 span { display: block; color: var(--green-d); }
 .welcome-lead { margin: 16px 0; font-size: 22px; line-height: 1.45; color: var(--ink); }
 .welcome-steps { list-style: none; margin: 0 0 22px; padding: 0; display: grid; gap: 8px; font-size: 21px; }
 .welcome-steps b { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 3px solid var(--pencil); border-radius: 50%; background: var(--sun); font-weight: 400; margin-right: 6px; }
 .welcome-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.welcome-confirm { display: grid; gap: 10px; padding: 12px 16px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: var(--radius); box-shadow: 3px 3px 0 var(--pencil); }
-.welcome-confirm p { font-size: 20px; }
+.welcome-confirm { display: grid; gap: 6px; padding: 8px 14px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: var(--radius); box-shadow: 3px 3px 0 var(--pencil); }
+.welcome-confirm p { font-size: 19px; }
 /* 표지 그림 아래에 캐릭터가 나란히 선다. 뛰어도 서로와 그림에 겹치지 않게 자리를 넉넉히 둔다 */
-.welcome-art { min-width: 0; display: grid; justify-items: center; gap: 22px; }
-.cover-art { width: 100%; max-width: min(100%, calc((100vh - 372px) * 640 / 440)); height: auto; display: block; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 18px; box-shadow: 6px 6px 0 var(--pencil); transform: rotate(-1deg); }
+.welcome-art { min-width: 0; display: grid; justify-items: center; gap: 30px; }
+.cover-art { width: 100%; max-width: min(100%, calc((100vh - 130px - var(--scene) - clamp(84px, 15.5vh, 132px)) * 640 / 440)); height: auto; display: block; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 18px; box-shadow: 6px 6px 0 var(--pencil); transform: rotate(-1deg); }
 .welcome-chars { display: flex; align-items: flex-end; justify-content: center; gap: clamp(10px, 2vw, 28px); pointer-events: none; }
 .welcome-chars img { height: clamp(84px, 15.5vh, 132px); width: auto; display: block; }
 .welcome-foot { align-self: center; margin-top: 8px; padding: 4px 22px 5px; color: var(--ink-2); text-align: center; line-height: 1.4; word-break: keep-all; background: rgba(255, 253, 246, .92); border: 2px solid var(--pencil); border-radius: 14px; }
 .welcome-foot b { display: block; font-size: 20px; font-weight: 400; color: var(--ink); }
+/* 낮은 창에서는 글을 조금 줄여, 땅 그림의 띠를 비우고도 한 화면에 든다 */
+@media (max-height: 760px) {
+  .welcome-lead { margin: 10px 0; font-size: 20px; }
+  .welcome-steps { gap: 4px; margin-bottom: 14px; font-size: 20px; }
+}
+@media (max-height: 680px) {
+  .welcome-text h1 { font-size: clamp(40px, 8vh, 54px); }
+  .welcome-lead { margin: 6px 0; font-size: 18px; line-height: 1.35; }
+  .welcome-steps { gap: 2px; margin-bottom: 10px; font-size: 18px; }
+  .welcome-steps b { width: 30px; height: 30px; }
+  .welcome .big-start { padding: 9px 26px; font-size: 23px; }
+  .welcome-confirm p { font-size: 17px; }
+}
+/* 좁은 창에서는 로고와 해 사이에 새가 들어갈 자리가 없다 */
+@media (max-width: 939px) { .welcome-sky .sky-birds { display: none; } }
 
 /* 첫 화면 표지 — 14 초마다 집을 그리고, 칠하고, 길을 따라 나간다 */
 .cv-all { animation: cv-all 14s linear infinite both; }
@@ -137,49 +156,50 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 /* 첫 화면 배경 — 깜박이는 빛 없이 천천히 움직인다 */
 .welcome-scene { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* 하늘 것은 위쪽 띠에만 있다. 왼쪽 로고, 가운데 왼쪽의 해, 오른쪽 설치 안내 사이의 빈 자리를 쓴다 */
+.welcome-sky { position: absolute; inset: 0 0 auto 0; height: 0; pointer-events: none; }
+.welcome-sky svg { position: absolute; display: block; overflow: visible; }
+.sky-birds { top: 12px; left: 222px; width: 76px; height: 37px; }
+.sky-sun { top: 6px; left: max(228px, calc(50% - 205px)); width: 120px; height: 120px; }
+.sky-clouds { top: 8px; left: max(360px, calc(50% - 60px)); width: 180px; height: 46px; }
 .sc-sky, .sc-far, .sc-near { transition: transform .5s ease-out; }
 .sc-sky { transform: translate(calc(var(--px, 0) * 5px), calc(var(--py, 0) * 3px)); }
 .sc-far { transform: translate(calc(var(--px, 0) * -8px), calc(var(--py, 0) * -3px)); }
 .sc-near { transform: translate(calc(var(--px, 0) * -18px), calc(var(--py, 0) * -5px)); }
 .sc-rays { animation: sc-spin 36s linear infinite; }
 .sc-sun { animation: sc-breathe 5s ease-in-out infinite; }
-.sc-dot { animation: sc-twinkle 4.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-.sc-cloud { animation: sc-drift 70s linear infinite; }
-.sc-cloud.c1 { animation-delay: -8s; }
-.sc-cloud.c2 { animation-duration: 95s; animation-delay: -62s; }
-.sc-cloud.c3 { animation-duration: 120s; animation-delay: -40s; }
-.sc-cloud.c4 { animation-duration: 84s; animation-delay: -50s; }
-.sc-birds { animation: sc-birds 32s linear infinite; }
+.sc-cloud { animation: sc-drift 44s linear infinite alternate; }
+.sky-birds { animation: sc-glide 7s ease-in-out infinite alternate; }
 .sc-wing { animation: sc-flap .7s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
 .sc-tree { animation: sc-sway 4.6s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
 .sc-window { animation: sc-glow 5.6s ease-in-out infinite; }
 .sc-flag { animation: sc-wave 1.4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 0 50%; }
-.sc-family { animation: sc-family 34s linear infinite; }
+.sc-family { transform: translateX(1180px); animation: sc-family 48s linear infinite; }
 .sc-bob { animation: sc-bob .56s ease-in-out infinite alternate; }
 .sc-leg { fill: none; animation: sc-step .56s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 0; }
 .sc-leg.back { animation-direction: alternate-reverse; }
-.sc-truck { animation: sc-truck 26s linear infinite; }
+.sc-truck { transform: translateX(420px); animation: sc-truck 48s linear infinite; }
 .sc-truck-body { animation: sc-bob .5s ease-in-out infinite alternate; }
 .sc-wheel { animation: sc-spin .9s linear infinite; }
 .sc-119 { font-family: var(--font); font-size: 30px; fill: #fffdf6; text-anchor: middle; }
 @keyframes sc-spin { to { transform: rotate(360deg); } }
 @keyframes sc-breathe { 50% { transform: scale(1.05); } }
-@keyframes sc-twinkle { 0%, 100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
-@keyframes sc-drift { from { transform: translateX(-340px); } to { transform: translateX(1760px); } }
-@keyframes sc-birds { from { transform: translate(1720px, 250px); } to { transform: translate(-200px, 130px); } }
+/* 구름은 해 오른쪽에서 설치 안내 앞까지만 오간다. 자리가 없는 좁은 화면에서는 멈춰 있다 */
+@keyframes sc-drift { to { transform: translateX(max(0px, calc(100vw - 420px - max(360px, 50vw - 60px)))); } }
+@keyframes sc-glide { from { transform: translateY(0); } to { transform: translateY(5px); } }
 @keyframes sc-flap { from { transform: scaleY(1); } to { transform: scaleY(-.5); } }
 @keyframes sc-sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.2deg); } }
 @keyframes sc-glow { 0%, 100% { fill: #fff3cf; } 50% { fill: #ffc861; } }
 @keyframes sc-wave { from { transform: skewY(-7deg) scaleX(1); } to { transform: skewY(7deg) scaleX(.9); } }
+/* 48 초 한 바퀴 — 소방차가 먼저 지나가고(0~34%), 길이 빈 뒤에 가족이 만나는 곳까지 걷는다(36~84%) */
 @keyframes sc-family {
-  0% { transform: translateX(-180px); opacity: 1; }
-  80% { transform: translateX(1270px); opacity: 1; }
-  94% { transform: translateX(1270px); opacity: 1; }
-  98%, 100% { transform: translateX(1270px); opacity: 0; }
+  0%, 36% { transform: translateX(-120px); opacity: 1; }
+  84%, 94% { transform: translateX(1180px); opacity: 1; }
+  98%, 100% { transform: translateX(1180px); opacity: 0; }
 }
 @keyframes sc-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
 @keyframes sc-step { from { transform: rotate(-20deg); } to { transform: rotate(20deg); } }
-@keyframes sc-truck { from { transform: translateX(-620px); } to { transform: translateX(1500px); } }
+@keyframes sc-truck { 0% { transform: translateX(-200px); } 34%, 100% { transform: translateX(1660px); } }
 
 /* 첫 화면 앞쪽 — 처음 들어올 때 차례로 나타나고, 캐릭터가 폴짝 뛴다. 시작 단추의 자리는 움직이지 않는다 */
 .welcome-text h1 span, .welcome-text h1 { animation: wl-pop .7s cubic-bezier(.2, 1.4, .4, 1) both; }
@@ -365,6 +385,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .cursor-erase { cursor: cell; }
 .cursor-tap { cursor: pointer; }
 .cursor-move { cursor: grab; }
+.cursor-none { cursor: none; }
+/* 손 아래 그림 — 놓을 가구나 표시의 모양이 마우스를 따라다닌다 */
+.ghost { position: fixed; left: 0; top: 0; z-index: 6; width: 0; height: 0; pointer-events: none; opacity: .82; transform-origin: 0 0; }
+/* 고른 가구를 고치는 막대 */
+.item-bar { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; max-width: calc(100% - 20px); padding: 6px 10px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 14px; box-shadow: 3px 3px 0 var(--pencil); }
+.item-bar b { font-weight: 400; font-size: 19px; margin: 0 6px; }
+.item-bar .tool { width: auto; min-width: var(--hit); padding: 0 12px; flex-direction: row; gap: 6px; }
+.item-ring { fill: none; stroke: var(--blue); stroke-width: 5; stroke-dasharray: 12 10; }
 .zoom-bar { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-direction: column; gap: 6px; }
 .zoom-btn { width: var(--hit, 48px); height: var(--hit, 48px); min-width: 48px; min-height: 48px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: #fffdf6; color: var(--pencil); border: 3px solid var(--pencil); border-radius: 12px; cursor: pointer; }
 .zoom-btn.on { background: var(--sun); }
@@ -372,11 +400,18 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 .wall { fill: none; stroke: var(--pencil); stroke-width: 11; stroke-linecap: round; }
 .wall.hot { stroke: var(--blue); }
+/* 트인 칸끼리 맞닿은 곳 — 벽이 없는 셈이라 연한 점선이다 */
+.wall.open { stroke: #aebbc0; stroke-width: 5; stroke-dasharray: 3 15; }
 .stroke-live { fill: none; stroke: var(--blue); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
 .placed-item rect, .placed-item ellipse, .placed-item circle { vector-effect: none; }
 .item-word { font-family: var(--font); font-size: 18px; fill: var(--ink); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; pointer-events: none; }
 .door-word { font-family: var(--font); font-size: 18px; fill: #6b3e16; text-anchor: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; pointer-events: none; }
-.dot { fill: #9aa8ad; }
+/* 모눈종이 — 줄은 아주 연하게, 점은 작고 연하게 */
+.grid-sheet { fill: #fffefa; stroke: #e2e9ea; stroke-width: 2; }
+.grid-line { fill: none; stroke: #e6eef0; stroke-width: 2; }
+.grid-line.strong { stroke: #d5e0e3; stroke-width: 2.5; }
+.dot { fill: #b4c0c5; }
+.dot.strong { fill: #97a6ac; }
 .dot.armed { fill: var(--blue); stroke: #fff; stroke-width: 4; }
 .cell-label, .mark-label, .strip-label, .cell-unknown {
   font-family: var(--font); text-anchor: middle; dominant-baseline: middle;
@@ -395,6 +430,36 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .flame { animation: sway 1.8s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
 @keyframes sway { from { scale: 1 1; } to { scale: 1.06 .92; } }
 .smoke-sq { transition: opacity .5s; }
+.smoke-puff { pointer-events: none; transform-box: fill-box; transform-origin: center; animation: puff 5s ease-in-out infinite; transition: opacity .6s; }
+@keyframes puff { 0%, 100% { transform: translate(-7px, 6px) scale(.82); } 50% { transform: translate(6px, -9px) scale(1.18); } }
+
+/* 대피 성공 축하 — 화면 가득 불꽃놀이가 벌어진다. 불씨는 캔버스가 그리고, 색종이와 띠는 CSS 가 움직인다.
+   화면 전체를 번쩍이지 않는다 — 배경은 천천히 어두워져 그대로 머물고, 밝은 것은 작은 불씨뿐이다 */
+.celebrate { position: fixed; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; }
+.celebrate-night { position: absolute; inset: 0; background: linear-gradient(rgba(14, 24, 58, .84), rgba(22, 36, 78, .7) 55%, rgba(30, 44, 86, .5)); animation: cb-night .9s ease-out both; }
+@keyframes cb-night { from { opacity: 0; } to { opacity: 1; } }
+.celebrate-fire { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.celebrate-confetti { position: absolute; inset: 0; }
+.celebrate-confetti i { position: absolute; top: -40px; display: block; animation: cb-fall 4s linear infinite both; }
+@keyframes cb-fall { from { transform: translate(0, 0) rotate(0); } to { transform: translate(var(--sway, 0), calc(100vh + 80px)) rotate(var(--spin, 360deg)); } }
+.celebrate-banner { position: absolute; left: 50%; top: 9%; transform: translateX(-50%) rotate(-2deg); display: grid; justify-items: center; padding: 4px 44px 12px; background: var(--paper-2); border: 5px solid var(--pencil); border-radius: 26px; box-shadow: 7px 7px 0 var(--pencil); white-space: nowrap; animation: cb-pop .9s cubic-bezier(.2, 1.6, .4, 1) both, cb-cheer 1.8s ease-in-out 1s infinite; }
+.celebrate-banner b { position: relative; font-weight: 400; font-size: clamp(44px, min(7.4vw, 12vh), 96px); line-height: 1.08; color: var(--green-d); }
+/* 띠 뒤에서 천천히 도는 햇살 */
+.celebrate-rays { position: absolute; left: 50%; top: 50%; z-index: -1; width: max(190%, 520px); aspect-ratio: 1; translate: -50% -50%; opacity: .55; animation: cb-rays 22s linear infinite; mask-image: radial-gradient(closest-side, #000 30%, transparent 78%); -webkit-mask-image: radial-gradient(closest-side, #000 30%, transparent 78%); }
+@keyframes cb-rays { to { rotate: 360deg; } }
+.celebrate-stars { position: relative; display: flex; gap: 10px; margin-top: -26px; }
+.celebrate-stars svg { animation: cb-star .7s cubic-bezier(.2, 1.7, .4, 1) both; }
+.celebrate-stars svg:nth-child(2) { width: 50px; height: 50px; margin-top: -8px; }
+@keyframes cb-star { from { opacity: 0; scale: 0; rotate: -90deg; } to { opacity: 1; scale: 1; rotate: 0deg; } }
+@keyframes cb-pop { from { opacity: 0; transform: translateX(-50%) scale(.2) rotate(-12deg); } to { opacity: 1; transform: translateX(-50%) scale(1) rotate(-2deg); } }
+@keyframes cb-cheer { 0%, 100% { scale: 1; } 50% { scale: 1.045; } }
+.celebrate-friends { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 3%; }
+.celebrate-friends img { height: clamp(90px, 20vh, 170px); width: auto; transform-origin: 50% 100%; animation: wl-hop 1.3s ease-in-out infinite; }
+.celebrate-friends img:nth-child(2) { visibility: hidden; }
+.celebrate-friends img:nth-child(3) { animation-delay: .35s; }
+/* 축하 띠가 위에 있으므로 카드는 아래로 비켜 선다. 불꽃놀이 위에 놓여 단추가 언제나 눌린다 */
+.card-over.card-win { position: fixed; z-index: 5; top: auto; bottom: 6%; transform: translateX(-50%); padding: 14px 20px; gap: 8px; border-color: var(--green-d); border-width: 4px; }
+.card-over.card-win h3 { color: var(--green-d); }
 
 /* 눌러야 할 곳 */
 .tap-word {
@@ -545,7 +610,12 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 @media (prefers-reduced-motion: reduce) {
   /* 첫 화면은 다 그려진 그림으로 멈춘다 */
-  .welcome-scene *, .cv-all, .cv-walker, .cover-art, .welcome-chars img, .welcome-steps b, .welcome .big-start .ico { animation: none !important; }
+  .celebrate-night, .celebrate-confetti i, .celebrate-banner, .celebrate-rays, .celebrate-stars svg, .celebrate-friends img, .smoke-puff { animation: none !important; }
+  /* 멈춘 그림에서는 색종이를 화면에 흩어 둔다 */
+  .celebrate-confetti i:nth-child(3n) { top: 22%; }
+  .celebrate-confetti i:nth-child(3n + 1) { top: 48%; }
+  .celebrate-confetti i:nth-child(3n + 2) { top: 70%; }
+  .welcome-scene *, .welcome-sky, .welcome-sky *, .cv-all, .cv-walker, .cover-art, .welcome-chars img, .welcome-steps b, .welcome .big-start .ico { animation: none !important; }
   .welcome .big-start::after, .cv-walker, .btn.ready::after { display: none; }
   .sc-sky, .sc-far, .sc-near, .welcome-art { transform: none; transition: none; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition: none !important; }

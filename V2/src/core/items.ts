@@ -38,7 +38,7 @@ export function clearOfDoors(plan: Plan, layout: Layout, at: Pt): Pt | null {
   const need = DOOR_CLEAR * k;
   const cell = cellIdAt(layout, at);
   let p = at;
-  const doors = Object.entries(plan.openings).filter(([, o]) => o === 'door').map(([edge]) => edgeMid(edge));
+  const doors = Object.entries(plan.openings).filter(([, o]) => o === 'door' || o === 'gap').map(([edge]) => edgeMid(edge));
   for (let round = 0; round < 3; round++) {
     let moved = false;
     for (const door of doors) {
@@ -68,6 +68,40 @@ export function placeItem(plan: Plan, layout: Layout, kind: ItemKind, at: Pt): P
   return { plan: { ...plan, items: [...(plan.items ?? []), item] }, ok: true };
 }
 
+/** 고를 수 있는 가구 크기. 1 이 제 크기다 */
+export const ITEM_SIZES = [0.6, 0.8, 1, 1.25, 1.5, 1.8];
+
+export const itemSize = (item: Item): number => item.size ?? 1;
+
+/** 가구를 동서남북으로 돌린다. 한 번에 오른쪽으로 90도씩 돈다 */
+export function turnItem(plan: Plan, index: number, quarter = 1): Plan {
+  const items = plan.items ?? [];
+  const item = items[index];
+  if (!item) return plan;
+  const snapped = Math.round(item.angle / 90) * 90;
+  const angle = (((snapped + 90 * quarter) % 360) + 360) % 360;
+  return { ...plan, items: items.map((it, i) => (i === index ? { ...it, angle, turned: true } : it)) };
+}
+
+/** 가구를 한 단계 키우거나 줄인다. 끝이면 그대로다 */
+export function resizeItem(plan: Plan, index: number, step: 1 | -1): Plan {
+  const items = plan.items ?? [];
+  const item = items[index];
+  if (!item) return plan;
+  const now = ITEM_SIZES.reduce((best, s, i) => (Math.abs(s - itemSize(item)) < Math.abs(ITEM_SIZES[best]! - itemSize(item)) ? i : best), 0);
+  const next = ITEM_SIZES[now + step];
+  if (next === undefined) return plan;
+  const resized: Item = { ...item };
+  if (next === 1) delete resized.size;
+  else resized.size = next;
+  return { ...plan, items: items.map((it, i) => (i === index ? resized : it)) };
+}
+
+/** 가구 하나를 치운다 */
+export function removeItem(plan: Plan, index: number): Plan {
+  return { ...plan, items: (plan.items ?? []).filter((_, i) => i !== index) };
+}
+
 /** 누른 자리의 가구 번호. 없으면 -1 이다 */
 export function itemIndexAt(plan: Plan, at: Pt, radius: number): number {
   let hit = -1;
@@ -90,7 +124,8 @@ export function moveItem(plan: Plan, layout: Layout, index: number, to: Pt): Pla
   if (!cellIdAt(layout, to)) return { plan, ok: false, why: 'outside' };
   const spot = clearOfDoors(plan, layout, to);
   if (!spot) return { plan, ok: false, why: 'door' };
-  const moved: Item = { ...item, x: spot.x, y: spot.y, angle: facingAt(layout, spot) };
+  // 아이가 직접 돌린 가구는 옮겨도 그 방향을 지킨다
+  const moved: Item = { ...item, x: spot.x, y: spot.y, angle: item.turned ? item.angle : facingAt(layout, spot) };
   return { plan: { ...plan, items: items.map((it, i) => (i === index ? moved : it)) }, ok: true };
 }
 

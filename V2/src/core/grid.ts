@@ -441,6 +441,9 @@ function makeRuns(edges: Map<string, EdgeInfo>): EdgeRun[] {
   return runs;
 }
 
+/** 문 없이 트여 있는 칸 — 지나가는 곳(거실·복도·현관)과 부엌. 이런 칸끼리 맞닿으면 문을 달지 않아도 지나간다 */
+export const isOpenCell = (cell: { kind: Cell['kind']; name: string | null }): boolean => cell.kind === 'pass' || cell.name === 'kitchen';
+
 export function analyze(plan: Plan): Layout {
   const walls = new Set(plan.walls);
   const pieces = makePieces(plan, plan.walls);
@@ -517,20 +520,55 @@ export function analyze(plan: Plan): Layout {
   }
 
   const links: Link[] = [];
+  const joined = new Set<string>();
+  const pairOf = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
   for (const [edge, kind] of Object.entries(plan.openings)) {
     const info = edges.get(edge);
-    if (kind !== 'door' || !info) continue;
+    if ((kind !== 'door' && kind !== 'gap') || !info) continue;
     const [p, q] = info.sides;
     const a = cellAt.get(p) ?? OUT;
     const b = cellAt.get(q) ?? OUT;
     if (a === b) continue;
-    links.push(a === OUT ? { edge, a: b, b: OUT } : { edge, a, b });
+    joined.add(pairOf(a, b));
+    const open = kind === 'gap' ? { open: true } : {};
+    links.push(a === OUT ? { edge, a: b, b: OUT, ...open } : { edge, a, b, ...open });
   }
-  links.sort((l, m) => (l.edge < m.edge ? -1 : 1));
 
   const runs = makeRuns(edges);
   const runOf = new Map(runs.flatMap((run) => run.edges.map((e): [string, EdgeRun] => [e.key, run])));
-  return { cells, byId: new Map(cells.map((c) => [c.id, c])), cellAt, links, pieces, adjacent, edges, runs, runOf };
+
+  // 트인 칸끼리 맞닿은 벽은 벽이 없는 셈이다. 문이나 틈을 따로 단 사이는 그것을 쓴다
+  const byId = new Map(cells.map((c) => [c.id, c]));
+  const shared = new Map<string, { a: string; b: string; list: EdgeInfo[] }>();
+  for (const info of edges.values()) {
+    if (info.hidden) continue;
+    const a = cellAt.get(info.sides[0]);
+    const b = cellAt.get(info.sides[1]);
+    if (!a || !b || a === b || !isOpenCell(byId.get(a)!) || !isOpenCell(byId.get(b)!)) continue;
+    const pair = pairOf(a, b);
+    if (joined.has(pair)) continue;
+    if (!shared.has(pair)) shared.set(pair, { a, b, list: [] });
+    shared.get(pair)!.list.push(info);
+  }
+  const openEdges: string[] = [];
+  for (const { a, b, list } of shared.values()) {
+    openEdges.push(...list.map((e) => e.key));
+    // 곧게 이어진 줄마다 가운데 토막 하나로 지나간다
+    const byRun = new Map<EdgeRun | string, EdgeInfo[]>();
+    for (const e of list) {
+      const run = runOf.get(e.key) ?? e.key;
+      if (!byRun.has(run)) byRun.set(run, []);
+      byRun.get(run)!.push(e);
+    }
+    for (const group of byRun.values()) {
+      const mid = [...group].sort((p, q) => p.mid.x - q.mid.x || p.mid.y - q.mid.y)[Math.floor((group.length - 1) / 2)]!;
+      links.push({ edge: mid.key, a, b, open: true, auto: true });
+    }
+  }
+  openEdges.sort();
+  links.sort((l, m) => (l.edge < m.edge ? -1 : 1));
+
+  return { cells, byId, cellAt, links, openEdges, pieces, adjacent, edges, runs, runOf };
 }
 
 /** 화면에 보이는 벽 토막 열쇠들 */
@@ -553,14 +591,21 @@ export function cellIdAt(layout: Layout, p: Pt): string | undefined {
   return layout.cellAt.get(pieceKeyAt(layout, p));
 }
 
-/** 칸 c 에서 문 하나로 갈 수 있는 곳 (칸 id 또는 `out`) */
-export function reachableFrom(layout: Layout, id: string): { to: string; edge: string }[] {
-  const out: { to: string; edge: string }[] = [];
+/** 칸 c 에서 문이나 트인 곳 하나로 갈 수 있는 곳 (칸 id 또는 `out`). open 이면 문짝이 없다 */
+export function reachableFrom(layout: Layout, id: string): { to: string; edge: string; open?: boolean }[] {
+  const out: { to: string; edge: string; open?: boolean }[] = [];
   for (const l of layout.links) {
-    if (l.a === id) out.push({ to: l.b, edge: l.edge });
-    else if (l.b === id) out.push({ to: l.a, edge: l.edge });
+    const open = l.open ? { open: true } : {};
+    if (l.a === id) out.push({ to: l.b, edge: l.edge, ...open });
+    else if (l.b === id) out.push({ to: l.a, edge: l.edge, ...open });
   }
   return out;
+}
+
+/** 지나갈 수 있는 벽 토막인가 — 문이거나 틈이거나 트인 칸끼리 맞닿은 곳이다 */
+export function isPassable(plan: Plan, layout: Layout, edge: string): boolean {
+  const kind = plan.openings[edge];
+  return kind === 'door' || kind === 'gap' || layout.openEdges.includes(edge);
 }
 
 /** 벽 토막이 집 겉벽인가 — 한쪽이 칸이고 다른 쪽이 바깥이다 */

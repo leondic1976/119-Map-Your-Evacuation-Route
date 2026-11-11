@@ -4,16 +4,16 @@ import { analyze, cellIdAt, edgeKeys, pieceKeyAt, reachableFrom, unreachableCell
 import { itemIndexAt, moveItem, outsideOf, setOutside } from '../core/items';
 import { placeMark, paintCell, eraseWall, addStroke, dragRoute, routeCandidates, routeCells, tapRoute, toggleOpening, type RouteTap } from '../core/edit';
 import { hasOtherRoute } from '../core/auto';
-import { pickByArrow, routePoints, type ArrowDir } from '../core/path';
+import { arrowMap, routePoints, type ArrowDir } from '../core/path';
 import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, sameDot, startDrag, type DragStroke } from '../core/stroke';
 import { OUT, type MarkId, type OpeningKind, type OutsideSide, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
-import { crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
+import { cellLabel, crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
 import { clearRoute, commit, currentBand, getApp, say, setGrid, useApp } from '../store/app';
 import { getHandUnit } from './handUnit';
 import { useLayers } from './Layers';
 import { CursorGhost } from './CursorGhost';
-import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
+import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconUndo, IconWindow, MarkGlyph } from './art';
 import { PlanView } from './PlanView';
 import { ZoomControls } from './ZoomControls';
 
@@ -517,19 +517,35 @@ export function RouteStep() {
     choose(under(p));
   };
 
-  // 화살표 키 — 지금 자리에서 그 방향에 있는 문으로 간다
-  const onArrow = (dir: ArrowDir) => {
-    if (!plan.marks.me || done) return;
+  // 방향키 — 지금 자리에서 그 방향에 있는 문이나 트인 곳으로 간다. 화면의 방향키 판과 키보드가 같은 일을 한다
+  const arrows = useMemo(() => {
+    if (!plan.marks.me || done) return {};
     const steps = route.length ? route : [pieceKeyAt(layout, plan.marks.me)];
     const here = layout.cellAt.get(steps[steps.length - 1]!);
-    if (!here) return;
+    if (!here) return {};
     const points = routePoints(plan, layout, steps);
-    const from = points[points.length - 1] ?? plan.marks.me;
-    const pick = pickByArrow(from, reachableFrom(layout, here), dir);
+    return arrowMap(points[points.length - 1] ?? plan.marks.me, reachableFrom(layout, here));
+  }, [plan, layout, route, done]);
+  const onArrow = (dir: ArrowDir) => {
+    if (!plan.marks.me) {
+      say('help-fill');
+      return;
+    }
+    if (done) return;
+    const pick = arrows[dir];
     if (pick) choose(pick.to);
     else say('route-no-way');
   };
   useArrowKeys(onArrow);
+  const stepBack = () => {
+    if (route.length > 1) commit({ ...plan, [which]: route.slice(0, -1) });
+  };
+  const placeName = (to: string): string => {
+    if (to === OUT) return '집 밖';
+    const cell = layout.cells.find((c) => c.id === to);
+    return (cell && cellLabel(cell.kind, cell.name)) || '옆 칸';
+  };
+  const [padLeft, setPadLeft] = useState(false);
 
   const stepsText = route.length
     ? `${routeCells(layout, route).filter((s) => s !== OUT).length}칸 지남${done ? ', 도착' : ''}`
@@ -546,7 +562,7 @@ export function RouteStep() {
         )}
         {info.secondRoute && firstDone && !otherWay && <p className="tool-note" data-testid="route-no-other">다른 길이 없어. 문을 더 달면 찾을 수 있어.</p>}
         <p className="tool-note" data-testid="route-status">{stepsText}</p>
-        <p className="tool-note" data-testid="route-drag-note">칸을 눌러도 되고, 손으로 끌어 길을 그어도 돼. 벽은 못 지나가.</p>
+        <p className="tool-note" data-testid="route-drag-note">방향키를 눌러 한 칸씩 가 보자. 칸을 눌러도 되고, 손으로 끌어 그어도 돼. 벽은 못 지나가.</p>
         {hasStart && layout.links.length === 0 && <p className="tool-note">문이 없어. 도와줘를 눌러 봐.</p>}
         {hasStart && layout.links.length > 0 && route.length <= 1 && candidates.length === 0 && <p className="tool-note" data-testid="route-no-door">내 자리 칸에 문이 없어. 도와줘를 눌러 봐.</p>}
         {!hasStart && <p className="tool-note">내 자리가 없어. 도와줘를 눌러 봐.</p>}
@@ -555,7 +571,31 @@ export function RouteStep() {
       <section className="paper">
         <PlanView plan={plan} layout={layout} look={look} showRoute glow={glow} hints={glow} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
         <ZoomControls plan={plan} />
+        <div className={padLeft ? 'arrow-pad left' : 'arrow-pad'} role="group" aria-label="방향키로 나가는 길 만들기" data-testid="arrow-pad">
+          <button type="button" className="pad-btn small" style={{ gridArea: 'move' }} data-testid="pad-move" aria-label="방향키를 다른 쪽으로 옮기기" onClick={() => setPadLeft((v) => !v)}>
+            <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">{[9, 19].flatMap((x) => [7, 14, 21].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="2.4" fill="currentColor" />))}</svg>
+          </button>
+          {PAD.map((key) => {
+            const to = arrows[key.dir]?.to;
+            return (
+              <button key={key.dir} type="button" className={to ? 'pad-btn go' : 'pad-btn'} style={{ gridArea: key.dir }} data-testid={`pad-${key.dir}`} data-to={to ? placeName(to) : ''} aria-label={to ? `${key.label}: ${placeName(to)} 쪽으로 가기` : `${key.label}: 갈 수 없음`} aria-disabled={!to} onClick={() => onArrow(key.dir)}>
+                <svg viewBox="0 0 28 28" width="32" height="32" aria-hidden="true"><path d={key.d} fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            );
+          })}
+          <button type="button" className="pad-btn small" style={{ gridArea: 'back' }} data-testid="pad-back" aria-label="한 칸 뒤로" disabled={route.length <= 1} onClick={stepBack}>
+            <IconUndo size={24} />
+          </button>
+        </div>
       </section>
     </>
   );
 }
+
+/** 방향키 판의 네 단추 */
+const PAD: { dir: ArrowDir; label: string; d: string }[] = [
+  { dir: 'up', label: '위쪽', d: 'M14 23V5M6 13l8-8 8 8' },
+  { dir: 'left', label: '왼쪽', d: 'M23 14H5M13 6l-8 8 8 8' },
+  { dir: 'right', label: '오른쪽', d: 'M5 14h18M15 6l8 8-8 8' },
+  { dir: 'down', label: '아래쪽', d: 'M14 5v18M6 15l8 8 8-8' },
+];

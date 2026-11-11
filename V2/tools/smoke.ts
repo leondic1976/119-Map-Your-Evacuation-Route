@@ -471,12 +471,12 @@ async function main(): Promise<void> {
     });
     assert.ok(lit > 1, `3D 가 그려져야 한다: ${lit}`);
     const stage3d = page.locator(`${t('replay')} > div`).first();
-    assert.equal(await stage3d.getAttribute('data-view'), 'eye', '기본은 내 시점이다');
+    assert.equal(await stage3d.getAttribute('data-view'), 'behind', '기본은 내 바로 뒤에서 본다');
     assert.match(await page.locator(t('replay-view')).innerText(), /위에서 보기/);
     await shot(page, '12b-replay-eye');
     await page.click(t('replay-view'));
     assert.equal(await stage3d.getAttribute('data-view'), 'above', '위에서 본다');
-    assert.match(await page.locator(t('replay-view')).innerText(), /내 눈으로 보기/);
+    assert.match(await page.locator(t('replay-view')).innerText(), /뒤에서 보기/);
     await page.waitForFunction(() => document.querySelector('[data-testid="replay-caption"]')?.getAttribute('data-ended') === '1', undefined, { timeout: 180000 });
     await shot(page, '13-replay-end');
     await page.keyboard.press('Escape');
@@ -1381,7 +1381,7 @@ async function main(): Promise<void> {
     await page.waitForTimeout(1800);
     await shot(page, '99-home-eye');
     const stage3d = page.locator(`${t('replay')} > div`).first();
-    assert.equal(await stage3d.getAttribute('data-view'), 'eye');
+    assert.equal(await stage3d.getAttribute('data-view'), 'behind');
     assert.equal(await stage3d.getAttribute('data-placed'), '1', '놓은 가구가 3D 에 나온다');
     await page.click(t('replay-view'));
     await page.waitForTimeout(700);
@@ -1765,6 +1765,72 @@ async function main(): Promise<void> {
     await quiet.ctx.close();
   });
 
+  await scenario('#148 방향키 판: 눌러서 한 칸씩 길을 만들고, 못 가는 쪽은 말해 주며, 뒤로 가고 옮길 수 있고, 3D 는 아이 눈높이로 내 뒤에서 본다', async () => {
+    const { ctx, page, errors } = await seeded(browser, 1, chain(8, 6), { viewport: { width: 1280, height: 800 } });
+    await page.click(t('step-route'));
+    await page.waitForSelector(t('arrow-pad'));
+    // 일렬 집: 내 방은 왼쪽이고 문은 오른쪽에 있다
+    assert.equal(await page.locator(t('pad-right')).getAttribute('aria-disabled'), 'false', '갈 수 있는 쪽이 켜진다');
+    assert.equal(await page.locator(t('pad-up')).getAttribute('aria-disabled'), 'true', '갈 수 없는 쪽은 꺼진다');
+    assert.ok((await page.locator(t('pad-right')).getAttribute('data-to'))!.length > 0, '어디로 가는지 이름이 있다');
+    const sizes = await page.evaluate(() => [...document.querySelectorAll('.arrow-pad button')].map((b) => {
+      const r = b.getBoundingClientRect();
+      return Math.min(r.width, r.height);
+    }));
+    assert.ok(sizes.length === 6 && sizes.every((v) => v >= 48), `방향키 단추 크기: ${sizes.join(',')}`);
+    const top = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="pad-right"]')!.getBoundingClientRect();
+      return Boolean(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('[data-testid="pad-right"]'));
+    });
+    assert.equal(top, true, '방향키 판이 지도 위에 있어 눌린다');
+    await shot(page, '148-a-pad');
+    await page.click(t('pad-up'), { force: true });
+    assert.equal(await page.locator(t('bubble')).getAttribute('data-line'), 'route-no-way', '못 가는 쪽은 말해 준다');
+    await page.click(t('pad-right'));
+    assert.equal((await attr(page, 'route'))!.split(' ').length, 2, '한 번에 한 칸');
+    await page.click(t('pad-back'));
+    assert.equal((await attr(page, 'route'))!.split(' ').length, 1, '한 칸 뒤로');
+    await page.click(t('pad-move'));
+    const side = await page.evaluate(() => {
+      const pad = document.querySelector('[data-testid="arrow-pad"]')!.getBoundingClientRect();
+      const paper = document.querySelector('.paper')!.getBoundingClientRect();
+      return pad.left - paper.left < paper.right - pad.right;
+    });
+    assert.equal(side, true, '왼쪽으로 옮겨진다');
+    for (let i = 0; i < 6 && !(await attr(page, 'route'))!.endsWith('out'); i++) {
+      const go = page.locator('.arrow-pad .pad-btn.go');
+      const names = await go.evaluateAll((list) => list.map((b) => (b as HTMLElement).dataset.to));
+      const pick = names.indexOf('집 밖') >= 0 ? names.indexOf('집 밖') : names.length - 1;
+      // 돌아가는 쪽이 아닌 쪽 — 일렬 집은 오른쪽으로만 간다
+      if (names.indexOf('집 밖') < 0 && (await page.locator(t('pad-right')).getAttribute('aria-disabled')) === 'false') await page.click(t('pad-right'));
+      else await go.nth(pick).click();
+    }
+    assert.ok((await attr(page, 'route'))!.endsWith('out'), `방향키 판으로 밖까지: ${await attr(page, 'route')}`);
+    assert.equal(await page.locator('.arrow-pad .pad-btn.go').count(), 0, '다 가면 방향키가 꺼진다');
+    await shot(page, '148-b-pad-done');
+
+    // 3D — 내 바로 뒤, 아이 눈높이
+    await page.click(t('step-drill'));
+    await page.click(t('drill-start'));
+    await page.waitForSelector(t('player'));
+    await playToEnd(page, (x, y) => clickAt(page, x, y));
+    await page.click(t('drill-call'));
+    await page.waitForSelector(t('praises'));
+    await page.click(t('open-replay'));
+    await page.waitForSelector(t('replay-canvas'), { timeout: 20000 });
+    const stage3d = page.locator(`${t('replay')} > div`).first();
+    await page.waitForFunction(() => Number((document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.camBack) > 0, undefined, { timeout: 20000 });
+    await page.waitForTimeout(1800);
+    const cam = { y: Number(await stage3d.getAttribute('data-cam-y')), back: Number(await stage3d.getAttribute('data-cam-back')) };
+    assert.equal(await stage3d.getAttribute('data-view'), 'behind');
+    assert.ok(cam.y >= 0.4 && cam.y <= 0.7, `아이 눈높이다(벽 0.72, 어른 0.87): ${cam.y}`);
+    assert.ok(cam.back >= 0.15 && cam.back <= 0.9, `내 바로 뒤다: ${cam.back}`);
+    await shot(page, '148-c-behind');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+  });
+
   await scenario('작은 화면은 안내만 보인다', async () => {
     const { ctx, page } = await fresh(browser, { viewport: { width: 390, height: 844 } });
     assert.ok(await page.locator('.too-small').isVisible());
@@ -2143,7 +2209,7 @@ async function main(): Promise<void> {
       const host = document.querySelector('[data-testid="replay"] > div') as HTMLElement;
       return { view: host.dataset.view, inView: host.dataset.familyInView, dist: Number(host.dataset.familyDist) };
     });
-    assert.equal(info.view, 'eye');
+    assert.equal(info.view, 'behind');
     assert.equal(info.inView, '1', '끝에 가족이 화면 안에 있다');
     assert.ok(info.dist >= 1.1, `가족과 거리 ${info.dist}`);
     assert.match(await page.locator(t('replay-caption')).innerText(), /가족과 만났어/);

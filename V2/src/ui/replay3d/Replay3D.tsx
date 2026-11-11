@@ -19,7 +19,7 @@ import { IconClose, IconPlay } from '../art';
 
 const WALL_H = 0.72;
 const WALL_T = 0.09;
-/** 한 칸 걷는 데 걸리는 초. 내 눈 높이에서 무엇이 지나가는지 볼 수 있을 만큼 천천히 걷는다 */
+/** 한 칸 걷는 데 걸리는 초. 아이 눈높이에서 무엇이 지나가는지 볼 수 있을 만큼 천천히 걷는다 */
 const SEG_SECONDS = 1.05;
 /** 가족 앞에서 멈출 거리. 더 다가가면 얼굴이 화면 밖으로 나가고 몸통만 보인다 */
 const FAMILY_STOP = 1.3;
@@ -255,26 +255,82 @@ function hexOf(css: string): number {
   return new THREE.Color(css).getHex();
 }
 
-function makeKid(look: LookId): { root: THREE.Group; body: THREE.Group; legs: THREE.Mesh[] } {
+/** 아이 키 — 어른(0.87)보다 한 뼘 넘게 작다. 눈은 머리 가운데쯤이다 */
+const KID_SCALE = 1.05;
+const KID_EYE = 0.56;
+const KID_EYE_LOW = 0.34;
+/** 뒤에서 보는 자리 — 아이 바로 뒤, 눈높이에서 어깨 너머로 본다 */
+const CAM_BACK = 0.8;
+const CAM_SIDE = 0.22;
+/** 가족 앞에서 내가 멈추는 거리. 뒤에서 보는 눈과 가족 사이에 선다 */
+const KID_STOP = 0.75;
+const CAM_RISE = 0.08;
+
+/** 이름표에서 고른 내 모습을 3D 로 짓는다. 머리 모양과 머리색, 옷 색이 지도 위 그림과 같다 */
+function makeKid(look: LookId): { root: THREE.Group; body: THREE.Group; legs: THREE.Mesh[]; arms: THREE.Group[] } {
   const spec = LOOKS.find((l) => l.id === look) ?? LOOKS[0];
   const root = new THREE.Group();
-  root.scale.setScalar(1.25);
+  root.scale.setScalar(KID_SCALE);
   const body = new THREE.Group();
   root.add(body);
   const shirt = material(hexOf(spec.shirt));
   const skin = material(0xf6d3b0);
   const hair = material(hexOf(spec.hair));
-  const trunk = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.14, 4, 10), shirt);
-  trunk.position.y = 0.3;
-  trunk.castShadow = true;
-  body.add(trunk);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 18, 14), skin);
-  head.position.y = 0.53;
-  head.castShadow = true;
-  body.add(head);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.122, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), hair);
-  cap.position.y = 0.54;
-  body.add(cap);
+  const dark = material(0x33363b);
+  const part = (geometry: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number): THREE.Mesh => {
+    const mesh = new THREE.Mesh(geometry, mat);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    body.add(mesh);
+    return mesh;
+  };
+  part(new THREE.CapsuleGeometry(0.1, 0.14, 4, 10), shirt, 0, 0.3, 0);
+  part(new THREE.SphereGeometry(0.115, 18, 14), skin, 0, 0.53, 0);
+  // 얼굴은 가는 쪽(+z)을 본다
+  for (const side of [-1, 1]) part(new THREE.SphereGeometry(0.015, 8, 6), dark, side * 0.042, 0.54, 0.106);
+  const smile = part(new THREE.TorusGeometry(0.03, 0.006, 6, 12, Math.PI), material(0x8a3b2a), 0, 0.5, 0.108);
+  smile.rotation.z = Math.PI;
+  // 머리카락 — 뒤통수를 덮는 머리와 정수리, 그 위에 모양마다 다른 것을 얹는다
+  const backHair = part(new THREE.SphereGeometry(0.118, 16, 12), hair, 0, 0.545, -0.014);
+  backHair.scale.y = 0.9;
+  const top = new THREE.SphereGeometry(0.123, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (spec.style === 'cap') {
+    part(top, material(0xe0603f), 0, 0.545, 0);
+    const brim = part(new THREE.CylinderGeometry(0.075, 0.075, 0.014, 16), material(0xe0603f), 0, 0.56, 0.125);
+    brim.scale.x = 1.2;
+  } else {
+    part(top, hair, 0, 0.54, 0);
+  }
+  if (spec.style === 'long') {
+    const fall = part(new THREE.CapsuleGeometry(0.112, 0.13, 4, 12), hair, 0, 0.44, -0.05);
+    fall.scale.z = 0.55;
+  } else if (spec.style === 'curly') {
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      part(new THREE.SphereGeometry(0.05, 10, 8), hair, Math.sin(a) * 0.09, 0.61, Math.cos(a) * 0.09 - 0.012);
+    }
+    part(new THREE.SphereGeometry(0.06, 10, 8), hair, 0, 0.645, -0.01);
+  } else if (spec.style === 'pony') {
+    part(new THREE.SphereGeometry(0.04, 10, 8), hair, 0, 0.6, -0.125);
+    const tail = part(new THREE.CapsuleGeometry(0.032, 0.13, 4, 8), hair, 0, 0.5, -0.165);
+    tail.rotation.x = -0.25;
+  } else if (spec.style === 'twin') {
+    for (const side of [-1, 1]) part(new THREE.SphereGeometry(0.052, 12, 10), hair, side * 0.14, 0.57, -0.02);
+  }
+  // 팔 — 어깨를 축으로 흔든다
+  const arms: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Group();
+    arm.position.set(side * 0.128, 0.4, 0);
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.11, 3, 8), shirt);
+    sleeve.position.y = -0.075;
+    sleeve.castShadow = true;
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), skin);
+    hand.position.y = -0.165;
+    arm.add(sleeve, hand);
+    body.add(arm);
+    arms.push(arm);
+  }
   const legs: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.12, 3, 6), material(0x37455a));
@@ -283,7 +339,7 @@ function makeKid(look: LookId): { root: THREE.Group; body: THREE.Group; legs: TH
     root.add(leg);
     legs.push(leg);
   }
-  return { root, body, legs };
+  return { root, body, legs, arms };
 }
 
 export default function Replay3D({ plan, drill, look, onClose }: Props) {
@@ -291,7 +347,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
   const [failed, setFailed] = useState(false);
   const [caption, setCaption] = useState('내 자리에서 시작');
   const [ended, setEnded] = useState(false);
-  // 기본은 내 눈으로 보고, 위쪽 단추를 누르면 위에서 집 전체를 본다
+  // 기본은 내 바로 뒤에서 내 눈높이로 보고, 위쪽 단추를 누르면 위에서 집 전체를 본다
   const [fromAbove, setFromAbove] = useState(false);
   const aboveRef = useRef(false);
   const restart = useRef<() => void>(() => undefined);
@@ -643,8 +699,11 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         bursts.push({ points, dirs, at: new THREE.Vector3(family.x + (bx / bl) * back - (bz / bl) * side, 1.9 + (i % 2) * 0.7 + (i % 3) * 0.25, family.z + (bz / bl) * back + (bx / bl) * side), delay: i * 0.34 });
       }
     }
+    // 가족 앞에서 멈춘 자리
+    let held: Pt | null = null;
     restart.current = () => {
       time = 0;
+      held = null;
       party = 0;
       cheered = false;
       setEnded(false);
@@ -661,8 +720,13 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
 
-    // 시점 — 내 눈 높이에서 가는 쪽을 본다. 위에서 보기는 손으로 돌려 볼 수 있다
+    // 시점 — 내 바로 뒤, 아이 눈높이에서 가는 쪽을 본다. 위에서 보기는 손으로 돌려 볼 수 있다
     const lookAhead = new THREE.Vector3();
+    // 뒤에 벽이 있으면 벽 앞까지만 물러난다. 벽 너머에서 보면 내가 가려진다
+    const ray = new THREE.Raycaster();
+    const rayFrom = new THREE.Vector3();
+    const rayDir = new THREE.Vector3();
+    let back = CAM_BACK;
     let heading = 0;
     let lastAbove = aboveRef.current;
     const firstWalk = list.find((e) => e.snap.walk.length >= 2)?.snap.walk;
@@ -680,10 +744,9 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const approachLen = Math.hypot(approach.x, approach.y) || 1;
     const setMode = (above: boolean) => {
       controls.enabled = above;
-      kid.root.visible = above;
       camera.fov = above ? 42 : eyeFov;
       camera.updateProjectionMatrix();
-      mount.dataset.view = above ? 'above' : 'eye';
+      mount.dataset.view = above ? 'above' : 'behind';
       if (above) {
         camera.position.copy(home);
         controls.target.set(cx, 0, cz + 0.4);
@@ -723,11 +786,17 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       if (idx < 0) idx = list.length - 1;
       const seg = list[idx]!;
       const r = Math.max(0, Math.min(1, (time - seg.from) / (seg.to - seg.from)));
-      const pos = seg.snap.walk.length >= 2 ? pointAlong(seg.snap.walk, r) : (seg.snap.walk[0] ?? finalPt);
-      const moving = r > 0 && r < 1 && seg.snap.walk.length >= 2;
+      let pos = seg.snap.walk.length >= 2 ? pointAlong(seg.snap.walk, r) : (seg.snap.walk[0] ?? finalPt);
+      // 가족 앞에 다다르면 거기 선다. 더 걸어가면 가족을 지나친다
+      const nearFamily = drill.end === 'meet' && family && idx === list.length - 1 && seg.snap.at === OUT && Math.hypot(pos.x - family.x, pos.y - family.z) < KID_STOP;
+      if (nearFamily) {
+        held ??= pos;
+        pos = held;
+      }
+      const moving = r > 0 && r < 1 && seg.snap.walk.length >= 2 && !nearFamily;
 
       kid.root.position.set(pos.x, 0, pos.y);
-      if (seg.snap.walk.length >= 2) {
+      if (seg.snap.walk.length >= 2 && !nearFamily) {
         const ahead = pointAlong(seg.snap.walk, Math.min(1, r + 0.03));
         if (Math.hypot(ahead.x - pos.x, ahead.y - pos.y) > 0.001) {
           kid.root.rotation.y = Math.atan2(ahead.x - pos.x, ahead.y - pos.y);
@@ -738,6 +807,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const swing = moving && !reduced ? Math.sin(time * 14) * 0.5 : 0;
       kid.legs[0]!.rotation.x = swing;
       kid.legs[1]!.rotation.x = -swing;
+      kid.arms[0]!.rotation.x = -swing * 0.8;
+      kid.arms[1]!.rotation.x = swing * 0.8;
 
       // 위험 — 이전 차례 값에서 지금 값으로 서서히 옮겨 간다
       const prev = list[Math.max(0, idx - 1)]!.snap.field;
@@ -830,20 +901,25 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
             heading += turn * Math.min(1, dt * 6);
           }
         }
-        const eye = seg.snap.crouch && seg.snap.at !== OUT ? 0.34 : 0.56;
+        const eye = (seg.snap.crouch && seg.snap.at !== OUT ? KID_EYE_LOW : KID_EYE) + CAM_RISE;
         const bob = moving && !reduced ? Math.sin(time * 14) * 0.008 : 0;
         const toFamily = drill.end === 'meet' && family && idx === list.length - 1 && seg.snap.at === OUT;
         if (toFamily) {
           // 만나는 곳 — 가족 앞에서 멈추고 가족을 바라본다
           const gap = Math.hypot(pos.x - family.x, pos.y - family.z);
           const stop = gap < FAMILY_STOP;
-          const cx2 = stop ? family.x + (approach.x / approachLen) * FAMILY_STOP : pos.x;
-          const cz2 = stop ? family.z + (approach.y / approachLen) * FAMILY_STOP : pos.y;
+          // 내 어깨 너머로 가족이 보이게 옆으로 조금 비켜 선다
+          const ax = approach.x / approachLen;
+          const az = approach.y / approachLen;
+          const cx2 = stop ? family.x + ax * FAMILY_STOP - az * CAM_SIDE * 1.6 : pos.x;
+          const cz2 = stop ? family.z + az * FAMILY_STOP + ax * CAM_SIDE * 1.6 : pos.y;
           const ease = Math.min(1, dt * 5);
           camera.position.set(camera.position.x + (cx2 - camera.position.x) * ease, eye + bob, camera.position.z + (cz2 - camera.position.z) * ease);
           const want = Math.atan2(family.x - camera.position.x, family.z - camera.position.z);
           const turn = Math.atan2(Math.sin(want - heading), Math.cos(want - heading));
           heading += turn * Math.min(1, dt * 4);
+          // 나도 가족을 바라본다
+          if (stop) kid.root.rotation.y = Math.atan2(family.x - pos.x, family.z - pos.y);
           const far = Math.max(0.3, Math.hypot(family.x - camera.position.x, family.z - camera.position.z));
           lookAhead.set(camera.position.x + Math.sin(heading), eye + bob + (family.y - eye) / far, camera.position.z + Math.cos(heading));
           camera.lookAt(lookAhead);
@@ -852,10 +928,28 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           mount.dataset.familyInView = familyNdc.z < 1 && Math.abs(familyNdc.x) < 0.9 && Math.abs(familyNdc.y) < 0.9 ? '1' : '0';
           mount.dataset.familyDist = camera.position.distanceTo(familyDir.set(family.x, camera.position.y, family.z)).toFixed(2);
         } else {
-          camera.position.set(pos.x, eye + bob, pos.y);
-          lookAhead.set(pos.x + Math.sin(heading), eye + bob - 0.04, pos.y + Math.cos(heading));
+          const fx = Math.sin(heading);
+          const fz = Math.cos(heading);
+          // 어깨 너머 자리 — 뒤로 물러나고 옆으로 조금 비켜 앞이 보이게 한다
+          const wantX = -fx * CAM_BACK - fz * CAM_SIDE;
+          const wantZ = -fz * CAM_BACK + fx * CAM_SIDE;
+          const wantLen = Math.hypot(wantX, wantZ);
+          rayFrom.set(pos.x, eye, pos.y);
+          rayDir.set(wantX / wantLen, 0, wantZ / wantLen);
+          ray.set(rayFrom, rayDir);
+          ray.far = wantLen + 0.12;
+          const hit = ray.intersectObject(walls, true)[0];
+          const room = hit ? Math.max(0.16, hit.distance - 0.12) / wantLen : 1;
+          // 벽이 가까우면 곧바로 당기고, 넓어지면 천천히 물러난다
+          const goal = Math.min(1, room) * CAM_BACK;
+          back = goal < back ? goal : back + (goal - back) * Math.min(1, dt * 4);
+          const k = back / CAM_BACK;
+          camera.position.set(pos.x + wantX * k, eye + bob, pos.y + wantZ * k);
+          lookAhead.set(pos.x + fx * 1.4, eye + bob - 0.1, pos.y + fz * 1.4);
           camera.lookAt(lookAhead);
+          mount.dataset.camBack = Math.hypot(camera.position.x - pos.x, camera.position.z - pos.y).toFixed(2);
         }
+        mount.dataset.camY = camera.position.y.toFixed(2);
       }
       // 가족은 나를 바라본다
       adults.forEach((adult) => {
@@ -891,7 +985,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       <div className="replay-top">
         <button type="button" className="btn" data-testid="replay-close" onClick={onClose}><IconClose /> 닫기</button>
         <button type="button" className="btn" data-testid="replay-view" aria-pressed={fromAbove} onClick={() => setFromAbove((f) => !f)}>
-          {fromAbove ? '내 눈으로 보기' : '위에서 보기'}
+          {fromAbove ? '뒤에서 보기' : '위에서 보기'}
         </button>
         <button type="button" className={ended ? 'btn primary' : 'btn'} data-testid="replay-again" onClick={() => restart.current()}>
           <IconPlay /> 처음부터

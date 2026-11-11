@@ -68,7 +68,7 @@ const dist = (a: Pt, b: Pt): number => Math.hypot(a.x - b.x, a.y - b.y);
 
 export type ArrowDir = 'left' | 'right' | 'up' | 'down';
 
-const ARROW: Record<ArrowDir, Pt> = {
+export const ARROW: Record<ArrowDir, Pt> = {
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 },
   up: { x: 0, y: -1 },

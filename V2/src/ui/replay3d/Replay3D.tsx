@@ -740,7 +740,9 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const familyNdc = new THREE.Vector3();
     const lastWalk = list[list.length - 1]?.snap.walk;
     // 가족에게 다가오는 쪽 — 마지막에 이쪽에서 멈춘다
-    const approach = lastWalk && family ? { x: lastWalk[0]!.x - family.x, y: lastWalk[0]!.y - family.z } : { x: 0, y: 1 };
+    // 집 밖에서 돌아서 왔으면 마지막으로 걸어온 쪽이다
+    const cameFrom = lastWalk ? (lastWalk[lastWalk.length - 2] ?? lastWalk[0]!) : null;
+    const approach = cameFrom && family ? { x: cameFrom.x - family.x, y: cameFrom.y - family.z } : { x: 0, y: 1 };
     const approachLen = Math.hypot(approach.x, approach.y) || 1;
     const setMode = (above: boolean) => {
       controls.enabled = above;

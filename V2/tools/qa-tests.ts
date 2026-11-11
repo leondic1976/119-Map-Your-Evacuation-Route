@@ -8,6 +8,7 @@ import { BANDS } from '../src/content/bands';
 import { crayonsFor, MARK_NAME } from '../src/content/names';
 import { howToFor, type HowToStep } from '../src/content/howto';
 import { FIX, PRAISE, PROMISES } from '../src/content/report';
+import { STAMPS } from '../src/content/stamps';
 import { SOURCES } from '../src/content/sources';
 import type { Check } from './test';
 
@@ -153,7 +154,7 @@ export function runQaTests(check: Check): void {
 
   check('[문장] 모든 문장의 출처가 대장에 있다', () => {
     const ids = new Set(SOURCES.map((s) => s.id));
-    const all = [...LINE_IDS.map((id) => LINES[id]), ...Object.values(PRAISE), ...Object.values(FIX), ...PROMISES];
+    const all = [...LINE_IDS.map((id) => LINES[id]), ...Object.values(PRAISE), ...Object.values(FIX), ...PROMISES, ...Object.values(STAMPS)];
     for (const t of all) {
       assert.ok(t.sourceIds.length > 0, t.text);
       for (const s of t.sourceIds) assert.ok(ids.has(s), `${t.text}: ${s}`);

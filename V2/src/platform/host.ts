@@ -18,6 +18,10 @@ export interface Host {
   alarm(): void;
   /** 대피에 성공했을 때 한 번 — 축포 터지는 소리와 짧은 팡파르. 파일 없이 코드로 낸다 */
   cheer(): void;
+  /** 한 칸 걸을 때 나는 작은 발소리 */
+  step(): void;
+  /** 칭찬 도장이 찍힐 때 나는 맑은 소리 */
+  stamp(): void;
   /** 예전 판이 브라우저에 남긴 서비스 워커와 저장본을 지운다. 화면을 저장해 두지 않는다 */
   forgetOldCopies(): void;
   /** 설치 안내 주소. 이미 설치했거나 오프라인 판이면 null */
@@ -189,6 +193,41 @@ class WebHost implements Host {
     } catch {
       /* 소리가 없어도 다 된다 */
     }
+  }
+
+  /** 짧은 소리 몇 개를 차례로 낸다. 소리가 없어도 다 된다 */
+  private blip(notes: [number, number, number][], type: OscillatorType, volume: number): void {
+    try {
+      const ctx = new window.AudioContext();
+      const t0 = ctx.currentTime + 0.01;
+      let end = 0;
+      for (const [freq, at, len] of notes) {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, t0 + at);
+        g.gain.linearRampToValueAtTime(volume, t0 + at + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + at + len);
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start(t0 + at);
+        osc.stop(t0 + at + len + 0.02);
+        end = Math.max(end, at + len);
+      }
+      window.setTimeout(() => void ctx.close(), end * 1000 + 300);
+    } catch {
+      /* 소리가 없어도 다 된다 */
+    }
+  }
+
+  step(): void {
+    this.blip([[330, 0, 0.07], [392, 0.16, 0.07]], 'sine', 0.05);
+  }
+
+  stamp(): void {
+    this.blip([[784, 0, 0.14], [1175, 0.1, 0.3]], 'triangle', 0.09);
+    document.documentElement.dataset.stamp = String(Number(document.documentElement.dataset.stamp ?? 0) + 1);
   }
 
   forgetOldCopies(): void {

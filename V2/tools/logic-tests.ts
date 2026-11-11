@@ -12,6 +12,10 @@ import {
   startDrill,
   touchDoor,
   type DrillState,
+  outsidePath,
+  pickHere,
+  stepOutside,
+  type TokenId,
 } from '../src/core/drill';
 import { addEdges, addStroke, dragRoute, emptyPlan, eraseWall, normalize, paintCell, placeMark, removeWall, routeCandidates, routeCells, tapRoute, toggleOpening } from '../src/core/edit';
 import { changeGrid, densityOf, straightRuns } from '../src/core/density';
@@ -22,7 +26,7 @@ import { fitFurniture } from '../src/core/furnish';
 import { analyze, cellIdAt, dKey, edgeBetween, edgeKeys, hKey, isExterior, isInterior, isPassable, pieceCenter, pieceKeyAt, segmentEdges, shortestPath, sqKey, uKey, unreachableCells, vKey } from '../src/core/grid';
 import { stepField } from '../src/core/hazard';
 import { arrowMap, pickByArrow, pointAlong, routePoints, type ArrowDir } from '../src/core/path';
-import { buildReport } from '../src/core/report';
+import { buildReport, earnedStamps, stampSlots } from '../src/core/report';
 import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, startDrag, wasStraightDrag } from '../src/core/stroke';
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, ZOOM_MAX } from '../src/core/zoom';
 import { OUT, type Band, type Plan, type Pt } from '../src/core/types';
@@ -1285,6 +1289,79 @@ export function runLogicTests(check: Check): void {
     };
     assert.ok(buildReport(go(true), plan, 'low').praises.includes('crouch'));
     assert.ok(buildReport(go(false), plan, 'low').fixes.includes('crouch'));
+  });
+
+  check('[놀이] 안전 행동이 길 위에 놓이고, 지나가면 주워 도장이 된다', () => {
+    for (const t of TEMPLATES) {
+      const plan = autoAll(t);
+      const layout = analyze(plan);
+      const config = FIRE[t.band];
+      const wanted = stampSlots(t.band).filter((id): id is TokenId => id === 'shout' || id === 'nose' || id === 'stairs');
+      let state = startDrill(plan, 3, config, wanted)!;
+      const start = state.at;
+      assert.ok(state.tokens!.some((k) => k.id === 'shout' && k.cell === start), `${t.id}: 불이야는 내 자리 칸에 있다`);
+      for (const token of state.tokens!) {
+        if (token.cell === OUT) assert.equal(cellIdAt(layout, token.pt), undefined, `${t.id}: 계단은 집 밖에 있다`);
+        else assert.equal(cellIdAt(layout, token.pt), token.cell, `${t.id}: ${token.id} 가 제 칸 안에 있다`);
+      }
+      assert.deepEqual(earnedStamps(state, t.band), [], '시작할 때는 도장이 없다');
+      for (const hop of shortestPath(layout, state.at)!) {
+        const mv = drillMoves(layout, state, config).find((m) => m.to === hop.to)!;
+        state = moveTo(plan, layout, state, mv, config);
+      }
+      assert.deepEqual(state.tokens, [], `${t.id}: 가장 짧은 길로 가면 다 줍는다`);
+      const done = finishMeet(plan, layout, state);
+      const stamps = earnedStamps(done, t.band);
+      for (const id of [...wanted, 'meet'] as const) assert.ok(stamps.includes(id), `${t.id}: ${id} 도장`);
+      assert.ok(stamps.every((id) => stampSlots(t.band).includes(id)), '학년에 없는 도장은 찍히지 않는다');
+    }
+    // 예전 기록에는 주운 것이 없다. 그래도 도장을 고를 수 있다
+    const old = walkOut(autoAll(TEMPLATES[0]!), 1, TEMPLATES[0]!.band);
+    delete old.tokens;
+    delete old.picked;
+    assert.ok(earnedStamps(old, TEMPLATES[0]!.band).includes('meet'));
+  });
+
+  check('[놀이] 지금 칸의 안전 행동은 눌러서 줍는다', () => {
+    const plan = autoAll(TEMPLATES[0]!);
+    const state = startDrill(plan, 1, FIRE[TEMPLATES[0]!.band], ['shout'])!;
+    const next = pickHere(state);
+    assert.deepEqual(next.picked, ['shout']);
+    assert.deepEqual(next.tokens, []);
+    assert.deepEqual(pickHere(next).picked, ['shout'], '두 번 줍지 않는다');
+  });
+
+  check('[집 밖] 방향키로 한 걸음씩 걷고, 집 안으로 들어가지 않으며, 만나는 곳에 닿는다', () => {
+    for (const t of TEMPLATES) {
+      const plan = autoAll(t);
+      const layout = analyze(plan);
+      const done = walkOut(plan, 2, t.band);
+      const walk = done.timeline[done.timeline.length - 1]!.walk;
+      const meet = plan.marks.meet!;
+      assert.deepEqual(walk[walk.length - 1], meet, `${t.id}: 만나는 곳에서 끝난다`);
+      for (let i = 1; i < walk.length; i++) {
+        const a = walk[i - 1]!;
+        const b = walk[i]!;
+        for (let k = 1; k < 8; k++) {
+          const p = { x: a.x + ((b.x - a.x) * k) / 8, y: a.y + ((b.y - a.y) * k) / 8 };
+          assert.equal(cellIdAt(layout, p), undefined, `${t.id}: 집 밖 길이 집을 뚫지 않는다`);
+        }
+      }
+      // 한 걸음씩 걸어도 닿는다
+      let at = walk[0]!;
+      let arrived = false;
+      for (let guard = 0; guard < 200 && !arrived; guard++) {
+        const dirs = (['down', 'up', 'right', 'left'] as const)
+          .map((dir) => ({ dir, next: stepOutside(plan, layout, at, dir) }))
+          .filter((o) => o.next)
+          .sort((p, q) => Math.hypot(p.next!.pt.x - meet.x, p.next!.pt.y - meet.y) - Math.hypot(q.next!.pt.x - meet.x, q.next!.pt.y - meet.y));
+        assert.ok(dirs.length > 0, `${t.id}: 갈 수 있는 쪽이 있다`);
+        at = dirs[0]!.next!.pt;
+        arrived = dirs[0]!.next!.arrived;
+        if (!arrived) assert.equal(cellIdAt(layout, at), undefined);
+      }
+      assert.ok(outsidePath(plan, layout, walk[0]!).length >= 2);
+    }
   });
 
   check('[돌아보기] 잘한 점은 하나 이상, 고칠 점은 세 개까지', () => {

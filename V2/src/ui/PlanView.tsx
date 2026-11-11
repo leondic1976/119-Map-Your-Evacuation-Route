@@ -6,6 +6,7 @@
 import { memo, useEffect, useId, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { edgeAngle, edgeEnds, edgeKeys, edgeLength, edgeMid, edgeNormal, edgeSides, isSlanted } from '../core/grid';
 import { arrangeLabels, type Label, type Rect } from '../core/labels';
+import { outsidePath } from '../core/drill';
 import { routePoints } from '../core/path';
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, type Box } from '../core/zoom';
 import { OUT, type ItemKind, type Layout, type MarkId, type OutsideSide, type Piece, type Plan, type Pt } from '../core/types';
@@ -293,8 +294,21 @@ function PlanViewBase(props: PlanViewProps) {
     );
   }, [showDots, plan.rows, plan.cols, u, k]);
 
-  const route1 = useMemo(() => (showRoute ? routePoints(plan, layout, plan.route) : []), [showRoute, plan, layout]);
-  const route2 = useMemo(() => (showRoute ? routePoints(plan, layout, plan.route2) : []), [showRoute, plan, layout]);
+  // 밖까지 나온 길은 만나는 곳까지 이어 그린다 — 나가는 것으로 끝이 아니라 가족을 만나야 끝이다
+  const toMeet = (steps: string[]): Pt[] => {
+    const points = routePoints(plan, layout, steps);
+    if (points.length < 2 || steps[steps.length - 1] !== OUT || !plan.marks.meet) return points;
+    // 집을 돌아서 가고, 화살표가 깃발을 가리지 않게 조금 앞에서 멈춘다
+    const walk = outsidePath(plan, layout, points[points.length - 1]!);
+    const end = walk[walk.length - 1]!;
+    const before = walk[walk.length - 2] ?? end;
+    const len = Math.hypot(end.x - before.x, end.y - before.y);
+    const gap = 0.6 * (plan.density ?? 1);
+    const stop = len > gap * 1.5 ? { x: end.x - ((end.x - before.x) / len) * gap, y: end.y - ((end.y - before.y) / len) * gap } : end;
+    return [...points, ...walk.slice(1, -1), stop];
+  };
+  const route1 = useMemo(() => (showRoute ? toMeet(plan.route) : []), [showRoute, plan, layout]);
+  const route2 = useMemo(() => (showRoute ? toMeet(plan.route2) : []), [showRoute, plan, layout]);
   const glowSet = new Set(glow ?? []);
   const warnSet = new Set(warn ?? []);
   const closedSet = new Set(closedDoors ?? []);

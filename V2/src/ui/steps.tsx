@@ -13,7 +13,8 @@ import { clearRoute, commit, currentBand, getApp, say, setGrid, useApp } from '.
 import { getHandUnit } from './handUnit';
 import { useLayers } from './Layers';
 import { CursorGhost } from './CursorGhost';
-import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconUndo, IconWindow, MarkGlyph } from './art';
+import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconWindow, MarkGlyph } from './art';
+import { ArrowPad } from './ArrowPad';
 import { PlanView } from './PlanView';
 import { ZoomControls } from './ZoomControls';
 
@@ -545,7 +546,6 @@ export function RouteStep() {
     const cell = layout.cells.find((c) => c.id === to);
     return (cell && cellLabel(cell.kind, cell.name)) || '옆 칸';
   };
-  const [padLeft, setPadLeft] = useState(false);
 
   const stepsText = route.length
     ? `${routeCells(layout, route).filter((s) => s !== OUT).length}칸 지남${done ? ', 도착' : ''}`
@@ -571,31 +571,8 @@ export function RouteStep() {
       <section className="paper">
         <PlanView plan={plan} layout={layout} look={look} showRoute glow={glow} hints={glow} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="칸을 차례로 눌러 나가는 길을 고르는 지도" />
         <ZoomControls plan={plan} />
-        <div className={padLeft ? 'arrow-pad left' : 'arrow-pad'} role="group" aria-label="방향키로 나가는 길 만들기" data-testid="arrow-pad">
-          <button type="button" className="pad-btn small" style={{ gridArea: 'move' }} data-testid="pad-move" aria-label="방향키를 다른 쪽으로 옮기기" onClick={() => setPadLeft((v) => !v)}>
-            <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">{[9, 19].flatMap((x) => [7, 14, 21].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="2.4" fill="currentColor" />))}</svg>
-          </button>
-          {PAD.map((key) => {
-            const to = arrows[key.dir]?.to;
-            return (
-              <button key={key.dir} type="button" className={to ? 'pad-btn go' : 'pad-btn'} style={{ gridArea: key.dir }} data-testid={`pad-${key.dir}`} data-to={to ? placeName(to) : ''} aria-label={to ? `${key.label}: ${placeName(to)} 쪽으로 가기` : `${key.label}: 갈 수 없음`} aria-disabled={!to} onClick={() => onArrow(key.dir)}>
-                <svg viewBox="0 0 28 28" width="32" height="32" aria-hidden="true"><path d={key.d} fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </button>
-            );
-          })}
-          <button type="button" className="pad-btn small" style={{ gridArea: 'back' }} data-testid="pad-back" aria-label="한 칸 뒤로" disabled={route.length <= 1} onClick={stepBack}>
-            <IconUndo size={24} />
-          </button>
-        </div>
+        <ArrowPad targets={Object.fromEntries(Object.entries(arrows).map(([dir, pick]) => [dir, placeName(pick.to)]))} onArrow={onArrow} onBack={stepBack} backDisabled={route.length <= 1} label="방향키로 나가는 길 만들기" />
       </section>
     </>
   );
 }
-
-/** 방향키 판의 네 단추 */
-const PAD: { dir: ArrowDir; label: string; d: string }[] = [
-  { dir: 'up', label: '위쪽', d: 'M14 23V5M6 13l8-8 8 8' },
-  { dir: 'left', label: '왼쪽', d: 'M23 14H5M13 6l-8 8 8 8' },
-  { dir: 'right', label: '오른쪽', d: 'M5 14h18M15 6l8 8-8 8' },
-  { dir: 'down', label: '아래쪽', d: 'M14 5v18M6 15l8 8 8-8' },
-];

@@ -1,12 +1,13 @@
 /** 7. 돌아보기 — 잘한 점 · 고칠 점 · 3D 다시 보기 · 인쇄 */
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { analyze } from '../core/grid';
-import { buildReport } from '../core/report';
+import { buildReport, earnedStamps } from '../core/report';
 import { FIX, PRAISE } from '../content/report';
+import { STAMPS } from '../content/stamps';
 import { isVerified } from '../content/sources';
 import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, planGaps, retryDrill, say, STEP_LABEL, useApp } from '../store/app';
-import { IconCheck, IconCube, IconHelp, IconPencil, IconPlay, IconPrint } from './art';
+import { IconCheck, IconCube, IconHelp, IconPencil, IconPlay, IconPrint, StampGlyph } from './art';
 import { PlanView } from './PlanView';
 
 const Replay3D = lazy(() => import('./replay3d/Replay3D'));
@@ -22,6 +23,7 @@ export function ReviewStep() {
   const drill = useApp((s) => s.drill);
   const layout = useMemo(() => analyze(plan), [plan]);
   const report = useMemo(() => (drill ? buildReport(drill, plan, currentBand()) : null), [drill, plan]);
+  const stamps = useMemo(() => (drill ? earnedStamps(drill, currentBand()) : []), [drill]);
   const [replay, setReplay] = useState(false);
   const gaps = useMemo(() => planGaps(plan), [plan]);
   const empty = layout.cells.length === 0;
@@ -63,6 +65,19 @@ export function ReviewStep() {
         <div className="review-notes">
           {report ? (
             <>
+              {stamps.length > 0 && (
+                <>
+                  <h3 className="note-head good">칭찬 도장</h3>
+                  <ul className="stamp-row" data-testid="review-stamps">
+                    {stamps.map((id) => (
+                      <li key={id} className="stamp on" title={STAMPS[id].text}>
+                        <span className="stamp-face"><StampGlyph id={id} /></span>
+                        <span className="stamp-name">{STAMPS[id].label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               <h3 className="note-head good">잘한 점</h3>
               <ul className="note-list" data-testid="praises">
                 {report.praises.map((p) => (

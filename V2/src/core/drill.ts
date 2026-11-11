@@ -3,9 +3,9 @@
  * 진 판 없이 연습으로 끝나고, 점수를 만들지 않는다.
  */
 import { routeCells } from './edit';
-import { analyze, cellIdAt, reachableFrom, shortestPath } from './grid';
+import { analyze, cellIdAt, reachableFrom, shortestPath, simplify } from './grid';
 import { stepField, type Field, type FieldEdge, type FieldParams } from './hazard';
-import { hopPoints } from './path';
+import { ARROW, exitPoint, hopPoints, type ArrowDir } from './path';
 import { OUT, type ItemKind, type Layout, type Plan, type Pt } from './types';
 
 export interface DrillLevels {
@@ -31,6 +31,16 @@ export interface DrillConfig {
 }
 
 export type DrillEnd = 'meet' | 'rescue';
+
+/** 길 위에 놓인 안전 행동 — 지나가면 줍는다. 문장은 콘텐츠에 있다 */
+export type TokenId = 'shout' | 'nose' | 'stairs';
+
+export interface Token {
+  id: TokenId;
+  /** 놓인 칸. 집 밖이면 `out` */
+  cell: string;
+  pt: Pt;
+}
 
 export interface DrillStats {
   moves: number;
@@ -76,6 +86,9 @@ export interface DrillState {
   /** 방금 지나온 문 — 닫을 수 있다 */
   lastDoor: string | null;
   timeline: Snapshot[];
+  /** 아직 줍지 않은 안전 행동과 주운 것. 예전 기록에는 없다 */
+  tokens?: Token[];
+  picked?: TokenId[];
 }
 
 export function fieldEdges(layout: Layout, closed: string[]): FieldEdge[] {
@@ -209,7 +222,45 @@ export function originIn(plan: Plan, layout: Layout, source: string, seed: numbe
   return list[Math.floor(random() * list.length)]!.center;
 }
 
-export function startDrill(plan: Plan, seed: number, config: DrillConfig): DrillState | null {
+/**
+ * 안전 행동을 길 위에 놓는다. 「불이야」는 내 자리 칸, 「코와 입 가리기」는 나가는 길의 다음 칸,
+ * 「계단으로」는 나가는 문 밖이다. 어느 문으로 나가든 밖에 나오면 줍는다.
+ */
+export function placeTokens(plan: Plan, layout: Layout, start: string, me: Pt, wanted: TokenId[]): Token[] {
+  const density = plan.density ?? 1;
+  const out: Token[] = [];
+  const path = shortestPath(layout, start) ?? [];
+  const spot = (cell: string, avoid: Pt): Pt => {
+    const squares = layout.byId.get(cell)?.squares ?? [];
+    const far = [...squares].sort((a, b) => Math.hypot(b.center.x - avoid.x, b.center.y - avoid.y) - Math.hypot(a.center.x - avoid.x, a.center.y - avoid.y));
+    // 내 자리와 겹치지 않게 조금 떨어진 조각에 놓는다
+    return (far.find((s) => Math.hypot(s.center.x - avoid.x, s.center.y - avoid.y) <= 2.2 * density && Math.hypot(s.center.x - avoid.x, s.center.y - avoid.y) >= 0.9 * density) ?? far[0])?.center ?? avoid;
+  };
+  if (wanted.includes('shout')) out.push({ id: 'shout', cell: start, pt: spot(start, me) });
+  const next = path.find((hop) => hop.to !== OUT);
+  if (wanted.includes('nose') && next) {
+    const anchor = layout.byId.get(next.to)?.anchor ?? me;
+    out.push({ id: 'nose', cell: next.to, pt: anchor });
+  }
+  const last = path[path.length - 1];
+  if (wanted.includes('stairs') && last && last.to === OUT) out.push({ id: 'stairs', cell: OUT, pt: exitPoint(layout, last.edge, density) });
+  return out;
+}
+
+/** 칸에 놓인 안전 행동을 줍는다 */
+function collect(state: DrillState, cells: string[]): Pick<DrillState, 'tokens' | 'picked'> {
+  const tokens = state.tokens ?? [];
+  const got = tokens.filter((t) => cells.includes(t.cell));
+  if (got.length === 0) return { tokens, picked: state.picked ?? [] };
+  return { tokens: tokens.filter((t) => !cells.includes(t.cell)), picked: [...(state.picked ?? []), ...got.map((t) => t.id)] };
+}
+
+/** 지금 있는 칸의 안전 행동을 눌러서 줍는다 */
+export function pickHere(state: DrillState): DrillState {
+  return { ...state, ...collect(state, [state.at]) };
+}
+
+export function startDrill(plan: Plan, seed: number, config: DrillConfig, wanted: TokenId[] = []): DrillState | null {
   const layout = analyze(plan);
   const me = plan.marks.me;
   if (!me) return null;
@@ -246,6 +297,8 @@ export function startDrill(plan: Plan, seed: number, config: DrillConfig): Drill
     visited: [at],
     lastDoor: null,
     timeline: [first],
+    tokens: placeTokens(plan, layout, at, me, wanted),
+    picked: [],
   };
 }
 
@@ -321,6 +374,8 @@ export function moveTo(
   };
   return {
     ...state,
+    // 떠나는 칸과 들어서는 칸에 놓인 안전 행동을 줍는다
+    ...collect(state, [state.at, move.to]),
     turn: state.turn + 1,
     at: move.to,
     pt,
@@ -369,13 +424,64 @@ export function closeLastDoor(state: DrillState): DrillState {
   };
 }
 
+/**
+ * 집 밖에서 방향키로 한 걸음 걷는다. 집 안으로는 들어가지 않고 종이 밖으로 나가지 않는다.
+ * 만나는 곳 가까이 가면 거기에 닿는다. 갈 수 없으면 null 이다.
+ */
+export function stepOutside(plan: Plan, layout: Layout, from: Pt, dir: ArrowDir): { pt: Pt; arrived: boolean } | null {
+  const meet = plan.marks.meet;
+  if (!meet) return null;
+  const d = plan.density ?? 1;
+  const v = ARROW[dir];
+  const pt = { x: from.x + v.x * d, y: from.y + v.y * d };
+  if (Math.hypot(pt.x - meet.x, pt.y - meet.y) <= 0.8 * d) return { pt: meet, arrived: true };
+  const lowX = Math.min(-d, meet.x - d);
+  const highX = Math.max(plan.cols + d, meet.x + d);
+  const lowY = Math.min(-d, meet.y - d);
+  const highY = Math.max(plan.rows + d, meet.y + d);
+  if (pt.x < lowX || pt.x > highX || pt.y < lowY || pt.y > highY) return null;
+  if (cellIdAt(layout, pt)) return null;
+  return { pt, arrived: false };
+}
+
+/**
+ * 집 밖의 한 자리에서 만나는 곳까지 걸어가는 길. 집을 뚫지 않고 돌아서 간다.
+ * 첫 점은 `from`, 끝 점은 만나는 곳이다. 만나는 곳이 없으면 `from` 하나다.
+ */
+export function outsidePath(plan: Plan, layout: Layout, from: Pt): Pt[] {
+  const meet = plan.marks.meet;
+  if (!meet) return [from];
+  const key = (p: Pt): string => `${Math.round(p.x * 8)},${Math.round(p.y * 8)}`;
+  const prev = new Map<string, Pt | null>([[key(from), null]]);
+  const queue: Pt[] = [from];
+  const back = (end: Pt): Pt[] => {
+    const out: Pt[] = [];
+    for (let p: Pt | null = end; p; p = prev.get(key(p)) ?? null) out.unshift(p);
+    return out;
+  };
+  for (let guard = 0; queue.length && guard < 6000; guard++) {
+    const here = queue.shift()!;
+    for (const dir of ['down', 'right', 'left', 'up'] as const) {
+      const next = stepOutside(plan, layout, here, dir);
+      if (!next) continue;
+      if (next.arrived) return simplify([...back(here), meet]);
+      const k = key(next.pt);
+      if (prev.has(k)) continue;
+      prev.set(k, here);
+      queue.push(next.pt);
+    }
+  }
+  // 돌아갈 길을 못 찾으면 곧장 간다
+  return [from, meet];
+}
+
 /** 칸이 막혀 나갈 수 없을 때 — 문을 닫고 구조를 요청한다 */
 export function finishRescue(state: DrillState): DrillState {
   return { ...state, phase: 'over', end: 'rescue', stats: { ...state.stats, called: true } };
 }
 
-/** 만나는 곳에 닿고 119 까지 전화했다 */
-export function finishMeet(plan: Plan, layout: Layout, state: DrillState): DrillState {
+/** 만나는 곳에 닿고 119 까지 전화했다. `walk` 는 집 밖에서 걸어간 자리들이다 */
+export function finishMeet(plan: Plan, layout: Layout, state: DrillState, walk?: Pt[]): DrillState {
   const meet = plan.marks.meet;
   const timeline = meet
     ? [
@@ -386,7 +492,7 @@ export function finishMeet(plan: Plan, layout: Layout, state: DrillState): Drill
           crouch: false,
           field: state.field,
           closed: state.closed,
-          walk: [state.pt, meet],
+          walk: walk && walk.length > 1 ? walk : outsidePath(plan, layout, state.pt),
         },
       ]
     : state.timeline;

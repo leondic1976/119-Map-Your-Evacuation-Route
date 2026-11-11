@@ -2,14 +2,19 @@
 import { useMemo } from 'react';
 import { analyze } from '../core/grid';
 import { PROMISES } from '../content/report';
-import { useApp } from '../store/app';
+import { STAMPS } from '../content/stamps';
+import { earnedStamps } from '../core/report';
+import { currentBand, useApp } from '../store/app';
 import { PlanView } from './PlanView';
 import { Unverified } from './ReviewStep';
+import { StampGlyph } from './art';
 
 export function PrintSheet() {
   const plan = useApp((s) => s.plan);
   const profile = useApp((s) => s.profile);
   const layout = useMemo(() => analyze(plan), [plan]);
+  const drill = useApp((s) => s.drill);
+  const stamps = drill ? earnedStamps(drill, currentBand()) : [];
   return (
     <div className="print-sheet" aria-hidden="true">
       <h1>{profile?.name ? `${profile.name}의 우리집 대피지도` : '우리집 대피지도'}</h1>
@@ -22,6 +27,19 @@ export function PrintSheet() {
         <span><i className="sw route" /> 나가는 길</span>
         {plan.route2.length > 0 && <span><i className="sw route2" /> 둘째 길</span>}
       </div>
+      {stamps.length > 0 && (
+        <>
+          <h2>대피 연습에서 받은 칭찬 도장</h2>
+          <ul className="stamp-row" data-testid="print-stamps">
+            {stamps.map((id) => (
+              <li key={id} className="stamp on">
+                <span className="stamp-face"><StampGlyph id={id} /></span>
+                <span className="stamp-name">{STAMPS[id].label}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <h2>우리 집 약속</h2>
       <ol>
         {PROMISES.map((p) => (

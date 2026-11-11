@@ -86,6 +86,27 @@ export const IconHand = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v8" /><path d="M8 11l-1.5-1.5a1.5 1.5 0 0 0-2.2 2L8.5 18a5 5 0 0 0 4 2h1a4 4 0 0 0 4-4v-3" /></Svg>
 );
 
+/** 칭찬 도장과 길 위의 안전 행동 그림. 선으로만 그린다 */
+export function StampGlyph({ id, size = 26 }: { id: string; size?: number }) {
+  const d: Record<string, string> = {
+    // 외치는 입과 소리
+    shout: 'M4 10v4l6 3V7zM14 9a4 4 0 0 1 0 6M17 6a8 8 0 0 1 0 12',
+    // 코와 입을 가린 수건
+    nose: 'M5 9h14v6a7 7 0 0 1-14 0zM5 9l-2-2M19 9l2-2M9 13h6',
+    // 낮춘 몸
+    crouch: 'M17 9a2.5 2.5 0 1 0 0-.01M4 18c3-4 6-6 10-6M9 21l2-6 5 1 1 5',
+    // 문에 댄 손
+    touch: 'M6 3h9v18H6zM13 12h.01M18 9v6M21 10v4',
+    // 닫힌 문
+    close: 'M5 21V3h11v18M3 21h18M13 12h.01',
+    // 계단
+    stairs: 'M3 20h5v-4h4v-4h4V8h5',
+    // 깃발
+    meet: 'M6 21V3M6 4l12 3.5L6 11',
+  };
+  return <Svg size={size}><path d={d[id] ?? d.meet} /></Svg>;
+}
+
 /** 누르는 손가락 — (0,0) 이 손가락 끝이다 */
 export function HandGlyph({ scale = 1 }: { scale?: number }) {
   return (

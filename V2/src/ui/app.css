@@ -412,6 +412,29 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .pad-btn.go:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--pencil); }
 .pad-btn.small { color: var(--ink-2); border-color: transparent; background: transparent; }
 .pad-btn.small:disabled { opacity: .4; cursor: default; }
+.pad-center { display: inline-flex; align-items: center; justify-content: center; }
+
+/* 대피 연습의 놀이 — 길 위의 안전 행동, 칭찬 도장, 발자국, 통통 걷기(대장 #156). 깜박이지 않고 점수를 세지 않는다 */
+.token { pointer-events: none; }
+.token circle { fill: #fffdf6; stroke: var(--green-d); stroke-width: 5; }
+.token .ico { color: var(--green-d); }
+.token-bob { animation: token-bob 1.6s ease-in-out infinite alternate; }
+@keyframes token-bob { from { transform: translateY(3px); } to { transform: translateY(-5px); } }
+.print { fill: #8a6a4a; opacity: .34; pointer-events: none; }
+.player.walking .player-hop { animation: player-hop .31s ease-in-out infinite alternate; }
+@keyframes player-hop { from { transform: translateY(0); } to { transform: translateY(-7px); } }
+.stamps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 4px; grid-column: 1 / -1; }
+.stamp { display: grid; justify-items: center; gap: 2px; font-size: 13px; line-height: 1.15; text-align: center; word-break: keep-all; color: #9aa0a6; }
+.stamp-face { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border: 3px dashed #c9ccd0; border-radius: 50%; color: #c2c6cb; background: transparent; }
+.stamp.on { color: var(--ink); }
+.stamp.on .stamp-face { border: 3px solid var(--green-d); color: var(--green-d); background: #e4f4e6; transform: rotate(-8deg); animation: stamp-pop .5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes stamp-pop { from { transform: scale(2) rotate(-24deg); opacity: 0; } to { transform: scale(1) rotate(-8deg); opacity: 1; } }
+.stamp-toast { position: absolute; left: 50%; top: 10px; z-index: 3; transform: translateX(-50%); max-width: calc(100% - 140px); display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 10px; background: #fffdf6; border: 3px solid var(--green-d); border-radius: 999px; box-shadow: 4px 4px 0 var(--pencil); font-size: 19px; line-height: 1.3; word-break: keep-all; pointer-events: none; animation: toast-in .35s ease-out; }
+.stamp-toast b { font-weight: 400; color: var(--green-d); }
+.stamp-toast .stamp-face { flex: none; width: 48px; height: 48px; border: 3px solid var(--green-d); color: var(--green-d); background: #e4f4e6; transform: rotate(-8deg); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.stamp-row { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 6px; padding: 0; list-style: none; }
+.stamp-row .stamp { min-width: 62px; font-size: 14px; }
 
 .wall { fill: none; stroke: var(--pencil); stroke-width: 11; stroke-linecap: round; }
 .wall.hot { stroke: var(--blue); }

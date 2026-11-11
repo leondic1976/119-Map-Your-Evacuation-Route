@@ -216,6 +216,32 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 }
 
+/** 집 밖에서 키보드 화살표로 만나는 곳까지 걸어간다 — 방향키 판에서 만나는 곳에 가까워지는 쪽을 고른다 */
+async function walkToMeet(page: Page): Promise<number> {
+  let steps = 0;
+  for (; steps < 60; steps++) {
+    if (await page.locator(t('drill-call')).count()) break;
+    await page.waitForFunction(() => document.querySelectorAll('.arrow-pad .pad-btn.go').length > 0 || document.querySelector('[data-testid="drill-call"]'), undefined, { timeout: 8000 });
+    if (await page.locator(t('drill-call')).count()) break;
+    const key = await page.evaluate(() => {
+      const mid = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      };
+      const me = mid(document.querySelector('[data-testid="player"]')!);
+      const meet = mid(document.querySelector('.stage [data-mark="meet"]')!);
+      const open = [...document.querySelectorAll<HTMLElement>('.arrow-pad .pad-btn.go')].map((b) => ({ dir: b.dataset.testid!.replace('pad-', ''), to: b.dataset.to }));
+      const hit = open.find((o) => o.to === '만나는 곳');
+      if (hit) return hit.dir;
+      const want = Math.abs(meet.y - me.y) >= Math.abs(meet.x - me.x) ? [meet.y > me.y ? 'down' : 'up', meet.x > me.x ? 'right' : 'left'] : [meet.x > me.x ? 'right' : 'left', meet.y > me.y ? 'down' : 'up'];
+      return want.find((d) => open.some((o) => o.dir === d)) ?? open[0]!.dir;
+    });
+    await page.keyboard.press(`Arrow${key[0]!.toUpperCase()}${key.slice(1)}`);
+    await page.waitForTimeout(120);
+  }
+  return steps;
+}
+
 /** 탈출까지 칸을 눌러 간다. 만지기 카드가 뜨면 만져 본다 */
 async function playToEnd(page: Page, tap: (x: number, y: number) => Promise<void>): Promise<void> {
   for (let guard = 0; guard < 60; guard++) {
@@ -772,7 +798,7 @@ async function main(): Promise<void> {
       await page.waitForTimeout(1700);
     }
     assert.equal(await page.locator(t('player')).getAttribute('data-phase'), 'outside', '화살표로 밖까지 나간다');
-    await page.keyboard.press('ArrowDown');
+    await walkToMeet(page);
     await page.waitForSelector(t('drill-call'), { timeout: 8000 });
     await page.keyboard.press('Enter');
     await page.waitForSelector(t('praises'), { timeout: 8000 });
@@ -1847,6 +1873,85 @@ async function main(): Promise<void> {
     assert.ok(cam.back >= 0.15 && cam.back <= 0.9, `내 바로 뒤다: ${cam.back}`);
     await shot(page, '148-c-behind');
     await page.keyboard.press('Escape');
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+  });
+
+  await scenario('#155 · #156 연습 놀이: 방향키 판으로 걷고, 안전 행동을 주워 도장을 받고, 발자국이 남고, 밖에서 방향키로 만나는 곳까지 간다', async () => {
+    const { ctx, page, errors } = await seeded(browser, 3, routed(chain(10, 7)), { viewport: { width: 1280, height: 800 } });
+    // 나가는 길은 만나는 곳까지 이어 그려진다
+    await page.click(t('step-route'));
+    const reach = await page.evaluate(() => {
+      const line = document.querySelector('.stage polyline.route.route-1') as SVGPolylineElement;
+      const end = line.points.getItem(line.points.numberOfItems - 1);
+      const p = new DOMPoint(end.x, end.y).matrixTransform(line.getScreenCTM()!);
+      const m = document.querySelector('.stage [data-mark="meet"]')!.getBoundingClientRect();
+      return Math.hypot(p.x - (m.left + m.width / 2), p.y - (m.top + m.height / 2)) / (m.width || 1);
+    });
+    assert.ok(reach < 2.5, `길이 만나는 곳 앞까지 이어진다: ${reach.toFixed(2)}`);
+
+    await page.click(t('step-drill'));
+    await page.click(t('drill-start'));
+    await page.waitForSelector(t('player'));
+    await page.waitForSelector(t('arrow-pad'));
+    assert.deepEqual(await page.locator('[data-testid^="stamp-"][data-on="1"]').count(), 0, '시작할 때는 도장이 없다');
+    assert.equal(await page.locator(t('stamps')).locator('li').count(), 6, '3~4학년 도장은 여섯 가지다');
+    assert.equal(await page.locator(t('token-shout')).count(), 1, '불이야가 놓여 있다');
+    assert.equal(await page.locator(t('token-stairs')).count(), 1);
+    assert.equal(await page.locator(t('stamp-close')).count(), 0, '문 닫기 도장은 5~6학년에만 있다');
+    await shot(page, '156-a-tokens');
+
+    // 방향키 판으로 한 칸 — 떠나는 칸의 불이야를 줍고 발자국이 남는다
+    const stampsBefore = Number(await page.evaluate(() => document.documentElement.dataset.stamp ?? 0));
+    let walked = false;
+    for (let guard = 0; guard < 12; guard++) {
+      if ((await page.locator(t('player')).getAttribute('data-phase')) === 'outside') break;
+      if (await page.locator(t('drill-touch')).count()) {
+        await page.click(t('drill-touch'));
+        await page.waitForTimeout(200);
+        continue;
+      }
+      if (await page.locator(t('drill-crouch')).getAttribute('class').then((c) => c!.includes('nudge'))) await page.click(t('drill-crouch'));
+      await page.waitForFunction(() => document.querySelectorAll('.arrow-pad .pad-btn.go').length > 0 || document.querySelector('[data-testid="drill-touch"]'), undefined, { timeout: 8000 });
+      if (await page.locator(t('drill-touch')).count()) continue;
+      // 일렬 집은 오른쪽으로만 나간다
+      const go = (await page.locator(t('pad-right')).getAttribute('aria-disabled')) === 'false' ? t('pad-right') : '.arrow-pad .pad-btn.go';
+      await page.locator(go).first().click();
+      await page.waitForTimeout(250);
+      // 문 앞에서 물어보면 만져 본 뒤에 걷는다
+      if (await page.locator(t('drill-touch')).count()) continue;
+      if (!walked) {
+        walked = true;
+        assert.equal(await page.locator(t('player')).getAttribute('class'), 'player walking', '걷는 동안 통통 뛴다');
+        await page.waitForSelector(t('stamp-toast'));
+        assert.match(await page.locator(t('stamp-toast')).innerText(), /도장 꽝/);
+        assert.equal(await page.locator(t('stamp-shout')).getAttribute('data-on'), '1', '도장이 찍힌다');
+        assert.equal(await page.locator(t('token-shout')).count(), 0, '주운 것은 사라진다');
+        assert.ok(Number(await page.locator(t('prints')).getAttribute('data-count')) >= 1, '발자국이 남는다');
+        await shot(page, '156-b-stamp');
+      }
+    }
+    assert.equal(await page.locator(t('player')).getAttribute('data-phase'), 'outside', '방향키 판으로 밖까지 나간다');
+    assert.equal(await page.locator(t('stamp-stairs')).getAttribute('data-on'), '1', '밖에 나오면 계단 도장');
+    assert.ok(Number(await page.evaluate(() => document.documentElement.dataset.stamp ?? 0)) > stampsBefore, '도장 소리가 난다');
+
+    // 집 밖 — 방향키 한 번에 한 걸음, 여러 번 눌러 만나는 곳에 닿는다
+    await page.waitForFunction(() => document.querySelectorAll('.arrow-pad .pad-btn.go').length > 0, undefined, { timeout: 8000 });
+    assert.equal(await page.locator(t('drill-call')).count(), 0);
+    const steps = await walkToMeet(page);
+    assert.ok(steps >= 2, `한 번에 가지 않고 걸어간다: ${steps}걸음`);
+    await page.waitForSelector(t('drill-call'));
+    assert.equal(await page.locator(t('player')).getAttribute('data-met'), '1');
+    assert.equal(await page.locator(t('stamp-meet')).getAttribute('data-on'), '1', '가족을 만나면 도장');
+    assert.equal(await page.locator('.arrow-pad .pad-btn.go').count(), 0, '다 오면 방향키가 꺼진다');
+    await shot(page, '156-c-meet');
+    await page.click(t('drill-call'));
+    await page.waitForSelector(t('praises'));
+    const got = await page.locator(`${t('review-stamps')} li`).count();
+    assert.ok(got >= 3, `돌아보기에 받은 도장이 나온다: ${got}`);
+    assert.equal(await page.locator(`${t('print-stamps')} li`).count(), got, '인쇄물에도 같은 도장이 나온다');
+    assert.equal(await page.locator('.unverified').count(), 0);
+    await shot(page, '156-d-review');
     assert.deepEqual(errors, [], '콘솔 오류');
     await ctx.close();
   });

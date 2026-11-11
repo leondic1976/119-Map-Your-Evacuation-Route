@@ -18,6 +18,32 @@ export type PraiseId =
 
 export type FixId = 'crouch' | 'touch' | 'close' | 'route' | 'second';
 
+/** 칭찬 도장 — 안전 행동을 할 때마다 하나씩 찍힌다. 수를 세거나 등급을 매기지 않는다 */
+export type StampId = 'shout' | 'nose' | 'crouch' | 'touch' | 'close' | 'stairs' | 'meet';
+
+/** 학년 단계마다 찍을 수 있는 도장 */
+export function stampSlots(band: Band): StampId[] {
+  if (band === 'low') return ['shout', 'crouch', 'stairs', 'meet'];
+  if (band === 'mid') return ['shout', 'nose', 'crouch', 'touch', 'stairs', 'meet'];
+  return ['shout', 'nose', 'crouch', 'touch', 'close', 'stairs', 'meet'];
+}
+
+/** 지금까지 찍힌 도장. `met` 은 만나는 곳에 닿았는가다 */
+export function earnedStamps(state: DrillState, band: Band, met = state.end === 'meet'): StampId[] {
+  const s = state.stats;
+  const picked = state.picked ?? [];
+  const has: Record<StampId, boolean> = {
+    shout: picked.includes('shout'),
+    nose: picked.includes('nose'),
+    crouch: s.crouchedInHazard > 0,
+    touch: s.doorsChecked > 0,
+    close: s.doorsClosed > 0,
+    stairs: picked.includes('stairs'),
+    meet: met,
+  };
+  return stampSlots(band).filter((id) => has[id]);
+}
+
 export function buildReport(state: DrillState, plan: Plan, band: Band): { praises: PraiseId[]; fixes: FixId[] } {
   const s = state.stats;
   const praises: PraiseId[] = [];

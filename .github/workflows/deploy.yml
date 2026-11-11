@@ -66,9 +66,12 @@ jobs:
 
       - name: 산출물 보관
         uses: actions/upload-artifact@v4
+        # 보관 한도가 차도 배포를 막지 않는다. 꾸러미는 Pages 의 download/ 에 실린다(대장 #153)
+        continue-on-error: true
         with:
           name: offline-classroom-bundle
           path: dist/
+          retention-days: 1
 
       # 윈도우 설치 파일은 desktop.yml 이 같은 커밋으로 만들어 Release `desktop` 에 올린다. 저장소가 비공개라
       # 그 주소는 공개 링크가 아니므로, 여기서 받아 dist/desktop/ 에 두면 pack.ts 가 Pages 의 download/ 에 함께 싣는다.
@@ -123,6 +126,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: out
+          retention-days: 1
 
   deploy:
     needs: verify

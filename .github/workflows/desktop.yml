@@ -48,8 +48,11 @@ jobs:
 
       - name: 산출물 보관
         uses: actions/upload-artifact@v4
+        # 보관 한도가 차도 Release 올리기를 막지 않는다. 설치 파일의 정본은 Release `desktop` 이다(대장 #153)
+        continue-on-error: true
         with:
           name: windows-installer
+          retention-days: 1
           path: |
             release/*.exe
 

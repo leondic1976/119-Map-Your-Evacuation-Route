@@ -154,7 +154,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   82%, 100% { opacity: 1; transform: translate(340px, 372px); }
 }
 
-/* 첫 화면 배경 — 깜박이는 빛 없이 천천히 움직인다 */
+/* 첫 화면 배경 — 깜박이는 빛 없이 천천히 움직인다.
+   그림은 뒤에서 앞으로 겹쳐 세운다: 먼 언덕 → 마을 → 인도(깃발·가족) → 찻길(소방차) → 앞 풀밭. 앞의 것일수록 손을 따라 더 움직인다 */
 .welcome-scene { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 /* 하늘 것은 위쪽 띠에만 있다. 왼쪽 로고, 가운데 왼쪽의 해, 오른쪽 설치 안내 사이의 빈 자리를 쓴다 */
 .welcome-sky { position: absolute; inset: 0 0 auto 0; height: 0; pointer-events: none; }
@@ -162,10 +163,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .sky-birds { top: 12px; left: 222px; width: 76px; height: 37px; }
 .sky-sun { top: 6px; left: max(228px, calc(50% - 205px)); width: 120px; height: 120px; }
 .sky-clouds { top: 8px; left: max(360px, calc(50% - 60px)); width: 180px; height: 46px; }
-.sc-sky, .sc-far, .sc-near { transition: transform .5s ease-out; }
+.sc-sky, .sc-back, .sc-far, .sc-mid, .sc-near, .sc-front { transition: transform .5s ease-out; }
 .sc-sky { transform: translate(calc(var(--px, 0) * 5px), calc(var(--py, 0) * 3px)); }
-.sc-far { transform: translate(calc(var(--px, 0) * -8px), calc(var(--py, 0) * -3px)); }
-.sc-near { transform: translate(calc(var(--px, 0) * -18px), calc(var(--py, 0) * -5px)); }
+.sc-back { transform: translate(calc(var(--px, 0) * -4px), calc(var(--py, 0) * -1px)); }
+.sc-far { transform: translate(calc(var(--px, 0) * -8px), calc(var(--py, 0) * -2px)); }
+.sc-mid { transform: translate(calc(var(--px, 0) * -13px), calc(var(--py, 0) * -3px)); }
+.sc-near { transform: translate(calc(var(--px, 0) * -18px), calc(var(--py, 0) * -4px)); }
+.sc-front { transform: translate(calc(var(--px, 0) * -26px), calc(var(--py, 0) * -5px)); }
+.sc-tuft { animation: sc-sway 3.8s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
 .sc-rays { animation: sc-spin 36s linear infinite; }
 .sc-sun { animation: sc-breathe 5s ease-in-out infinite; }
 .sc-cloud { animation: sc-drift 44s linear infinite alternate; }
@@ -191,9 +196,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 @keyframes sc-sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.2deg); } }
 @keyframes sc-glow { 0%, 100% { fill: #fff3cf; } 50% { fill: #ffc861; } }
 @keyframes sc-wave { from { transform: skewY(-7deg) scaleX(1); } to { transform: skewY(7deg) scaleX(.9); } }
-/* 48 초 한 바퀴 — 소방차가 먼저 지나가고(0~34%), 길이 빈 뒤에 가족이 만나는 곳까지 걷는다(36~84%) */
+/* 48 초 한 바퀴 — 가족은 인도를 걸어 만나는 곳까지 가고(0~84%), 소방차는 그 앞 찻길로 지나가며(0~34%) 가족을 앞질러 잠깐 가린다 */
 @keyframes sc-family {
-  0%, 36% { transform: translateX(-120px); opacity: 1; }
+  0% { transform: translateX(150px); opacity: 0; }
+  2% { transform: translateX(175px); opacity: 1; }
   84%, 94% { transform: translateX(1180px); opacity: 1; }
   98%, 100% { transform: translateX(1180px); opacity: 0; }
 }
@@ -626,6 +632,6 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .celebrate-confetti i:nth-child(3n + 2) { top: 70%; }
   .welcome-scene *, .welcome-sky, .welcome-sky *, .cv-all, .cv-walker, .cover-art, .welcome-chars img, .welcome-steps b, .welcome .big-start .ico { animation: none !important; }
   .welcome .big-start::after, .cv-walker, .btn.ready::after { display: none; }
-  .sc-sky, .sc-far, .sc-near, .welcome-art { transform: none; transition: none; }
+  .sc-sky, .sc-back, .sc-far, .sc-mid, .sc-near, .sc-front, .welcome-art { transform: none; transition: none; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }

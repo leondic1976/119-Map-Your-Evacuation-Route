@@ -1460,8 +1460,8 @@ async function main(): Promise<void> {
     }
   });
 
-  await scenario('첫 화면 겹침: 하늘 것은 위에, 땅 것은 아래에 있고 글·표지·캐릭터·단추와 서로 겹치지 않는다', async () => {
-    // 움직임 한 바퀴(48 초)를 2 초씩 건너뛰며 전부 잰다. 길 위의 소방차와 가족만 길과 겹쳐도 된다
+  await scenario('첫 화면 겹침: 하늘 것은 위에, 땅 것은 아래에 있고 글·표지·캐릭터·단추와 겹치지 않으며, 땅 그림끼리는 앞의 것이 뒤의 것을 가린다', async () => {
+    // 움직임 한 바퀴(48 초)를 2 초씩 건너뛰며 전부 잰다. 땅 그림은 앞뒤로 세워 두어, 정해 둔 앞뒤 짝만 겹쳐도 된다(대장 #151)
     const sweep = async (page: Page, label: string): Promise<void> => {
       const found = new Set<string>();
       for (let i = 0; i < 26; i++) {
@@ -1484,7 +1484,7 @@ async function main(): Promise<void> {
             로고: q('.welcome-top img, .welcome-top span'), 설치안내: q('.install-link'), 제목: ink('.welcome-text h1'), 안내글: ink('.welcome-lead'),
             차례: q('.welcome-steps'), 단추: q('.welcome-actions > *'), 묻는칸: q('.welcome-confirm'), 표지: q('.cover-art'), 캐릭터: q('.welcome-chars img'), 아래문구: q('.welcome-foot'),
             해: q('.sky-sun'), 새: q('.sky-birds').filter(shown), 구름: q('.sky-clouds path'),
-            집과나무: q('.sc-far > g'), 깃발: q('.sc-meet'), 가족: q('.sc-family').filter(shown), 소방차: q('.sc-truck'), 길: q('.sc-road'),
+            집과나무: q('.sc-far > g'), 깃발: q('.sc-meet'), 가족: q('.sc-family').filter(shown), 소방차: q('.sc-truck'), 길: q('.sc-road'), 앞풀: q('.sc-tufts > g'),
           };
           const boxes: { name: string; r: DOMRect }[] = [];
           for (const [name, els] of Object.entries(groups)) for (const el of els) {
@@ -1492,7 +1492,9 @@ async function main(): Promise<void> {
             if (r.width && r.right > 0 && r.left < innerWidth) boxes.push({ name, r });
           }
           const meets = (a: DOMRect, b: DOMRect) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
-          const inside = new Set(['단추|묻는칸', '묻는칸|단추', '가족|길', '길|가족', '소방차|길', '길|소방차']);
+          // 뒤|앞 — 마을 앞 인도의 가족과 깃발, 그 앞 찻길의 소방차
+          const depth = ['집과나무|가족', '깃발|가족', '가족|길', '깃발|길', '가족|소방차', '깃발|소방차', '길|소방차'];
+          const inside = new Set(['단추|묻는칸', '묻는칸|단추', ...depth, ...depth.map((d) => d.split('|').reverse().join('|'))]);
           const out: string[] = [];
           boxes.forEach((a, x) => boxes.slice(x + 1).forEach((b) => {
             if (a.name === b.name && a.name !== '캐릭터' && a.name !== '집과나무' && a.name !== '단추') return;
@@ -1504,16 +1506,34 @@ async function main(): Promise<void> {
           return { out, seen: Object.entries(groups).filter(([, els]) => els.length).map(([name]) => name) };
         }, i);
         hits.out.forEach((h) => found.add(h));
-        if (i === 0) for (const name of ['해', '구름', '집과나무', '깃발', '소방차', '길', '설치안내']) assert.ok(hits.seen.includes(name), `${label} ${name} 이(가) 있다`);
+        if (i === 0) for (const name of ['해', '구름', '집과나무', '깃발', '소방차', '길', '앞풀', '설치안내']) assert.ok(hits.seen.includes(name), `${label} ${name} 이(가) 있다`);
       }
       assert.deepEqual([...found], [], label);
+    };
+    // 뒤에 있는 것부터 그린다 — 겹치면 앞의 것이 보인다
+    const order = async (page: Page): Promise<void> => {
+      const got = await page.evaluate(() => {
+        const at = (sel: string) => {
+          const el = document.querySelector(sel)!;
+          return [...document.querySelectorAll('.welcome *')].indexOf(el);
+        };
+        const rising = (list: string[]) => list.map(at).every((v, i, all) => v >= 0 && (i === 0 || v > all[i - 1]!));
+        return {
+          ground: rising(['.sc-back', '.sc-far', '.sc-mid', '.sc-meet', '.sc-family', '.sc-near', '.sc-road', '.sc-truck', '.sc-front']),
+          sky: rising(['.sky-sun', '.sky-clouds', '.sky-birds']),
+          ui: getComputedStyle(document.querySelector('.welcome-body')!).zIndex,
+        };
+      });
+      assert.deepEqual(got, { ground: true, sky: true, ui: '1' }, '먼 언덕 → 마을 → 인도 → 찻길 → 앞 풀밭, 해 → 구름 → 새, 글과 표지는 그 앞');
     };
     const sizes = [[1920, 1080], [1920, 950], [1536, 730], [1366, 768], [1366, 650], [1280, 720], [1180, 820], [1024, 768], [1024, 700], [2560, 1080]] as const;
     for (const [width, height] of sizes) {
       const { ctx, page } = await fresh(browser, { viewport: { width, height } });
       await page.waitForSelector(t('start'));
       await page.waitForTimeout(900);
+      if (width === 1920 && height === 1080) await order(page);
       await sweep(page, `${width}×${height}`);
+      if (width === 1366 && height === 768) await shot(page, '151-welcome-depth');
       await ctx.close();
     }
     // 이어서 그리기와 처음부터 다시 하기, 그리고 한 번 묻는 칸이 떠도 땅 그림에 닿지 않는다

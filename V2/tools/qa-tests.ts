@@ -215,9 +215,9 @@ export function runQaTests(check: Check): void {
       assert.ok(card.includes(`case '${s}':`), `${s}: 그림이 없다`);
     }
     const route = howToFor('route', 'low').steps.join(' ');
-    assert.ok(route.includes('눌러') && route.includes('화살표'), '나가는 길은 누르기와 화살표를 함께 알려야 한다');
+    assert.ok(route.includes('방향키') && route.includes('한 칸') && !route.includes('반짝이는 칸을 눌러'), '나가는 길은 방향키로만 그린다고 알려야 한다(#160)');
     const drill = howToFor('drill', 'low').steps.join(' ');
-    assert.ok(drill.includes('눌러') && drill.includes('화살표'), '대피 연습은 누르기와 화살표를 함께 알려야 한다');
+    assert.ok(drill.includes('그린 길') && drill.includes('방향키') && !drill.includes('반짝이는 칸을 눌러'), '대피 연습은 그린 길 따라가기와 방향키를 알려야 한다(#160 · #161)');
   });
 
   check('[단계] 띠에 일곱 단계가 있고 각 단계에 화면이 있다', () => {

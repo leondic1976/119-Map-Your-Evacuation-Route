@@ -1,5 +1,6 @@
 /**
- * 6. 대피 연습 — 칸을 누르거나 방향키로 움직인다. 움직일 때 한 차례씩 위험이 번진다.
+ * 6. 대피 연습 — 「내가 그린 길로 가기」를 누르면 그린 길을 그대로 따라 걷고(대장 #161), 방향키로 모눈 한 칸씩 움직인다(대장 #160).
+ * 지도를 눌러서는 움직이지 않는다. 다른 칸으로 넘어갈 때 한 차례씩 위험이 번진다.
  * 길 위의 안전 행동을 주우면 칭찬 도장이 찍히고, 걸어간 자리에 발자국이 남는다(대장 #156).
  * 밖에 나오면 방향키로 만나는 곳까지 걸어간다(대장 #155). 점수와 시간제한은 없다.
  */
@@ -7,22 +8,24 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   closeLastDoor,
   drillMoves,
+  drillStep,
   finishMeet,
   finishRescue,
+  followLeg,
   isTrapped,
   moveTo,
   outsidePath,
-  pickHere,
   setCrouch,
   startDrill,
   stepOutside,
   touchDoor,
+  walkInside,
   type DrillMove,
   type DrillState,
   type TokenId,
 } from '../core/drill';
-import { analyze, cellIdAt, edgeMid } from '../core/grid';
-import { arrowMap, pointAlong, polylineLength, type ArrowDir } from '../core/path';
+import { analyze } from '../core/grid';
+import { pointAlong, polylineLength, type ArrowDir } from '../core/path';
 import { earnedStamps, stampSlots, type StampId } from '../core/report';
 import { OUT, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
@@ -32,13 +35,15 @@ import { STAMPS } from '../content/stamps';
 import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
 import { Celebration } from './Celebration';
-import { ArrowPad } from './ArrowPad';
-import { IconClose, IconCrouch, IconDoor, IconHand, IconPencil, IconPhone, IconPlay, IconStand, KidFace, KidGlyph, StampGlyph } from './art';
+import { ArrowPad, useArrowKeys } from './ArrowPad';
+import { IconClose, IconCrouch, IconDoor, IconHand, IconPencil, IconPhone, IconPlay, IconStand, KidGlyph, StampGlyph } from './art';
 import { PlanView, unitOf } from './PlanView';
 import { ZoomControls } from './ZoomControls';
-import { useArrowKeys } from './steps';
 
-const STEP_MS = 620;
+/** 처음 네모 한 칸을 걷는 데 걸리는 시간 */
+const WALK_MS = 230;
+/** 그린 길을 따라갈 때 칸과 칸 사이에 쉬는 시간 */
+const FOLLOW_GAP_MS = 320;
 
 function levelOf(value: number): 0 | 1 | 2 | 3 {
   const l = FIRE.low.levels;
@@ -59,7 +64,7 @@ export function DrillStep() {
   const [state, setState] = useState<DrillState | null>(null);
   const [pos, setPos] = useState<Pt | null>(null);
   const [walking, setWalking] = useState(false);
-  const [touch, setTouch] = useState<DrillMove | null>(null);
+  const [touch, setTouch] = useState<{ mv: DrillMove; walk: Pt[] } | null>(null);
   const [callCard, setCallCard] = useState<'meet' | 'rescue' | null>(null);
   const [crouchNudge, setCrouchNudge] = useState(false);
   // 집 밖에서 걸어간 자리와, 만나는 곳에 닿았는가
@@ -70,8 +75,22 @@ export function DrillStep() {
   const shown = useRef<StampId[]>([]);
   const raf = useRef(0);
   const tipGiven = useRef(false);
+  // 그린 길을 따라 저절로 가는 중인가. 할 일이 생기거나 방향키를 누르면 멈춘다
+  const auto = useRef(false);
+  const autoTimer = useRef(0);
+  const [following, setFollowing] = useState(false);
+  // 지도를 누르면 방향키 판을 흔들어 여기를 쓰라고 알린다
+  const [nudge, setNudge] = useState(0);
 
-  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  const stopAuto = () => {
+    auto.current = false;
+    window.clearTimeout(autoTimer.current);
+    setFollowing(false);
+  };
+  useEffect(() => () => {
+    cancelAnimationFrame(raf.current);
+    window.clearTimeout(autoTimer.current);
+  }, []);
 
   const begin = () => {
     fillForDrill();
@@ -100,7 +119,8 @@ export function DrillStep() {
     }
     setWalking(true);
     const t0 = performance.now();
-    const dur = Math.max(STEP_MS, STEP_MS * 0.5 * points.length);
+    // 걷는 빠르기는 늘 같다. 한 칸이면 금방이고 먼 길이면 그만큼 걸린다
+    const dur = Math.min(4200, Math.max(170, (polylineLength(points) / Math.max(1, plan.density ?? 1)) * WALK_MS));
     const tick = (now: number) => {
       const t = Math.min(1, (now - t0) / dur);
       setPos(pointAlong(points, t));
@@ -113,8 +133,8 @@ export function DrillStep() {
     raf.current = requestAnimationFrame(tick);
   };
 
-  const perform = (from: DrillState, mv: DrillMove) => {
-    const next = moveTo(plan, layout, from, mv, config);
+  const perform = (from: DrillState, mv: DrillMove, walk: Pt[]) => {
+    const next = moveTo(plan, layout, from, mv, config, walk);
     const snap = next.timeline[next.timeline.length - 1]!;
     setState(next);
     if (getApp().soundOn) host.step();
@@ -123,86 +143,115 @@ export function DrillStep() {
         setCrouchNudge(false);
         setOutWalk([next.pt]);
         say('drill-outside');
+        // 그린 길은 만나는 곳까지 이어져 있다. 따라가는 중이면 그대로 간다
+        if (auto.current) autoTimer.current = window.setTimeout(() => goMeet(next, [next.pt]), FOLLOW_GAP_MS * 2);
         return;
       }
       if (isTrapped(layout, next, config)) {
+        stopAuto();
         setCallCard('rescue');
         say('drill-rescue');
         return;
       }
       const inHazard = (next.field[next.at] ?? 0) >= config.levels.light;
       if (inHazard && !next.crouch) {
+        stopAuto();
         setCrouchNudge(true);
         say('drill-smoke');
-      } else if (info.closeDoors && next.lastDoor && !tipGiven.current) {
-        tipGiven.current = true;
-        say('drill-close-tip');
+      } else if (info.closeDoors && next.lastDoor) {
+        // 지나온 문을 닫을 틈을 준다
+        stopAuto();
+        if (!tipGiven.current) {
+          tipGiven.current = true;
+          say('drill-close-tip');
+        }
+      } else if (auto.current) {
+        autoTimer.current = window.setTimeout(() => follow(next), FOLLOW_GAP_MS);
       }
     });
   };
 
-  const tapAt = (p: Pt) => {
-    if (!state || walking || touch || callCard) return;
-    if (state.phase === 'outside') {
-      goMeet();
+  /** 내가 그린 길을 따라 다음 칸까지 간다. 할 일이 없으면 이어서 끝까지 간다 */
+  const follow = (from: DrillState) => {
+    const leg = followLeg(plan, layout, from, config);
+    if (!leg) {
+      stopAuto();
       return;
     }
-    const target = cellIdAt(layout, p) ?? OUT;
-    if (target === state.at) {
-      // 지금 칸에 놓인 안전 행동은 눌러서 줍는다
-      setState(pickHere(state));
+    if (!leg.move) {
+      // 길이 이 칸에서 끝난다 — 끝까지만 걷는다
+      setState(walkInside(plan, from, leg.walk));
+      animate([from.pt, ...leg.walk], stopAuto);
       return;
     }
-    // 같은 칸으로 가는 문이 여럿이면 지금 자리에서 가까운 문으로 간다
-    const far = (m: DrillMove): number => Math.hypot(edgeMid(m.edge).x - state.pt.x, edgeMid(m.edge).y - state.pt.y);
-    const mv = drillMoves(layout, state, config).filter((m) => m.to === target).sort((a, b) => far(a) - far(b))[0];
-    if (!mv) {
-      say('drill-no-door');
-      return;
-    }
-    tryMove(state, mv);
+    tryMove(from, leg.move, leg.walk);
   };
 
-  // 방향키 — 집 안에서는 그 방향에 있는 문으로, 집 밖에서는 그쪽으로 한 걸음 간다. 화면의 방향키 판과 키보드가 같다
+  const startFollow = () => {
+    if (!state || walking || touch || callCard) return;
+    stopAuto();
+    if (state.phase === 'outside') {
+      goMeet(state, outWalk);
+      return;
+    }
+    auto.current = true;
+    setFollowing(true);
+    follow(state);
+  };
+
+  // 방향키 — 집 안에서는 누른 쪽으로 모눈 한 칸, 집 밖에서는 그쪽으로 한 걸음 간다. 화면의 방향키 판과 키보드가 같다
   const onArrow = (dir: ArrowDir) => {
     if (!state || walking || touch || callCard) return;
+    stopAuto();
     if (state.phase === 'outside') {
       walkOutside(dir);
       return;
     }
-    const mv = arrowMap(state.pt, drillMoves(layout, state, config))[dir];
-    if (mv) tryMove(state, mv);
-    else say('drill-no-door');
+    const step = drillStep(plan, layout, state, dir, config);
+    if (!step) {
+      say('drill-no-door');
+      return;
+    }
+    if (!step.move) {
+      setState(walkInside(plan, state, step.walk));
+      if (getApp().soundOn) host.step();
+      animate([state.pt, ...step.walk], () => undefined);
+      return;
+    }
+    tryMove(state, step.move, step.walk);
   };
   useArrowKeys(onArrow);
 
-  const tryMove = (from: DrillState, mv: DrillMove) => {
+  const tryMove = (from: DrillState, mv: DrillMove, walk: Pt[]) => {
     const state = from;
     if (state.knownHot.includes(mv.edge) || (mv.hot && !info.touchDoors)) {
+      stopAuto();
       say('drill-hot');
       return;
     }
     // 문짝이 없는 트인 곳은 만져 볼 문이 없다. 건너편이 뜨거우면 눈에 보이므로 가지 않는다
     if (mv.open && mv.hot) {
+      stopAuto();
       say('drill-hot');
       return;
     }
     const needTouch = info.touchDoors && !mv.open && !state.checked.includes(mv.edge) && (mv.hot || state.stats.doorsChecked === 0);
     if (needTouch) {
-      setTouch(mv);
+      setTouch({ mv, walk });
       say('drill-touch');
       return;
     }
-    perform(state, mv);
+    perform(state, mv, walk);
   };
 
   const doTouch = () => {
     if (!state || !touch) return;
-    const next = touchDoor(state, touch);
+    const next = touchDoor(state, touch.mv);
     setState(next);
-    const mv = touch;
+    const { mv, walk } = touch;
     setTouch(null);
     if (mv.hot) {
+      stopAuto();
       say('drill-hot');
       if (isTrapped(layout, next, config)) {
         setCallCard('rescue');
@@ -210,11 +259,12 @@ export function DrillStep() {
       }
     } else {
       say('drill-cool');
-      perform(next, mv);
+      perform(next, mv, walk);
     }
   };
 
   const arrive = () => {
+    stopAuto();
     setMet(true);
     setCallCard('meet');
     // 가족을 만났다 — 축포와 함께 알린다
@@ -223,11 +273,11 @@ export function DrillStep() {
   };
 
   // 만나는 곳까지 한 번에 — 집을 돌아서 걸어간다
-  const goMeet = () => {
-    if (!state || walking || met) return;
-    const from = outWalk[outWalk.length - 1] ?? state.pt;
+  const goMeet = (now: DrillState, walked: Pt[]) => {
+    if (met) return;
+    const from = walked[walked.length - 1] ?? now.pt;
     const walk = outsidePath(plan, layout, from);
-    setOutWalk([...(outWalk.length ? outWalk : [from]), ...walk.slice(1)]);
+    setOutWalk([...(walked.length ? walked : [from]), ...walk.slice(1)]);
     if (walk.length > 1) animate(walk, arrive);
     else arrive();
   };
@@ -267,6 +317,9 @@ export function DrillStep() {
     const timer = window.setTimeout(() => setFresh(null), 3200);
     return () => window.clearTimeout(timer);
   }, [stampKey]);
+
+  // 지금 칸이 그린 길 위에 있어야 따라갈 수 있다
+  const canFollow = Boolean(state && state.phase === 'inside' && followLeg(plan, layout, state, config));
 
   if (!state) {
     return (
@@ -309,17 +362,18 @@ export function DrillStep() {
   // 방향키 판 — 갈 수 있는 쪽과 그쪽 이름
   const targets: Partial<Record<ArrowDir, string>> = {};
   if (!busy && !met) {
-    if (outside) {
-      const from = outWalk[outWalk.length - 1] ?? state.pt;
-      for (const dir of ['up', 'down', 'left', 'right'] as const) {
+    const nameOf = (id: string): string => {
+      const cell = layout.byId.get(id);
+      return id === OUT ? '집 밖' : (cell && cellLabel(cell.kind, cell.name)) || '옆 칸';
+    };
+    for (const dir of ['up', 'down', 'left', 'right'] as const) {
+      if (outside) {
+        const from = outWalk[outWalk.length - 1] ?? state.pt;
         const next = plan.marks.meet ? stepOutside(plan, layout, from, dir) : null;
         if (next) targets[dir] = next.arrived ? '만나는 곳' : '집 밖';
-      }
-    } else {
-      for (const [dir, mv] of Object.entries(arrowMap(state.pt, moves)) as [ArrowDir, DrillMove][]) {
-        if (state.knownHot.includes(mv.edge)) continue;
-        const cell = layout.byId.get(mv.to);
-        targets[dir] = mv.to === OUT ? '집 밖' : (cell && cellLabel(cell.kind, cell.name)) || '옆 칸';
+      } else {
+        const step = drillStep(plan, layout, state, dir, config);
+        if (step && !(step.move && state.knownHot.includes(step.move.edge))) targets[dir] = nameOf(step.to);
       }
     }
   }
@@ -367,11 +421,16 @@ export function DrillStep() {
             <IconDoor size={30} /> 문 닫기
           </button>
         )}
-        {outside && (
-          <button type="button" className="tool tall on" data-testid="drill-meet" disabled={walking} onClick={goMeet}>
+        {outside ? (
+          <button type="button" className="tool tall on" data-testid="drill-meet" disabled={walking} onClick={startFollow}>
             <IconPlay size={28} /> 만나는 곳으로
           </button>
+        ) : (
+          <button type="button" className="tool tall on" data-testid="drill-follow" data-following={following ? '1' : '0'} disabled={busy || !canFollow} onClick={startFollow}>
+            <IconPlay size={28} /> 내가 그린 길로 가기
+          </button>
         )}
+        {!outside && !canFollow && !busy && <p className="tool-note" data-testid="drill-off-route">그린 길에서 벗어났어. 방향키로 가 보자.</p>}
         <p className="tool-note" data-testid="drill-turn">{state.stats.moves}번 움직였어</p>
         <h3 className="tools-head">칭찬 도장</h3>
         <ul className="stamps" data-testid="stamps" data-earned={stampKey}>
@@ -390,15 +449,14 @@ export function DrillStep() {
           look={look}
           showRoute
           glow={glow}
-          hints={glow}
           hazard={hazard}
           heat={state.field}
           fire={{ cell: state.source, at: state.origin }}
           closedDoors={state.closed}
-          onPointer={(kind, p) => {
-            if (kind === 'up') tapAt(p);
+          onPointer={(kind) => {
+            if (kind === 'up' && !met) setNudge((n) => n + 1);
           }}
-          className="cursor-tap"
+          className="cursor-keys"
           zoomable
           ariaLabel="대피 연습 지도"
         >
@@ -416,7 +474,7 @@ export function DrillStep() {
             </g>
           ))}
           {pos && (
-            <g className={walking ? 'player walking' : 'player'} transform={`translate(${pos.x * u} ${pos.y * u}) scale(1.15)`} data-testid="player" data-at={state.at} data-phase={state.phase} data-met={met ? '1' : '0'}>
+            <g className={walking ? 'player walking' : 'player'} transform={`translate(${pos.x * u} ${pos.y * u}) scale(1.15)`} data-testid="player" data-at={state.at} data-x={state.pt.x} data-y={state.pt.y} data-phase={state.phase} data-met={met ? '1' : '0'}>
               <g className="player-hop">
                 <KidGlyph look={look} crouch={state.crouch} />
               </g>
@@ -424,7 +482,17 @@ export function DrillStep() {
           )}
         </PlanView>
         <ZoomControls plan={plan} />
-        <ArrowPad targets={targets} onArrow={onArrow} label="방향키로 움직이기" center={<KidFace look={look} size={40} />} />
+        {nudge > 0 && !met && !callCard && (
+          <p key={nudge} className="map-note fade" data-testid="drill-keys-note" role="status">지도는 누르지 않아. 방향키로 가 보자.</p>
+        )}
+        <ArrowPad
+          targets={targets}
+          onArrow={onArrow}
+          nudge={nudge}
+          label="방향키로 움직이기"
+          title={outside ? '만나는 곳으로 가자' : '가운데는 내가 그린 길로'}
+          center={{ testid: 'pad-follow', label: outside ? '만나는 곳으로' : '내가 그린 길로 가기', icon: <IconPlay size={26} />, onClick: startFollow, disabled: busy || met || (!outside && !canFollow), strong: true }}
+        />
         {fresh && (
           <div className="stamp-toast" role="status" data-testid="stamp-toast" data-stamp={fresh}>
             <span className="stamp-face"><StampGlyph id={fresh} size={40} /></span>
@@ -434,7 +502,7 @@ export function DrillStep() {
 
         {touch && (
           <div className="card-over" role="dialog" aria-modal="true" aria-label="문 만져 보기">
-            <button type="button" className="x" aria-label="닫기" data-testid="card-close" onClick={() => setTouch(null)}><IconClose /></button>
+            <button type="button" className="x" aria-label="닫기" data-testid="card-close" onClick={() => { stopAuto(); setTouch(null); }}><IconClose /></button>
             <h3>문을 열기 전에</h3>
             <p>손등으로 문을 살짝 만져 보자.</p>
             <button type="button" className="big-action" data-testid="drill-touch" autoFocus onClick={doTouch}>

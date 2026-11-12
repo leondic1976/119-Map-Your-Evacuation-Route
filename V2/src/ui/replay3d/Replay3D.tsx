@@ -23,6 +23,13 @@ const WALL_T = 0.09;
 const SEG_SECONDS = 1.05;
 /** 가족 앞에서 멈출 거리. 더 다가가면 얼굴이 화면 밖으로 나가고 몸통만 보인다 */
 const FAMILY_STOP = 1.3;
+/** 끝 장면에 머무는 초 — 가족 앞에 서서 축포를 본다(대장 #159) */
+const END_HOLD = 6.6;
+/** 가족 앞에 선 지 1초 뒤부터 축포가 터진다 */
+const PARTY_SECONDS = END_HOLD - 1;
+/** 축포 한 송이가 솟아올라 터지고 사라지기까지의 초, 그 가운데 솟아오르는 초 */
+const BURST_PERIOD = 3.2;
+const BURST_RISE = 0.5;
 
 interface Props {
   plan: Plan;
@@ -48,7 +55,7 @@ function buildTimes(timeline: Snapshot[]): { list: Timed[]; total: number } {
     list.push({ snap, from: t, to: t + dur, length });
     t += dur;
   }
-  return { list, total: t + 3.6 };
+  return { list, total: t + END_HOLD };
 }
 
 function material(color: number, roughness = 0.85): THREE.MeshStandardMaterial {
@@ -392,8 +399,13 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     renderer.domElement.dataset.testid = 'replay-canvas';
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xcfe6f3);
-    scene.fog = new THREE.Fog(0xcfe6f3, 22, 48);
+    // 하늘 — 낮 하늘이다가, 가족을 만나 축포가 터질 때 천천히 저녁 하늘로 어두워져 머문다(번쩍이지 않는다)
+    const skyDay = new THREE.Color(0xcfe6f3);
+    const skyDusk = new THREE.Color(0x1c2b4f);
+    const sky = skyDay.clone();
+    scene.background = sky;
+    const fog = new THREE.Fog(0xcfe6f3, 22, 48);
+    scene.fog = fog;
 
     const cx = planCols / 2;
     const cz = planRows / 2;
@@ -407,7 +419,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     controls.minDistance = 3;
     controls.maxDistance = 30;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xdfe8cf, 1.75));
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xdfe8cf, 1.75);
+    scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff4e0, 1.5);
     sun.position.set(cx - 6, 14, cz + 5);
     sun.target.position.set(cx, 0, cz);
@@ -665,10 +678,23 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     let lastCaption = '';
     let raf = 0;
     let disposed = false;
-    // 축포 — 가족을 만나면 가족 뒤 하늘에서 터진다. 점 뭉치를 코드로 움직인다
-    const BURST_COLORS = [0xf59a23, 0x3e9d5d, 0x2f7fbf, 0xe3a62a, 0xd9558c, 0x8a5fc4];
+    // 축포 — 가족을 만나면 가족 뒤 하늘 가득 터진다(대장 #142 · #159). 점 뭉치를 코드로 움직인다.
+    // 폭죽이 땅에서 솟아올라 두 겹으로 터지고(둥근 꽃 · 고리 · 버들), 가족 양옆에서 불꽃 분수가 솟고, 색종이가 내린다
+    const BURST_COLORS = [0xf59a23, 0x3e9d5d, 0x2f7fbf, 0xe3a62a, 0xd9558c, 0x8a5fc4, 0x4fb7c9, 0xff7f6e];
     const sparkTex = sparkTexture();
-    const bursts: { points: THREE.Points; dirs: Float32Array; at: THREE.Vector3; delay: number }[] = [];
+    const sparkCloud = (count: number, color: number, size: number, glow = true): THREE.Points => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+      // 불씨는 빛을 더해 어두운 하늘에서 환하게 빛난다. 색종이는 종이라 빛나지 않는다
+      const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color, map: sparkTex, size, transparent: true, opacity: 0, depthWrite: false, blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending }));
+      points.visible = false;
+      points.frustumCulled = false;
+      scene.add(points);
+      return points;
+    };
+    const bursts: { points: THREE.Points; inner: THREE.Points; trail: THREE.Points; dirs: Float32Array; at: THREE.Vector3; delay: number; reach: number; drop: number }[] = [];
+    const fountains: { points: THREE.Points; seeds: Float32Array; at: THREE.Vector3 }[] = [];
+    let confetti: { points: THREE.Points; seeds: Float32Array; at: THREE.Vector3 } | null = null;
     let cheered = false;
     let party = 0;
     if (drill.end === 'meet' && family && meet) {
@@ -677,27 +703,66 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const bx = family.x - from.x;
       const bz = family.z - from.y;
       const bl = Math.hypot(bx, bz) || 1;
-      for (let i = 0; i < 8; i++) {
-        const count = 150;
+      // 가족에서 뒤로 `back`, 옆으로 `side` 떨어진 자리
+      const spot = (back: number, side: number, y: number): THREE.Vector3 => new THREE.Vector3(family.x + (bx / bl) * back - (bz / bl) * side, y, family.z + (bz / bl) * back + (bx / bl) * side);
+      const BURSTS = 18;
+      for (let i = 0; i < BURSTS; i++) {
+        const count = 230;
+        const shape = i % 3;
         const dirs = new Float32Array(count * 3);
         for (let n = 0; n < count; n++) {
           const th = Math.random() * Math.PI * 2;
           const ph = Math.acos(2 * Math.random() - 1);
-          const sp = 0.75 + Math.random() * 0.35;
+          // 고리는 납작하게, 버들은 고르게 퍼져 길게 늘어진다
+          const sp = shape === 1 ? 1 : 0.7 + Math.random() * 0.4;
           dirs[n * 3] = Math.sin(ph) * Math.cos(th) * sp;
-          dirs[n * 3 + 1] = Math.cos(ph) * sp;
+          dirs[n * 3 + 1] = Math.cos(ph) * sp * (shape === 1 ? 0.18 : 1);
           dirs[n * 3 + 2] = Math.sin(ph) * Math.sin(th) * sp;
         }
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
-        const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: BURST_COLORS[i % BURST_COLORS.length], map: sparkTex, size: 0.13, transparent: true, opacity: 0, depthWrite: false }));
-        points.visible = false;
-        points.frustumCulled = false;
-        scene.add(points);
-        const back = 2.2 + (i % 3) * 1.1;
-        const side = (i - 3.5) * 0.8;
-        bursts.push({ points, dirs, at: new THREE.Vector3(family.x + (bx / bl) * back - (bz / bl) * side, 1.9 + (i % 2) * 0.7 + (i % 3) * 0.25, family.z + (bz / bl) * back + (bx / bl) * side), delay: i * 0.34 });
+        const color = BURST_COLORS[i % BURST_COLORS.length]!;
+        const side = (((i * 0.618) % 1) - 0.5) * 7.5;
+        const at = spot(1.6 + (i % 4) * 1.15, side, 1.7 + (i % 5) * 0.42 + (i % 2) * 0.2);
+        bursts.push({
+          points: sparkCloud(count, color, 0.22),
+          inner: sparkCloud(90, 0xfff3c4, 0.14),
+          trail: sparkCloud(12, 0xffe9a8, 0.09),
+          dirs,
+          at,
+          delay: i * 0.26,
+          reach: 1.05 + (i % 3) * 0.28,
+          drop: shape === 2 ? 0.5 : 0.22,
+        });
       }
+      // 불꽃 분수 — 가족 양옆 땅에서 솟는다
+      for (const side of [-1.5, 1.5]) {
+        const count = 150;
+        const seeds = new Float32Array(count * 4);
+        for (let n = 0; n < count; n++) {
+          seeds[n * 4] = (Math.random() - 0.5) * 0.9;
+          seeds[n * 4 + 1] = 1.9 + Math.random() * 0.9;
+          seeds[n * 4 + 2] = (Math.random() - 0.5) * 0.9;
+          seeds[n * 4 + 3] = Math.random();
+        }
+        fountains.push({ points: sparkCloud(count, 0xffd76a, 0.09), seeds, at: spot(0.5, side, 0.02) });
+      }
+      // 색종이 — 가족 머리 위에서 천천히 내린다
+      const papers = 320;
+      const seeds = new Float32Array(papers * 4);
+      const colors = new Float32Array(papers * 3);
+      const tint = new THREE.Color();
+      for (let n = 0; n < papers; n++) {
+        seeds[n * 4] = (Math.random() - 0.5) * 7;
+        seeds[n * 4 + 1] = Math.random();
+        seeds[n * 4 + 2] = (Math.random() - 0.5) * 5;
+        seeds[n * 4 + 3] = Math.random() * Math.PI * 2;
+        tint.setHex(BURST_COLORS[n % BURST_COLORS.length]!);
+        colors.set([tint.r, tint.g, tint.b], n * 3);
+      }
+      const paper = sparkCloud(papers, 0xffffff, 0.085, false);
+      paper.geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      (paper.material as THREE.PointsMaterial).vertexColors = true;
+      confetti = { points: paper, seeds, at: spot(0.4, 0, 0) };
+      mount.dataset.bursts = String(BURSTS);
     }
     // 가족 앞에서 멈춘 자리
     let held: Pt | null = null;
@@ -861,31 +926,80 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         pivot.rotation.y += (goal - pivot.rotation.y) * 0.14;
       });
 
-      // 축포 — 끝 장면에서 차례로 터지고 되풀이한다
-      if (bursts.length && time >= total - 2.6) {
+      // 축포 — 끝 장면에서 차례로 솟아올라 터지고 되풀이한다
+      const clouds = [...bursts.flatMap((b) => [b.points, b.inner, b.trail]), ...fountains.map((f) => f.points), ...(confetti ? [confetti.points] : [])];
+      // 축포가 터지는 동안 하늘이 천천히 어두워진다
+      const dusk = bursts.length && time >= total - PARTY_SECONDS ? (reduced ? 1 : Math.min(1, party / 1.6)) : 0;
+      sky.copy(skyDay).lerp(skyDusk, dusk);
+      fog.color.copy(sky);
+      hemi.intensity = 1.75 - 0.55 * dusk;
+      sun.intensity = 1.5 - 0.6 * dusk;
+      mount.dataset.dusk = dusk.toFixed(2);
+      if (bursts.length && time >= total - PARTY_SECONDS) {
         party += dt;
         if (!cheered) {
           cheered = true;
           mount.dataset.fireworks = '1';
           if (getApp().soundOn) platform.cheer();
         }
-        for (const b of bursts) {
-          const life = reduced ? 0.7 : ((party - b.delay) % 2.6 + 2.6) % 2.6;
-          const shown = (reduced || party >= b.delay) && life < 1.9;
-          b.points.visible = shown;
-          if (!shown) continue;
-          const reach = 1.1 * (1 - Math.exp(-3.2 * life));
-          const drop = 0.22 * life * life;
-          const pos = b.points.geometry.getAttribute('position') as THREE.BufferAttribute;
+        const spread = (cloud: THREE.Points, b: (typeof bursts)[number], reach: number, drop: number, opacity: number): void => {
+          const pos = cloud.geometry.getAttribute('position') as THREE.BufferAttribute;
           for (let n = 0; n < pos.count; n++) pos.setXYZ(n, b.at.x + b.dirs[n * 3]! * reach, b.at.y + b.dirs[n * 3 + 1]! * reach - drop, b.at.z + b.dirs[n * 3 + 2]! * reach);
           pos.needsUpdate = true;
-          (b.points.material as THREE.PointsMaterial).opacity = Math.max(0, Math.min(1, life * 6)) * Math.max(0, 1 - Math.max(0, life - 1) / 0.9);
+          (cloud.material as THREE.PointsMaterial).opacity = opacity;
+          cloud.visible = true;
+        };
+        for (const b of bursts) {
+          // 움직임 줄이기에서는 다 터진 모습 한 장이다
+          const life = reduced ? BURST_RISE + 0.7 : (((party - b.delay) % BURST_PERIOD) + BURST_PERIOD) % BURST_PERIOD;
+          const started = reduced || party >= b.delay;
+          const rising = started && !reduced && life < BURST_RISE;
+          const open = life - BURST_RISE;
+          const bloom = started && !rising && open < 2.2;
+          b.trail.visible = rising;
+          b.points.visible = bloom;
+          b.inner.visible = bloom;
+          if (rising) {
+            // 땅에서 솟아오르는 꼬리
+            const top = life / BURST_RISE;
+            const pos = b.trail.geometry.getAttribute('position') as THREE.BufferAttribute;
+            for (let n = 0; n < pos.count; n++) pos.setXYZ(n, b.at.x, b.at.y * Math.max(0, top - n * 0.035), b.at.z);
+            pos.needsUpdate = true;
+            (b.trail.material as THREE.PointsMaterial).opacity = 0.9;
+          }
+          if (bloom) {
+            const grow = 1 - Math.exp(-3.2 * open);
+            const fade = Math.max(0, Math.min(1, open * 7)) * Math.max(0, 1 - Math.max(0, open - 1.1) / 1.1);
+            spread(b.points, b, b.reach * grow, b.drop * open * open, fade);
+            spread(b.inner, b, b.reach * 0.5 * grow, b.drop * open * open, fade);
+          }
+        }
+        for (const f of fountains) {
+          const pos = f.points.geometry.getAttribute('position') as THREE.BufferAttribute;
+          for (let n = 0; n < pos.count; n++) {
+            const t = reduced ? f.seeds[n * 4 + 3]! : (party * 0.8 + f.seeds[n * 4 + 3]!) % 1;
+            pos.setXYZ(n, f.at.x + f.seeds[n * 4]! * t, f.at.y + f.seeds[n * 4 + 1]! * t - 1.7 * t * t, f.at.z + f.seeds[n * 4 + 2]! * t);
+          }
+          pos.needsUpdate = true;
+          (f.points.material as THREE.PointsMaterial).opacity = Math.min(1, party * 2);
+          f.points.visible = true;
+        }
+        if (confetti) {
+          const pos = confetti.points.geometry.getAttribute('position') as THREE.BufferAttribute;
+          for (let n = 0; n < pos.count; n++) {
+            const t = reduced ? confetti.seeds[n * 4 + 1]! : (party * 0.16 + confetti.seeds[n * 4 + 1]!) % 1;
+            const sway = reduced ? 0 : Math.sin(party * 2.2 + confetti.seeds[n * 4 + 3]!) * 0.22;
+            pos.setXYZ(n, confetti.at.x + confetti.seeds[n * 4]! + sway, 3.4 * (1 - t), confetti.at.z + confetti.seeds[n * 4 + 2]!);
+          }
+          pos.needsUpdate = true;
+          (confetti.points.material as THREE.PointsMaterial).opacity = Math.min(0.95, party * 1.5);
+          confetti.points.visible = true;
         }
       } else if (bursts.length) {
-        for (const b of bursts) b.points.visible = false;
+        for (const cloud of clouds) cloud.visible = false;
       }
 
-      const words = captionFor(seg.snap, drill, list.length, idx, time >= total - 2.6, levels.light);
+      const words = captionFor(seg.snap, drill, list.length, idx, time >= total - PARTY_SECONDS, levels.light);
       if (words !== lastCaption) {
         lastCaption = words;
         setCaption(words);

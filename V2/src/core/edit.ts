@@ -4,6 +4,7 @@
  */
 import { analyze, cellIdAt, edgeEnds, edgeInGrid, edgeMid, hKey, isExterior, isInterior, isSlanted, parseEdge, pieceCenter, pieceKeyAt, reachableFrom, segmentEdges, sqKey, tagFor, vKey, wallOf } from './grid';
 import { itemsInside } from './items';
+import { routeCursor, squareStep, type ArrowDir } from './path';
 import { OUT, type CellTag, type Layout, type MarkId, type OpeningKind, type Plan, type Pt } from './types';
 
 export function emptyPlan(cols: number, rows: number, density = 1): Plan {
@@ -327,32 +328,22 @@ export function tapRoute(plan: Plan, layout: Layout, which: 'route' | 'route2', 
 }
 
 /**
- * 손으로 끌어 길을 긋는다. `target` 은 손 아래의 조각 열쇠 또는 `out`.
- * 같은 칸 안에서는 어디로든 가고, 다른 칸으로는 문이나 트인 곳이 있을 때만 넘어간다. 벽은 넘지 못한다.
- * 지나온 조각으로 돌아가면 거기까지 되돌린다.
+ * 방향키로 길을 한 칸 긋는다(대장 #160). 누른 쪽으로 모눈 한 칸 가고, 벽에 막히면 `no-way` 다.
+ * 지나온 자리로 돌아가면 거기까지 지워진다.
  */
-export function dragRoute(plan: Plan, layout: Layout, which: 'route' | 'route2', target: string): RouteTap {
+export function arrowRoute(plan: Plan, layout: Layout, which: 'route' | 'route2', dir: ArrowDir): RouteTap {
   const me = plan.marks.me;
   if (!me) return { plan, result: 'no-start' };
   const startKey = pieceKeyAt(layout, me);
   if (!layout.cellAt.get(startKey)) return { plan, result: 'no-start' };
   const route = plan[which].length ? plan[which] : [startKey];
-  const idOf = (step: string): string | undefined => (step === OUT ? OUT : layout.cellAt.get(step));
-  const targetId = idOf(target);
-  if (!targetId) return { plan, result: 'no-way' };
-  const last = route[route.length - 1]!;
-  if (target === last) return { plan, result: 'same' };
-  const seenAt = route.lastIndexOf(target);
-  if (seenAt >= 0) return { plan: { ...plan, [which]: route.slice(0, seenAt + 1) }, result: 'back' };
-  if (last === OUT) return { plan, result: 'no-way' };
-  const lastId = idOf(last)!;
-  if (targetId === lastId) return { plan: { ...plan, [which]: [...route, target] }, result: 'added' };
-  // 지나온 칸으로 돌아왔다 — 그 칸에 들어선 데까지 되돌리고 손 아래 조각을 잇는다
-  const cells = route.map(idOf);
-  const backTo = cells.lastIndexOf(targetId);
-  if (backTo >= 0) return { plan: { ...plan, [which]: [...route.slice(0, backTo + 1), target] }, result: 'back' };
-  if (!reachableFrom(layout, lastId).some((n) => n.to === targetId)) return { plan, result: 'no-way' };
-  return { plan: { ...plan, [which]: [...route, target] }, result: target === OUT ? 'done' : 'added' };
+  const here = routeCursor(plan, layout, route);
+  if (!here) return { plan, result: 'no-way' };
+  const step = squareStep(plan, layout, here.piece, dir);
+  if (step.kind === 'blocked') return { plan, result: 'no-way' };
+  const seenAt = route.lastIndexOf(step.piece);
+  if (seenAt >= 0) return { plan: { ...plan, [which]: route.slice(0, seenAt + 1) }, result: seenAt === 0 ? 'start' : 'back' };
+  return { plan: { ...plan, [which]: [...route, step.piece] }, result: step.piece === OUT ? 'done' : 'added' };
 }
 
 /** 길이 다음에 갈 수 있는 곳 */

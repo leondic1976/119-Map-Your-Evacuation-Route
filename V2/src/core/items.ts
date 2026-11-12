@@ -116,6 +116,27 @@ export function itemIndexAt(plan: Plan, at: Pt, radius: number): number {
   return hit;
 }
 
+/**
+ * 누른 자리에 그림이 닿는 가구의 번호(대장 #158). 가운데만이 아니라 그림 어디를 잡아도 잡힌다.
+ * `dims` 는 가구의 폭과 깊이(처음 네모 단위), `pad` 는 손 떨림만큼 넓히는 거리(점 단위)다. 겹치면 위에 그려진 것을 고른다.
+ */
+export function itemHitAt(plan: Plan, at: Pt, dims: (kind: ItemKind) => { w: number; d: number }, pad: number): number {
+  const k = Math.max(1, plan.density ?? 1);
+  const items = plan.items ?? [];
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!;
+    const { w, d } = dims(item.kind);
+    const rad = (-item.angle * Math.PI) / 180;
+    const dx = at.x - item.x;
+    const dy = at.y - item.y;
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    const half = (n: number): number => Math.max(0.3, (n * itemSize(item)) / 2) * k + pad;
+    if (Math.abs(lx) <= half(w) && Math.abs(ly) <= half(d)) return i;
+  }
+  return -1;
+}
+
 /** 놓은 가구를 옮긴다. 다시 가장 가까운 벽을 등진다 */
 export function moveItem(plan: Plan, layout: Layout, index: number, to: Pt): PlaceItemResult {
   const items = plan.items ?? [];

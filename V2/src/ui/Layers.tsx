@@ -2,8 +2,9 @@
  * 레이어 — 아파트 형태와 가구는 필요할 때만 여는 판에 있다. 고르지 않아도 지도를 끝까지 만들 수 있다.
  * 왼쪽 패널에는 여는 단추만 둔다.
  */
-import { useEffect, useState } from 'react';
-import { ITEM_SIZES, itemSize, placeItem, removeItem, removeItemAt, resizeItem, turnItem } from '../core/items';
+import { useEffect, useRef, useState } from 'react';
+import { ITEM_SIZES, itemHitAt, itemSize, moveItem, placeItem, removeItem, removeItemAt, resizeItem, turnItem } from '../core/items';
+import { ARROW, type ArrowDir } from '../core/path';
 import type { ItemKind, Layout, Plan, Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { HOMES, type Home } from '../content/homes';
@@ -14,6 +15,7 @@ import { applyHome, applyTemplate, commit, currentBand, say } from '../store/app
 import { edgeEnds } from '../core/grid';
 import { buildHome } from '../content/homes';
 import { IconClose } from './art';
+import { useArrowKeys, useHold } from './ArrowPad';
 import { CursorGhost } from './CursorGhost';
 import { ItemShape, unitOf } from './PlanView';
 
@@ -46,6 +48,23 @@ function LineThumb({ lines, cols, rows }: { lines: string[]; cols: number; rows:
 
 /** 지금 놓는 중인 것. `remove` 는 치우는 중이다 */
 export type Placing = ItemKind | 'remove' | null;
+
+const MOVE_KEYS: { dir: ArrowDir; label: string; d: string }[] = [
+  { dir: 'up', label: '위로 옮기기', d: 'M14 23V5M6 13l8-8 8 8' },
+  { dir: 'left', label: '왼쪽으로 옮기기', d: 'M23 14H5M13 6l-8 8 8 8' },
+  { dir: 'right', label: '오른쪽으로 옮기기', d: 'M5 14h18M15 6l8 8-8 8' },
+  { dir: 'down', label: '아래로 옮기기', d: 'M14 5v18M6 15l8 8 8-8' },
+];
+
+/** 가구를 한 걸음 옮기는 단추. 누르고 있으면 이어서 옮긴다 */
+function MoveKey({ dir, label, d, onMove }: { dir: ArrowDir; label: string; d: string; onMove: (dir: ArrowDir) => void }) {
+  const hold = useHold(() => onMove(dir));
+  return (
+    <button type="button" className="pad-btn go" style={{ gridArea: dir }} data-testid={`item-move-${dir}`} aria-label={label} {...hold}>
+      <svg viewBox="0 0 28 28" width="30" height="30" aria-hidden="true"><path d={d} fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    </button>
+  );
+}
 
 export function useLayers(plan: Plan, layout: Layout) {
   const [open, setOpen] = useState<LayerId | null>(null);
@@ -96,6 +115,44 @@ export function useLayers(plan: Plan, layout: Layout) {
       setOpen(null);
     } else setAsking({ id, name, apply });
   };
+
+  // 놓은 가구는 끌어서 옮긴다(대장 #158). 그림 어디를 잡아도 잡히고, 움직이지 않고 떼면 고른 것이다
+  const grab = useRef<{ index: number; from: Pt; off: Pt; moved: boolean } | null>(null);
+  const [dragTo, setDragTo] = useState<Pt | null>(null);
+  /** 지도 위의 손길을 먼저 받는다. 가구를 잡았거나 끄는 중이면 true 를 돌려준다 */
+  const pointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt): boolean => {
+    if (placing) return false;
+    const k = Math.max(1, plan.density ?? 1);
+    if (kind === 'down') {
+      const index = itemHitAt(plan, p, (item) => ITEMS[item], 0.12 * k);
+      const item = plan.items?.[index];
+      grab.current = item ? { index, from: p, off: { x: item.x - p.x, y: item.y - p.y }, moved: false } : null;
+      return Boolean(item);
+    }
+    const held = grab.current;
+    if (!held) return false;
+    const to = { x: p.x + held.off.x, y: p.y + held.off.y };
+    if (kind === 'move') {
+      if (held.moved || Math.hypot(p.x - held.from.x, p.y - held.from.y) > 0.2 * k) {
+        held.moved = true;
+        setDragTo(to);
+      }
+      return true;
+    }
+    grab.current = null;
+    setDragTo(null);
+    if (kind === 'cancel') return true;
+    if (held.moved) {
+      const res = moveItem(plan, layout, held.index, to);
+      if (res.ok) commit(res.plan);
+      else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
+    }
+    setSelected(held.index);
+    return true;
+  };
+  /** 끄는 동안 보이는 지도 — 잡은 가구가 손을 따라온다 */
+  const dragged = grab.current;
+  const shown: Plan = dragged && dragTo ? { ...plan, items: (plan.items ?? []).map((it, i) => (i === dragged.index ? { ...it, x: dragTo.x, y: dragTo.y } : it)) } : plan;
 
   const buttons = (
     <>
@@ -180,23 +237,60 @@ export function useLayers(plan: Plan, layout: Layout) {
   const sizeAt = picked ? ITEM_SIZES.reduce((best, s, i) => (Math.abs(s - itemSize(picked)) < Math.abs(ITEM_SIZES[best]! - itemSize(picked)) ? i : best), 0) : 0;
   const u = unitOf(plan);
 
-  /** 고른 가구를 고치는 막대 — 동서남북으로 돌리고, 키우고 줄이고, 치운다 */
-  const bar = picked && selected !== null && !placing && !open && (
-    <div className="item-bar" role="group" aria-label={`${ITEMS[picked.kind].label} 고치기`} data-testid="item-bar" data-kind={picked.kind}>
-      <b>{ITEMS[picked.kind].label}</b>
-      <button type="button" className="tool" data-testid="item-turn" aria-label="오른쪽으로 돌리기" onClick={() => commit(turnItem(plan, selected))}>
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12a7 7 0 1 1 3 5.7M5 12V6M5 12h6" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        돌리기
-      </button>
-      <button type="button" className="tool" data-testid="item-smaller" disabled={sizeAt === 0} onClick={() => commit(resizeItem(plan, selected, -1))}>작게</button>
-      <button type="button" className="tool" data-testid="item-bigger" disabled={sizeAt === ITEM_SIZES.length - 1} onClick={() => commit(resizeItem(plan, selected, 1))}>크게</button>
-      <button type="button" className="tool" data-testid="item-delete" onClick={() => { commit(removeItem(plan, selected)); setSelected(null); }}>치우기</button>
-      <button type="button" className="tool on" data-testid="item-ok" onClick={() => setSelected(null)}>다 됐어</button>
+  /** 고른 가구를 한 걸음 옮긴다 — 처음 네모 반 칸씩이다. 칸 밖이나 문 앞으로는 가지 않는다 */
+  const nudge = (dir: ArrowDir) => {
+    if (selected === null || !picked) return;
+    const k = Math.max(1, plan.density ?? 1);
+    const res = moveItem(plan, layout, selected, { x: picked.x + ARROW[dir].x * 0.5 * k, y: picked.y + ARROW[dir].y * 0.5 * k });
+    if (res.ok) commit(res.plan);
+    else say(res.why === 'door' ? 'item-door' : 'mark-need-inside');
+  };
+  const fixing = Boolean(picked) && selected !== null && !placing && !open;
+  // 판이 떠 있는 동안에는 키보드 방향키도 가구를 옮긴다
+  useArrowKeys(nudge, fixing);
+  useEffect(() => {
+    if (!fixing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fixing]);
+
+  /**
+   * 가구 고치기 판 — 고른 가구 옆에 떠서 옮기고, 동서남북으로 돌리고, 키우고 줄이고, 치운다(대장 #157 · #158).
+   * 가구를 가리지 않게 가구가 있는 쪽의 반대편에 뜬다.
+   */
+  const bar = fixing && picked && selected !== null && (
+    <div className={picked.x > plan.cols / 2 ? 'item-pad left' : 'item-pad'} role="dialog" aria-label={`${ITEMS[picked.kind].label} 고치기`} data-testid="item-bar" data-kind={picked.kind}>
+      <button type="button" className="x" aria-label="닫기" data-testid="item-close" onClick={() => setSelected(null)}><IconClose /></button>
+      <h3>{ITEMS[picked.kind].label} 고치기</h3>
+      <div className="item-keys">
+        <button type="button" className="tool" style={{ gridArea: 'tl' }} data-testid="item-turn-left" aria-label="왼쪽으로 돌리기" onClick={() => commit(turnItem(plan, selected, -1))}>
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M19 12a7 7 0 1 0-3 5.7M19 12V6M19 12h-6" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          왼쪽으로
+        </button>
+        <button type="button" className="tool" style={{ gridArea: 'tr' }} data-testid="item-turn" aria-label="오른쪽으로 돌리기" onClick={() => commit(turnItem(plan, selected))}>
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 12a7 7 0 1 1 3 5.7M5 12V6M5 12h6" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          오른쪽으로
+        </button>
+        {MOVE_KEYS.map((key) => <MoveKey key={key.dir} {...key} onMove={nudge} />)}
+        <span className="item-face" style={{ gridArea: 'face' }} aria-hidden="true">
+          <svg viewBox="-70 -70 140 140" width="52" height="52"><g transform={`rotate(${picked.angle})`}><ItemShape kind={picked.kind} /></g></svg>
+        </span>
+        <button type="button" className="tool" style={{ gridArea: 'sm' }} data-testid="item-smaller" disabled={sizeAt === 0} onClick={() => commit(resizeItem(plan, selected, -1))}>작게</button>
+        <button type="button" className="tool" style={{ gridArea: 'bg' }} data-testid="item-bigger" disabled={sizeAt === ITEM_SIZES.length - 1} onClick={() => commit(resizeItem(plan, selected, 1))}>크게</button>
+      </div>
+      <p className="item-hint">가구를 끌어도 옮겨져.</p>
+      <div className="tool-row across">
+        <button type="button" className="tool" data-testid="item-delete" onClick={() => { commit(removeItem(plan, selected)); setSelected(null); }}>치우기</button>
+        <button type="button" className="tool on" data-testid="item-ok" onClick={() => setSelected(null)}>다 됐어</button>
+      </div>
     </div>
   );
 
   /** 고른 가구 둘레의 점선 — 지도 그림 안에 넣는다 */
-  const ring = picked && !placing && (
+  const ring = picked && !placing && !dragTo && (
     <circle className="item-ring" data-testid="item-ring" cx={picked.x * u} cy={picked.y * u} r={Math.max(ITEMS[picked.kind].w, ITEMS[picked.kind].d) * 62 * itemSize(picked) + 8} pointerEvents="none" />
   );
 
@@ -205,5 +299,5 @@ export function useLayers(plan: Plan, layout: Layout) {
     <CursorGhost name={placing}><ItemShape kind={placing} /></CursorGhost>
   );
 
-  return { buttons, panel, placing, tapMap, banner, bar, ring, ghost, selected, select: setSelected, isOpen: open !== null };
+  return { buttons, panel, placing, tapMap, banner, bar, ring, ghost, selected, select: setSelected, isOpen: open !== null, pointer, shown, dragging: dragTo !== null };
 }

@@ -210,15 +210,15 @@
       "id": "route-start",
       "filename": "route-start.mp3",
       "speaker": "yeongi",
-      "text": "내 자리에서 시작해. 반짝이는 칸을 차례로 눌러 밖까지 나가 보자.",
-      "hash": "e55af77b6d1e37d3"
+      "text": "내 자리에서 시작해. 방향키를 눌러 한 칸씩 밖까지 나가 보자.",
+      "hash": "70f8457937a9930a"
     },
     {
       "id": "route-no-way",
       "filename": "route-no-way.mp3",
       "speaker": "ungi",
-      "text": "거기로 가는 문이 없어. 반짝이는 곳을 눌러 보자.",
-      "hash": "68f5942836ff788a"
+      "text": "거기는 벽이야. 문이 있는 쪽으로 가 보자.",
+      "hash": "7afe55ca635c7c3b"
     },
     {
       "id": "route-done",
@@ -238,15 +238,15 @@
       "id": "route-dead-end",
       "filename": "route-dead-end.mp3",
       "speaker": "ungi",
-      "text": "여기서는 더 갈 곳이 없어. 반짝이는 칸을 눌러 돌아가 보자.",
-      "hash": "7a0fcbcf5cf24bce"
+      "text": "여기서는 더 갈 곳이 없어. 방향키로 왔던 길을 돌아가 보자.",
+      "hash": "850efc5354e5ab25"
     },
     {
       "id": "route-same",
       "filename": "route-same.mp3",
       "speaker": "ungi",
-      "text": "첫째 길과 같은 길이야. 지나온 칸을 눌러 돌아가서 다른 길로 가 보자.",
-      "hash": "c5f6226bc702d25a"
+      "text": "첫째 길과 같은 길이야. 방향키로 돌아가서 다른 길로 가 보자.",
+      "hash": "7bf1726ea7a041d2"
     },
     {
       "id": "route-next",
@@ -385,8 +385,8 @@
       "id": "drill-how",
       "filename": "drill-how.mp3",
       "speaker": "ungi",
-      "text": "반짝이는 칸을 눌러서 움직이자. 화살표 키로도 갈 수 있어.",
-      "hash": "2226c736fae74be6"
+      "text": "내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어.",
+      "hash": "44b26f5710721e69"
     },
     {
       "id": "howto-draw",
@@ -420,29 +420,29 @@
       "id": "howto-route",
       "filename": "howto-route.mp3",
       "speaker": "yeongi",
-      "text": "반짝이는 칸을 눌러 봐. 화살표 키로도 갈 수 있어. 집 밖까지 가면 길이 완성돼.",
-      "hash": "67f260581390bf62"
+      "text": "방향키를 눌러 봐. 누른 쪽으로 한 칸씩 가. 벽은 못 지나가고 문으로 지나가. 집 밖까지 가면 길이 완성돼.",
+      "hash": "e0d79fdf0ef23424"
     },
     {
       "id": "howto-drill",
       "filename": "howto-drill.mp3",
       "speaker": "ilgu",
-      "text": "반짝이는 칸을 눌러서 움직여. 화살표 키로도 갈 수 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.",
-      "hash": "7af89eb0973a6576"
+      "text": "내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.",
+      "hash": "ad2b5d9cb8aaff52"
     },
     {
       "id": "howto-drill-mid",
       "filename": "howto-drill-mid.mp3",
       "speaker": "ilgu",
-      "text": "반짝이는 칸을 눌러서 움직여. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐. 집 밖까지 나가 보자.",
-      "hash": "85ae4b51df75082f"
+      "text": "내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐.",
+      "hash": "b1ba2ce219f09e3d"
     },
     {
       "id": "howto-drill-high",
       "filename": "howto-drill-high.mp3",
       "speaker": "ilgu",
-      "text": "반짝이는 칸을 눌러서 움직여. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐. 지나온 문은 문 닫기로 닫을 수 있어.",
-      "hash": "9b7c4327638abc54"
+      "text": "내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸을 낮추고, 문 앞에서는 손등으로 만져 봐. 지나온 문은 문 닫기로 닫을 수 있어.",
+      "hash": "2d8dfabc4bffbcea"
     },
     {
       "id": "help-fill",

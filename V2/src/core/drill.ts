@@ -3,9 +3,9 @@
  * 진 판 없이 연습으로 끝나고, 점수를 만들지 않는다.
  */
 import { routeCells } from './edit';
-import { analyze, cellIdAt, reachableFrom, shortestPath, simplify } from './grid';
+import { analyze, cellIdAt, pieceKeyAt, reachableFrom, shortestPath, simplify } from './grid';
 import { stepField, type Field, type FieldEdge, type FieldParams } from './hazard';
-import { ARROW, exitPoint, hopPoints, type ArrowDir } from './path';
+import { ARROW, exitPoint, hopPoints, routeLegs, squareStep, type ArrowDir } from './path';
 import { OUT, type ItemKind, type Layout, type Plan, type Pt } from './types';
 
 export interface DrillLevels {
@@ -255,11 +255,6 @@ function collect(state: DrillState, cells: string[]): Pick<DrillState, 'tokens' 
   return { tokens: tokens.filter((t) => !cells.includes(t.cell)), picked: [...(state.picked ?? []), ...got.map((t) => t.id)] };
 }
 
-/** 지금 있는 칸의 안전 행동을 눌러서 줍는다 */
-export function pickHere(state: DrillState): DrillState {
-  return { ...state, ...collect(state, [state.at]) };
-}
-
 export function startDrill(plan: Plan, seed: number, config: DrillConfig, wanted: TokenId[] = []): DrillState | null {
   const layout = analyze(plan);
   const me = plan.marks.me;
@@ -339,15 +334,80 @@ function advance(state: DrillState, layout: Layout, config: DrillConfig): Field 
   return stepField(state.field, fieldEdges(layout, state.closed), [state.source], config.params);
 }
 
-/** 문을 지나 옮긴다 */
+/** 안전 행동은 이만큼(처음 네모 단위) 가까이 가면 줍는다 */
+const TOKEN_REACH = 0.8;
+
+/**
+ * 같은 칸 안에서 걷는다(대장 #160). 차례가 넘어가지 않아 위험이 번지지 않는다.
+ * `points` 는 지금 자리 다음부터 걸어갈 점들이고, 3D 다시 보기가 따라가도록 기록에 남긴다.
+ */
+export function walkInside(plan: Plan, state: DrillState, points: Pt[]): DrillState {
+  const pt = points[points.length - 1];
+  if (!pt || state.phase !== 'inside') return state;
+  const reach = TOKEN_REACH * Math.max(1, plan.density ?? 1);
+  const tokens = state.tokens ?? [];
+  const near = (t: Token): boolean => t.cell === state.at && points.some((p) => Math.hypot(p.x - t.pt.x, p.y - t.pt.y) <= reach);
+  const got = tokens.filter(near);
+  const last = state.timeline[state.timeline.length - 1]!;
+  return {
+    ...state,
+    pt,
+    tokens: got.length ? tokens.filter((t) => !near(t)) : tokens,
+    picked: got.length ? [...(state.picked ?? []), ...got.map((t) => t.id)] : (state.picked ?? []),
+    timeline: [...state.timeline.slice(0, -1), { ...last, walk: [...last.walk, ...points] }],
+  };
+}
+
+/** 방향키 한 번으로 갈 곳. 벽이면 null 이다. `move` 가 있으면 문이나 트인 곳을 지나 다른 칸으로 간다 */
+export function drillStep(plan: Plan, layout: Layout, state: DrillState, dir: ArrowDir, config: DrillConfig): { walk: Pt[]; move: DrillMove | null; to: string } | null {
+  if (state.phase !== 'inside') return null;
+  const step = squareStep(plan, layout, pieceKeyAt(layout, state.pt), dir);
+  if (step.kind === 'blocked') return null;
+  if (step.kind === 'walk') return { walk: [step.pt], move: null, to: state.at };
+  const hot = step.to !== OUT && (state.field[step.to] ?? 0) >= config.levels.hot;
+  return { walk: [step.via, step.pt], move: { to: step.to, edge: step.edge, hot, ...(step.open ? { open: true } : {}) }, to: step.to };
+}
+
+/**
+ * 내가 그린 길을 따라 다음 칸까지 가는 걸음(대장 #161). 그린 선 위를 그대로 걷는다.
+ * 지금 칸이 그린 길 위에 없거나 길이 끝났으면 null 이다. `move` 가 없으면 칸 안에서만 걷는다.
+ */
+export function followLeg(plan: Plan, layout: Layout, state: DrillState, config: DrillConfig): { walk: Pt[]; move: DrillMove | null } | null {
+  if (state.phase !== 'inside') return null;
+  const route = plan.route;
+  const here = pieceKeyAt(layout, state.pt);
+  let index = route.lastIndexOf(here);
+  if (index < 0) {
+    for (let i = route.length - 1; i >= 0; i--) {
+      if (route[i] !== OUT && layout.cellAt.get(route[i]!) === state.at) {
+        index = i;
+        break;
+      }
+    }
+  }
+  if (index < 0) return null;
+  const walk: Pt[] = [];
+  for (const leg of routeLegs(plan, layout, route, index, state.pt)) {
+    walk.push(...leg.points);
+    if (!leg.cross) continue;
+    const { edge, to } = leg.cross;
+    const hot = to !== OUT && (state.field[to] ?? 0) >= config.levels.hot;
+    const open = plan.openings[edge] !== 'door';
+    return { walk, move: { to, edge, hot, ...(open ? { open: true } : {}) } };
+  }
+  return walk.length ? { walk, move: null } : null;
+}
+
+/** 문을 지나 옮긴다. `along` 을 주면 그 점들을 따라 걷고, 없으면 문까지 가는 길을 찾는다 */
 export function moveTo(
   plan: Plan,
   layout: Layout,
   state: DrillState,
   move: DrillMove,
   config: DrillConfig,
+  along?: Pt[],
 ): DrillState {
-  const hop = hopPoints(plan, layout, state.at, state.pt, move.to, move.edge);
+  const hop = along && along.length ? along : hopPoints(plan, layout, state.at, state.pt, move.to, move.edge);
   const field = advance(state, layout, config);
   const pt = hop[hop.length - 1] ?? state.pt;
   const closed = state.closed.filter((e) => e !== move.edge);

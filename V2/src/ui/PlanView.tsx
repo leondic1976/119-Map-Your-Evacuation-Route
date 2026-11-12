@@ -14,7 +14,7 @@ import { itemSize } from '../core/items';
 import { ITEMS } from '../content/items';
 import { cellLabel, MARK_NAME, type LookId } from '../content/names';
 import { getApp, setView, useApp } from '../store/app';
-import { HandGlyph, MarkGlyph } from './art';
+import { MarkGlyph } from './art';
 
 export const U = 100;
 /** 지금 점 한 칸의 그림 크기 */
@@ -71,8 +71,6 @@ export interface PlanViewProps {
   hotEdge?: string | null;
   /** 반짝이는 칸들 (칸 id · `out`) */
   glow?: string[];
-  /** 손가락과 「여기를 눌러」를 띄울 곳 (칸 id · `out`) */
-  hints?: string[];
   /** 살펴볼 칸 — 밖으로 이어지지 않은 칸 */
   warn?: string[];
   showRoute?: boolean;
@@ -339,8 +337,6 @@ function PlanViewBase(props: PlanViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan, layout, showLabels, u, ppu]);
   const stripFont = fit(26, 15);
-  const tapFont = fit(25, 15);
-  const cellFont = fit(28, 15);
 
   return (
     <svg
@@ -551,20 +547,6 @@ function PlanViewBase(props: PlanViewProps) {
           return <text key={l.id} className={l.cls} data-label={l.id} x={spot.x} y={spot.y} style={{ fontSize: l.size }}>{l.text}</text>;
         })}
       </g>
-
-      {/* 눌러야 할 곳 */}
-      {(props.hints ?? []).map((id) => {
-        const cell = layout.byId.get(id);
-        const x = cell ? cell.anchor.x * u : strip.x + strip.w * (side === 'left' || side === 'right' ? 0.5 : 0.3);
-        // 칸 이름 바로 아래에 놓아 글자가 겹치지 않게 한다
-        const y = cell ? cell.anchor.y * u + cellFont * 0.6 + tapFont * 0.5 + 18 : strip.y + (side === 'left' || side === 'right' ? strip.h * 0.3 : 34);
-        return (
-          <g key={`hint${id}`} className="tap-hint" data-hint={id} transform={`translate(${x} ${y})`} pointerEvents="none">
-            <g className="tap-hand"><HandGlyph scale={1.5} /></g>
-            <text className="tap-word" x={0} y={-12} style={{ fontSize: tapFont }}>여기를 눌러</text>
-          </g>
-        );
-      })}
 
       {/* 점 */}
       {dots}

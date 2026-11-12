@@ -2,7 +2,7 @@
  * 칸의 나열을 그림 위 점의 나열로 바꾼다. 벽을 뚫지 않고 문 가운데를 지난다.
  * 지도 · 대피 연습 · 3D 가 같은 계산을 쓴다.
  */
-import { doorSquareFor, edgeMid, edgeNormal, edgeSides, pieceCenter, pieceKeyAt, reachableFrom, simplify, walkInCell } from './grid';
+import { doorSquareFor, edgeMid, edgeNormal, edgeSides, isPassable, isSlanted, parseSq, pieceCenter, pieceKeyAt, reachableFrom, simplify, walkInCell } from './grid';
 import { OUT, type Layout, type Plan, type Pt } from './types';
 
 /** 문 밖으로 나선 자리. 점 간격이 좁아도 예전 네모 반 칸만큼 나선다 */
@@ -32,36 +32,99 @@ export function hopPoints(
   return [...inside, mid, pieceCenter(doorSquareFor(layout, edge, toCell))];
 }
 
+/**
+ * 두 조각 사이에 놓인 지나갈 수 있는 벽 토막. `b` 가 `out` 이면 `a` 에서 밖으로 나가는 토막이다.
+ * 여럿이면 `near` 에 가까운 것을 고른다. 없으면 null 이다.
+ */
+export function passBetween(plan: Plan, layout: Layout, a: string, b: string, near: Pt): string | null {
+  let best: string | null = null;
+  let bestD = Infinity;
+  for (const e of layout.edges.values()) {
+    if (e.hidden) continue;
+    const other = e.sides[0] === a ? e.sides[1] : e.sides[1] === a ? e.sides[0] : null;
+    if (other === null) continue;
+    if (b === OUT ? layout.cellAt.has(other) : other !== b) continue;
+    if (!isPassable(plan, layout, e.key)) continue;
+    const d = dist(e.mid, near);
+    if (d < bestD) {
+      bestD = d;
+      best = e.key;
+    }
+  }
+  return best;
+}
+
+/** 길의 한 걸음 — `index` 번째 자리까지 가는 점들이다. 다른 칸으로 넘어가면 `cross` 에 지나는 문이 있다 */
+export interface RouteLeg {
+  index: number;
+  points: Pt[];
+  cross?: { edge: string; to: string };
+}
+
+/**
+ * 길을 걸음마다 나눈다. `start` 번째 자리의 `from` 에서 시작한다(기본은 내 자리).
+ * 방향키로 그린 길은 이웃한 조각을 차례로 지나므로 지나간 자리 그대로 나온다(대장 #160 · #161).
+ * 「도와줘」가 고른 길처럼 칸만 적힌 길은 문까지 걸어가서 넘어간다.
+ */
+export function routeLegs(plan: Plan, layout: Layout, route: string[], start = 0, from: Pt | undefined = plan.marks.me): RouteLeg[] {
+  const first = route[start];
+  if (!from || first === undefined || first === OUT) return [];
+  let at = layout.cellAt.get(pieceKeyAt(layout, from)) ?? layout.cellAt.get(first);
+  if (!at) return [];
+  let pt: Pt = from;
+  const legs: RouteLeg[] = [];
+  for (let i = start + 1; i < route.length; i++) {
+    const step = route[i]!;
+    const to = step === OUT ? OUT : layout.cellAt.get(step);
+    if (!to) break;
+    const here = pieceKeyAt(layout, pt);
+    if (to === at) {
+      // 같은 칸 안 — 조각을 따라 지난다
+      const walk = walkInCell(plan, layout, at, here, step).slice(1);
+      legs.push({ index: i, points: walk });
+      pt = walk[walk.length - 1] ?? pt;
+      continue;
+    }
+    const direct = passBetween(plan, layout, here, step, pt);
+    if (direct) {
+      const end = to === OUT ? exitPoint(layout, direct, plan.density ?? 1) : pieceCenter(step);
+      legs.push({ index: i, points: [edgeMid(direct), end], cross: { edge: direct, to } });
+      pt = end;
+    } else {
+      const via = reachableFrom(layout, at)
+        .filter((n) => n.to === to)
+        .sort((a, b) => dist(edgeMid(a.edge), pt) - dist(edgeMid(b.edge), pt))[0];
+      if (!via) break;
+      const hop = hopPoints(plan, layout, at, pt, to, via.edge);
+      legs.push({ index: i, points: hop, cross: { edge: via.edge, to } });
+      pt = hop[hop.length - 1]!;
+    }
+    if (to === OUT) break;
+    at = to;
+  }
+  return legs;
+}
+
 /** 길 전체의 점. 시작은 내 자리다. 끝이 `out` 이면 문 밖 한 칸까지 간다 */
 export function routePoints(plan: Plan, layout: Layout, route: string[]): Pt[] {
   const me = plan.marks.me;
   if (!me || route.length === 0) return [];
-  let at = route[0] === OUT ? null : layout.cellAt.get(route[0]!);
-  if (!at) return [];
-  let pt: Pt = me;
-  const out: Pt[] = [pt];
-  for (let i = 1; i < route.length; i++) {
-    const step = route[i]!;
-    const to = step === OUT ? OUT : layout.cellAt.get(step);
-    if (!to) break;
-    if (to === at) {
-      // 같은 칸 안 — 끌어서 그은 자리를 조각을 따라 지난다
-      const walk = walkInCell(plan, layout, at, pieceKeyAt(layout, pt), step).slice(1);
-      out.push(...walk);
-      pt = walk[walk.length - 1] ?? pt;
-      continue;
-    }
-    const via = reachableFrom(layout, at)
-      .filter((n) => n.to === to)
-      .sort((a, b) => dist(edgeMid(a.edge), pt) - dist(edgeMid(b.edge), pt))[0];
-    if (!via) break;
-    const hop = hopPoints(plan, layout, at, pt, to, via.edge);
-    out.push(...hop);
-    pt = hop[hop.length - 1]!;
-    if (to === OUT) break;
-    at = to;
-  }
-  return simplify(out);
+  if (route[0] === OUT || !layout.cellAt.get(route[0]!)) return [];
+  return simplify([me, ...routeLegs(plan, layout, route).flatMap((leg) => leg.points)]);
+}
+
+/** 길의 끝 — 지금 서 있는 조각과 자리다. 길이 없으면 내 자리이고, 밖까지 갔으면 null 이다 */
+export function routeCursor(plan: Plan, layout: Layout, route: string[]): { piece: string; pt: Pt } | null {
+  const me = plan.marks.me;
+  if (!me) return null;
+  const start = pieceKeyAt(layout, me);
+  if (!layout.cellAt.has(start)) return null;
+  if (route.length <= 1) return { piece: start, pt: me };
+  if (route[route.length - 1] === OUT) return null;
+  const legs = routeLegs(plan, layout, route);
+  const last = legs[legs.length - 1];
+  const pt = last?.points[last.points.length - 1] ?? me;
+  return { piece: pieceKeyAt(layout, pt), pt };
 }
 
 const dist = (a: Pt, b: Pt): number => Math.hypot(a.x - b.x, a.y - b.y);
@@ -75,44 +138,63 @@ export const ARROW: Record<ArrowDir, Pt> = {
   down: { x: 0, y: 1 },
 };
 
-const ARROW_DIRS = Object.keys(ARROW) as ArrowDir[];
+/** 방향키 한 번 — 같은 칸 안에서 걷거나(`walk`), 문이나 트인 곳을 지나 다른 칸이나 밖으로 가거나(`cross`), 벽에 막힌다 */
+export type SquareStep =
+  | { kind: 'walk'; piece: string; pt: Pt }
+  | { kind: 'cross'; piece: string; pt: Pt; edge: string; to: string; open: boolean; via: Pt }
+  | { kind: 'blocked' };
 
-/**
- * 문마다 화살표를 하나씩 배정한다. 같은 쪽에 문이 둘이면 먼 문이 영영 눌리지 않기 때문이다.
- * 밖으로 나가는 문을 먼저 배정하고, 나머지는 방향이 잘 맞는 순서로 배정한다.
- * 맞는 방향이 이미 찼으면 비어 있는 옆 방향을 쓴다.
- */
-export function arrowMap<T extends { edge: string; to: string }>(from: Pt, options: T[]): Partial<Record<ArrowDir, T>> {
-  const score = (option: T, dir: ArrowDir): number => {
-    const d = ARROW[dir];
-    const m = edgeMid(option.edge);
-    const vx = m.x - from.x;
-    const vy = m.y - from.y;
-    const len = Math.hypot(vx, vy) || 1;
-    // 방향이 맞을수록, 같으면 가까울수록 앞선다
-    return (vx * d.x + vy * d.y) / len - len * 0.001;
-  };
-  const out: Partial<Record<ArrowDir, T>> = {};
-  const placed = new Set<T>();
-  const assign = (list: T[], least: number): void => {
-    const pairs = list.flatMap((option) => ARROW_DIRS.map((dir) => ({ option, dir, s: score(option, dir) })));
-    pairs.sort((a, b) => b.s - a.s);
-    for (const p of pairs) {
-      if (p.s < least || out[p.dir] || placed.has(p.option)) continue;
-      out[p.dir] = p.option;
-      placed.add(p.option);
-    }
-  };
-  assign(options.filter((o) => o.to === OUT), 0.35);
-  assign(options, 0.35);
-  // 남은 문은 빈 방향으로 — 정면이 찼어도 키보드로 닿게 한다
-  assign(options, -1);
-  return out;
+/** 벽 조각 위의 한 점이 놓인 토막의 열쇠 */
+function edgeAt(layout: Layout, wall: string, at: Pt): string | null {
+  if (layout.edges.has(wall)) return wall;
+  for (const e of layout.edges.values()) {
+    if (e.wall !== wall) continue;
+    if (Math.abs(dist(e.a, at) + dist(at, e.b) - dist(e.a, e.b)) < 1e-6) return e.key;
+  }
+  return null;
 }
 
-/** 지금 자리에서 그 방향에 배정된 문. 없으면 null */
-export function pickByArrow<T extends { edge: string; to: string }>(from: Pt, options: T[], dir: ArrowDir): T | null {
-  return arrowMap(from, options)[dir] ?? null;
+/**
+ * 조각 `from` 에서 방향키 쪽으로 모눈 한 칸 간다(대장 #160). 누른 쪽 그대로 가므로 어디로 갈지 헷갈리지 않는다.
+ * 벽은 막고, 문 · 틈 · 트인 칸끼리 맞닿은 곳은 지나간다. 비스듬한 벽의 문은 그쪽으로 기운 방향키로 지난다.
+ */
+export function squareStep(plan: Plan, layout: Layout, from: string, dir: ArrowDir): SquareStep {
+  const cell = layout.cellAt.get(from);
+  if (!cell) return { kind: 'blocked' };
+  const v = ARROW[dir];
+  const sq = parseSq(from);
+  const c = pieceCenter(from);
+  const walls = new Set(plan.walls);
+  const cross = (edge: string, other: string, via: Pt): SquareStep => {
+    const to = layout.cellAt.get(other) ?? OUT;
+    if (to === cell) return { kind: 'walk', piece: other, pt: pieceCenter(other) };
+    const open = plan.openings[edge] !== 'door';
+    if (to === OUT) return { kind: 'cross', piece: OUT, pt: exitPoint(layout, edge, plan.density ?? 1), edge, to, open, via };
+    return { kind: 'cross', piece: other, pt: pieceCenter(other), edge, to, open, via };
+  };
+  // 누른 쪽 변에 맞닿은 조각. 여럿이면 곧장 앞에 있는 것부터 본다
+  const off = (p: Pt): number => Math.abs((p.x - c.x) * v.y - (p.y - c.y) * v.x);
+  const ahead = (layout.adjacent.get(from) ?? [])
+    .filter((n) => n.sq.x - sq.x === v.x && n.sq.y - sq.y === v.y)
+    .sort((a, b) => off(a.portal) - off(b.portal));
+  for (const n of ahead) {
+    if (!walls.has(n.edge)) {
+      if (layout.cellAt.get(n.to) === cell) return { kind: 'walk', piece: n.to, pt: pieceCenter(n.to) };
+      continue;
+    }
+    const edge = edgeAt(layout, n.edge, n.portal);
+    if (edge && isPassable(plan, layout, edge)) return cross(edge, n.to, n.portal);
+  }
+  // 비스듬한 벽에 난 문 — 한 네모 안의 건너편 조각으로 간다
+  for (const e of layout.edges.values()) {
+    if (e.hidden || !isSlanted(e.wall)) continue;
+    const other = e.sides[0] === from ? e.sides[1] : e.sides[1] === from ? e.sides[0] : null;
+    if (other === null || !isPassable(plan, layout, e.key)) continue;
+    const len = dist(e.mid, c) || 1;
+    if (((e.mid.x - c.x) * v.x + (e.mid.y - c.y) * v.y) / len < 0.5) continue;
+    return cross(e.key, other, e.mid);
+  }
+  return { kind: 'blocked' };
 }
 
 /** 꺾은선 전체 길이 */

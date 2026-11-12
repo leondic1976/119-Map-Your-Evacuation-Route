@@ -55,12 +55,12 @@ export const LINES = {
 
   'mark-done': { speaker: 'yeongi', emotion: 'happy', text: '표시를 다 놓았어! 이제 다음을 눌러 나가는 길을 찾아 보자.', sourceIds: GUIDE },
 
-  'route-start': { speaker: 'yeongi', emotion: 'normal', text: '내 자리에서 시작해. 반짝이는 칸을 차례로 눌러 밖까지 나가 보자.', sourceIds: GUIDE },
-  'route-no-way': { speaker: 'ungi', emotion: 'thinking', text: '거기로 가는 문이 없어. 반짝이는 곳을 눌러 보자.', sourceIds: GUIDE },
+  'route-start': { speaker: 'yeongi', emotion: 'normal', text: '내 자리에서 시작해. 방향키를 눌러 한 칸씩 밖까지 나가 보자.', sourceIds: GUIDE },
+  'route-no-way': { speaker: 'ungi', emotion: 'thinking', text: '거기는 벽이야. 문이 있는 쪽으로 가 보자.', sourceIds: GUIDE },
   'route-done': { speaker: 'ilgu', emotion: 'happy', text: '나가는 길을 찾았어! 정말 잘했어.', sourceIds: GUIDE },
   'route-helped': { speaker: 'ilgu', emotion: 'normal', text: '길을 골라 놓았어. 빨간 길을 눈으로 따라가 보고, 다음을 눌러 연습해 보자.', sourceIds: GUIDE },
-  'route-dead-end': { speaker: 'ungi', emotion: 'thinking', text: '여기서는 더 갈 곳이 없어. 반짝이는 칸을 눌러 돌아가 보자.', sourceIds: GUIDE },
-  'route-same': { speaker: 'ungi', emotion: 'thinking', text: '첫째 길과 같은 길이야. 지나온 칸을 눌러 돌아가서 다른 길로 가 보자.', sourceIds: GUIDE },
+  'route-dead-end': { speaker: 'ungi', emotion: 'thinking', text: '여기서는 더 갈 곳이 없어. 방향키로 왔던 길을 돌아가 보자.', sourceIds: GUIDE },
+  'route-same': { speaker: 'ungi', emotion: 'thinking', text: '첫째 길과 같은 길이야. 방향키로 돌아가서 다른 길로 가 보자.', sourceIds: GUIDE },
   'route-next': { speaker: 'ilgu', emotion: 'happy', text: '이제 다음을 눌러 대피 연습을 해 보자.', sourceIds: GUIDE },
   'route-second': { speaker: 'ilgu', emotion: 'thinking', text: '불이 첫째 길을 막으면 어떻게 할까? 다른 길도 찾아 보자.', sourceIds: GUIDE },
   'route-no-second': { speaker: 'ilgu', emotion: 'normal', text: '다른 길이 없다면 방문을 닫고 창가에서 119에 전화해 도와 달라고 하자.', say: '다른 길이 없다면 방문을 닫고 창가에서 일일구에 전화해 도와 달라고 하자.', sourceIds: APT },
@@ -82,16 +82,16 @@ export const LINES = {
   'review-no-drill': { speaker: 'ilgu', emotion: 'normal', text: '지도를 인쇄할 수 있어. 대피 연습을 하면 잘한 점도 볼 수 있어.', sourceIds: GUIDE },
   'review-unfinished': { speaker: 'ungi', emotion: 'thinking', text: '아직 빠진 곳이 있어. 빠진 곳을 채우면 지도가 완성돼.', sourceIds: GUIDE },
   'replay': { speaker: 'ilgu', emotion: 'happy', text: '내가 나온 길을 다시 보자.', sourceIds: GUIDE },
-  'drill-how': { speaker: 'ungi', emotion: 'normal', text: '반짝이는 칸을 눌러서 움직이자. 화살표 키로도 갈 수 있어.', sourceIds: GUIDE },
+  'drill-how': { speaker: 'ungi', emotion: 'normal', text: '내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어.', sourceIds: GUIDE },
 
   'howto-draw': { speaker: 'yeongi', emotion: 'happy', text: '점을 누른 채로 다음 점까지 끌어 봐. 점을 하나씩 차례로 눌러도 돼. 먼 점까지 끌면 기울어진 벽도 돼. 빙 둘러 닫으면 칸이 생겨.', sourceIds: GUIDE },
   'howto-sort': { speaker: 'yeongi', emotion: 'happy', text: '크레용을 하나 고르고, 칠할 칸을 한 번 눌러 봐.', sourceIds: GUIDE },
   'howto-door': { speaker: 'yeongi', emotion: 'happy', text: '문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져. 바깥 벽에 단 문은 밖으로 나가는 문이야.', sourceIds: GUIDE },
   'howto-mark': { speaker: 'yeongi', emotion: 'happy', text: '놓을 표시를 고르고, 지도에서 놓을 자리를 눌러 봐.', sourceIds: GUIDE },
-  'howto-route': { speaker: 'yeongi', emotion: 'happy', text: '반짝이는 칸을 눌러 봐. 화살표 키로도 갈 수 있어. 집 밖까지 가면 길이 완성돼.', sourceIds: GUIDE },
-  'howto-drill': { speaker: 'ilgu', emotion: 'normal', text: '반짝이는 칸을 눌러서 움직여. 화살표 키로도 갈 수 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.', sourceIds: GUIDE },
-  'howto-drill-mid': { speaker: 'ilgu', emotion: 'normal', text: '반짝이는 칸을 눌러서 움직여. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐. 집 밖까지 나가 보자.', sourceIds: GUIDE },
-  'howto-drill-high': { speaker: 'ilgu', emotion: 'normal', text: '반짝이는 칸을 눌러서 움직여. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐. 지나온 문은 문 닫기로 닫을 수 있어.', sourceIds: GUIDE },
+  'howto-route': { speaker: 'yeongi', emotion: 'happy', text: '방향키를 눌러 봐. 누른 쪽으로 한 칸씩 가. 벽은 못 지나가고 문으로 지나가. 집 밖까지 가면 길이 완성돼.', sourceIds: GUIDE },
+  'howto-drill': { speaker: 'ilgu', emotion: 'normal', text: '내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.', sourceIds: GUIDE },
+  'howto-drill-mid': { speaker: 'ilgu', emotion: 'normal', text: '내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸 낮추기를 누르고, 문 앞에서 물어보면 손등으로 만져 봐.', sourceIds: GUIDE },
+  'howto-drill-high': { speaker: 'ilgu', emotion: 'normal', text: '내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸을 낮추고, 문 앞에서는 손등으로 만져 봐. 지나온 문은 문 닫기로 닫을 수 있어.', sourceIds: GUIDE },
 
   'help-fill': { speaker: 'ungi', emotion: 'thinking', text: '아직 빠진 게 있어. 내가 채워 줄까?', sourceIds: GUIDE },
 } as const satisfies Record<string, Line>;

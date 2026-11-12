@@ -34,6 +34,24 @@ function House({ paintA = true, door = true }: { paintA?: boolean; door?: boolea
   );
 }
 
+/** 작은 방향키 판 — 위·왼쪽·오른쪽·아래 */
+function MiniPad() {
+  const key = (x: number, y: number, d: string) => (
+    <g transform={`translate(${x} ${y})`}>
+      <rect width="18" height="18" rx="4" fill="#ffc94d" stroke="#33363b" strokeWidth="2" />
+      <path d={d} fill="none" stroke="#33363b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+  return (
+    <g>
+      {key(20, 68, 'M9 14V4M5 8l4-4 4 4')}
+      {key(2, 86, 'M14 9H4M8 5L4 9l4 4')}
+      {key(38, 86, 'M4 9h10M10 5l4 4-4 4')}
+      {key(20, 104, 'M9 4v10M5 10l4 4 4-4')}
+    </g>
+  );
+}
+
 function Kid({ className }: { className?: string }) {
   return (
     <g className={className}>
@@ -93,8 +111,9 @@ function Demo({ step }: { step: HowToStep }) {
       return (
         <>
           <House />
-          <rect className="demo-glow-a" x="62" y="72" width="196" height="56" fill="#fff" />
-          <rect className="demo-glow-b" x="10" y="140" width="300" height="28" rx="8" fill="#fff" />
+          <MiniPad />
+          <rect className="demo-glow-a" x="20" y="104" width="18" height="18" rx="4" fill="#fff" />
+          <rect className="demo-glow-b" x="38" y="86" width="18" height="18" rx="4" fill="#fff" />
           <path className="demo-seg-a" d="M110 40V100" stroke="#d6402f" strokeWidth="6" strokeLinecap="round" fill="none" />
           <path className="demo-seg-b" d="M110 100H200V154" stroke="#d6402f" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           <g transform="translate(110 38)"><Kid /></g>
@@ -105,11 +124,14 @@ function Demo({ step }: { step: HowToStep }) {
       return (
         <>
           <House />
-          <rect className="demo-glow-a" x="62" y="72" width="196" height="56" fill="#fff" />
-          <rect className="demo-glow-b" x="10" y="140" width="300" height="28" rx="8" fill="#fff" />
+          <path d="M110 40V100H200V154" stroke="#d6402f" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".5" />
+          <g transform="translate(6 82)">
+            <rect width="46" height="34" rx="9" fill="#3e9d5d" stroke="#33363b" strokeWidth="3" />
+            <path d="M18 9v16l14-8z" fill="#fff" />
+          </g>
           <path d="M212 20c9 9 13 17 9 24-2 3-5 5-9 5s-7-2-9-5c-3-7 2-12 5-15 1 3 2 4 4 4 1-4 1-9 0-13z" fill="#f59a23" stroke="#33363b" strokeWidth="2" />
           <Kid className="demo-kid-drill" />
-          <g className="demo-hand demo-hand-route"><HandGlyph /></g>
+          <g className="demo-hand demo-hand-follow"><HandGlyph /></g>
         </>
       );
   }

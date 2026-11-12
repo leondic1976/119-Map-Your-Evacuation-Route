@@ -2,7 +2,7 @@
  * 판 기록 — 안내 페이지(next.config.mjs)와 내보내기 마감(pack.ts)이 같은 목록을 쓴다 (대장 #130).
  *
  * 무엇이 바뀌었는지는 CHANGELOG.md 에서, 받을 수 있는 파일은 dist/desktop/ 에서 읽는다.
- * dist/desktop/ 은 deploy.yml 이 Release `desktop` 에서 지금 판과 그 앞의 두 판을 받아 둔 곳이다.
+ * dist/desktop/ 은 deploy.yml 이 Release `desktop` 에서 지금 판과 바로 앞 판을 받아 둔 곳이다(대장 #162 — Release 에는 이 둘만 남긴다).
  * 파일이 없는 판은 기록만 보인다.
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';

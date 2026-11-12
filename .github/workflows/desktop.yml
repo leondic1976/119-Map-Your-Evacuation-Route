@@ -71,3 +71,13 @@ jobs:
             gh release create desktop --title "$TITLE" --notes "$NOTES" --target "$GITHUB_SHA" --latest=false
           fi
           gh release upload desktop release/*.exe --clobber
+          # 지난 판의 파일은 지운다. 지금 판과 바로 앞 판만 남긴다(대장 #162)
+          KEEP=$(node -p "require('fs').readFileSync('CHANGELOG.md','utf8').match(/^## \\d+\\.\\d+\\.\\d+/gm).slice(0,2).map((s)=>s.slice(3)).join(' ')")
+          for NAME in $(gh release view desktop --json assets --jq '.assets[].name'); do
+            OLD=${NAME##*-}
+            OLD=${OLD%.exe}
+            case " $KEEP " in
+              *" $OLD "*) ;;
+              *) echo "지난 판을 지운다: $NAME"; gh release delete-asset desktop "$NAME" -y || true ;;
+            esac
+          done

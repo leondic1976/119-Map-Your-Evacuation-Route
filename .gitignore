@@ -13,6 +13,9 @@ playwright-report/
 
 # 검증 중 만들어지는 화면 기록
 .shots/
+# 눈으로 보려고 찍어 둔 화면. 저장소에 싣지 않는다(대장 #166)
+/shots*/
+/tmp-shots*/
 
 # ElevenLabs Playwright 로그인 프로필·진단 자료의 저장소 내 유입 방지
 .elevenlabs-playwright/

@@ -2051,6 +2051,61 @@ async function main(): Promise<void> {
     await ctx.close();
   });
 
+  await scenario('#164 고르기 단추: 집 그리기에서 고르기를 누르면 가구만 잡혀 끌어 옮겨지고 벽은 그어지지 않는다', async () => {
+    const { ctx, page, errors } = await seeded(browser, 5, twoExits());
+    const item = page.locator('.stage .placed-item').first();
+    const itemAt = async (): Promise<{ x: number; y: number }> => {
+      const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec((await item.getAttribute('transform'))!)!;
+      const unit = 100 / (await num(page, 'density'));
+      return { x: Number(m[1]) / unit, y: Number(m[2]) / unit };
+    };
+    const drag = async (from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> => {
+      const a = await toScreen(page, from.x, from.y);
+      const b = await toScreen(page, to.x, to.y);
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 6 });
+      await page.mouse.move(b.x, b.y, { steps: 6 });
+      await page.mouse.up();
+    };
+    await page.click(t('step-draw'));
+    assert.equal(await page.locator(t('tool-hand')).getAttribute('aria-pressed'), 'false', '처음은 연필이다');
+    // 가구가 없을 때 고르기를 누르면 넣자고 말한다
+    await page.click(t('tool-hand'));
+    assert.match((await page.locator(t('hand-note')).textContent())!, /아직 가구가 없어/);
+    await page.click(t('layer-items'));
+    await page.click(t('item-sofa'));
+    await clickAt(page, 2.4, 1.8);
+    await page.waitForSelector(t('item-bar'));
+    await page.click(t('item-ok'));
+    assert.equal(await page.locator(t('tool-hand')).getAttribute('aria-pressed'), 'true', '가구를 놓아도 고르기가 그대로다');
+    assert.match((await page.locator(t('hand-note')).textContent())!, /가구만 잡혀/);
+    await checkTargets(page, '고르기 단추');
+    const walls = await num(page, 'walls');
+    // 빈 곳을 누르거나 끌어도 벽이 생기지 않는다
+    await clickAt(page, 6, 3);
+    assert.equal(await page.locator(t('armed-note')).count(), 0, '고르기에서는 점이 잡히지 않는다');
+    await drag({ x: 5, y: 3.5 }, { x: 7, y: 3.5 });
+    assert.equal(await num(page, 'walls'), walls, '고르기에서는 벽이 그어지지 않는다');
+    // 가구를 끌어 옮긴다
+    const p0 = await itemAt();
+    await drag({ x: p0.x + 0.1, y: p0.y + 0.1 }, { x: p0.x + 1.1, y: p0.y + 0.6 });
+    const p1 = await itemAt();
+    assert.ok(Math.abs(p1.x - (p0.x + 1)) < 0.02 && Math.abs(p1.y - (p0.y + 0.5)) < 0.02, `고르기로 끌어 옮긴다: ${JSON.stringify(p0)} → ${JSON.stringify(p1)}`);
+    assert.equal(await num(page, 'walls'), walls);
+    await page.waitForSelector(t('item-bar'));
+    // 빈 곳을 누르면 고른 것이 풀린다
+    await clickAt(page, 9, 5);
+    assert.equal(await page.locator(t('item-bar')).count(), 0, '빈 곳을 누르면 판이 닫힌다');
+    await shot(page, '164-a-hand');
+    // 연필로 돌아가면 다시 그려진다
+    await page.click(t('tool-pencil'));
+    assert.equal(await page.locator(t('tool-hand')).getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.locator(t('hand-note')).count(), 0);
+    assert.deepEqual(errors, [], '콘솔 오류');
+    await ctx.close();
+  });
+
   await scenario('#157 · #158 가구 고치기 판: 고른 가구 옆에 판이 떠서 왼쪽·오른쪽으로 돌리고 방향키로 옮기며, 집 그리기와 표시하기에서 끌어 옮긴다', async () => {
     const { ctx, page, errors } = await seeded(browser, 5, twoExits());
     const line = () => page.locator(t('bubble')).getAttribute('data-line');

@@ -119,12 +119,12 @@ export function useLayers(plan: Plan, layout: Layout) {
   // 놓은 가구는 끌어서 옮긴다(대장 #158). 그림 어디를 잡아도 잡히고, 움직이지 않고 떼면 고른 것이다
   const grab = useRef<{ index: number; from: Pt; off: Pt; moved: boolean } | null>(null);
   const [dragTo, setDragTo] = useState<Pt | null>(null);
-  /** 지도 위의 손길을 먼저 받는다. 가구를 잡았거나 끄는 중이면 true 를 돌려준다 */
-  const pointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt): boolean => {
+  /** 지도 위의 손길을 먼저 받는다. 가구를 잡았거나 끄는 중이면 true 를 돌려준다. reach 는 가구 둘레로 더 잡아 주는 폭(칸)이다 */
+  const pointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt, reach = 0.12): boolean => {
     if (placing) return false;
     const k = Math.max(1, plan.density ?? 1);
     if (kind === 'down') {
-      const index = itemHitAt(plan, p, (item) => ITEMS[item], 0.12 * k);
+      const index = itemHitAt(plan, p, (item) => ITEMS[item], reach * k);
       const item = plan.items?.[index];
       grab.current = item ? { index, from: p, off: { x: item.x - p.x, y: item.y - p.y }, moved: false } : null;
       return Boolean(item);

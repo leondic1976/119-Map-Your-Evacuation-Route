@@ -8,7 +8,7 @@
 | 기준 문서 | `docs/DESIGN-v1.0.md`, `docs/DESIGN-v1.1-changes.md`, `docs/DESIGN-v1.2-changes.md`, `docs/DESIGN-v1.3-changes.md` |
 | 작성일 | 2026-08-30 |
 | 변경 사유 | 3D 리플레이 화면을 목표 그림(`3Dscreen.png`) 수준으로 올린다 |
-| 참고 자료 | `3Dscreen.png` (목표 그림), `3Ddesign.md` (기술 스택 지정) |
+| 참고 자료 | `3Dscreen.png` (목표 그림 — 대장 #166 에서 저장소에서 뺐다), `3Ddesign.md` (기술 스택 지정) |
 | 우선순위 | 이 문서가 v1.3 을 이기고, v1.3 이 v1.2 를, v1.2 가 v1.1 을, v1.1 이 v1.0 을 이긴다 |
 
 ---

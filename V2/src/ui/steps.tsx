@@ -13,7 +13,7 @@ import { clearRoute, commit, currentBand, getApp, say, setGrid, useApp } from '.
 import { getHandUnit } from './handUnit';
 import { useLayers } from './Layers';
 import { CursorGhost } from './CursorGhost';
-import { IconCheck, IconDoor, IconDot, IconEraser, IconPencil, IconUndo, IconWindow, KidGlyph, MarkGlyph } from './art';
+import { IconCheck, IconDoor, IconDot, IconEraser, IconHand, IconPencil, IconUndo, IconWindow, KidGlyph, MarkGlyph } from './art';
 import { ArrowPad, useArrowKeys } from './ArrowPad';
 import { PlanView, unitOf } from './PlanView';
 import { ZoomControls } from './ZoomControls';
@@ -58,7 +58,7 @@ export function DrawStep() {
   const { plan, layout } = usePlan();
   const band = currentBand();
   const info = BANDS[band];
-  const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
+  const [tool, setTool] = useState<'pencil' | 'hand' | 'eraser'>('pencil');
   const [stroke, setStroke] = useState<Pt[]>([]);
   const [armed, setArmed] = useState<Pt | null>(null);
   const drawing = useRef(false);
@@ -102,6 +102,12 @@ export function DrawStep() {
       const edge = nearestEdge(edgeKeys(analyze(app.plan)), p, 0.42 * getHandUnit(app.plan));
       // 긴 벽의 가운데를 한 칸만 지우면 문 없는 입구가 되고, 이어서 옆까지 지우면 벽이 사라진다
       if (edge) commit(eraseWall(app.plan, edge), { merge: kind === 'move' });
+      return;
+    }
+    // 고르기(대장 #164) — 가구만 잡는다. 넉넉하게 잡히고 벽은 그어지지 않는다
+    if (tool === 'hand') {
+      const held = layers.pointer(kind, p, 0.4);
+      if (!held && kind === 'up') layers.select(null);
       return;
     }
     // 놓은 가구를 잡았으면 벽을 긋지 않고 가구를 옮긴다
@@ -156,6 +162,9 @@ export function DrawStep() {
           <button type="button" className={tool === 'pencil' ? 'tool on' : 'tool'} data-testid="tool-pencil" aria-pressed={tool === 'pencil'} onClick={() => setTool('pencil')}>
             <IconPencil /> 연필
           </button>
+          <button type="button" className={tool === 'hand' ? 'tool on' : 'tool'} data-testid="tool-hand" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); setArmed(null); }}>
+            <IconHand /> 고르기
+          </button>
           <button type="button" className={tool === 'eraser' ? 'tool on' : 'tool'} data-testid="tool-eraser" aria-pressed={tool === 'eraser'} onClick={() => { setTool('eraser'); setArmed(null); }}>
             <IconEraser /> 지우개
           </button>
@@ -172,7 +181,8 @@ export function DrawStep() {
         </div>
         <h3 className="tools-head">골라 넣기</h3>
         {layers.buttons}
-        {(plan.items?.length ?? 0) > 0 && <p className="tool-note" data-testid="item-move-note">놓은 가구는 끌어서 옮기고, 누르면 돌리거나 크기를 바꿔.</p>}
+        {(plan.items?.length ?? 0) > 0 && <p className="tool-note" data-testid="item-move-note">놓은 가구는 「고르기」를 누르고 끌어서 옮겨. 누르면 돌리거나 크기를 바꿔.</p>}
+        {tool === 'hand' && <p className="tool-note" data-testid="hand-note">{(plan.items?.length ?? 0) > 0 ? '가구만 잡혀. 벽은 연필로 그려.' : '아직 가구가 없어. 가구에서 골라 넣자.'}</p>}
         <p className="tool-note" data-testid="cell-count">칸 {layout.cells.length}개</p>
         {tool === 'eraser' && <p className="tool-note" data-testid="eraser-note">벽을 한 칸만 지우면 문 없는 입구가 돼.</p>}
       </aside>
@@ -184,7 +194,7 @@ export function DrawStep() {
           stroke={stroke}
           armed={armed}
           showLabels={false}
-          className={layers.ghost ? 'cursor-none' : layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : 'cursor-draw'}
+          className={layers.ghost ? 'cursor-none' : layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : tool === 'hand' ? (layers.dragging ? 'cursor-held' : 'cursor-hand') : 'cursor-draw'}
           onPointer={onPointer}
           zoomable
           edgePan

@@ -272,7 +272,9 @@ export function qaTests(check: Check, assert: Assert): void {
     const standalone = read(path.join(root, 'tools', 'standalone.ts'));
     assert(standalone.includes("path.join(v2Dir, 'offline')") && standalone.includes('fs.cpSync(v2Offline, distDir'), '오프라인 배포본이 V2 를 싣지 않는다');
     const workflow = read(path.join(root, '.github', 'workflows', 'deploy.yml'));
-    assert(/name: offline-classroom-bundle[\s\S]*?path: dist\//.test(workflow), '배포 산출물이 오프라인 음성 폴더를 빠뜨린다');
+    // 꾸러미는 Pages 의 download/ 에, 설치 파일은 Release 에 실린다. Actions 보관물은 한도만 쓰므로 만들지 않는다(대장 #165)
+    assert(!/actions\/upload-artifact@/.test(workflow), '배포 워크플로가 쓰지 않는 Actions 보관물을 만든다');
+    assert(!/actions\/upload-artifact@/.test(read(path.join(root, '.github', 'workflows', 'desktop.yml'))), '설치 파일 워크플로가 쓰지 않는 Actions 보관물을 만든다');
   });
 
   /* -------------------------------------------------- 인터넷에 보내지 않는다 */

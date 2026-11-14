@@ -20,7 +20,8 @@ import { buildHome, HOMES } from '../src/content/homes';
 import { segEdges } from '../src/content/templates';
 
 const PORT = 4179;
-const URL_BASE = `http://localhost:${PORT}/`;
+// SMOKE_URL 을 주면 그 주소(공개된 사이트)에서 돈다. 배포 뒤 공개 주소를 눌러 볼 때 쓴다
+const URL_BASE = process.env.SMOKE_URL ?? `http://localhost:${PORT}/`;
 const SHOTS = path.join(process.cwd(), '.shots');
 fs.mkdirSync(SHOTS, { recursive: true });
 

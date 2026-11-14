@@ -125,7 +125,7 @@ smoke 를 처음 실행하기 전에 `npx playwright install chromium` 이 한 �
 `out/download/` 로 옮긴다. 선캐시는 앱 껍데기뿐이고 MP3 는 활성화 뒤 배경에서 받는다. ZIP 은 캐시하지 않는다.
 
 윈도우 설치 파일은 별도 워크플로 `.github/workflows/desktop.yml`(windows 러너)이 만들어 Release `desktop` 태그에
-덮어쓰기로 올린다. 저장소가 비공개라 Release 주소는 공개 링크가 아니므로, `deploy.yml` 이 그 산출물을 받아
+덮어쓰기로 올린다. 받는 곳을 같은 사이트 안에 두려고(저장소는 대장 #167 에서 공개로 바꿨다) `deploy.yml` 이 그 산출물을 받아
 `dist/desktop/` 에 두고 `tools/pack.ts` 가 Pages 의 `download/` 에 함께 싣는다. 안내 페이지는 같은 사이트 안의
 그 파일을 가리키고, 아직 없으면 준비 중이라고 말한다. 로컬에서는 `npm run build:standalone && npm run desktop:build` 다.
 

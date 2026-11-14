@@ -159,7 +159,7 @@ app   →  ui
 - 윈도우 프로그램은 스스로 새 판을 받아 창을 닫을 때 설치한다(대장 #131). 묻는 대화상자를 되살리지 않는다. `npm run desktop:update-check` 가 windows 러너에서 지킨다.
 - `/download/` 의 판 기록은 `CHANGELOG.md` 와 Release 에서 만든다(대장 #130, `tools/releases.mjs`).
 - 윈도우 설치 파일은 `.github/workflows/desktop.yml`(windows 러너)이 만들어 Release `desktop` 태그에 덮어쓴다.
-  Pages 배포를 막지 않는다. **저장소가 비공개라 Release 주소는 공개 링크가 아니다** — `deploy.yml` 이 받아
+  Pages 배포를 막지 않는다. **안내 페이지는 Release 주소를 곧장 가리키지 않는다**(저장소는 대장 #167 에서 공개로 바꿨고, 받는 곳은 그대로 같은 사이트 안에 둔다) — `deploy.yml` 이 받아
   `dist/desktop/` 에 두면 `pack.ts` 가 Pages 의 `download/` 에 싣고, 안내 페이지는 같은 사이트 안만 가리킨다. `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
   산출물 이름은 `src/content/release.ts` 한 곳에서 정한다 — 안내 페이지와 빌드가 같은 이름을 써야 한다.
 - 런타임 의존성 목록(설계서 v1.4 §1.1)은 그대로다. `electron`·`electron-builder` 는 개발 의존성이다.

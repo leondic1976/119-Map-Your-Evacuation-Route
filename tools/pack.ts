@@ -65,7 +65,7 @@ if (fs.existsSync(zipSource)) {
 
 /*
  * 1b. 윈도우 설치 파일 — deploy.yml 이 Release `desktop` 에서 받아 dist/desktop/ 에 둔 것을 같은 사이트에 싣는다.
- * 저장소가 비공개라 Release 주소는 공개 링크가 아니기 때문이다. 둘 다 있을 때만 싣는다(안내 페이지가 준비 중/받기를 가른다).
+ * 받는 곳을 같은 사이트 안에 두려는 것이다(저장소는 대장 #167 에서 공개로 바꿨다). 둘 다 있을 때만 싣는다(안내 페이지가 준비 중/받기를 가른다).
  */
 const assetNames = desktopAssetNames(pkg.version);
 const desktopFiles = [assetNames.setup, assetNames.portable].map((name) => path.join(distDir, DESKTOP_DIST_DIR, name));

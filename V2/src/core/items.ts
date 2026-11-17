@@ -165,7 +165,7 @@ export function itemsInside(plan: Plan, layout: Layout): Item[] | undefined {
 
 export const outsideOf = (plan: Plan): OutsideSide => plan.outside ?? 'bottom';
 
-/** 집 밖 띠의 가운데 — 만나는 곳의 기본 자리다 */
+/** 집 밖 띠의 가운데 — 안전한 곳의 기본 자리다 */
 export function outsideSpot(plan: Plan): Pt {
   const k = Math.max(1, plan.density ?? 1);
   const gap = 0.9 * k;
@@ -181,7 +181,7 @@ export function outsideSpot(plan: Plan): Pt {
   }
 }
 
-/** 집 밖 자리를 바꾼다. 만나는 곳도 함께 옮긴다 */
+/** 집 밖 자리를 바꾼다. 안전한 곳도 함께 옮긴다 */
 export function setOutside(plan: Plan, side: OutsideSide): Plan {
   if (outsideOf(plan) === side) return plan;
   const next: Plan = { ...plan, outside: side === 'bottom' ? undefined : side };

@@ -68,12 +68,20 @@ export function changeGrid(plan: Plan, cols: number, rows: number): Plan {
 
   // 문과 창 — 있던 자리에 가장 가까운 벽 조각에 단다
   const openings: Plan['openings'] = {};
+  const doorTurns: Record<string, number> = {};
+  const doorSizes: Record<string, number> = {};
   for (const [edge, kind] of Object.entries(plan.openings)) {
     const m = free(edgeMid(edge));
     const near = walls
       .map((wall) => ({ wall, d: Math.hypot(edgeMid(wall).x - m.x, edgeMid(wall).y - m.y) }))
       .sort((p, q) => p.d - q.d || (p.wall < q.wall ? -1 : 1))[0];
-    if (near && !openings[near.wall]) openings[near.wall] = kind;
+    if (near && !openings[near.wall]) {
+      openings[near.wall] = kind;
+      const turn = plan.doorTurns?.[edge];
+      if (turn) doorTurns[near.wall] = turn;
+      const size = plan.doorSizes?.[edge];
+      if (size) doorSizes[near.wall] = size;
+    }
   }
 
   // 표지 — 조각 가운데가 든 새 조각에 붙인다
@@ -86,5 +94,7 @@ export function changeGrid(plan: Plan, cols: number, rows: number): Plan {
   const step = (s: string): string => (s === OUT ? OUT : pieceKeyAt(fresh, free(pieceCenter(s))));
   const items = plan.items?.map((item) => ({ ...item, ...free(item) }));
 
-  return normalize({ ...draft, openings, tags, marks, items, route: plan.route.map(step), route2: plan.route2.map(step) });
+  const extraExtinguishers = plan.extraExtinguishers?.map(free);
+
+  return normalize({ ...draft, openings, doorTurns, doorSizes, tags, marks, extraExtinguishers, items, route: plan.route.map(step), route2: plan.route2.map(step) });
 }

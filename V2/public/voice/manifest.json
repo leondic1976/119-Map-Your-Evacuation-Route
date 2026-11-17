@@ -161,22 +161,29 @@
       "id": "mark-low",
       "filename": "mark-low.mp3",
       "speaker": "yeongi",
-      "text": "내가 자는 곳에 내 자리를 놓고, 집 밖에 가족이 만나는 곳을 정하자.",
-      "hash": "b02920197a5b7875"
+      "text": "내가 자는 곳에 내 자리를 놓고, 집 밖에 가족이 만날 안전한 곳을 정하자. 소화기가 있는 곳도 표시하자.",
+      "hash": "51ce9968eb56a25c"
     },
     {
       "id": "mark-mid",
       "filename": "mark-mid.mp3",
       "speaker": "yeongi",
-      "text": "내 자리와 만나는 곳을 정하고, 가스레인지와 소화기가 있는 곳도 표시하자.",
-      "hash": "52ebe29d2e7c7cc9"
+      "text": "내 자리와 안전한 곳을 정하고, 가스레인지와 소화기가 있는 곳도 표시하자.",
+      "hash": "baca25696995368c"
     },
     {
       "id": "mark-high",
       "filename": "mark-high.mp3",
       "speaker": "yeongi",
-      "text": "내 자리와 만나는 곳을 정하고, 가스레인지, 소화기, 화재 감지기도 표시하자.",
-      "hash": "d287a9b8626869ce"
+      "text": "내 자리와 안전한 곳을 정하고, 가스레인지, 소화기, 화재 감지기도 표시하자.",
+      "hash": "74b10941eec7d346"
+    },
+    {
+      "id": "mark-no-extinguisher",
+      "filename": "mark-no-extinguisher.mp3",
+      "speaker": "ilgu",
+      "text": "지금 소화기가 없어도 괜찮아. 어른께 말해서 나중에라도 꼭 하나 두자.",
+      "hash": "f515809f2821c108"
     },
     {
       "id": "mark-need-inside",
@@ -196,8 +203,8 @@
       "id": "mark-need-outside",
       "filename": "mark-need-outside.mp3",
       "speaker": "ungi",
-      "text": "만나는 곳은 집 밖에 정하자.",
-      "hash": "419474a6f1008b75"
+      "text": "안전한 곳은 집 밖에 정하자.",
+      "hash": "7cf64e7645ba09af"
     },
     {
       "id": "mark-done",
@@ -336,8 +343,8 @@
       "id": "drill-outside",
       "filename": "drill-outside.mp3",
       "speaker": "ilgu",
-      "text": "밖으로 나왔어! 이제 만나는 곳으로 가자.",
-      "hash": "65bf2cf16c55b1cb"
+      "text": "밖으로 나왔어! 이제 안전한 곳으로 가자.",
+      "hash": "5d2ae36b8a7dda5e"
     },
     {
       "id": "drill-call",
@@ -392,8 +399,8 @@
       "id": "howto-draw",
       "filename": "howto-draw.mp3",
       "speaker": "yeongi",
-      "text": "점을 누른 채로 다음 점까지 끌어 봐. 점을 하나씩 차례로 눌러도 돼. 먼 점까지 끌면 기울어진 벽도 돼. 빙 둘러 닫으면 칸이 생겨.",
-      "hash": "80dbf0ff40d55a2c"
+      "text": "점을 누른 채로 다음 점까지 끌어 봐. 점을 하나씩 차례로 눌러도 돼. 먼 점까지 끌면 기울어진 벽도 돼. 빙 둘러 닫으면 칸이 생겨. 방 넣기에서 방을 골라 놓아도 돼.",
+      "hash": "8f7e52de78372e43"
     },
     {
       "id": "howto-sort",
@@ -406,8 +413,8 @@
       "id": "howto-door",
       "filename": "howto-door.mp3",
       "speaker": "yeongi",
-      "text": "문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져. 바깥 벽에 단 문은 밖으로 나가는 문이야.",
-      "hash": "431182843c7792c8"
+      "text": "문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져. 문 고치기를 고르고 문을 누르면 열리는 쪽과 크기를 바꿀 수 있어. 바깥 벽에 단 문은 밖으로 나가는 문이야.",
+      "hash": "3f436c79a27a5346"
     },
     {
       "id": "howto-mark",

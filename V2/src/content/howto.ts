@@ -15,7 +15,7 @@ export function howToFor(step: HowToStep, band: Band): HowTo {
     case 'draw':
       return {
         title: '집은 이렇게 그려',
-        steps: ['점을 누른 채로 다음 점까지 끌어.', '점을 하나씩 차례로 눌러도 돼.', '먼 점까지 끌면 기울어진 벽도 돼.', '빙 둘러 닫으면 칸이 생겨.'],
+        steps: ['점을 누른 채로 다음 점까지 끌어.', '점을 하나씩 차례로 눌러도 돼.', '먼 점까지 끌면 기울어진 벽도 돼.', '빙 둘러 닫으면 칸이 생겨.', '「방 넣기」에서 방을 골라 놓아도 돼.'],
         line: 'howto-draw',
       };
     case 'sort':
@@ -27,7 +27,7 @@ export function howToFor(step: HowToStep, band: Band): HowTo {
     case 'door':
       return {
         title: '문은 이렇게 달아',
-        steps: ['문을 달 벽을 한 번 눌러.', '잘못 달았으면 다시 누르면 떼어져.', '바깥 벽에 단 문은 밖으로 나가는 문이야.'],
+        steps: ['문을 달 벽을 한 번 눌러.', '잘못 달았으면 다시 누르면 떼어져.', '「문 고치기」를 고르고 문을 누르면 열리는 쪽과 크기를 바꿀 수 있어.', '바깥 벽에 단 문은 밖으로 나가는 문이야.'],
         line: 'howto-door',
       };
     case 'mark':
@@ -46,7 +46,7 @@ export function howToFor(step: HowToStep, band: Band): HowTo {
       const steps = ['「내가 그린 길로 가기」를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어.', '연기가 오면 몸 낮추기 단추를 눌러.'];
       if (band !== 'low') steps.push('문 앞에서 물어보면 손등으로 만져 봐.');
       if (band === 'high') steps.push('지나온 문은 문 닫기 단추로 닫을 수 있어.');
-      steps.push('집 밖으로 나가서 만나는 곳까지 가면 끝이야.');
+      steps.push('집 밖으로 나가서 안전한 곳까지 가면 끝이야.');
       return { title: '대피 연습은 이렇게 해', steps, line: band === 'low' ? 'howto-drill' : band === 'mid' ? 'howto-drill-mid' : 'howto-drill-high' };
     }
   }

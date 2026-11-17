@@ -12,7 +12,7 @@ export const PRAISE: Record<PraiseId, { text: string; sourceIds: string[] }> = {
   crouch: { text: '연기가 있을 때 몸을 낮췄어.', sourceIds: MANUAL },
   touch: { text: '문을 열기 전에 손등으로 문손잡이를 만져 봤어.', sourceIds: MANUAL },
   close: { text: '지나온 문을 닫아 불이 번지는 것을 늦췄어.', sourceIds: APT },
-  meet: { text: '만나는 곳에 가서 119에 알렸어.', sourceIds: MANUAL },
+  meet: { text: '안전한 곳에 가서 119에 알렸어.', sourceIds: MANUAL },
   rescue: { text: '길이 막혔을 때 문을 닫고 119에 도와 달라고 했어.', sourceIds: APT },
 };
 
@@ -24,6 +24,14 @@ export const FIX: Record<FixId, { text: string; sourceIds: string[] }> = {
   second: { text: '다른 길도 하나 더 찾아 두자.', sourceIds: GUIDE },
 };
 
+/** 소화기가 없는 집에 남기는 말(대장 #169). 돌아보기에는 아이에게 하는 말로, 인쇄물에는 약속하는 말로 적는다 */
+export const NO_EXTINGUISHER = {
+  tell: '우리 집에는 아직 소화기가 없어. 어른께 말해서 나중에라도 꼭 하나 두자.',
+  short: '어른께 말해서 꼭 하나 두자.',
+  print: '우리 집에는 아직 소화기가 없다. 어른과 함께 꼭 하나 마련해 둔다.',
+  sourceIds: ['fire-law-home'],
+};
+
 /** 인쇄물의 「우리 집 약속」 */
 export const PROMISES: { text: string; sourceIds: string[] }[] = [
   { text: '불이 나면 「불이야!」 하고 크게 외친다.', sourceIds: MANUAL },
@@ -33,5 +41,5 @@ export const PROMISES: { text: string; sourceIds: string[] }[] = [
   { text: '현관으로 못 나가면 대피공간이나 경량칸막이로 간다. 어디 있는지 어른과 미리 찾아 둔다.', sourceIds: APT },
   { text: '그것도 없으면 불에서 먼 방의 문을 닫고 젖은 수건으로 틈을 막은 뒤 119에 전화한다.', sourceIds: APT },
   { text: '다른 집에 불이 났는데 우리 집에 불과 연기가 안 들어오면 창문을 닫고 집에서 안내를 듣는다.', sourceIds: APT },
-  { text: '밖으로 나오면 만나는 곳에 모여 119에 전화한다.', sourceIds: APT },
+  { text: '밖으로 나오면 안전한 곳에 모여 119에 전화한다.', sourceIds: APT },
 ];

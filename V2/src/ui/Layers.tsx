@@ -49,7 +49,7 @@ function LineThumb({ lines, cols, rows }: { lines: string[]; cols: number; rows:
 /** 지금 놓는 중인 것. `remove` 는 치우는 중이다 */
 export type Placing = ItemKind | 'remove' | null;
 
-const MOVE_KEYS: { dir: ArrowDir; label: string; d: string }[] = [
+export const MOVE_KEYS: { dir: ArrowDir; label: string; d: string }[] = [
   { dir: 'up', label: '위로 옮기기', d: 'M14 23V5M6 13l8-8 8 8' },
   { dir: 'left', label: '왼쪽으로 옮기기', d: 'M23 14H5M13 6l-8 8 8 8' },
   { dir: 'right', label: '오른쪽으로 옮기기', d: 'M5 14h18M15 6l8 8-8 8' },
@@ -57,16 +57,17 @@ const MOVE_KEYS: { dir: ArrowDir; label: string; d: string }[] = [
 ];
 
 /** 가구를 한 걸음 옮기는 단추. 누르고 있으면 이어서 옮긴다 */
-function MoveKey({ dir, label, d, onMove }: { dir: ArrowDir; label: string; d: string; onMove: (dir: ArrowDir) => void }) {
+export function MoveKey({ dir, label, d, onMove, prefix = 'item' }: { dir: ArrowDir; label: string; d: string; onMove: (dir: ArrowDir) => void; prefix?: string }) {
   const hold = useHold(() => onMove(dir));
   return (
-    <button type="button" className="pad-btn go" style={{ gridArea: dir }} data-testid={`item-move-${dir}`} aria-label={label} {...hold}>
+    <button type="button" className="pad-btn go" style={{ gridArea: dir }} data-testid={`${prefix}-move-${dir}`} aria-label={label} {...hold}>
       <svg viewBox="0 0 28 28" width="30" height="30" aria-hidden="true"><path d={d} fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
   );
 }
 
-export function useLayers(plan: Plan, layout: Layout) {
+/** `onBusy` 는 판을 열거나 가구를 고를 때 불린다 — 방 넣기처럼 함께 쓸 수 없는 것을 닫게 한다 */
+export function useLayers(plan: Plan, layout: Layout, onBusy?: () => void) {
   const [open, setOpen] = useState<LayerId | null>(null);
   const [placing, setPlacing] = useState<Placing>(null);
   // 고쳐 볼 가구 — 막 놓았거나 눌러 고른 것이다. 돌리고 크기를 바꾸고 치운다
@@ -156,10 +157,10 @@ export function useLayers(plan: Plan, layout: Layout) {
 
   const buttons = (
     <>
-      <button type="button" className={open === 'home' ? 'tool on' : 'tool'} data-testid="layer-home" aria-expanded={open === 'home'} onClick={() => { setPlacing(null); setSelected(null); setOpen(open === 'home' ? null : 'home'); }}>
+      <button type="button" className={open === 'home' ? 'tool on' : 'tool'} data-testid="layer-home" aria-expanded={open === 'home'} onClick={() => { onBusy?.(); setPlacing(null); setSelected(null); setOpen(open === 'home' ? null : 'home'); }}>
         {LAYER_NAME.home}
       </button>
-      <button type="button" className={open === 'items' || placing ? 'tool on' : 'tool'} data-testid="layer-items" aria-expanded={open === 'items'} onClick={() => setOpen(open === 'items' ? null : 'items')}>
+      <button type="button" className={open === 'items' || placing ? 'tool on' : 'tool'} data-testid="layer-items" aria-expanded={open === 'items'} onClick={() => { onBusy?.(); setOpen(open === 'items' ? null : 'items'); }}>
         {LAYER_NAME.items}
       </button>
       {placing && (
@@ -299,5 +300,13 @@ export function useLayers(plan: Plan, layout: Layout) {
     <CursorGhost name={placing}><ItemShape kind={placing} /></CursorGhost>
   );
 
-  return { buttons, panel, placing, tapMap, banner, bar, ring, ghost, selected, select: setSelected, isOpen: open !== null, pointer, shown, dragging: dragTo !== null };
+  /** 열린 판과 고른 것을 모두 놓는다 */
+  const stop = () => {
+    setOpen(null);
+    setAsking(null);
+    setPlacing(null);
+    setSelected(null);
+  };
+
+  return { buttons, panel, placing, tapMap, banner, bar, ring, ghost, selected, select: setSelected, isOpen: open !== null, pointer, shown, dragging: dragTo !== null, stop };
 }

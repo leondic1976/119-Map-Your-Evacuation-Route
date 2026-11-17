@@ -1,7 +1,7 @@
 /** 인쇄 한 장 — 화면에는 보이지 않고 인쇄할 때만 나온다 */
 import { useMemo } from 'react';
 import { analyze } from '../core/grid';
-import { PROMISES } from '../content/report';
+import { NO_EXTINGUISHER, PROMISES } from '../content/report';
 import { STAMPS } from '../content/stamps';
 import { earnedStamps } from '../core/report';
 import { currentBand, useApp } from '../store/app';
@@ -48,6 +48,11 @@ export function PrintSheet() {
           </li>
         ))}
       </ol>
+      {plan.noExtinguisher && (
+        <p className="print-task" data-testid="print-no-extinguisher">
+          어른과 할 일 — {NO_EXTINGUISHER.print} <Unverified sourceIds={NO_EXTINGUISHER.sourceIds} />
+        </p>
+      )}
       <p className="print-foot">불이 나면 119 · 소방청 캐릭터 영이·일구·웅이(공공누리 제1유형)</p>
     </div>
   );

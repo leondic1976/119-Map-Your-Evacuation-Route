@@ -4,8 +4,9 @@
  * 포인터는 지금 점 단위 좌표로 바꿔서 알려 준다.
  */
 import { memo, useEffect, useId, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { edgeAngle, edgeEnds, edgeKeys, edgeLength, edgeMid, edgeNormal, edgeSides, isSlanted } from '../core/grid';
+import { edgeAngle, edgeEnds, edgeKeys, edgeLength, edgeMid, edgeNormal, edgeSides, isSlanted, parseEdge } from '../core/grid';
 import { arrangeLabels, type Label, type Rect } from '../core/labels';
+import { doorSize, doorSwing, doorTurn, openingWidth, type DoorSwing } from '../core/doors';
 import { outsidePath } from '../core/drill';
 import { routePoints } from '../core/path';
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, type Box } from '../core/zoom';
@@ -67,6 +68,8 @@ export interface PlanViewProps {
   showDots?: boolean;
   /** 그리는 중인 획 */
   stroke?: Pt[];
+  /** 획이 아직 그은 것이 아니라 미리 보이는 것이다 — 연하게 그린다 */
+  strokeHint?: boolean;
   armed?: Pt | null;
   hotEdge?: string | null;
   /** 반짝이는 칸들 (칸 id · `out`) */
@@ -157,6 +160,8 @@ function PlanViewBase(props: PlanViewProps) {
   const lastPan = useRef<Pt>({ x: 0, y: 0 });
   const lastPinch = useRef<{ dist: number; mid: Pt }>({ dist: 1, mid: { x: 0, y: 0 } });
   const edgeFrame = useRef(0);
+  // 눌린 채인 손길. 떼는 신호를 놓치면 그 뒤의 움직임이 계속 그리기가 되어 엉뚱한 선이 생긴다(대장 #174)
+  const pressed = useRef(new Set<number>());
   const latest = useRef({ box, onPointer: props.onPointer, edgePan: props.edgePan });
   latest.current = { box, onPointer: props.onPointer, edgePan: props.edgePan };
 
@@ -198,10 +203,37 @@ function PlanViewBase(props: PlanViewProps) {
 
   useEffect(() => () => cancelAnimationFrame(edgeFrame.current), []);
 
+  /** 떼는 신호 없이 끝난 손길을 버린다 — 그리던 획은 벽이 되지 않는다 */
+  const drop = (id: number, at: Pt) => {
+    const had = pressed.current.delete(id);
+    fingers.current.delete(id);
+    if (fingers.current.size === 0) gesture.current = null;
+    if (had) latest.current.onPointer?.('cancel', at);
+  };
+  // 창이 뒤로 가면 떼는 신호가 오지 않는다
+  useEffect(() => {
+    const onBlur = () => {
+      for (const id of [...pressed.current, ...fingers.current.keys()]) drop(id, { x: 0, y: 0 });
+    };
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handle = (kind: 'down' | 'move' | 'up' | 'cancel') => (e: RPointerEvent<SVGSVGElement>) => {
     if (!props.onPointer) return;
     const client = { x: e.clientX, y: e.clientY };
-    if (kind === 'down') e.currentTarget.setPointerCapture(e.pointerId);
+    if (kind === 'down') {
+      // 마우스 오른쪽 단추는 그리는 손이 아니다. 차림표가 뜨면 떼는 신호가 오지 않는다
+      if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pressed.current.add(e.pointerId);
+    } else if (kind === 'move') {
+      // 단추를 뗀 마우스인데 눌린 것으로 남아 있다 — 떼는 신호를 놓쳤다
+      if (e.pointerType === 'mouse' && e.buttons === 0 && (pressed.current.has(e.pointerId) || fingers.current.has(e.pointerId))) drop(e.pointerId, toPlan(client));
+    } else {
+      pressed.current.delete(e.pointerId);
+    }
     if (zoomable) {
       if (kind === 'down') {
         fingers.current.set(e.pointerId, client);
@@ -292,7 +324,7 @@ function PlanViewBase(props: PlanViewProps) {
     );
   }, [showDots, plan.rows, plan.cols, u, k]);
 
-  // 밖까지 나온 길은 만나는 곳까지 이어 그린다 — 나가는 것으로 끝이 아니라 가족을 만나야 끝이다
+  // 밖까지 나온 길은 안전한 곳까지 이어 그린다 — 나가는 것으로 끝이 아니라 가족을 만나야 끝이다
   const toMeet = (steps: string[]): Pt[] => {
     const points = routePoints(plan, layout, steps);
     if (points.length < 2 || steps[steps.length - 1] !== OUT || !plan.marks.meet) return points;
@@ -316,11 +348,16 @@ function PlanViewBase(props: PlanViewProps) {
   const labelInfo = useMemo(() => {
     const textW = (s: string, f: number): number => s.length * f * 0.98 + 8;
     const list: (Label & { text: string; size: number; cls: string })[] = [];
-    const glyphs: Rect[] = (Object.values(plan.marks) as Pt[]).map((m) => ({ x: m.x * u, y: m.y * u - 2, w: 70, h: 78 }));
+    const extras = plan.extraExtinguishers ?? [];
+    const glyphs: Rect[] = [...(Object.values(plan.marks) as Pt[]), ...extras].map((m) => ({ x: m.x * u, y: m.y * u - 2, w: 70, h: 78 }));
     for (const [id, at] of Object.entries(plan.marks) as [MarkId, Pt][]) {
       const size = fit(id === 'alarm' ? 20 : 22, 14);
       list.push({ id: `m-${id}`, x: at.x * u, y: at.y * u + 40 + size * 0.6, w: textW(MARK_NAME[id], size), h: size * 1.15, text: MARK_NAME[id], size, cls: 'mark-label' });
     }
+    extras.forEach((at, i) => {
+      const size = fit(22, 14);
+      list.push({ id: `x-${i}`, x: at.x * u, y: at.y * u + 40 + size * 0.6, w: textW(MARK_NAME.extinguisher, size), h: size * 1.15, text: MARK_NAME.extinguisher, size, cls: 'mark-label' });
+    });
     if (showLabels) {
       for (const cell of layout.cells.filter((c) => c.kind)) {
         const text = cellLabel(cell.kind, cell.name);
@@ -361,11 +398,19 @@ function PlanViewBase(props: PlanViewProps) {
       data-route={plan.route.join(' ')}
       data-route2={plan.route2.join(' ')}
       data-marks={Object.keys(plan.marks).sort().join(' ')}
+      data-extinguishers={(plan.marks.extinguisher ? 1 : 0) + (plan.extraExtinguishers?.length ?? 0)}
+      data-no-extinguisher={plan.noExtinguisher ? '1' : '0'}
+      data-turned={Object.keys(plan.doorTurns ?? {}).length}
+      data-resized={Object.keys(plan.doorSizes ?? {}).length}
       data-tagged={layout.cells.filter((c) => c.kind).length}
       onPointerDown={handle('down')}
       onPointerMove={handle('move')}
       onPointerUp={handle('up')}
       onPointerCancel={handle('cancel')}
+      onLostPointerCapture={(e) => drop(e.pointerId, toPlan({ x: e.clientX, y: e.clientY }))}
+      onContextMenu={(e) => {
+        if (props.onPointer) e.preventDefault();
+      }}
     >
       <defs>
         <pattern id={`crayon-room-${uid}`} width="26" height="26" patternUnits="userSpaceOnUse" patternTransform="rotate(32)">
@@ -503,12 +548,12 @@ function PlanViewBase(props: PlanViewProps) {
 
       {/* 문과 창 */}
       {Object.entries(plan.openings).map(([edge, kind]) => (
-        <OpeningShape key={edge} edge={edge} kind={kind} layout={layout} closed={closedSet.has(edge)} hot={edge === hotEdge} u={u} density={k} wordSize={fit(18, 13)} />
+        <OpeningShape key={edge} edge={edge} kind={kind} layout={layout} closed={closedSet.has(edge)} hot={edge === hotEdge} u={u} density={k} wordSize={fit(18, 13)} swing={kind === 'door' ? doorSwing(plan, layout, edge) : null} turn={doorTurn(plan, edge)} size={doorSize(plan, edge)} fit={openingWidth(plan, layout, edge)} joined={kind === 'gap' ? gapJoins(plan, edge) : NO_JOIN} />
       ))}
 
       {/* 그리는 중인 획 */}
       {stroke && stroke.length > 1 && (
-        <polyline className="stroke-live" points={stroke.map((p) => `${p.x * u},${p.y * u}`).join(' ')} />
+        <polyline className={props.strokeHint ? 'stroke-live hint' : 'stroke-live'} data-testid={props.strokeHint ? 'stroke-hint' : undefined} points={stroke.map((p) => `${p.x * u},${p.y * u}`).join(' ')} />
       )}
 
       {/* 이름을 아직 안 정한 칸 */}
@@ -537,6 +582,12 @@ function PlanViewBase(props: PlanViewProps) {
       {(Object.entries(plan.marks) as [MarkId, Pt][]).map(([id, at]) => (
         <g key={id} transform={`translate(${at.x * u} ${at.y * u})`} data-mark={id} className="mark">
           <MarkGlyph id={id} look={props.look} />
+        </g>
+      ))}
+      {/* 둘째부터의 소화기 */}
+      {(plan.extraExtinguishers ?? []).map((at, i) => (
+        <g key={`x${i}`} transform={`translate(${at.x * u} ${at.y * u})`} data-mark="extinguisher" data-extra={i + 1} className="mark">
+          <MarkGlyph id="extinguisher" />
         </g>
       ))}
 
@@ -593,22 +644,29 @@ function RouteArrow({ points, color, u }: { points: Pt[]; color: string; u: numb
   );
 }
 
-/** 문과 창의 폭(처음 네모 단위). 점이 촘촘해 벽 토막이 짧아도 곧은 벽이 이어지면 제 크기로 낸다 */
-function openingFit(edge: string, layout: Layout, density: number): number {
-  if (density <= 1) return Math.min(1, edgeLength(edge) / density);
-  const run = layout.runOf.get(edge);
-  const m = edgeMid(edge);
-  if (!run) return Math.min(1, edgeLength(edge) / density);
-  const room = Math.min(Math.hypot(m.x - run.a.x, m.y - run.a.y), Math.hypot(m.x - run.b.x, m.y - run.b.y));
-  return Math.min(1, Math.max(edgeLength(edge), room * 2) / density);
+const NO_JOIN: [number, number] = [0, 0];
+
+/**
+ * 가로세로 틈의 앞뒤로 곧게 이어진 틈의 수. 이어진 쪽에는 기둥을 그리지 않고 나가는 화살표도 가운데에 하나만 그려
+ * 넓은 입구 하나로 보인다.
+ */
+function gapJoins(plan: Plan, edge: string): [number, number] {
+  if (edge.includes('#')) return NO_JOIN;
+  const { o, x, y } = parseEdge(edge);
+  if (o !== 'h' && o !== 'v') return NO_JOIN;
+  const at = (n: number): string => (o === 'h' ? `h:${x + n}:${y}` : `v:${x}:${y + n}`);
+  let before = 0;
+  let after = 0;
+  while (plan.openings[at(-before - 1)] === 'gap') before += 1;
+  while (plan.openings[at(after + 1)] === 'gap') after += 1;
+  return [before, after];
 }
 
-function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean; u: number; density: number; wordSize: number }) {
+function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize, swing: door, turn, size, fit, joined }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean; u: number; density: number; wordSize: number; swing: DoorSwing | null; turn: number; size: number; fit: number; joined: [number, number] }) {
   const m = edgeMid(edge);
   const angle = edgeAngle(edge);
   const normal = edgeNormal(edge);
   // 문과 창을 가로 100 으로 그린 뒤 벽 가운데로 옮겨 돌린다. 긴 벽은 양옆에 벽이 남고, 벽보다 크면 줄인다
-  const fit = openingFit(edge, layout, density);
   const place = `translate(${m.x * u} ${m.y * u}) rotate(${angle}) scale(${fit}) translate(-50 0)`;
   if (kind === 'window') {
     const line = hot ? '#1d5f96' : '#2f7fbf';
@@ -629,14 +687,21 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize }:
     // 틈 — 문짝 없이 트인 입구다. 벽이 끊긴 자리를 양 끝의 짧은 기둥으로 보인다
     const len = (edgeLength(edge) / density) * 100;
     const out = pCell ? 1 : -1;
+    // 이어진 틈들의 가운데 — 화살표는 거기에 하나만 그린다
+    const run = joined[0] + joined[1] + 1;
+    const middle = joined[0] === Math.floor((run - 1) / 2);
+    const [ea, eb] = edgeEnds(edge);
+    const along = run % 2 === 0 ? len / 2 / (Math.hypot(eb.x - ea.x, eb.y - ea.y) || 1) : 0;
+    const ax = m.x * u + (eb.x - ea.x) * along;
+    const ay = m.y * u + (eb.y - ea.y) * along;
     return (
       <g data-gap={edge} data-exit={exit ? '1' : '0'}>
         <g transform={`translate(${m.x * u} ${m.y * u}) rotate(${angle})`}>
           <line x1={-len / 2 + 5} y1={0} x2={len / 2 - 5} y2={0} stroke={hot ? '#2f7fbf' : '#aab5b9'} strokeWidth={4} strokeDasharray="3 11" strokeLinecap="round" />
-          <path d={`M${-len / 2}-11V11M${len / 2}-11V11`} fill="none" stroke={hot ? '#2f7fbf' : '#33363b'} strokeWidth={8} strokeLinecap="round" />
+          <path d={`${joined[0] ? '' : `M${-len / 2}-11V11`}${joined[1] ? '' : `M${len / 2}-11V11`}`} fill="none" stroke={hot ? '#2f7fbf' : '#33363b'} strokeWidth={8} strokeLinecap="round" />
         </g>
-        {exit && (
-          <g transform={`translate(${m.x * u + normal.x * out * 36} ${m.y * u + normal.y * out * 36}) rotate(${(Math.atan2(normal.y * out, normal.x * out) * 180) / Math.PI})`}>
+        {exit && middle && (
+          <g className="gap-arrow" transform={`translate(${ax + normal.x * out * 36} ${ay + normal.y * out * 36}) rotate(${(Math.atan2(normal.y * out, normal.x * out) * 180) / Math.PI})`}>
             <path d="M-14 0H10M2-12L18 0L2 12" fill="none" stroke={color} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
           </g>
         )}
@@ -645,28 +710,25 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize }:
   }
   // 현관과 집 안 사이의 문은 중문이다
   const inner = !exit && [pCell, qCell].some((id) => id && layout.byId.get(id)?.name === 'entry');
-  // 문짝은 방 쪽으로 열린다. 돌린 그림의 +y 가 q 쪽인지 p 쪽인지 재서 고른다
-  const roomP = pCell ? layout.byId.get(pCell)?.kind === 'room' : false;
-  const roomQ = qCell ? layout.byId.get(qCell)?.kind === 'room' : false;
-  const toQ = exit ? Boolean(qCell) : roomQ || !roomP;
-  const rad = (angle * Math.PI) / 180;
-  const yIsQ = -Math.sin(rad) * normal.x + Math.cos(rad) * normal.y > 0;
-  const swing = yIsQ === toQ ? 1 : -1;
+  // 문짝은 처음에 방 쪽으로 열리고, 「방향 바꾸기」로 열리는 쪽과 경첩 자리를 바꾼다(`core/doors.ts`)
+  const swing = door?.side ?? 1;
+  const hingeAtStart = door?.hingeAtStart ?? true;
   // 밖으로 나가는 쪽
   const toward = pCell ? 1 : -1;
   const nx = normal.x * toward;
   const ny = normal.y * toward;
   return (
-    <g data-door={edge} data-exit={exit ? '1' : '0'} data-inner={inner ? '1' : '0'}>
+    <g data-door={edge} data-exit={exit ? '1' : '0'} data-inner={inner ? '1' : '0'} data-turn={turn} data-size={size} data-width={fit.toFixed(2)} data-side={swing} data-hinge={hingeAtStart ? 'a' : 'b'}>
       <g transform={place}>
         <line x1={8} y1={0} x2={92} y2={0} stroke="#fffdf6" strokeWidth={16} />
         {closed ? (
           <line x1={10} y1={0} x2={90} y2={0} stroke={color} strokeWidth={15} strokeLinecap="round" />
         ) : (
-          <>
+          // 경첩이 반대쪽 끝이면 그림을 좌우로 뒤집는다
+          <g className="door-leaf" transform={hingeAtStart ? undefined : 'translate(100 0) scale(-1 1)'}>
             <path d={`M86 0A74 74 0 0 ${swing > 0 ? 1 : 0} 12 ${swing * 74}`} fill="none" stroke={color} strokeWidth={3.5} strokeDasharray="6 7" />
             <line x1={12} y1={0} x2={12} y2={swing * 74} stroke={color} strokeWidth={10} strokeLinecap="round" />
-          </>
+          </g>
         )}
       </g>
       {inner && <text className="door-word" x={m.x * u} y={m.y * u - 6 - wordSize / 2} style={{ fontSize: wordSize }}>중문</text>}

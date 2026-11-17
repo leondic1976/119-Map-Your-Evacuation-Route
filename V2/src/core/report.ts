@@ -28,7 +28,7 @@ export function stampSlots(band: Band): StampId[] {
   return ['shout', 'nose', 'crouch', 'touch', 'close', 'stairs', 'meet'];
 }
 
-/** 지금까지 찍힌 도장. `met` 은 만나는 곳에 닿았는가다 */
+/** 지금까지 찍힌 도장. `met` 은 안전한 곳에 닿았는가다 */
 export function earnedStamps(state: DrillState, band: Band, met = state.end === 'meet'): StampId[] {
   const s = state.stats;
   const picked = state.picked ?? [];

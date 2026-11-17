@@ -26,7 +26,7 @@ export const BANDS: Record<Band, BandInfo> = {
     grids: [[6, 4], [7, 5], [8, 6], [9, 7], [10, 7], [16, 12], [32, 24]],
     start: [10, 7],
     windows: false,
-    marks: ['me', 'meet'],
+    marks: ['me', 'meet', 'extinguisher'],
     secondRoute: false,
     touchDoors: false,
     closeDoors: false,

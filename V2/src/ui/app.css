@@ -196,7 +196,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 @keyframes sc-sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.2deg); } }
 @keyframes sc-glow { 0%, 100% { fill: #fff3cf; } 50% { fill: #ffc861; } }
 @keyframes sc-wave { from { transform: skewY(-7deg) scaleX(1); } to { transform: skewY(7deg) scaleX(.9); } }
-/* 48 초 한 바퀴 — 가족은 인도를 걸어 만나는 곳까지 가고(0~84%), 소방차는 그 앞 찻길로 지나가며(0~34%) 가족을 앞질러 잠깐 가린다 */
+/* 48 초 한 바퀴 — 가족은 인도를 걸어 안전한 곳까지 가고(0~84%), 소방차는 그 앞 찻길로 지나가며(0~34%) 가족을 앞질러 잠깐 가린다 */
 @keyframes sc-family {
   0% { transform: translateX(150px); opacity: 0; }
   2% { transform: translateX(175px); opacity: 1; }
@@ -330,6 +330,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .mark-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .mark-text b { font-weight: 400; font-size: 15px; }
 .mark-done { position: absolute; right: 2px; top: 2px; color: var(--green-d); }
+/* 고른 도구에 딸린 단추 묶음 — 문 고치기(대장 #168 · #170)와 소화기(대장 #169) */
+.tool-box { display: grid; gap: 6px; padding: 6px 4px; background: #fff; border: 2px dashed var(--pencil); border-radius: 12px; }
+.tool-box .tool { width: 100%; }
+.tool-note.advice { padding: 6px; color: var(--ink); background: var(--sun); border-radius: 10px; }
+.home-task { margin-top: 10px; padding: 8px 12px; background: var(--sun); border: 2px dashed var(--pencil); border-radius: 12px; font-size: 16px; }
 .promise { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 18px; line-height: 1.35; }
 
 /* 키가 낮은 창 — 왼쪽 패널을 두 줄로 펴서 잘리지 않게 하고 아래 줄을 줄여 지도를 키운다 */
@@ -337,10 +342,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   /* 대피 연습과 돌아보기는 단추가 적어 한 줄로 충분하다 */
   .studio:not([data-step="drill"]):not([data-step="review"]) .stage { grid-template-columns: 208px minmax(0, 1fr); }
   .studio:not([data-step="drill"]):not([data-step="review"]) .tools { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 5px; }
-  .tools-head, .tool-note, .link-btn, .stepper, .side-pick, .tool.wide, .checks { grid-column: 1 / -1; }
+  .tools-head, .tool-note, .link-btn, .stepper, .side-pick, .tool.wide, .checks, .tool-box { grid-column: 1 / -1; }
   .studio:not([data-step="drill"]):not([data-step="review"]) .tool-row,
   .studio:not([data-step="drill"]):not([data-step="review"]) .crayons,
   .studio:not([data-step="drill"]):not([data-step="review"]) .marks-list { display: contents; }
+  .tools-head.pick-head { display: none; }
   .side-pick { grid-template-columns: repeat(4, 1fr); }
   .stepper { grid-template-columns: 1fr 1fr 1fr; align-items: center; }
   .stepper-count { grid-column: auto; }
@@ -407,6 +413,18 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .item-hint { font-size: 14px; line-height: 1.25; color: var(--ink-2); text-align: center; }
 .item-pad .tool-row .tool { min-height: var(--hit); }
 .item-ring { fill: none; stroke: var(--blue); stroke-width: 5; stroke-dasharray: 12 10; }
+/* 방 넣기 — 고치는 방 둘레의 점선과 방 고치기 판 */
+.room-ring { fill: rgba(47, 127, 191, .08); stroke: var(--blue); stroke-width: 6; stroke-dasharray: 14 10; }
+.room-ring.held { fill: rgba(47, 127, 191, .16); }
+.item-pad.room-pad { width: 284px; max-height: calc(100% - 16px); overflow-y: auto; scrollbar-width: thin; }
+.room-face { flex-direction: column; gap: 0; }
+.room-face small { font-size: 13px; line-height: 1.1; color: var(--ink-2); }
+.room-open { display: grid; gap: 4px; }
+.room-open h4 { margin: 0; font-size: 15px; font-weight: 400; color: var(--ink-2); }
+.room-sides { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.room-sides .tool { min-width: var(--hit); min-height: var(--hit); padding: 0; font-size: 15px; }
+.layer-grid.rooms { grid-template-columns: repeat(3, 1fr); }
+.ghost-word { font-family: inherit; fill: var(--pencil); text-anchor: middle; dominant-baseline: central; }
 .zoom-bar { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-direction: column; gap: 6px; }
 .zoom-btn { width: var(--hit, 48px); height: var(--hit, 48px); min-width: 48px; min-height: 48px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: #fffdf6; color: var(--pencil); border: 3px solid var(--pencil); border-radius: 12px; cursor: pointer; }
 .zoom-btn.on { background: var(--sun); }
@@ -460,6 +478,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 /* 트인 칸끼리 맞닿은 곳 — 벽이 없는 셈이라 연한 점선이다 */
 .wall.open { stroke: #aebbc0; stroke-width: 5; stroke-dasharray: 3 15; }
 .stroke-live { fill: none; stroke: var(--blue); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
+/* 파란 점에서 이어질 선을 미리 보인다 — 아직 벽이 아니라 연한 점선이다 */
+.stroke-live.hint { stroke-width: 8; stroke-dasharray: 4 16; opacity: .7; }
 .placed-item rect, .placed-item ellipse, .placed-item circle { vector-effect: none; }
 .item-word { font-family: var(--font); font-size: 18px; fill: var(--ink); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; pointer-events: none; }
 .door-word { font-family: var(--font); font-size: 18px; fill: #6b3e16; text-anchor: middle; paint-order: stroke; stroke: #fffdf6; stroke-width: 4px; pointer-events: none; }
@@ -561,6 +581,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 }
 .card-over h3 { font-size: 26px; }
 .card-over p { font-size: 20px; line-height: 1.4; }
+/* 119 에 신고하자는 알림 — 누르는 단추가 아니라 읽는 글이다 */
+.card-over .call-note { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; text-align: left; background: var(--sun); border: 3px dashed var(--pencil); border-radius: 14px; }
+.call-note b { display: block; font-size: 24px; font-weight: 400; }
+.call-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; background: #fff; border: 3px solid var(--pencil); border-radius: 50%; }
 .x { position: absolute; right: 10px; top: 10px; display: inline-flex; align-items: center; justify-content: center; box-shadow: none; border-width: 2px; }
 
 /* 아래 안내 줄 */
@@ -591,6 +615,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .crayon { padding: 2px 8px; }
   .tools { max-height: 34vh; overflow-y: auto; }
   .marks-list { display: flex; flex-wrap: wrap; }
+  .tool-box { flex: 1 1 320px; grid-template-columns: 1fr 1fr; }
+  .tool-box .tool-note { grid-column: 1 / -1; }
   .tool.tall { flex: 1; min-height: 60px; }
   .checks { flex: 1 1 100%; }
 }
@@ -655,6 +681,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .sw.pass { background: #c6e8f8; }
   .sw.route { background: #d6402f; }
   .sw.route2 { background: #c97a12; }
+  .print-task { margin-top: 6pt; padding: 3pt 8pt; border: 1.5pt dashed #000; border-radius: 6pt; }
   .print-foot { margin-top: 8pt; font-size: 10pt; color: #333; }
   .plan { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

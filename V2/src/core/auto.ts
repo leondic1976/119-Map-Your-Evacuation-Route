@@ -190,9 +190,12 @@ export function autoMarks(input: Plan, band: Band): Plan {
   const marks = { ...plan.marks };
   // 점이 많아도 표시가 겹치지 않게 처음 네모 한 칸만큼 떨어뜨린다
   const k = Math.max(1, plan.density ?? 1);
-  const used: Pt[] = Object.entries(marks)
-    .filter(([id]) => id !== 'meet')
-    .map(([, m]) => m!);
+  const used: Pt[] = [
+    ...Object.entries(marks)
+      .filter(([id]) => id !== 'meet')
+      .map(([, m]) => m!),
+    ...(plan.extraExtinguishers ?? []),
+  ];
   const clear = (p: Pt, gap: number): boolean => used.every((u) => Math.hypot(u.x - p.x, u.y - p.y) >= gap);
 
   const free = (cell: Cell): Pt | null => {
@@ -225,15 +228,14 @@ export function autoMarks(input: Plan, band: Band): Plan {
     if (p) marks.me = p;
   }
   if (!marks.meet) marks.meet = outsideSpot(plan);
-  if (band !== 'low') {
-    if (!marks.gas) {
-      const p = free(byName('kitchen') ?? rooms[rooms.length - 1] ?? any);
-      if (p) marks.gas = p;
-    }
-    if (!marks.extinguisher) {
-      const p = free(byName('entry') ?? passes[0] ?? any);
-      if (p) marks.extinguisher = p;
-    }
+  if (band !== 'low' && !marks.gas) {
+    const p = free(byName('kitchen') ?? rooms[rooms.length - 1] ?? any);
+    if (p) marks.gas = p;
+  }
+  // 소화기는 전 학년이 놓는다(대장 #169). 「우리 집에 없어」를 골랐으면 놓지 않는다
+  if (!marks.extinguisher && !plan.noExtinguisher) {
+    const p = free(byName('entry') ?? passes[0] ?? any);
+    if (p) marks.extinguisher = p;
   }
   if (band === 'high' && !marks.alarm) {
     const p = free(byName('living') ?? passes[0] ?? any);

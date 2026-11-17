@@ -51,7 +51,7 @@ export function cellLabel(kind: CellKind | null, name: string | null): string {
 
 export const MARK_NAME: Record<MarkId, string> = {
   me: '내 자리',
-  meet: '만나는 곳',
+  meet: '안전한 곳',
   gas: '가스레인지',
   extinguisher: '소화기',
   alarm: '화재 감지기',

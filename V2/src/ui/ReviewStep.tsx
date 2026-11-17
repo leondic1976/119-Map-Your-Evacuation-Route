@@ -2,7 +2,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { analyze } from '../core/grid';
 import { buildReport, earnedStamps } from '../core/report';
-import { FIX, PRAISE } from '../content/report';
+import { FIX, NO_EXTINGUISHER, PRAISE } from '../content/report';
 import { STAMPS } from '../content/stamps';
 import { isVerified } from '../content/sources';
 import { host } from '../platform/host';
@@ -131,6 +131,11 @@ export function ReviewStep() {
                 </button>
               </div>
             </>
+          )}
+          {plan.noExtinguisher && !empty && (
+            <p className="note-text home-task" data-testid="review-no-extinguisher">
+              {NO_EXTINGUISHER.tell} <Unverified sourceIds={NO_EXTINGUISHER.sourceIds} />
+            </p>
           )}
         </div>
       </section>

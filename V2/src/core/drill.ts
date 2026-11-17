@@ -486,7 +486,7 @@ export function closeLastDoor(state: DrillState): DrillState {
 
 /**
  * 집 밖에서 방향키로 한 걸음 걷는다. 집 안으로는 들어가지 않고 종이 밖으로 나가지 않는다.
- * 만나는 곳 가까이 가면 거기에 닿는다. 갈 수 없으면 null 이다.
+ * 안전한 곳 가까이 가면 거기에 닿는다. 갈 수 없으면 null 이다.
  */
 export function stepOutside(plan: Plan, layout: Layout, from: Pt, dir: ArrowDir): { pt: Pt; arrived: boolean } | null {
   const meet = plan.marks.meet;
@@ -505,8 +505,8 @@ export function stepOutside(plan: Plan, layout: Layout, from: Pt, dir: ArrowDir)
 }
 
 /**
- * 집 밖의 한 자리에서 만나는 곳까지 걸어가는 길. 집을 뚫지 않고 돌아서 간다.
- * 첫 점은 `from`, 끝 점은 만나는 곳이다. 만나는 곳이 없으면 `from` 하나다.
+ * 집 밖의 한 자리에서 안전한 곳까지 걸어가는 길. 집을 뚫지 않고 돌아서 간다.
+ * 첫 점은 `from`, 끝 점은 안전한 곳이다. 안전한 곳이 없으면 `from` 하나다.
  */
 export function outsidePath(plan: Plan, layout: Layout, from: Pt): Pt[] {
   const meet = plan.marks.meet;
@@ -540,7 +540,7 @@ export function finishRescue(state: DrillState): DrillState {
   return { ...state, phase: 'over', end: 'rescue', stats: { ...state.stats, called: true } };
 }
 
-/** 만나는 곳에 닿고 119 까지 전화했다. `walk` 는 집 밖에서 걸어간 자리들이다 */
+/** 안전한 곳에 닿고 119 까지 전화했다. `walk` 는 집 밖에서 걸어간 자리들이다 */
 export function finishMeet(plan: Plan, layout: Layout, state: DrillState, walk?: Pt[]): DrillState {
   const meet = plan.marks.meet;
   const timeline = meet

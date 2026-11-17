@@ -5,8 +5,9 @@ import { useSyncExternalStore } from 'react';
 import { autoDoors, autoMarks, autoRoute, autoTag, splitLargestCell } from '../core/auto';
 import type { DrillState } from '../core/drill';
 import { changeGrid, densityOf } from '../core/density';
-import { addEdges, emptyPlan, normalize } from '../core/edit';
+import { addEdges, emptyPlan, normalize, setNoExtinguisher } from '../core/edit';
 import { analyze, unreachableCells } from '../core/grid';
+import { markDone } from '../core/marks';
 import { OUT, type Band, type Plan } from '../core/types';
 import type { View } from '../core/zoom';
 import { BANDS, bandOfGrade } from '../content/bands';
@@ -260,7 +261,7 @@ export function resumeStep(plan: Plan, band: Band): StepId {
   if (layout.cells.length < 2) return 'draw';
   if (layout.cells.some((c) => !c.kind)) return 'sort';
   if (!layout.links.some((l) => l.b === OUT) || unreachableCells(layout).length > 0) return 'door';
-  if (!BANDS[band].marks.every((m) => plan.marks[m])) return 'mark';
+  if (!BANDS[band].marks.every((m) => markDone(plan, m))) return 'mark';
   if (plan.route[plan.route.length - 1] !== OUT) return 'route';
   return 'drill';
 }
@@ -364,12 +365,27 @@ function ratioOf(plan: Plan): { rx: number; ry: number } {
   return { rx: plan.cols / info.cols, ry: plan.rows / info.rows };
 }
 
+/** 그린 것을 모두 걷어 낸 종이. 모눈과 집 밖 자리만 남는다 */
+const BLANK: Pick<Plan, 'walls' | 'openings' | 'tags' | 'marks' | 'route' | 'route2' | 'items' | 'doorTurns' | 'doorSizes' | 'extraExtinguishers' | 'noExtinguisher'> = {
+  walls: [],
+  openings: {},
+  tags: {},
+  marks: {},
+  route: [],
+  route2: [],
+  items: [],
+  doorTurns: undefined,
+  doorSizes: undefined,
+  extraExtinguishers: undefined,
+  noExtinguisher: undefined,
+};
+
 /** 아파트 모양을 깐다. 점이 너무 적으면 작은 칸이 사라지므로 기본 개수까지 늘린다. 되돌리기로 돌아갈 수 있다 */
 export function applyHome(id: string): void {
   const home = homeById(id);
   if (!home) return;
   const info = BANDS[currentBand()];
-  const blank = changeGrid({ ...state.plan, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [], items: [] }, Math.max(state.plan.cols, info.cols), Math.max(state.plan.rows, info.rows));
+  const blank = changeGrid({ ...state.plan, ...BLANK }, Math.max(state.plan.cols, info.cols), Math.max(state.plan.rows, info.rows));
   const { walls, tags } = buildHome(home, blank.cols, blank.rows);
   commit(normalize({ ...blank, walls, tags }));
 }
@@ -378,7 +394,7 @@ export function applyHome(id: string): void {
 export function applyTemplate(id: string): void {
   const t = templateById(id);
   if (!t) return;
-  const blank: Plan = { ...state.plan, walls: [], openings: {}, tags: {}, marks: {}, route: [], route2: [], items: [] };
+  const blank: Plan = { ...state.plan, ...BLANK };
   const { rx, ry } = ratioOf(blank);
   commit(addEdges(blank, [...segEdges(t.outer, rx, ry), ...segEdges(t.inner, rx, ry)]));
 }
@@ -391,6 +407,13 @@ export function setGrid(cols: number, rows: number): void {
   commit(next);
   if (analyze(next).cells.length < before) say('dots-lost-cell');
   else if (densityOf(next) >= 2 && cols > prevCols) say('draw-dense');
+}
+
+/** 「우리 집에 소화기가 없어」(대장 #169) — 없다고 적고, 나중에라도 꼭 두자고 말한다. 다시 누르면 푼다 */
+export function tellNoExtinguisher(on: boolean): void {
+  const next = setNoExtinguisher(state.plan, on);
+  commit(next);
+  if (on) say('mark-no-extinguisher', stepReady('mark', next) ? 'mark-done' : undefined);
 }
 
 export function clearRoute(which: 'route' | 'route2'): void {
@@ -428,7 +451,7 @@ export function stepReady(step: StepId, plan: Plan = state.plan): boolean {
     case 'door':
       return layout.links.some((l) => l.b === OUT) && unreachableCells(layout).length === 0;
     case 'mark':
-      return BANDS[currentBand()].marks.every((m) => plan.marks[m]);
+      return BANDS[currentBand()].marks.every((m) => markDone(plan, m));
     case 'route':
       return plan.route[plan.route.length - 1] === OUT;
     default:
@@ -447,6 +470,8 @@ const DONE_LINES: Partial<Record<StepId, [LineId, LineId?]>> = {
 /** 단계를 막 끝냈을 때 하는 말. 길 찾기는 눌렀을 때 이미 알맞은 말을 했으면 끊지 않는다 */
 export function announceDone(step: StepId): void {
   if (step === 'route' && ['route-done', 'route-second', 'route-no-second', 'route-helped'].includes(state.line)) return;
+  // 소화기를 두자는 말이 끝난 뒤에 이어서 알린다(`tellNoExtinguisher`)
+  if (step === 'mark' && state.line === 'mark-no-extinguisher') return;
   const done = DONE_LINES[step];
   if (done) say(done[0], done[1]);
 }

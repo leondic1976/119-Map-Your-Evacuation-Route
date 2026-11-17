@@ -11,5 +11,5 @@ export const STAMPS: Record<StampId, { label: string; text: string; sourceIds: s
   touch: { label: '문 만지기', text: '문을 열기 전에 손등으로 만져 봤어.', sourceIds: MANUAL },
   close: { label: '문 닫기', text: '지나온 문을 닫았어.', sourceIds: APT },
   stairs: { label: '계단으로', text: '엘리베이터를 타지 않고 계단으로 나왔어.', sourceIds: APT },
-  meet: { label: '만나는 곳', text: '만나는 곳에서 가족을 만났어.', sourceIds: APT },
+  meet: { label: '안전한 곳', text: '안전한 곳에서 가족을 만났어.', sourceIds: APT },
 };

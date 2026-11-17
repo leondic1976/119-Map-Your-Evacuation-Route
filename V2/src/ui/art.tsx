@@ -86,6 +86,13 @@ export const IconHand = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v8" /><path d="M8 11l-1.5-1.5a1.5 1.5 0 0 0-2.2 2L8.5 18a5 5 0 0 0 4 2h1a4 4 0 0 0 4-4v-3" /></Svg>
 );
 
+/** 가리키는 화살표 — 달린 것을 골라 고칠 때 쓴다(대장 #173) */
+export const IconPointer = ({ size = 26 }: { size?: number }) => (
+  <span data-icon="pointer" style={{ display: 'inline-flex' }}>
+    <Svg size={size}><path d="M5 3l14 7.5-6 1.6 4 6.4-2.6 1.6-4-6.5L6 18z" /></Svg>
+  </span>
+);
+
 /** 칭찬 도장과 길 위의 안전 행동 그림. 선으로만 그린다 */
 export function StampGlyph({ id, size = 26 }: { id: string; size?: number }) {
   const d: Record<string, string> = {

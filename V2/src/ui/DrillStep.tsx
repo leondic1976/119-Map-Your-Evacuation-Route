@@ -2,7 +2,7 @@
  * 6. 대피 연습 — 「내가 그린 길로 가기」를 누르면 그린 길을 그대로 따라 걷고(대장 #161), 방향키로 모눈 한 칸씩 움직인다(대장 #160).
  * 지도를 눌러서는 움직이지 않는다. 다른 칸으로 넘어갈 때 한 차례씩 위험이 번진다.
  * 길 위의 안전 행동을 주우면 칭찬 도장이 찍히고, 걸어간 자리에 발자국이 남는다(대장 #156).
- * 밖에 나오면 방향키로 만나는 곳까지 걸어간다(대장 #155). 점수와 시간제한은 없다.
+ * 밖에 나오면 방향키로 안전한 곳까지 걸어간다(대장 #155). 점수와 시간제한은 없다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -36,7 +36,7 @@ import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, finishDrill, getApp, say, useApp } from '../store/app';
 import { Celebration } from './Celebration';
 import { ArrowPad, useArrowKeys } from './ArrowPad';
-import { IconClose, IconCrouch, IconDoor, IconHand, IconPencil, IconPhone, IconPlay, IconStand, KidGlyph, StampGlyph } from './art';
+import { IconClose, IconCrouch, IconDoor, IconHand, IconNext, IconPencil, IconPhone, IconPlay, IconStand, KidGlyph, StampGlyph } from './art';
 import { PlanView, unitOf } from './PlanView';
 import { ZoomControls } from './ZoomControls';
 
@@ -67,7 +67,7 @@ export function DrillStep() {
   const [touch, setTouch] = useState<{ mv: DrillMove; walk: Pt[] } | null>(null);
   const [callCard, setCallCard] = useState<'meet' | 'rescue' | null>(null);
   const [crouchNudge, setCrouchNudge] = useState(false);
-  // 집 밖에서 걸어간 자리와, 만나는 곳에 닿았는가
+  // 집 밖에서 걸어간 자리와, 안전한 곳에 닿았는가
   const [outWalk, setOutWalk] = useState<Pt[]>([]);
   const [met, setMet] = useState(false);
   // 방금 찍힌 도장 — 잠깐 크게 보여 준다
@@ -143,7 +143,7 @@ export function DrillStep() {
         setCrouchNudge(false);
         setOutWalk([next.pt]);
         say('drill-outside');
-        // 그린 길은 만나는 곳까지 이어져 있다. 따라가는 중이면 그대로 간다
+        // 그린 길은 안전한 곳까지 이어져 있다. 따라가는 중이면 그대로 간다
         if (auto.current) autoTimer.current = window.setTimeout(() => goMeet(next, [next.pt]), FOLLOW_GAP_MS * 2);
         return;
       }
@@ -272,7 +272,7 @@ export function DrillStep() {
     say('drill-call');
   };
 
-  // 만나는 곳까지 한 번에 — 집을 돌아서 걸어간다
+  // 안전한 곳까지 한 번에 — 집을 돌아서 걸어간다
   const goMeet = (now: DrillState, walked: Pt[]) => {
     if (met) return;
     const from = walked[walked.length - 1] ?? now.pt;
@@ -370,7 +370,7 @@ export function DrillStep() {
       if (outside) {
         const from = outWalk[outWalk.length - 1] ?? state.pt;
         const next = plan.marks.meet ? stepOutside(plan, layout, from, dir) : null;
-        if (next) targets[dir] = next.arrived ? '만나는 곳' : '집 밖';
+        if (next) targets[dir] = next.arrived ? '안전한 곳' : '집 밖';
       } else {
         const step = drillStep(plan, layout, state, dir, config);
         if (step && !(step.move && state.knownHot.includes(step.move.edge))) targets[dir] = nameOf(step.to);
@@ -423,7 +423,7 @@ export function DrillStep() {
         )}
         {outside ? (
           <button type="button" className="tool tall on" data-testid="drill-meet" disabled={walking} onClick={startFollow}>
-            <IconPlay size={28} /> 만나는 곳으로
+            <IconPlay size={28} /> 안전한 곳으로
           </button>
         ) : (
           <button type="button" className="tool tall on" data-testid="drill-follow" data-following={following ? '1' : '0'} disabled={busy || !canFollow} onClick={startFollow}>
@@ -490,8 +490,8 @@ export function DrillStep() {
           onArrow={onArrow}
           nudge={nudge}
           label="방향키로 움직이기"
-          title={outside ? '만나는 곳으로 가자' : '가운데는 내가 그린 길로'}
-          center={{ testid: 'pad-follow', label: outside ? '만나는 곳으로' : '내가 그린 길로 가기', icon: <IconPlay size={26} />, onClick: startFollow, disabled: busy || met || (!outside && !canFollow), strong: true }}
+          title={outside ? '안전한 곳으로 가자' : '가운데는 내가 그린 길로'}
+          center={{ testid: 'pad-follow', label: outside ? '안전한 곳으로' : '내가 그린 길로 가기', icon: <IconPlay size={26} />, onClick: startFollow, disabled: busy || met || (!outside && !canFollow), strong: true }}
         />
         {fresh && (
           <div className="stamp-toast" role="status" data-testid="stamp-toast" data-stamp={fresh}>
@@ -513,11 +513,19 @@ export function DrillStep() {
 
         {callCard === 'meet' && <Celebration />}
         {callCard && (
-          <div className={callCard === 'meet' ? 'card-over card-win' : 'card-over'} role="dialog" aria-modal="true" aria-label="119 전화">
+          <div className={callCard === 'meet' ? 'card-over card-win' : 'card-over'} role="dialog" aria-modal="true" aria-label="119 신고 안내" data-testid="call-card" data-kind={callCard}>
             <h3>{callCard === 'meet' ? '가족을 만났어' : '문을 닫고 창가로'}</h3>
-            <p>{callCard === 'meet' ? '119에 불이 났다고 말하고 우리 집 주소를 알려 주자.' : '대피공간이나 경량칸막이가 있으면 그쪽으로 가자. 없으면 불에서 먼 방의 문을 닫고 젖은 수건으로 틈을 막자. 그리고 119에 어디 있는지 알려 주자.'}</p>
+            {callCard === 'rescue' && <p>대피공간이나 경량칸막이가 있으면 그쪽으로 가자. 없으면 불에서 먼 방의 문을 닫고 젖은 수건으로 틈을 막자.</p>}
+            {/* 누르는 단추가 아니라 알려 주는 글이다(대장 #179). 읽고 나서 「다음」으로 넘어간다 */}
+            <p className="call-note" data-testid="call-note">
+              <span className="call-icon" aria-hidden="true"><IconPhone size={30} /></span>
+              <span>
+                <b>119에 신고하자</b>
+                {callCard === 'meet' ? '불이 났다고 말하고 우리 집 주소를 알려 주자.' : '어디에 있는지 알려 주고 도와 달라고 하자.'}
+              </span>
+            </p>
             <button type="button" className="big-action" data-testid="drill-call" autoFocus onClick={call}>
-              <IconPhone size={30} /> 119에 전화하기
+              다음 <IconNext size={28} />
             </button>
           </div>
         )}

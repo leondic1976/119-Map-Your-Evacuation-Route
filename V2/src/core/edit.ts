@@ -3,7 +3,9 @@
  * 모든 함수는 새 지도를 돌려주고 받은 지도를 바꾸지 않는다.
  */
 import { analyze, cellIdAt, edgeEnds, edgeInGrid, edgeMid, hKey, isExterior, isInterior, isSlanted, parseEdge, pieceCenter, pieceKeyAt, reachableFrom, segmentEdges, sqKey, tagFor, vKey, wallOf } from './grid';
+import { DOOR_SIZES, nextDoorSize } from './doors';
 import { itemsInside } from './items';
+import { extinguishers, MAX_EXTINGUISHERS } from './marks';
 import { routeCursor, squareStep, type ArrowDir } from './path';
 import { OUT, type CellTag, type Layout, type MarkId, type OpeningKind, type Plan, type Pt } from './types';
 
@@ -15,8 +17,10 @@ export function emptyPlan(cols: number, rows: number, density = 1): Plan {
  * 문과 창을 벽 토막에 맞춘다. 다른 벽이 엇갈려 토막이 바뀌어도 있던 자리에 남는다.
  * 그 자리가 꼬리 토막이면 쓸 수 있는 옆 토막으로 옮긴다.
  */
-function placeOpenings(openings: Plan['openings'], layout: Layout): Plan['openings'] {
+function placeOpenings(openings: Plan['openings'], layout: Layout): { openings: Plan['openings']; moved: Map<string, string> } {
   const out: Plan['openings'] = {};
+  // 있던 열쇠 → 옮겨 간 열쇠. 문짝 방향이 문을 따라가게 한다
+  const moved = new Map<string, string>();
   const usable = (key: string): boolean => isExterior(layout, key) || isInterior(layout, key);
   for (const [edge, kind] of Object.entries(openings)) {
     const wall = wallOf(edge);
@@ -27,9 +31,12 @@ function placeOpenings(openings: Plan['openings'], layout: Layout): Plan['openin
     const span = Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (m.x - a.x) / (b.x - a.x) : (m.y - a.y) / (b.y - a.y);
     const near = pieces.filter((e) => e.t0 - 1e-3 <= span && span <= e.t1 + 1e-3);
     const pick = near.find((e) => usable(e.key)) ?? pieces.find((e) => usable(e.key)) ?? near[0] ?? pieces[0]!;
-    if (!out[pick.key]) out[pick.key] = kind;
+    if (!out[pick.key]) {
+      out[pick.key] = kind;
+      moved.set(edge, pick.key);
+    }
   }
-  return out;
+  return { openings: out, moved };
 }
 
 const dotKey = (p: Pt): string => `${p.x},${p.y}`;
@@ -58,11 +65,13 @@ function tidyGaps(walls: string[], openings: Plan['openings']): { walls: string[
 }
 
 /** 벽이 바뀌어도 어긋나지 않게 맞춘다 */
-export function normalize(plan: Plan): Plan {
+export function normalize(input: Plan): Plan {
+  // 문짝 방향과 소화기는 아래에서 맞는 것만 다시 붙인다
+  const { doorTurns: turned, doorSizes: sized, extraExtinguishers: spare, noExtinguisher: none, ...plan } = input;
   const tidy = tidyGaps([...new Set(plan.walls)].filter((k) => edgeInGrid(plan, k)).sort(), plan.openings);
   const walls = tidy.walls;
   const layout = analyze({ ...plan, walls, openings: {} });
-  const openings = placeOpenings(tidy.openings, layout);
+  const { openings, moved } = placeOpenings(tidy.openings, layout);
   const draft: Plan = { ...plan, walls, openings };
 
   // 표지 — 칸마다 하나만 남기고, 칸이 아닌 네모의 표지는 지운다
@@ -93,8 +102,44 @@ export function normalize(plan: Plan): Plan {
     }
   }
 
+  // 소화기 — 칸 안의 것만 남기고, 다른 표시나 서로와 한 조각에 겹치지 않게 한다. 첫째가 없으면 다음 것이 첫째가 된다
+  const taken = new Set((Object.entries(marks) as [MarkId, Pt][]).filter(([id]) => id !== 'meet').map(([, m]) => dotKey(m)));
+  const extras: Pt[] = [];
+  for (const at of spare ?? []) {
+    if (!cellIdAt(layout, at)) continue;
+    const center = pieceCenter(pieceKeyAt(layout, at));
+    if (taken.has(dotKey(center))) continue;
+    taken.add(dotKey(center));
+    extras.push(center);
+  }
+  if (!marks.extinguisher && extras.length > 0) marks.extinguisher = extras.shift();
+  const more = extras.slice(0, MAX_EXTINGUISHERS - 1);
+
+  // 문짝 방향 — 문이 남아 있는 토막의 것만 남긴다
+  const doorTurns: Record<string, number> = {};
+  for (const [edge, turn] of Object.entries(turned ?? {})) {
+    const key = moved.get(edge) ?? edge;
+    if (openings[key] === 'door' && Number.isInteger(turn) && turn >= 1 && turn <= 3) doorTurns[key] = turn;
+  }
+  // 문 크기도 문을 따라간다
+  const doorSizes: Record<string, number> = {};
+  for (const [edge, size] of Object.entries(sized ?? {})) {
+    const key = moved.get(edge) ?? edge;
+    if (openings[key] === 'door' && size !== 1 && (DOOR_SIZES as readonly number[]).includes(size)) doorSizes[key] = size;
+  }
+
   const items = itemsInside(draft, layout);
-  const clean: Plan = { ...draft, tags, marks, openings, ...(items ? { items } : {}) };
+  const clean: Plan = {
+    ...draft,
+    tags,
+    marks,
+    openings,
+    ...(items ? { items } : {}),
+    ...(Object.keys(doorTurns).length > 0 ? { doorTurns } : {}),
+    ...(Object.keys(doorSizes).length > 0 ? { doorSizes } : {}),
+    ...(more.length > 0 ? { extraExtinguishers: more } : {}),
+    ...(none === true && !marks.extinguisher ? { noExtinguisher: true } : {}),
+  };
   const fresh = analyze(clean);
   return {
     ...clean,
@@ -261,7 +306,67 @@ export function toggleOpening(plan: Plan, layout: Layout, edge: string, kind: Op
   return { plan: normalize({ ...plan, openings }), ok: true };
 }
 
-export type MarkResult = { plan: Plan; ok: true } | { plan: Plan; ok: false; why: 'need-inside' | 'need-outside' };
+/**
+ * 문짝 방향 바꾸기(대장 #168). 누를 때마다 반대쪽 → 경첩도 반대 → 처음 쪽에 경첩만 반대 → 처음으로 돈다.
+ * 문이 아니면 그대로 둔다.
+ */
+export function turnDoor(plan: Plan, edge: string): Plan {
+  if (plan.openings[edge] !== 'door') return plan;
+  const doorTurns = { ...(plan.doorTurns ?? {}) };
+  const next = ((doorTurns[edge] ?? 0) + 1) % 4;
+  if (next) doorTurns[edge] = next;
+  else delete doorTurns[edge];
+  return normalize({ ...plan, doorTurns });
+}
+
+/** 문 크기 바꾸기(대장 #170). 더 커지거나 작아지지 않으면 그대로 둔다 */
+export function resizeDoor(plan: Plan, layout: Layout, edge: string, dir: 1 | -1): Plan {
+  if (plan.openings[edge] !== 'door') return plan;
+  const next = nextDoorSize(plan, layout, edge, dir);
+  if (next === null) return plan;
+  return normalize({ ...plan, doorSizes: { ...(plan.doorSizes ?? {}), [edge]: next } });
+}
+
+export type MarkResult = { plan: Plan; ok: true } | { plan: Plan; ok: false; why: 'need-inside' | 'need-outside' | 'full' };
+
+const samePt = (a: Pt, b: Pt): boolean => a.x === b.x && a.y === b.y;
+
+/** 소화기 자리들을 지도에 적는다. 하나라도 놓이면 「우리 집에 없어」는 풀린다 */
+function withExtinguishers(plan: Plan, marks: Plan['marks'], list: Pt[]): Plan {
+  const next = { ...marks };
+  if (list[0]) next.extinguisher = list[0];
+  else delete next.extinguisher;
+  return normalize({ ...plan, marks: next, extraExtinguishers: list.slice(1), noExtinguisher: list.length > 0 ? false : plan.noExtinguisher });
+}
+
+/** 그 자리에 있던 다른 표시를 치운다 — 한 조각에 표시 하나만 둔다 */
+function clearSpot(marks: Plan['marks'], at: Pt, keep: MarkId): Plan['marks'] {
+  const out = { ...marks };
+  for (const other of Object.keys(out) as MarkId[]) {
+    const m = out[other];
+    if (other !== 'meet' && other !== keep && m && samePt(m, at)) delete out[other];
+  }
+  return out;
+}
+
+/** 소화기를 하나 더 놓는다(대장 #169). 이미 소화기가 있는 자리면 그대로 둔다 */
+export function addExtinguisher(plan: Plan, layout: Layout, at: Pt): MarkResult {
+  const key = pieceKeyAt(layout, at);
+  if (!layout.cellAt.has(key)) return { plan, ok: false, why: 'need-inside' };
+  const placed = pieceCenter(key);
+  const all = extinguishers(plan);
+  if (all.some((e) => samePt(e, placed))) return { plan, ok: true };
+  if (all.length >= MAX_EXTINGUISHERS) return { plan, ok: false, why: 'full' };
+  return { plan: withExtinguishers(plan, clearSpot(plan.marks, placed, 'extinguisher'), [...all, placed]), ok: true };
+}
+
+/** 「우리 집에 소화기가 없어」 — 놓았던 소화기를 치우고 없다고 적는다. 다시 누르면 푼다 */
+export function setNoExtinguisher(plan: Plan, on: boolean): Plan {
+  if (!on) return normalize({ ...plan, noExtinguisher: false });
+  const marks = { ...plan.marks };
+  delete marks.extinguisher;
+  return normalize({ ...plan, marks, extraExtinguishers: [], noExtinguisher: true });
+}
 
 /** 표시 놓기. 같은 자리를 다시 누르면 치운다 */
 export function placeMark(plan: Plan, layout: Layout, id: MarkId, at: Pt): MarkResult {
@@ -273,18 +378,24 @@ export function placeMark(plan: Plan, layout: Layout, id: MarkId, at: Pt): MarkR
   }
   if (!inside) return { plan, ok: false, why: 'need-inside' };
   const placed = pieceCenter(key);
-  const marks = { ...plan.marks };
+  if (id === 'extinguisher') {
+    // 놓인 소화기를 누르면 그것을 치우고, 빈 자리를 누르면 마지막에 놓은 것을 옮긴다. 더 놓는 일은 `addExtinguisher` 가 한다
+    const all = extinguishers(plan);
+    const hit = all.findIndex((e) => samePt(e, placed));
+    if (hit >= 0) return { plan: withExtinguishers(plan, plan.marks, all.filter((_, i) => i !== hit)), ok: true };
+    return { plan: withExtinguishers(plan, clearSpot(plan.marks, placed, 'extinguisher'), [...all.slice(0, -1), placed]), ok: true };
+  }
+  let marks = { ...plan.marks };
   const old = marks[id];
-  if (old && old.x === placed.x && old.y === placed.y) delete marks[id];
+  if (old && samePt(old, placed)) delete marks[id];
   else {
     // 한 조각에 표시 하나만 — 눌렀을 때 무엇을 고른 것인지 헷갈리지 않게 한다
-    for (const other of Object.keys(marks) as MarkId[]) {
-      const m = marks[other];
-      if (other !== 'meet' && m && m.x === placed.x && m.y === placed.y) delete marks[other];
-    }
+    marks = clearSpot(marks, placed, id);
     marks[id] = placed;
   }
-  const next: Plan = { ...plan, marks };
+  // 그 자리에 둘째부터의 소화기가 있었으면 함께 치운다. 첫째를 치웠으면 다음 것이 첫째가 된다
+  const extraExtinguishers = (plan.extraExtinguishers ?? []).filter((e) => !samePt(e, placed));
+  const next: Plan = { ...plan, marks, extraExtinguishers };
   // 내 자리가 옮겨지면 시작이 달라지므로 길을 다시 고른다
   if (id === 'me') {
     next.route = [];

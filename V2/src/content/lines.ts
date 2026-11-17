@@ -16,6 +16,7 @@ export interface Line {
 const GUIDE = ['app-guide'];
 const APT = ['nfa-apt-fire', 'safekorea-fire'];
 const MANUAL = ['safekorea-fire', 'mois-kids-fire'];
+const HOME = ['fire-law-home'];
 
 export const LINES = {
   'welcome': { speaker: 'ilgu', emotion: 'happy', text: '안녕! 나는 일구야. 우리 집 대피지도를 같이 그려 보자.', sourceIds: GUIDE },
@@ -46,12 +47,13 @@ export const LINES = {
 
   'door-done': { speaker: 'yeongi', emotion: 'happy', text: '모든 칸이 밖까지 이어졌어! 이제 다음을 눌러 내 자리를 표시해 보자.', sourceIds: GUIDE },
 
-  'mark-low': { speaker: 'yeongi', emotion: 'normal', text: '내가 자는 곳에 내 자리를 놓고, 집 밖에 가족이 만나는 곳을 정하자.', sourceIds: GUIDE },
-  'mark-mid': { speaker: 'yeongi', emotion: 'normal', text: '내 자리와 만나는 곳을 정하고, 가스레인지와 소화기가 있는 곳도 표시하자.', sourceIds: GUIDE },
-  'mark-high': { speaker: 'yeongi', emotion: 'normal', text: '내 자리와 만나는 곳을 정하고, 가스레인지, 소화기, 화재 감지기도 표시하자.', sourceIds: GUIDE },
+  'mark-low': { speaker: 'yeongi', emotion: 'normal', text: '내가 자는 곳에 내 자리를 놓고, 집 밖에 가족이 만날 안전한 곳을 정하자. 소화기가 있는 곳도 표시하자.', sourceIds: GUIDE },
+  'mark-mid': { speaker: 'yeongi', emotion: 'normal', text: '내 자리와 안전한 곳을 정하고, 가스레인지와 소화기가 있는 곳도 표시하자.', sourceIds: GUIDE },
+  'mark-high': { speaker: 'yeongi', emotion: 'normal', text: '내 자리와 안전한 곳을 정하고, 가스레인지, 소화기, 화재 감지기도 표시하자.', sourceIds: GUIDE },
+  'mark-no-extinguisher': { speaker: 'ilgu', emotion: 'normal', text: '지금 소화기가 없어도 괜찮아. 어른께 말해서 나중에라도 꼭 하나 두자.', sourceIds: HOME },
   'mark-need-inside': { speaker: 'ungi', emotion: 'thinking', text: '이건 집 안의 칸에 놓자.', sourceIds: GUIDE },
   'item-door': { speaker: 'ungi', emotion: 'thinking', text: '문 앞은 비워 두자. 다른 자리에 놓아 보자.', sourceIds: APT },
-  'mark-need-outside': { speaker: 'ungi', emotion: 'thinking', text: '만나는 곳은 집 밖에 정하자.', sourceIds: GUIDE },
+  'mark-need-outside': { speaker: 'ungi', emotion: 'thinking', text: '안전한 곳은 집 밖에 정하자.', sourceIds: GUIDE },
 
   'mark-done': { speaker: 'yeongi', emotion: 'happy', text: '표시를 다 놓았어! 이제 다음을 눌러 나가는 길을 찾아 보자.', sourceIds: GUIDE },
 
@@ -74,7 +76,7 @@ export const LINES = {
   'drill-close-tip': { speaker: 'ungi', emotion: 'normal', text: '지나온 문을 닫으면 불이 천천히 번져.', sourceIds: APT },
   'drill-closed': { speaker: 'ilgu', emotion: 'happy', text: '문을 닫았어! 아주 잘했어.', sourceIds: APT },
   'drill-no-door': { speaker: 'ungi', emotion: 'thinking', text: '거기로 가는 문이 없어. 문이 있는 쪽으로 가자.', sourceIds: GUIDE },
-  'drill-outside': { speaker: 'ilgu', emotion: 'happy', text: '밖으로 나왔어! 이제 만나는 곳으로 가자.', sourceIds: GUIDE },
+  'drill-outside': { speaker: 'ilgu', emotion: 'happy', text: '밖으로 나왔어! 이제 안전한 곳으로 가자.', sourceIds: GUIDE },
   'drill-call': { speaker: 'ilgu', emotion: 'normal', text: '가족을 만났어! 이제 119에 불이 났다고 말하고 우리 집 주소를 알려 주자.', say: '가족을 만났어! 이제 일일구에 불이 났다고 말하고 우리 집 주소를 알려 주자.', sourceIds: MANUAL },
   'drill-rescue': { speaker: 'ilgu', emotion: 'worried', text: '나갈 길이 막혔어. 대피공간이나 경량칸막이가 있으면 그쪽으로 가고, 없으면 문을 닫고 창가에서 119에 전화하자.', say: '나갈 길이 막혔어. 대피공간이나 경량칸막이가 있으면 그쪽으로 가고, 없으면 문을 닫고 창가에서 일일구에 전화하자.', sourceIds: APT },
 
@@ -84,9 +86,9 @@ export const LINES = {
   'replay': { speaker: 'ilgu', emotion: 'happy', text: '내가 나온 길을 다시 보자.', sourceIds: GUIDE },
   'drill-how': { speaker: 'ungi', emotion: 'normal', text: '내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어.', sourceIds: GUIDE },
 
-  'howto-draw': { speaker: 'yeongi', emotion: 'happy', text: '점을 누른 채로 다음 점까지 끌어 봐. 점을 하나씩 차례로 눌러도 돼. 먼 점까지 끌면 기울어진 벽도 돼. 빙 둘러 닫으면 칸이 생겨.', sourceIds: GUIDE },
+  'howto-draw': { speaker: 'yeongi', emotion: 'happy', text: '점을 누른 채로 다음 점까지 끌어 봐. 점을 하나씩 차례로 눌러도 돼. 먼 점까지 끌면 기울어진 벽도 돼. 빙 둘러 닫으면 칸이 생겨. 방 넣기에서 방을 골라 놓아도 돼.', sourceIds: GUIDE },
   'howto-sort': { speaker: 'yeongi', emotion: 'happy', text: '크레용을 하나 고르고, 칠할 칸을 한 번 눌러 봐.', sourceIds: GUIDE },
-  'howto-door': { speaker: 'yeongi', emotion: 'happy', text: '문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져. 바깥 벽에 단 문은 밖으로 나가는 문이야.', sourceIds: GUIDE },
+  'howto-door': { speaker: 'yeongi', emotion: 'happy', text: '문을 달 벽을 한 번 눌러 봐. 다시 누르면 떼어져. 문 고치기를 고르고 문을 누르면 열리는 쪽과 크기를 바꿀 수 있어. 바깥 벽에 단 문은 밖으로 나가는 문이야.', sourceIds: GUIDE },
   'howto-mark': { speaker: 'yeongi', emotion: 'happy', text: '놓을 표시를 고르고, 지도에서 놓을 자리를 눌러 봐.', sourceIds: GUIDE },
   'howto-route': { speaker: 'yeongi', emotion: 'happy', text: '방향키를 눌러 봐. 누른 쪽으로 한 칸씩 가. 벽은 못 지나가고 문으로 지나가. 집 밖까지 가면 길이 완성돼.', sourceIds: GUIDE },
   'howto-drill': { speaker: 'ilgu', emotion: 'normal', text: '내가 그린 길로 가기를 누르면 그린 길을 따라가. 방향키로 한 칸씩 갈 수도 있어. 연기가 오면 몸 낮추기를 누르고, 집 밖까지 나가 보자.', sourceIds: GUIDE },

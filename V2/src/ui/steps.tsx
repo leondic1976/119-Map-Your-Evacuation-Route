@@ -1,21 +1,26 @@
 /** 그리기 다섯 단계 — 칸 나누기 · 문 달기 · 표시하기 · 나가는 길 · 집 그리기 */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { analyze, cellIdAt, edgeKeys, unreachableCells } from '../core/grid';
+import { analyze, cellIdAt, dotsBetween, edgeEnds, edgeKeys, unreachableCells } from '../core/grid';
 import { outsideOf, setOutside } from '../core/items';
-import { placeMark, paintCell, eraseWall, addStroke, arrowRoute, routeCandidates, routeCells, toggleOpening, type RouteTap } from '../core/edit';
+import { addExtinguisher, placeMark, paintCell, eraseWall, addStroke, arrowRoute, routeCandidates, routeCells, resizeDoor, toggleOpening, turnDoor, type RouteTap } from '../core/edit';
+import { nextDoorSize } from '../core/doors';
+import { extinguishers, markDone, MAX_EXTINGUISHERS } from '../core/marks';
 import { hasOtherRoute } from '../core/auto';
 import { routeCursor, squareStep, type ArrowDir } from '../core/path';
 import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge, sameDot, startDrag, type DragStroke } from '../core/stroke';
 import { OUT, type MarkId, type OpeningKind, type OutsideSide, type Pt } from '../core/types';
 import { BANDS } from '../content/bands';
 import { cellLabel, crayonsFor, MARK_HINT, MARK_NAME, type Crayon } from '../content/names';
-import { clearRoute, commit, currentBand, getApp, say, setGrid, useApp } from '../store/app';
+import { NO_EXTINGUISHER } from '../content/report';
+import { clearRoute, commit, currentBand, getApp, say, setGrid, tellNoExtinguisher, useApp } from '../store/app';
 import { getHandUnit } from './handUnit';
 import { useLayers } from './Layers';
+import { useRooms } from './Rooms';
 import { CursorGhost } from './CursorGhost';
-import { IconCheck, IconDoor, IconDot, IconEraser, IconHand, IconPencil, IconUndo, IconWindow, KidGlyph, MarkGlyph } from './art';
+import { IconCheck, IconDoor, IconDot, IconEraser, IconHand, IconPencil, IconPointer, IconUndo, IconWindow, KidGlyph, MarkGlyph } from './art';
 import { ArrowPad, useArrowKeys } from './ArrowPad';
 import { PlanView, unitOf } from './PlanView';
+import { Unverified } from './ReviewStep';
 import { ZoomControls } from './ZoomControls';
 
 const usePlan = () => {
@@ -53,6 +58,10 @@ function DotStepper({ cols, rows, grids }: { cols: number; rows: number; grids: 
   );
 }
 
+/** 잡아 둔 파란 점을 놓기까지 기다리는 시간 */
+const ARMED_MS = 15000;
+const NO_STROKE: Pt[] = [];
+
 /* ───────────── 1. 집 그리기 ───────────── */
 export function DrawStep() {
   const { plan, layout } = usePlan();
@@ -66,7 +75,13 @@ export function DrawStep() {
   // 손이 지나온 자리 — 곧게 그으려던 것인지 모서리를 돌던 것인지 가른다
   const live = useRef<DragStroke | null>(null);
   const hadCell = useRef(layout.cells.length > 0);
-  const layers = useLayers(plan, layout);
+  // 방 넣기와 가구 판은 함께 쓰지 않는다. 하나를 열면 다른 하나를 닫는다
+  const roomsStop = useRef<() => void>(() => undefined);
+  const layers = useLayers(plan, layout, () => roomsStop.current());
+  const rooms = useRooms(plan, layers.stop);
+  roomsStop.current = rooms.stop;
+  // 파란 점에서 손 아래 점까지 — 눌렀을 때 생길 선을 미리 보인다
+  const [aim, setAim] = useState<Pt | null>(null);
   const pastLength = useApp((s) => s.past.length);
   const lastPast = useRef(pastLength);
   const armedTold = useRef(false);
@@ -77,16 +92,26 @@ export function DrawStep() {
     lastPast.current = pastLength;
   }, [pastLength]);
   useEffect(() => {
-    if (layers.isOpen || layers.placing) setArmed(null);
-  }, [layers.isOpen, layers.placing]);
+    if (layers.isOpen || layers.placing || rooms.busy) setArmed(null);
+  }, [layers.isOpen, layers.placing, rooms.busy]);
+  // 잡아 둔 점을 잊고 한참 뒤에 다른 곳을 누르면 엉뚱한 선이 생긴다(대장 #174). 오래 두면 놓는다
+  useEffect(() => {
+    setAim(null);
+    if (!armed) return;
+    const timer = window.setTimeout(() => setArmed(null), ARMED_MS);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
 
   useEffect(() => {
     // 집 모양을 닫으면 이어서 방을 만들자고 한다
-    if (layout.cells.length > 0 && !hadCell.current) say('draw-first-cell', 'draw-make-rooms');
+    // 방을 넣어 생긴 칸이면 「안에 선을 그어 방을 만들자」는 말은 맞지 않는다
+    if (layout.cells.length > 0 && !hadCell.current) say('draw-first-cell', rooms.busy ? undefined : 'draw-make-rooms');
     hadCell.current = layout.cells.length > 0;
   }, [layout.cells.length]);
 
   const onPointer = (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
+    // 방을 놓거나 옮기는 중이면 벽을 긋지 않는다
+    if (rooms.pointer(kind, p)) return;
     if (layers.placing) {
       if (kind === 'up') layers.tapMap(p);
       return;
@@ -121,7 +146,12 @@ export function DrawStep() {
       live.current = startDrag(dot);
       setStroke([dot]);
     } else if (kind === 'move') {
-      if (!drawing.current || !live.current) return;
+      if (!drawing.current || !live.current) {
+        // 누르지 않고 움직이는 손 — 파란 점이 있으면 이을 점을 미리 보인다
+        const near = armed ? nearestDot(plan, p, getHandUnit(plan) > 1 ? 0.75 : undefined) : null;
+        setAim((was) => (near && armed && !sameDot(near, armed) ? (was && sameDot(was, near) ? was : near) : null));
+        return;
+      }
       const unit = getHandUnit(plan);
       live.current = dragMove(live.current, p, nearestDot(plan, p, Math.min(0.75, DRAG_RADIUS * unit)), unit);
       setStroke(dragDots(live.current));
@@ -137,8 +167,10 @@ export function DrawStep() {
         const dot = done[0];
         if (armed && sameDot(armed, dot)) setArmed(null);
         else if (armed) {
+          // 이미 벽이 닿아 있는 점에 이으면 그 선은 끝난 것이다. 파란 점을 놓아 다음 누름이 또 선이 되지 않게 한다(대장 #174)
+          const joined = plan.walls.some((wall) => edgeEnds(wall).some((end) => sameDot(end, dot)));
           commit(addStroke(plan, extendStroke([armed], dot)));
-          setArmed(dot);
+          setArmed(joined ? null : dot);
         } else {
           setArmed(dot);
           if (!armedTold.current) {
@@ -155,20 +187,26 @@ export function DrawStep() {
     }
   };
 
+  const hint = armed && aim && !rooms.busy && !layers.placing && tool === 'pencil' ? dotsBetween(armed, aim) : NO_STROKE;
+
   return (
     <>
       <aside className="tools" aria-label="그리기 도구">
         <div className="tool-row">
-          <button type="button" className={tool === 'pencil' ? 'tool on' : 'tool'} data-testid="tool-pencil" aria-pressed={tool === 'pencil'} onClick={() => setTool('pencil')}>
+          <button type="button" className={tool === 'pencil' ? 'tool on' : 'tool'} data-testid="tool-pencil" aria-pressed={tool === 'pencil'} onClick={() => { rooms.stop(); setTool('pencil'); }}>
             <IconPencil /> 연필
           </button>
-          <button type="button" className={tool === 'hand' ? 'tool on' : 'tool'} data-testid="tool-hand" aria-pressed={tool === 'hand'} onClick={() => { setTool('hand'); setArmed(null); }}>
+          <button type="button" className={tool === 'hand' ? 'tool on' : 'tool'} data-testid="tool-hand" aria-pressed={tool === 'hand'} onClick={() => { rooms.stop(); setTool('hand'); setArmed(null); }}>
             <IconHand /> 고르기
           </button>
-          <button type="button" className={tool === 'eraser' ? 'tool on' : 'tool'} data-testid="tool-eraser" aria-pressed={tool === 'eraser'} onClick={() => { setTool('eraser'); setArmed(null); }}>
+          <button type="button" className={tool === 'eraser' ? 'tool on' : 'tool'} data-testid="tool-eraser" aria-pressed={tool === 'eraser'} onClick={() => { rooms.stop(); setTool('eraser'); setArmed(null); }}>
             <IconEraser /> 지우개
           </button>
         </div>
+        {/* 낮은 창에서는 머리글을 감춰 도구 단추와 한 묶음으로 두 줄에 든다 */}
+        <h3 className="tools-head pick-head">골라 넣기</h3>
+        {rooms.button}
+        {layers.buttons}
         <h3 className="tools-head">점 개수</h3>
         <DotStepper cols={plan.cols} rows={plan.rows} grids={info.grids} />
         <h3 className="tools-head">집 밖은 어느 쪽?</h3>
@@ -179,8 +217,6 @@ export function DrawStep() {
             </button>
           ))}
         </div>
-        <h3 className="tools-head">골라 넣기</h3>
-        {layers.buttons}
         {(plan.items?.length ?? 0) > 0 && <p className="tool-note" data-testid="item-move-note">놓은 가구는 「고르기」를 누르고 끌어서 옮겨. 누르면 돌리거나 크기를 바꿔.</p>}
         {tool === 'hand' && <p className="tool-note" data-testid="hand-note">{(plan.items?.length ?? 0) > 0 ? '가구만 잡혀. 벽은 연필로 그려.' : '아직 가구가 없어. 가구에서 골라 넣자.'}</p>}
         <p className="tool-note" data-testid="cell-count">칸 {layout.cells.length}개</p>
@@ -191,25 +227,31 @@ export function DrawStep() {
           plan={layers.shown}
           layout={layout}
           showDots
-          stroke={stroke}
+          stroke={stroke.length > 1 ? stroke : hint}
+          strokeHint={stroke.length <= 1}
           armed={armed}
-          showLabels={false}
-          className={layers.ghost ? 'cursor-none' : layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : tool === 'hand' ? (layers.dragging ? 'cursor-held' : 'cursor-hand') : 'cursor-draw'}
+          showLabels={layout.cells.some((c) => c.kind)}
+          className={rooms.placing || layers.ghost ? 'cursor-none' : rooms.fixing ? (rooms.held ? 'cursor-held' : 'cursor-hand') : layers.placing ? 'cursor-tap' : tool === 'eraser' ? 'cursor-erase' : tool === 'hand' ? (layers.dragging ? 'cursor-held' : 'cursor-hand') : 'cursor-draw'}
           onPointer={onPointer}
           zoomable
           edgePan
           ariaLabel="점을 이어 집을 그리는 모눈 종이"
         >
           {layers.ring}
+          {rooms.ring}
         </PlanView>
         <ZoomControls plan={plan} focus={armed} />
         {layers.ghost}
+        {rooms.ghost}
         {layers.bar}
-        {armed && !layers.placing && (
+        {rooms.bar}
+        {armed && !layers.placing && !rooms.busy && (
           <p className="map-note" data-testid="armed-note" role="status">파란 점에서 이어져. 잘못 눌렀으면 파란 점을 다시 눌러.</p>
         )}
         {layers.banner}
+        {rooms.banner}
         {layers.panel}
+        {rooms.panel}
       </section>
     </>
   );
@@ -260,13 +302,28 @@ export function DoorStep() {
   const look = useLook();
   const band = currentBand();
   const info = BANDS[band];
-  const [kind, setKind] = useState<OpeningKind>('door');
+  // 'fix' 는 다는 것이 아니라 달린 문을 골라 방향과 크기를 고치는 도구다(대장 #168 · #170)
+  const [kind, setKind] = useState<OpeningKind | 'fix'>('door');
   const [hover, setHover] = useState<string | null>(null);
+  const [missed, setMissed] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
+  const doors = useMemo(() => Object.keys(plan.openings).filter((e) => plan.openings[e] === 'door'), [plan]);
+  // 되돌리거나 벽이 바뀌어 문이 없어졌으면 고른 것을 놓는다
+  const chosen = kind === 'fix' && picked && plan.openings[picked] === 'door' ? picked : null;
 
   const stuck = useMemo(() => unreachableCells(layout).map((c) => c.id), [layout]);
   const hasExit = layout.links.some((l) => l.b === OUT);
 
   const onPointer = (type: 'down' | 'move' | 'up' | 'cancel', p: Pt) => {
+    if (kind === 'fix') {
+      // 문만 잡는다. 벽보다 넉넉하게 잡아 문짝 그림을 눌러도 된다
+      const door = nearestEdge(doors, p, 0.6 * getHandUnit(plan));
+      if (type === 'move') setHover(door);
+      if (type !== 'up') return;
+      setPicked(door);
+      setMissed(!door);
+      return;
+    }
     const edge = nearestEdge(edgeKeys(layout), p, 0.42 * getHandUnit(plan));
     if (type === 'move') setHover(edge);
     if (type !== 'up' || !edge) return;
@@ -296,7 +353,27 @@ export function DoorStep() {
             <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M3 12h4M17 12h4M7 7v10M17 7v10" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" /><path d="M10 12h4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="1 3" /></svg>
             트인 곳
           </button>
+          <button type="button" className={kind === 'fix' ? 'tool on' : 'tool'} data-testid="tool-fix" aria-pressed={kind === 'fix'} onClick={() => { setKind('fix'); setMissed(false); setPicked(doors.length === 1 ? doors[0]! : null); }}>
+            <IconPointer /> 문 고치기
+          </button>
         </div>
+        {kind === 'fix' && (
+          <div className="tool-box" data-testid="door-fix" data-picked={chosen ?? ''}>
+            <p className="tool-note" data-testid="fix-note" role="status">
+              {doors.length === 0 ? '아직 문이 없어. 먼저 문을 달자.' : chosen ? '파란 문을 고치는 중이야.' : missed ? '문을 눌러야 해. 문짝이 그려진 곳을 눌러 봐.' : '고칠 문을 눌러.'}
+            </p>
+            <button type="button" className="tool small" data-testid="door-turn" disabled={!chosen} onClick={() => chosen && commit(turnDoor(plan, chosen))}>
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M4 11a8 8 0 0 1 14-4M20 13a8 8 0 0 1-14 4M18 2v5h-5M6 22v-5h5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              방향 바꾸기
+            </button>
+            <button type="button" className="tool small" data-testid="door-smaller" disabled={!chosen || nextDoorSize(plan, layout, chosen, -1) === null} onClick={() => chosen && commit(resizeDoor(plan, layout, chosen, -1))}>
+              작게
+            </button>
+            <button type="button" className="tool small" data-testid="door-bigger" disabled={!chosen || nextDoorSize(plan, layout, chosen, 1) === null} onClick={() => chosen && commit(resizeDoor(plan, layout, chosen, 1))}>
+              크게
+            </button>
+          </div>
+        )}
         {kind === 'gap' && <p className="tool-note" data-testid="gap-note">문짝 없이 뚫린 입구야. 그냥 지나가.</p>}
         {layout.openEdges.length > 0 && <p className="tool-note" data-testid="open-note">거실과 부엌처럼 트인 칸끼리는 점선이야. 문이 없어도 지나가.</p>}
         <ul className="checks">
@@ -307,13 +384,13 @@ export function DoorStep() {
             {stuck.length === 0 ? <IconCheck /> : <IconDot />} 모두 이어짐
           </li>
         </ul>
-        <p className="tool-note">다시 누르면 떼어져.</p>
+        {kind !== 'fix' && <p className="tool-note">다시 누르면 떼어져.</p>}
         {(!hasExit || stuck.length > 0) && (
           <button type="button" className="link-btn" data-testid="door-hint" onClick={onHint}>뭐가 빠졌어?</button>
         )}
       </aside>
       <section className="paper">
-        <PlanView plan={plan} layout={layout} look={look} warn={stuck} hotEdge={hover} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="벽을 눌러 문을 다는 지도" />
+        <PlanView plan={plan} layout={layout} look={look} warn={stuck} hotEdge={chosen ?? hover} onPointer={onPointer} zoomable className="cursor-tap" ariaLabel="벽을 눌러 문을 다는 지도" />
         <ZoomControls plan={plan} />
       </section>
     </>
@@ -326,8 +403,22 @@ export function MarkStep() {
   const look = useLook();
   const band = currentBand();
   const info = BANDS[band];
-  const firstEmpty = info.marks.find((m) => !plan.marks[m]) ?? info.marks[0]!;
+  const firstEmpty = info.marks.find((m) => !markDone(plan, m)) ?? info.marks[0]!;
   const [tool, setTool] = useState<MarkId>(firstEmpty);
+  // 소화기는 여럿일 수 있다(대장 #169). 「하나 더 놓기」를 누른 다음 한 번만 더 놓는다
+  const [adding, setAdding] = useState(false);
+  const [full, setFull] = useState(false);
+  const count = extinguishers(plan).length;
+  const none = plan.noExtinguisher === true;
+  const extStatus = none
+    ? '없다고 적었어. 있으면 지도를 눌러 놓아.'
+    : full
+      ? `소화기는 ${MAX_EXTINGUISHERS}개까지 놓아.`
+      : adding
+        ? '하나 더 놓을 자리를 눌러.'
+        : count === 0
+          ? '소화기가 있는 자리를 눌러. 없으면 아래를 눌러.'
+          : `소화기 ${count}개. 놓은 것을 다시 누르면 치워져.`;
   const layers = useLayers(plan, layout);
   const hasItems = (plan.items?.length ?? 0) > 0;
 
@@ -341,14 +432,17 @@ export function MarkStep() {
       layers.select(null);
       return;
     }
-    const res = placeMark(plan, layout, tool, p);
+    const res = tool === 'extinguisher' && adding ? addExtinguisher(plan, layout, p) : placeMark(plan, layout, tool, p);
     if (!res.ok) {
-      say(res.why === 'need-outside' ? 'mark-need-outside' : 'mark-need-inside');
+      if (res.why === 'full') setFull(true);
+      else say(res.why === 'need-outside' ? 'mark-need-outside' : 'mark-need-inside');
       return;
     }
     commit(res.plan);
+    setAdding(false);
+    setFull(false);
     // 놓고 나면 아직 없는 다음 표시로 넘어가 다시 고르지 않아도 된다
-    const next = info.marks.find((m) => !res.plan.marks[m]);
+    const next = info.marks.find((m) => !markDone(res.plan, m));
     if (next) setTool(next);
   };
 
@@ -357,15 +451,31 @@ export function MarkStep() {
       <aside className="tools" aria-label="표시">
         <div className="marks-list">
           {info.marks.map((m) => (
-            <button key={m} type="button" className={tool === m ? 'mark-chip on' : 'mark-chip'} data-testid={`mark-${m}`} aria-pressed={tool === m} onClick={() => setTool(m)}>
+            <button key={m} type="button" className={tool === m ? 'mark-chip on' : 'mark-chip'} data-testid={`mark-${m}`} aria-pressed={tool === m} onClick={() => { setTool(m); setAdding(false); setFull(false); }}>
               <svg viewBox="-36 -36 72 76" width="44" height="44" aria-hidden="true"><MarkGlyph id={m} look={look} /></svg>
               <span className="mark-text" title={MARK_HINT[m]}>
                 <b>{MARK_NAME[m]}</b>
               </span>
-              {plan.marks[m] && <span className="mark-done"><IconCheck size={20} /></span>}
+              {markDone(plan, m) && <span className="mark-done"><IconCheck size={20} /></span>}
             </button>
           ))}
         </div>
+        {tool === 'extinguisher' && (
+          <div className="tool-box" data-testid="ext-box" data-count={count}>
+            <p className="tool-note" data-testid="ext-status" role="status">{extStatus}</p>
+            <button type="button" className={adding ? 'tool small on' : 'tool small'} data-testid="ext-more" aria-pressed={adding} disabled={count === 0 || count >= MAX_EXTINGUISHERS} onClick={() => { setAdding(!adding); setFull(false); }}>
+              하나 더 놓기
+            </button>
+            <button type="button" className={none ? 'tool small on' : 'tool small'} data-testid="ext-none" aria-pressed={none} onClick={() => { setAdding(false); setFull(false); tellNoExtinguisher(!none); }}>
+              우리 집에 없어
+            </button>
+            {none && (
+              <p className="tool-note advice" data-testid="ext-advice">
+                {NO_EXTINGUISHER.short} <Unverified sourceIds={NO_EXTINGUISHER.sourceIds} />
+              </p>
+            )}
+          </div>
+        )}
         <h3 className="tools-head">골라 넣기</h3>
         {layers.buttons}
         {hasItems && <p className="tool-note" data-testid="item-move-note">놓은 가구는 끌어서 옮기고, 누르면 돌리거나 크기를 바꿔.</p>}

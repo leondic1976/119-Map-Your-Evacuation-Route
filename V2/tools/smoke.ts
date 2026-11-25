@@ -3214,12 +3214,18 @@ async function main(): Promise<void> {
     const stage3d = page.locator(`${t('replay')} > div`).first();
     assert.ok(Number(await stage3d.getAttribute('data-wall-h')) >= 1.2, '벽이 아이 키(0.68)의 두 배에 가깝다');
     assert.ok(Number(await stage3d.getAttribute('data-door-h')) >= 1, '문이 어른(0.87)보다 높다');
-    await page.waitForFunction(() => Number((document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.kidBend) > 0.4, undefined, { timeout: 20000 });
+    // 집 안에서 숙인 자세와 그때의 눈높이는 같은 장면에서 함께 읽는다. 따로 읽으면 그 사이에 밖으로 나갈 수 있다
+    const inside = (key: 'kidBend' | 'kidCloth') =>
+      page.waitForFunction((k) => {
+        const d = (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset;
+        const ok = d.kidIndoors === '1' && (k === 'kidBend' ? Number(d.kidBend) > 0.4 : d.kidCloth === '1');
+        return ok ? Number(d.camY) : null;
+      }, key, { timeout: 20000 });
+    const camY = (await (await inside('kidBend')).jsonValue())!;
     await shot(page, '177-replay-bent');
-    const camY = Number(await stage3d.getAttribute('data-cam-y'));
     assert.ok(camY >= 0.35 && camY <= 0.62, `숙인 아이의 눈높이다: ${camY}`);
     // 집 안에서는 한 손으로 손수건을 코와 입에 대고, 다른 손으로 벽을 짚으며 간다(대장 #186)
-    assert.equal(await stage3d.getAttribute('data-kid-cloth'), '1', '집 안에서는 손수건으로 코와 입을 막는다');
+    await inside('kidCloth');
     await page.waitForFunction(() => (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.kidWall === '1', undefined, { timeout: 30000 });
     await shot(page, '186-replay-wall-hand');
     assert.ok(Number(await stage3d.getAttribute('data-kid-hug')) <= 0.25, '벽 쪽으로는 조금만 붙는다');

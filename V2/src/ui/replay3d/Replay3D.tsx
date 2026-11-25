@@ -862,7 +862,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       // 한 손으로는 손수건을 코와 입에 대고, 다른 손으로는 가까운 벽을 짚으며 간다(대장 #186). 밖에 나오면 허리를 펴고 손수건을 내린다
       const indoors = seg.snap.at !== OUT;
       const crouch = seg.snap.crouch && indoors;
-      const ease = reduced ? 1 : 0.18;
+      // 숙이기는 장면 수가 아니라 흐른 시간을 따라간다 — 1초에 60장일 때 한 장에 0.18 만큼. 느린 기기에서 몸이 길보다 늦지 않는다
+      const ease = reduced ? 1 : 1 - Math.pow(1 - 0.18, dt * 60);
       const blend = reduced ? 1 : Math.min(1, dt * 5);
       const yaw = kid.root.rotation.y;
       const fx = Math.sin(yaw);
@@ -958,6 +959,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       if (touching) wallSeen = true;
       mount.dataset.kidBend = kid.body.rotation.x.toFixed(2);
       mount.dataset.kidCloth = clothShow > 0.5 ? '1' : '0';
+      mount.dataset.kidIndoors = indoors ? '1' : '0';
       mount.dataset.kidWall = touching ? '1' : '0';
       mount.dataset.kidWallSeen = wallSeen ? '1' : '0';
       mount.dataset.kidHug = Math.abs(hug).toFixed(2);

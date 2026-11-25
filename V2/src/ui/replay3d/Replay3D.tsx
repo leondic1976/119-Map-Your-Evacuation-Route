@@ -275,8 +275,13 @@ const KID_EYE_LOW = 0.34;
 const KID_BEND = 0.6;
 const KID_BEND_LOW = 0.95;
 /** 뒤에서 보는 자리 — 아이 바로 뒤, 눈높이에서 어깨 너머로 본다 */
-const CAM_BACK = 0.8;
-const CAM_SIDE = 0.22;
+const CAM_BACK = 1.1;
+const CAM_SIDE = 0.26;
+/** 눈보다 이만큼 위에서 내려다본다 — 손수건 든 손과 벽 짚는 손, 발까지 온몸이 보인다(대장 #189) */
+const CAM_OVER = 0.26;
+/** 어른 키(0.87)에 맞춘 가족의 크기 — 옆으로는 덜 키워 머리가 커 보이지 않게 한다 */
+const ADULT_TALL = 1.34;
+const ADULT_WIDE = 1.16;
 /** 가족 앞에서 내가 멈추는 거리. 뒤에서 보는 눈과 가족 사이에 선다 */
 const KID_STOP = 0.75;
 /** 벽 짚기(대장 #186) — 옆으로 이만큼 안에 벽이 있으면 짚으러 간다. 벽에서 이만큼 떨어져 걷고, 붙는 거리는 이만큼까지다 */
@@ -400,6 +405,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     // 벽 · 문 · 창
     const wallMat = material(0xfbf7ea, 0.9);
     const trimMat = material(0x33363b, 0.8);
+    const baseMat = material(0xcbbf9f, 0.8);
+    const frameMat = material(0xb98a5e, 0.7);
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x9fd0ea, transparent: true, opacity: 0.45, roughness: 0.15 });
     const doorPanels = new Map<string, THREE.Object3D>();
     // 문마다 열린 각도. 지도에서 바꾼 문짝 방향을 그대로 따른다(대장 #168)
@@ -438,6 +445,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       const solid = (start: number, end: number) => {
         if (end - start > 0.001) {
           wall.add(piece(end - start + WALL_T, WALL_H, WALL_H / 2, (start + end) / 2, wallMat));
+          // 걸레받이 — 벽 아래를 두른 띠
+          wall.add(box(end - start + WALL_T, 0.06, WALL_T + 0.024, baseMat, (start + end) / 2, 0.03, 0));
           trim(start, end);
         }
       };
@@ -466,9 +475,16 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           wall.add(piece(width, 0.5, 0.25, o.at, wallMat));
           wall.add(piece(width, WALL_H - DOOR_H + 0.08, (WALL_H + DOOR_H - 0.08) / 2, o.at, wallMat));
           wall.add(piece(width, DOOR_H - 0.58, (DOOR_H + 0.42) / 2, o.at, glassMat));
+          // 창틀 — 아래 턱과 위 틀, 양옆과 가운데 살
+          wall.add(box(width + 0.05, 0.03, WALL_T + 0.07, frameMat, o.at, 0.515, 0));
+          wall.add(box(width, 0.025, WALL_T + 0.03, frameMat, o.at, DOOR_H - 0.0925, 0));
+          for (const x of [start + 0.0125, o.at, end - 0.0125]) wall.add(box(0.025, DOOR_H - 0.61, WALL_T + 0.03, frameMat, x, (DOOR_H + 0.42) / 2, 0));
         } else {
           // 문 위는 천장까지 벽이다
           wall.add(piece(width, WALL_H - DOOR_H, (WALL_H + DOOR_H) / 2, o.at, wallMat));
+          // 문틀 — 양옆 기둥과 위 가로대
+          for (const x of [start - 0.014, end + 0.014]) wall.add(box(0.034, DOOR_H + 0.03, WALL_T + 0.03, frameMat, x, (DOOR_H + 0.03) / 2, 0));
+          wall.add(box(width + 0.062, 0.034, WALL_T + 0.03, frameMat, o.at, DOOR_H + 0.017, 0));
           const [p, q] = edgeSides(layout, o.edge);
           const isExit = layout.cellAt.has(p) !== layout.cellAt.has(q);
           // 경첩을 축으로 도는 문짝. 경첩이 어느 끝인지와 어느 쪽으로 열리는지는 지도와 같다
@@ -537,40 +553,23 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     // 안전한 곳 깃발과 가족
     const meet = plan.marks.meet ? world(plan.marks.meet) : null;
     const adults: THREE.Group[] = [];
+    const people: ReturnType<typeof makeKid>[] = [];
     const family = meet ? new THREE.Vector3(meet.x + 0.57, 0.66, meet.y - 0.04) : null;
     if (meet) {
       const flag = new THREE.Group();
       flag.position.set(meet.x, 0, meet.y);
       flag.add(box(0.04, 1, 0.04, material(0x33363b), -0.55, 0.5, -0.1));
       flag.add(box(0.36, 0.22, 0.02, material(0x3e9d5d), -0.37, 0.86, -0.1));
-      for (let i = 0; i < 2; i++) {
-        const adult = new THREE.Group();
-        adult.position.set(0.42 + i * 0.3, 0, -0.1 + i * 0.12);
-        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.3, 4, 10), material(i ? 0x7b6fb0 : 0x4f8fa8));
-        torso.position.y = 0.42;
-        torso.castShadow = true;
-        const face = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 12), material(0xf1c9a5));
-        face.position.y = 0.76;
-        face.castShadow = true;
-        const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.116, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), material(i ? 0x4a2d2d : 0x2b211b));
-        hairCap.position.y = 0.77;
-        // 내 쪽을 바라보는 얼굴과 흔드는 손
-        const eyeMat = material(0x2b211b);
-        for (const side of [-1, 1]) {
-          const eye = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), eyeMat);
-          eye.position.set(side * 0.04, 0.78, 0.102);
-          adult.add(eye);
-        }
-        const smile = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 12, Math.PI), material(0x8a3b2a));
-        smile.position.set(0, 0.74, 0.104);
-        smile.rotation.z = Math.PI;
-        const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.26, 4, 8), material(i ? 0x7b6fb0 : 0x4f8fa8));
-        arm.position.set(0.15, 0.68, 0);
-        arm.rotation.z = -0.5;
-        adult.add(torso, face, hairCap, smile, arm);
-        adults.push(adult);
-        flag.add(adult);
-      }
+      // 가족 — 나와 같은 몸으로 짓고 어른 키로 키운다. 내 모습과 겹치지 않는 두 사람이다
+      (['d', 'a', 'b'] as LookId[]).filter((id) => id !== look).slice(0, 2).forEach((id, i) => {
+        const person = makeKid(id, 1);
+        person.root.scale.set(KID_SCALE * ADULT_WIDE, KID_SCALE * ADULT_TALL, KID_SCALE * ADULT_WIDE);
+        person.root.position.set(0.44 + i * 0.36, 0, -0.1 + i * 0.12);
+        waveCloth(person.cloth, 0, false, 0);
+        people.push(person);
+        adults.push(person.root);
+        flag.add(person.root);
+      });
       scene.add(flag);
     }
 
@@ -860,7 +859,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       }
       // 집 안에서는 허리를 숙이고 간다. 몸을 낮추면 더 깊이 숙이고 무릎을 굽힌다(대장 #177).
       // 한 손으로는 손수건을 코와 입에 대고, 다른 손으로는 가까운 벽을 짚으며 간다(대장 #186). 밖에 나오면 허리를 펴고 손수건을 내린다
-      const indoors = seg.snap.at !== OUT;
+      // 밖으로 나가는 차례라도 문을 지나기 전까지는 집 안이다 — 서 있는 자리로 가린다(대장 #189)
+      const indoors = seg.snap.at !== OUT || Boolean(cellIdAt(layout, { x: pos.x * density, y: pos.y * density }));
       const crouch = seg.snap.crouch && indoors;
       // 숙이기는 장면 수가 아니라 흐른 시간을 따라간다 — 1초에 60장일 때 한 장에 0.18 만큼. 느린 기기에서 몸이 길보다 늦지 않는다
       const ease = reduced ? 1 : 1 - Math.pow(1 - 0.18, dt * 60);
@@ -1086,7 +1086,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         for (const cloud of clouds) cloud.visible = false;
       }
 
-      const words = captionFor(seg.snap, drill, list.length, idx, time >= total - PARTY_SECONDS, levels.light);
+      const words = captionFor(seg.snap, drill, list.length, idx, time >= total - PARTY_SECONDS, levels.light, indoors);
       if (words !== lastCaption) {
         lastCaption = words;
         setCaption(words);
@@ -1147,14 +1147,23 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           const goal = Math.min(1, room) * CAM_BACK;
           back = goal < back ? goal : back + (goal - back) * Math.min(1, dt * 4);
           const k = back / CAM_BACK;
-          camera.position.set(pos.x + wantX * k, eye + bob, pos.y + wantZ * k);
-          lookAhead.set(pos.x + fx * 1.4, eye + bob - 0.1, pos.y + fz * 1.4);
+          // 벽에 밀려 가까워지면 조금 더 올라가 머리 너머로 본다
+          camera.position.set(pos.x + wantX * k, eye + CAM_OVER + (1 - k) * 0.4 + bob, pos.y + wantZ * k);
+          const ahead = 0.5 + 0.6 * k;
+          lookAhead.set(pos.x + fx * ahead, (crouch ? 0.24 : 0.32) + bob, pos.y + fz * ahead);
           camera.lookAt(lookAhead);
           mount.dataset.camBack = Math.hypot(camera.position.x - pos.x, camera.position.z - pos.y).toFixed(2);
         }
         mount.dataset.camY = camera.position.y.toFixed(2);
       }
       // 가족은 나를 바라본다
+      // 손을 들어 흔든다 — 한 사람은 오른손, 한 사람은 왼손
+      people.forEach((person, i) => {
+        const arm = person.arms[i % 2]!;
+        const wave = reduced ? 0 : Math.sin(time * 6 + i * 1.7) * 0.22;
+        arm.upper.rotation.set(0, 0, arm.side * (2.45 + wave));
+        arm.lower.rotation.set(0, 0, arm.side * (0.35 + wave));
+      });
       adults.forEach((adult) => {
         adult.getWorldPosition(familyDir);
         adult.rotation.y = Math.atan2(camera.position.x - familyDir.x, camera.position.z - familyDir.z);
@@ -1177,6 +1186,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       });
       [roomTex, passTex, newTex, smokeTex, sparkTex].forEach((t) => t.dispose());
       kid.dispose();
+      people.forEach((person) => person.dispose());
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -1204,11 +1214,11 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
   );
 }
 
-function captionFor(snap: Snapshot, drill: DrillState, count: number, idx: number, ending: boolean, light: number): string {
+function captionFor(snap: Snapshot, drill: DrillState, count: number, idx: number, ending: boolean, light: number, indoors: boolean): string {
   if (ending) return drill.end === 'rescue' ? '문을 닫고 119에 알렸어' : '대피 성공! 가족과 만났어';
   if (idx === 0) return '내 자리에서 시작';
   if (idx === count - 1 && drill.end === 'meet') return '안전한 곳으로 가는 중';
-  if (snap.at === OUT) return '밖으로 나왔어';
+  if (snap.at === OUT) return indoors ? '나가는 길을 따라가는 중' : '밖으로 나왔어';
   const here = snap.field[snap.at] ?? 0;
   if (here >= light) return snap.crouch ? '몸을 낮추고 지나가는 중' : '연기 속을 지나가는 중';
   return '나가는 길을 따라가는 중';

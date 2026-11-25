@@ -2020,8 +2020,8 @@ async function main(): Promise<void> {
     await page.waitForTimeout(1800);
     const cam = { y: Number(await stage3d.getAttribute('data-cam-y')), back: Number(await stage3d.getAttribute('data-cam-back')) };
     assert.equal(await stage3d.getAttribute('data-view'), 'behind');
-    assert.ok(cam.y >= 0.4 && cam.y <= 0.7, `아이 눈높이다(벽 1.3, 어른 0.87): ${cam.y}`);
-    assert.ok(cam.back >= 0.15 && cam.back <= 0.9, `내 바로 뒤다: ${cam.back}`);
+    assert.ok(cam.y >= 0.55 && cam.y <= 1.25, `내 어깨 위에서 본다(벽 1.3 보다 낮다): ${cam.y}`);
+    assert.ok(cam.back >= 0.15 && cam.back <= 1.25, `내 바로 뒤다: ${cam.back}`);
     await shot(page, '148-c-behind');
     await page.keyboard.press('Escape');
     assert.deepEqual(errors, [], '콘솔 오류');
@@ -2370,7 +2370,7 @@ async function main(): Promise<void> {
     await page.waitForFunction(() => Number((document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.camBack) > 0, undefined, { timeout: 20000 });
     assert.equal(await stage3d.getAttribute('data-view'), 'behind', '처음부터 내 뒤에서 본다');
     const camY = Number(await stage3d.getAttribute('data-cam-y'));
-    assert.ok(camY >= 0.4 && camY <= 0.7, `아이 눈높이다: ${camY}`);
+    assert.ok(camY >= 0.55 && camY <= 1.25, `내 어깨 위에서 본다: ${camY}`);
     await shot(page, '159-a-behind');
     await page.waitForFunction(() => document.querySelector('[data-testid="replay"] > div')?.getAttribute('data-fireworks') === '1', undefined, { timeout: 120000 });
     assert.ok(Number(await stage3d.getAttribute('data-bursts')) >= 16, `축포가 열여섯 송이 넘는다: ${await stage3d.getAttribute('data-bursts')}`);
@@ -3277,7 +3277,7 @@ async function main(): Promise<void> {
       }, key, { timeout: 20000 });
     const camY = (await (await inside('kidBend')).jsonValue())!;
     await shot(page, '177-replay-bent');
-    assert.ok(camY >= 0.35 && camY <= 0.62, `숙인 아이의 눈높이다: ${camY}`);
+    assert.ok(camY >= 0.5 && camY <= 1.25, `숙인 아이를 어깨 위에서 본다: ${camY}`);
     // 집 안에서는 한 손으로 손수건을 코와 입에 대고, 다른 손으로 벽을 짚으며 간다(대장 #186)
     await inside('kidCloth');
     // 벽을 짚은 순간은 짧아 느린 기계에서는 놓칠 수 있다. 한 번이라도 짚었으면 남는 표시를 본다

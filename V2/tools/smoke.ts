@@ -3226,7 +3226,8 @@ async function main(): Promise<void> {
     assert.ok(camY >= 0.35 && camY <= 0.62, `숙인 아이의 눈높이다: ${camY}`);
     // 집 안에서는 한 손으로 손수건을 코와 입에 대고, 다른 손으로 벽을 짚으며 간다(대장 #186)
     await inside('kidCloth');
-    await page.waitForFunction(() => (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.kidWall === '1', undefined, { timeout: 30000 });
+    // 벽을 짚은 순간은 짧아 느린 기계에서는 놓칠 수 있다. 한 번이라도 짚었으면 남는 표시를 본다
+    await page.waitForFunction(() => (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.kidWallSeen === '1', undefined, { timeout: 30000 });
     await shot(page, '186-replay-wall-hand');
     assert.ok(Number(await stage3d.getAttribute('data-kid-hug')) <= 0.25, '벽 쪽으로는 조금만 붙는다');
     // 밖에 나오면 허리를 편다

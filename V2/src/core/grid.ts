@@ -442,7 +442,7 @@ function makeRuns(edges: Map<string, EdgeInfo>): EdgeRun[] {
 }
 
 /** 문 없이 트여 있는 칸 — 지나가는 곳(거실·복도·현관)과 부엌. 이런 칸끼리 맞닿으면 문을 달지 않아도 지나간다 */
-export const isOpenCell = (cell: { kind: Cell['kind']; name: string | null }): boolean => cell.kind === 'pass' || cell.name === 'kitchen';
+export const isOpenCell = (cell: { kind: Cell['kind']; name: string | null }): boolean => (cell.kind === 'pass' && cell.name !== 'vestibule') || cell.name === 'kitchen';
 
 export function analyze(plan: Plan): Layout {
   const walls = new Set(plan.walls);

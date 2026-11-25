@@ -1,7 +1,11 @@
 /** 7. 돌아보기 — 잘한 점 · 고칠 점 · 3D 다시 보기 · 인쇄 */
 import { lazy, Suspense, useMemo, useState } from 'react';
+import { escapeAids } from '../core/aids';
+import { hasOtherRoute } from '../core/auto';
 import { analyze } from '../core/grid';
+import { pickQuiz } from '../core/quiz';
 import { buildReport, earnedStamps } from '../core/report';
+import { AID_NOTE, AID_TEXT, FIX_TOPIC, QUIZ } from '../content/quiz';
 import { FIX, NO_EXTINGUISHER, PRAISE } from '../content/report';
 import { STAMPS } from '../content/stamps';
 import { isVerified } from '../content/sources';
@@ -9,6 +13,8 @@ import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, planGaps, retryDrill, say, STEP_LABEL, useApp } from '../store/app';
 import { IconCheck, IconCube, IconHelp, IconPencil, IconPlay, IconPrint, StampGlyph } from './art';
 import { PlanView } from './PlanView';
+import { Quiz, IconOx } from './Quiz';
+import './quiz.css';
 
 const Replay3D = lazy(() => import('./replay3d/Replay3D'));
 
@@ -27,6 +33,18 @@ export function ReviewStep() {
   const [replay, setReplay] = useState(false);
   const gaps = useMemo(() => planGaps(plan), [plan]);
   const empty = layout.cells.length === 0;
+  // 5~6학년 — 연습 뒤에 OX 로 묻고, 지도에 그린 피난 시설을 알려 준다(대장 #188)
+  const high = currentBand() === 'high';
+  const aids = useMemo(() => escapeAids(plan, layout), [plan, layout]);
+  const needSecond = high && plan.route2.length === 0 && hasOtherRoute(plan);
+  const [quiz, setQuiz] = useState<number | null>(null);
+  const [rounds, setRounds] = useState(0);
+  const questions = useMemo(() => {
+    if (quiz === null || !report) return [];
+    const want = [...report.fixes.map((f) => FIX_TOPIC[f]!), 'aids', 'plan'];
+    const ids = pickQuiz(QUIZ, want, quiz);
+    return ids.map((id) => QUIZ.find((q) => q.id === id)!);
+  }, [quiz, report]);
 
   return (
     <>
@@ -63,8 +81,15 @@ export function ReviewStep() {
           <PlanView plan={plan} layout={layout} look={look} showRoute />
         </div>
         <div className="review-notes">
-          {report ? (
+          {report && quiz !== null ? (
+            <Quiz key={quiz} questions={questions} aids={aids} needSecond={needSecond} onClose={() => setQuiz(null)} onAgain={() => { setQuiz(rounds); setRounds((n) => n + 1); }} />
+          ) : report ? (
             <>
+              {high && (
+                <button type="button" className="big-action review-quiz" data-testid="review-quiz" onClick={() => { setQuiz(rounds); setRounds((n) => n + 1); }}>
+                  <IconOx size={26} /> OX 문제로 확인하기
+                </button>
+              )}
               {stamps.length > 0 && (
                 <>
                   <h3 className="note-head good">칭찬 도장</h3>
@@ -96,6 +121,22 @@ export function ReviewStep() {
                       </li>
                     ))}
                   </ul>
+                </>
+              )}
+              {high && (
+                <>
+                  <h3 className="note-head next">{AID_NOTE.head}</h3>
+                  {aids.length > 0 ? (
+                    <ul className="note-list" data-testid="review-aids">
+                      {aids.map((id) => (
+                        <li key={id}>
+                          <IconCheck /> <span><b>{AID_TEXT[id].label}</b> — {AID_TEXT[id].tell}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="note-text" data-testid="review-no-aids">{AID_NOTE.none} <Unverified sourceIds={AID_NOTE.sourceIds} /></p>
+                  )}
                 </>
               )}
             </>

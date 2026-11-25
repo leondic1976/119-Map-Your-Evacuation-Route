@@ -1,0 +1,15 @@
+/* 5~6학년 OX 문제(대장 #188) — 돌아보기의 오른쪽 칸에 뜬다 */
+.quiz { display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: stretch; word-break: keep-all; }
+.quiz-text { font-size: 22px; line-height: 1.45; padding: 12px 14px; background: #fff; border: 3px solid var(--pencil); border-radius: 14px; }
+.quiz-ox { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ox-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 96px; font: inherit; font-size: 20px; background: #fff; border: 3px solid var(--pencil); border-radius: 16px; cursor: pointer; }
+.ox-btn.o { color: #1f6fb5; }
+.ox-btn.x { color: #b3421f; }
+.ox-btn:focus-visible { outline: 4px solid var(--green); outline-offset: 2px; }
+.quiz-why { display: flex; flex-direction: column; gap: 8px; font-size: 20px; line-height: 1.45; }
+.quiz-why b { font-size: 23px; color: var(--green-d); }
+.quiz-why[data-right='0'] b { color: #8a4b12; }
+.quiz-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.quiz-row .tool, .quiz-stop { flex: 1 1 auto; min-height: var(--hit, 48px); }
+.quiz-stop { align-self: flex-start; flex: none; }
+.review-quiz { align-self: stretch; flex: none; }

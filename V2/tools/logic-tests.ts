@@ -36,16 +36,19 @@ import { DRAG_RADIUS, dragDots, dragMove, extendStroke, nearestDot, nearestEdge,
 import { clampView, fullView, panBy, viewBoxOf, zoomAround, ZOOM_MAX } from '../src/core/zoom';
 import { OUT, type Band, type Plan, type Pt } from '../src/core/types';
 import { BANDS, bandOfGrade } from '../src/content/bands';
+import { escapeAids } from '../src/core/aids';
+import { pickQuiz, QUIZ_COUNT } from '../src/core/quiz';
+import { AID_TEXT, FIX_TOPIC, QUIZ } from '../src/content/quiz';
 import { FIRE } from '../src/content/fire';
 import { buildHome, HOMES } from '../src/content/homes';
 import { ITEM_GROUPS, ITEMS } from '../src/content/items';
-import { crayonsFor, MARK_NAME } from '../src/content/names';
+import { cellLabel, crayonsFor, MARK_NAME } from '../src/content/names';
 import { canOpenSide, roomBaseSize, ROOM_SIZE } from '../src/content/rooms';
 import { STAMPS } from '../src/content/stamps';
 import { howToFor } from '../src/content/howto';
 import { LINES } from '../src/content/lines';
 import { PROMISES } from '../src/content/report';
-import { SOURCES } from '../src/content/sources';
+import { isVerified, SOURCES } from '../src/content/sources';
 import { segEdges, TEMPLATES, templatesFor, type Template } from '../src/content/templates';
 import type { Check } from './test';
 
@@ -103,6 +106,7 @@ function walkOut(plan: Plan, seed: number, band: Band): DrillState {
 }
 
 export function runLogicTests(check: Check): void {
+  quizChecks(check);
   check('[칸] 선으로 둘러싸면 칸이 하나 생긴다', () => {
     const plan = addEdges(emptyPlan(8, 6), box(1, 1, 3, 3));
     const layout = analyze(plan);
@@ -2096,6 +2100,59 @@ export function runLogicTests(check: Check): void {
       assert.deepEqual(normalize(plan), plan, t.id);
       assert.deepEqual(JSON.parse(JSON.stringify(plan)), plan, t.id);
     }
+  });
+}
+
+export function quizChecks(check: (name: string, fn: () => void) => void): void {
+  check('[OX] 문제는 출처가 대조된 것이고, O 와 X 가 고루 있으며, 까닭이 붙는다 (대장 #188)', () => {
+    assert.ok(QUIZ.length >= 15, `문제 ${QUIZ.length}개`);
+    assert.equal(new Set(QUIZ.map((q) => q.id)).size, QUIZ.length, '열쇠가 겹치지 않는다');
+    for (const q of QUIZ) {
+      assert.ok(q.sourceIds.length > 0 && isVerified(q.sourceIds), `${q.id}: 출처`);
+      assert.ok(q.text.length >= 12 && q.why.length >= 12, `${q.id}: 문장과 까닭`);
+      assert.ok(!/점수|등급|순위|[0-9]+점/.test(q.text + q.why), `${q.id}: 점수를 말하지 않는다`);
+    }
+    const yes = QUIZ.filter((q) => q.answer).length;
+    assert.ok(yes >= 6 && QUIZ.length - yes >= 6, `O ${yes} · X ${QUIZ.length - yes}`);
+    for (const word of ['경량칸막이', '하향식 피난구', '대피공간', '엘리베이터', '방화문', '옥상', '119']) assert.ok(QUIZ.some((q) => q.text.includes(word)), word);
+    for (const topic of Object.values(FIX_TOPIC)) assert.ok(QUIZ.some((q) => q.topic === topic), topic);
+  });
+
+  check('[OX] 여섯 문제를 겹치지 않게 고르고, 다시 볼 주제를 먼저 넣으며, 판마다 달라진다 (대장 #188)', () => {
+    for (let round = 0; round < 40; round++) {
+      const ids = pickQuiz(QUIZ, ['close', 'aids', 'plan'], round);
+      assert.equal(ids.length, QUIZ_COUNT);
+      assert.equal(new Set(ids).size, QUIZ_COUNT, '겹치지 않는다');
+      const topics = ids.map((id) => QUIZ.find((q) => q.id === id)!.topic);
+      for (const t of ['close', 'aids', 'plan']) assert.ok(topics.includes(t as never), `${round}: ${t}`);
+      assert.deepEqual(ids, pickQuiz(QUIZ, ['close', 'aids', 'plan'], round), '같은 판은 같은 문제다');
+    }
+    assert.notDeepEqual(pickQuiz(QUIZ, [], 0), pickQuiz(QUIZ, [], 1));
+    const seen = new Set<string>();
+    for (let round = 0; round < QUIZ.length; round++) pickQuiz(QUIZ, [], round).forEach((id) => seen.add(id));
+    assert.equal(seen.size, QUIZ.length, '돌아가며 모든 문제가 나온다');
+    assert.deepEqual(pickQuiz([], ['aids'], 3), []);
+  });
+
+  check('[피난 시설] 지도에 그린 대피공간·경량칸막이·아래층 문·피난 전실을 찾고, 피난 전실은 5~6학년만 고르며 벽이 남는다 (대장 #188)', () => {
+    assert.ok(crayonsFor('high').pass.some((c) => c.name === 'vestibule'));
+    for (const band of ['low', 'mid'] as const) assert.ok(![...crayonsFor(band).pass, ...crayonsFor(band).room].some((c) => c.name === 'vestibule'), band);
+    assert.equal(cellLabel('pass', 'vestibule'), '계단 앞 전실');
+    let plan = emptyPlan(6, 3);
+    plan = addEdges(plan, [...box(0, 0, 6, 2), vKey(2, 0), vKey(2, 1), vKey(4, 0), vKey(4, 1)]);
+    let layout = analyze(plan);
+    assert.equal(layout.cells.length, 3);
+    assert.deepEqual(escapeAids(plan, layout), []);
+    const at = (x: number) => cellIdAt(layout, { x: x + 0.5, y: 0.5 })!;
+    plan = paintCell(plan, layout, at(0), { kind: 'pass', name: 'hall' });
+    plan = paintCell(plan, analyze(plan), at(2), { kind: 'pass', name: 'vestibule' });
+    plan = paintCell(plan, analyze(plan), at(4), { kind: 'room', name: 'refuge' });
+    layout = analyze(plan);
+    assert.deepEqual(escapeAids(plan, layout), ['refuge', 'vestibule']);
+    assert.equal(layout.openEdges.length, 0, '복도와 피난 전실 사이는 트이지 않는다 — 방화문을 단다');
+    plan = { ...plan, items: [{ kind: 'hatch', x: 5, y: 1, angle: 0 }, { kind: 'partition', x: 5, y: 0.2, angle: 0 }] };
+    assert.deepEqual(escapeAids(plan, layout), ['refuge', 'partition', 'hatch', 'vestibule']);
+    for (const id of escapeAids(plan, layout)) assert.ok(AID_TEXT[id].label && AID_TEXT[id].tell);
   });
 }
 

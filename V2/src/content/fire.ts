@@ -29,6 +29,7 @@ const ignite: Record<string, number> = {
   entry: 0.5,
   hall: 0.5,
   stairs: 0.3,
+  vestibule: 0,
   pass: 0.5,
   bath: 0,
   refuge: 0,

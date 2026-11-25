@@ -17,6 +17,7 @@ export const ROOM_SIZE: Record<string, readonly [number, number]> = {
   entry: [2, 1],
   stairs: [2, 2],
   hall: [4, 1],
+  vestibule: [2, 1],
 };
 
 export const roomBaseSize = (id: string): readonly [number, number] => ROOM_SIZE[id] ?? [3, 2];

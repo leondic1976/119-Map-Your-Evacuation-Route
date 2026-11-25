@@ -347,6 +347,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .studio:not([data-step="drill"]):not([data-step="review"]) .crayons,
   .studio:not([data-step="drill"]):not([data-step="review"]) .marks-list { display: contents; }
   .tools-head.pick-head { display: none; }
+  /* 칸 칠하기 — 「왜 나눌까?」는 크레용 옆 빈 자리에 선다. 크레용이 늘어도 한 줄을 더 쓰지 않는다(대장 #188) */
+  .studio[data-step="sort"] .link-btn { grid-column: auto; }
   .side-pick { grid-template-columns: repeat(4, 1fr); }
   .stepper { grid-template-columns: 1fr 1fr 1fr; align-items: center; }
   .stepper-count { grid-column: auto; }

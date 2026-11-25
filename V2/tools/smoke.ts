@@ -181,6 +181,23 @@ async function startAs(page: Page, grade: number): Promise<void> {
   await page.waitForSelector('.studio');
 }
 
+/** 돌아보기 오른쪽 칸의 단추 — 48×48 이상이고, 스크롤해 닿으면 가려지지 않는다 */
+async function notesTargets(page: Page, label: string): Promise<void> {
+  const bad = await page.evaluate(() => {
+    const out: string[] = [];
+    for (const el of document.querySelectorAll<HTMLElement>('.review-notes button')) {
+      el.scrollIntoView({ block: 'nearest' });
+      const r = el.getBoundingClientRect();
+      if (r.width < 48 || r.height < 48) out.push(`${el.dataset.testid} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (!hit || !(el === hit || el.contains(hit))) out.push(`${el.dataset.testid} 가려짐`);
+    }
+    document.querySelector('.review-notes')!.scrollTop = 0;
+    return out;
+  });
+  assert.deepEqual(bad, [], label);
+}
+
 async function checkTargets(page: Page, label: string): Promise<void> {
   const small = await page.evaluate(() => {
     const out: string[] = [];
@@ -731,6 +748,43 @@ async function main(): Promise<void> {
     const praise = await page.locator(t('praises')).innerText();
     assert.ok(praise.includes('문을 닫아'), praise);
     await shot(page, '35-high-review');
+
+    // OX 문제 — 여섯 문제를 풀고, 까닭을 듣고, 끝에서 지도를 다시 그리러 간다(대장 #188)
+    assert.ok((await page.locator(t('review-no-aids')).innerText()).includes('경량칸막이'), '그려 둔 곳이 없으면 찾아보자고 한다');
+    await notesTargets(page, '5~6학년 돌아보기');
+    await page.click(t('review-quiz'));
+    await page.waitForSelector(t('quiz'));
+    await notesTargets(page, 'OX 문제');
+    const seenIds: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const card = page.locator(t('quiz'));
+      assert.equal(await card.getAttribute('data-at'), String(i));
+      seenIds.push((await card.getAttribute('data-id'))!);
+      const answer = await card.getAttribute('data-answer');
+      // 둘째 문제는 일부러 틀린다
+      const pick = i === 1 ? (answer === 'o' ? 'x' : 'o') : answer;
+      await page.click(t(`quiz-${pick}`));
+      const why = page.locator(t('quiz-why'));
+      assert.equal(await why.getAttribute('data-right'), i === 1 ? '0' : '1');
+      assert.ok((await why.innerText()).length > 20, '까닭을 알려 준다');
+      assert.equal(await why.locator('.unverified').count(), 0, '검수 대기가 붙지 않는다');
+      if (i === 1) {
+        await shot(page, '188-quiz-why');
+        await notesTargets(page, 'OX 까닭');
+      }
+      await page.click(t('quiz-next'));
+    }
+    assert.equal(new Set(seenIds).size, 6, '문제가 겹치지 않는다');
+    await page.waitForSelector(t('quiz-end'));
+    const end = await page.locator(t('quiz-end')).innerText();
+    assert.equal(await page.locator(`${t('quiz-again-list')} li`).count(), 1, '틀린 것만 다시 본다');
+    assert.ok(!/점수|등급|[0-9]+점|[0-9] ?개 맞/.test(end), '점수를 보이지 않는다');
+    assert.ok(end.includes('지도에 더 그려 보자'));
+    await notesTargets(page, 'OX 끝');
+    await shot(page, '188-quiz-end');
+    await page.click(t('quiz-redraw'));
+    assert.equal(await page.locator('.studio').getAttribute('data-step'), 'draw', '대피지도를 다시 그리러 간다');
+    assert.ok((await num(page, 'walls')) > 0, '그린 지도는 그대로다');
     assert.deepEqual(errors, [], '콘솔 오류');
     await ctx.close();
   });

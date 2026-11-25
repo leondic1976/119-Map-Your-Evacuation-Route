@@ -34,7 +34,11 @@ const NAMED_PASS: Crayon[] = [
   { id: 'entry', kind: 'pass', name: 'entry', label: '현관' },
   { id: 'stairs', kind: 'pass', name: 'stairs', label: '계단' },
 ];
-const HIGH_PASS: Crayon[] = [{ id: 'hall', kind: 'pass', name: 'hall', label: '복도' }];
+/** 5~6학년은 복도와, 계단 앞에서 방화문으로 막힌 전실(피난 전실)을 더 고른다(대장 #188) */
+const HIGH_PASS: Crayon[] = [
+  { id: 'hall', kind: 'pass', name: 'hall', label: '복도' },
+  { id: 'vestibule', kind: 'pass', name: 'vestibule', label: '계단 앞 전실' },
+];
 
 export function crayonsFor(band: Band): { room: Crayon[]; pass: Crayon[] } {
   if (band === 'low') return { room: [ROOM, KITCHEN, BATH, VERANDA], pass: [PASS, LIVING] };

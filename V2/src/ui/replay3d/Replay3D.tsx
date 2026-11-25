@@ -13,10 +13,11 @@ import { pointAlong, polylineLength, routePoints } from '../../core/path';
 import { OUT, type Cell, type Layout, type Plan, type Pt } from '../../core/types';
 import { ITEMS } from '../../content/items';
 import { FIRE } from '../../content/fire';
-import { LOOKS, type LookId } from '../../content/names';
+import type { LookId } from '../../content/names';
 import { host as platform } from '../../platform/host';
 import { getApp } from '../../store/app';
 import { IconClose, IconPlay } from '../art';
+import { KID_ANKLE, KID_HIP, KID_HIP_LOW, PALM_AT_MOUTH, applyPose, blendPose, handFacing, makeKid, newPose, solveLimb, swingArm, waveCloth } from './kid';
 
 /**
  * 벽과 문의 높이(대장 #177). 아이 키(0.68)가 벽의 절반쯤, 어른(0.87)이 문보다 조금 작게 보이도록
@@ -264,19 +265,12 @@ function sparkTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-function hexOf(css: string): number {
-  return new THREE.Color(css).getHex();
-}
-
 /** 아이 키 — 어른(0.87)보다 한 뼘 넘게 작다. 눈은 머리 가운데쯤이다 */
 const KID_SCALE = 1.05;
 const KID_EYE = 0.56;
 /** 집 안에서는 허리를 숙이고 가므로 눈이 조금 낮다. 몸을 낮추면 더 낮다 */
 const KID_EYE_BENT = 0.5;
 const KID_EYE_LOW = 0.34;
-/** 허리(엉덩이) 높이 — 윗몸은 여기를 축으로 앞으로 숙인다(대장 #177) */
-const KID_HIP = 0.2;
-const KID_HIP_LOW = 0.14;
 /** 숙이는 각도(라디안) — 집 안에서 걸을 때와, 연기 속에서 몸을 낮췄을 때 */
 const KID_BEND = 0.6;
 const KID_BEND_LOW = 0.95;
@@ -285,85 +279,14 @@ const CAM_BACK = 0.8;
 const CAM_SIDE = 0.22;
 /** 가족 앞에서 내가 멈추는 거리. 뒤에서 보는 눈과 가족 사이에 선다 */
 const KID_STOP = 0.75;
+/** 벽 짚기(대장 #186) — 옆으로 이만큼 안에 벽이 있으면 짚으러 간다. 벽에서 이만큼 떨어져 걷고, 붙는 거리는 이만큼까지다 */
+const HUG_LOOK = 0.8;
+const HUG_GAP = 0.28;
+const HUG_MAX = 0.25;
+/** 낮은 가구와 몸 사이에 남기는 틈 · 손이 닿는 거리 */
+const KID_CLEAR = 0.17;
+const HUG_REACH = 0.36;
 const CAM_RISE = 0.08;
-
-/** 이름표에서 고른 내 모습을 3D 로 짓는다. 머리 모양과 머리색, 옷 색이 지도 위 그림과 같다 */
-function makeKid(look: LookId): { root: THREE.Group; body: THREE.Group; legs: THREE.Mesh[]; arms: THREE.Group[] } {
-  const spec = LOOKS.find((l) => l.id === look) ?? LOOKS[0];
-  const root = new THREE.Group();
-  root.scale.setScalar(KID_SCALE);
-  // 윗몸 — 허리를 축으로 숙인다. 안의 것은 허리에서 잰 높이에 놓는다
-  const body = new THREE.Group();
-  body.position.y = KID_HIP;
-  root.add(body);
-  const shirt = material(hexOf(spec.shirt));
-  const skin = material(0xf6d3b0);
-  const hair = material(hexOf(spec.hair));
-  const dark = material(0x33363b);
-  const part = (geometry: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number): THREE.Mesh => {
-    const mesh = new THREE.Mesh(geometry, mat);
-    mesh.position.set(x, y - KID_HIP, z);
-    mesh.castShadow = true;
-    body.add(mesh);
-    return mesh;
-  };
-  part(new THREE.CapsuleGeometry(0.1, 0.14, 4, 10), shirt, 0, 0.3, 0);
-  part(new THREE.SphereGeometry(0.115, 18, 14), skin, 0, 0.53, 0);
-  // 얼굴은 가는 쪽(+z)을 본다
-  for (const side of [-1, 1]) part(new THREE.SphereGeometry(0.015, 8, 6), dark, side * 0.042, 0.54, 0.106);
-  const smile = part(new THREE.TorusGeometry(0.03, 0.006, 6, 12, Math.PI), material(0x8a3b2a), 0, 0.5, 0.108);
-  smile.rotation.z = Math.PI;
-  // 머리카락 — 뒤통수를 덮는 머리와 정수리, 그 위에 모양마다 다른 것을 얹는다
-  const backHair = part(new THREE.SphereGeometry(0.118, 16, 12), hair, 0, 0.545, -0.014);
-  backHair.scale.y = 0.9;
-  const top = new THREE.SphereGeometry(0.123, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-  if (spec.style === 'cap') {
-    part(top, material(0xe0603f), 0, 0.545, 0);
-    const brim = part(new THREE.CylinderGeometry(0.075, 0.075, 0.014, 16), material(0xe0603f), 0, 0.56, 0.125);
-    brim.scale.x = 1.2;
-  } else {
-    part(top, hair, 0, 0.54, 0);
-  }
-  if (spec.style === 'long') {
-    const fall = part(new THREE.CapsuleGeometry(0.112, 0.13, 4, 12), hair, 0, 0.44, -0.05);
-    fall.scale.z = 0.55;
-  } else if (spec.style === 'curly') {
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
-      part(new THREE.SphereGeometry(0.05, 10, 8), hair, Math.sin(a) * 0.09, 0.61, Math.cos(a) * 0.09 - 0.012);
-    }
-    part(new THREE.SphereGeometry(0.06, 10, 8), hair, 0, 0.645, -0.01);
-  } else if (spec.style === 'pony') {
-    part(new THREE.SphereGeometry(0.04, 10, 8), hair, 0, 0.6, -0.125);
-    const tail = part(new THREE.CapsuleGeometry(0.032, 0.13, 4, 8), hair, 0, 0.5, -0.165);
-    tail.rotation.x = -0.25;
-  } else if (spec.style === 'twin') {
-    for (const side of [-1, 1]) part(new THREE.SphereGeometry(0.052, 12, 10), hair, side * 0.14, 0.57, -0.02);
-  }
-  // 팔 — 어깨를 축으로 흔든다
-  const arms: THREE.Group[] = [];
-  for (const side of [-1, 1]) {
-    const arm = new THREE.Group();
-    arm.position.set(side * 0.128, 0.4 - KID_HIP, 0);
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.11, 3, 8), shirt);
-    sleeve.position.y = -0.075;
-    sleeve.castShadow = true;
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 6), skin);
-    hand.position.y = -0.165;
-    arm.add(sleeve, hand);
-    body.add(arm);
-    arms.push(arm);
-  }
-  const legs: THREE.Mesh[] = [];
-  for (const side of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.12, 3, 6), material(0x37455a));
-    leg.position.set(side * 0.05, 0.1, 0);
-    leg.castShadow = true;
-    root.add(leg);
-    legs.push(leg);
-  }
-  return { root, body, legs, arms };
-}
 
 export default function Replay3D({ plan, drill, look, onClose }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -652,8 +575,44 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     }
 
     // 나
-    const kid = makeKid(look);
+    const kid = makeKid(look, KID_SCALE);
     scene.add(kid.root);
+    // 자세 계산에 쓰는 것 — 매 장면 새로 만들지 않는다
+    const swingPose = [newPose(), newPose()];
+    const mouthPose = [newPose(), newPose()];
+    const wallPose = [newPose(), newPose()];
+    const mixPose = [newPose(), newPose()];
+    const legPose = [newPose(), newPose()];
+    const mouthW = [0, 0];
+    const wallW = [0, 0];
+    let clothShow = 0;
+    // 벽 쪽으로 붙는 거리(아이의 왼쪽이 +) · 짚는 쪽(-1 · 1)
+    let hug = 0;
+    let wallSide: -1 | 1 = -1;
+    let wallSeen = false;
+    const sideRay = new THREE.Raycaster();
+    const rayO = new THREE.Vector3();
+    const rayD = new THREE.Vector3();
+    const touch = new THREE.Vector3();
+    const tmpV = new THREE.Vector3();
+    const toWall = new THREE.Vector3();
+    const pole = new THREE.Vector3();
+    const fingers = new THREE.Vector3();
+    const palm = new THREE.Vector3();
+    const endQ = new THREE.Quaternion();
+    const bodyInv = new THREE.Quaternion();
+    const flatQ = new THREE.Quaternion();
+    const hipAt = new THREE.Vector3();
+    const footAt = new THREE.Vector3();
+    const knee = new THREE.Vector3(0, 0, 1);
+    /** 옆으로 쏜 줄이 처음 닿는 거리. 닿지 않으면 Infinity */
+    const sideHit = (x: number, z: number, y: number, dx: number, dz: number, targets: THREE.Object3D[]): number => {
+      rayO.set(x, y, z);
+      rayD.set(dx, 0, dz);
+      sideRay.set(rayO, rayD);
+      sideRay.far = HUG_LOOK;
+      return sideRay.intersectObjects(targets, true)[0]?.distance ?? Infinity;
+    };
 
     // 불과 연기
     const flameMats: THREE.ShaderMaterial[] = [];
@@ -893,30 +852,115 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       }
       const moving = r > 0 && r < 1 && seg.snap.walk.length >= 2 && !nearFamily;
 
-      kid.root.position.set(pos.x, 0, pos.y);
       if (seg.snap.walk.length >= 2 && !nearFamily) {
         const ahead = pointAlong(seg.snap.walk, Math.min(1, r + 0.03));
         if (Math.hypot(ahead.x - pos.x, ahead.y - pos.y) > 0.001) {
           kid.root.rotation.y = Math.atan2(ahead.x - pos.x, ahead.y - pos.y);
         }
       }
-      // 집 안에서는 허리를 숙이고 간다. 몸을 낮추면 더 깊이 숙이고 무릎을 굽히며 한 손으로 코와 입을 가린다(대장 #177).
-      // 밖에 나오면 허리를 편다
+      // 집 안에서는 허리를 숙이고 간다. 몸을 낮추면 더 깊이 숙이고 무릎을 굽힌다(대장 #177).
+      // 한 손으로는 손수건을 코와 입에 대고, 다른 손으로는 가까운 벽을 짚으며 간다(대장 #186). 밖에 나오면 허리를 펴고 손수건을 내린다
       const indoors = seg.snap.at !== OUT;
       const crouch = seg.snap.crouch && indoors;
       const ease = reduced ? 1 : 0.18;
+      const blend = reduced ? 1 : Math.min(1, dt * 5);
+      const yaw = kid.root.rotation.y;
+      const fx = Math.sin(yaw);
+      const fz = Math.cos(yaw);
+      // 아이의 +x 쪽을 세상 방향으로 — 쪽 s 의 옆 방향은 s·(rx, rz) 다
+      const rx = Math.cos(yaw);
+      const rz = -Math.sin(yaw);
+      // 벽 쪽으로 붙는다 — 길은 칸 가운데를 지나므로 옆 벽이 손에 닿게 조금 다가간다. 낮은 가구가 있으면 그 앞에서 멈춘다
+      let reach = Infinity;
+      const shoulderY = KID_HIP * KID_SCALE + 0.22;
+      if (indoors && !nearFamily) {
+        const dist = ([-1, 1] as const).map((s) => sideHit(pos.x, pos.y, shoulderY, s * rx, s * rz, [walls]));
+        const near: -1 | 1 = dist[0]! <= dist[1]! ? -1 : 1;
+        // 짚는 쪽은 쉽게 바꾸지 않는다 — 지금 쪽에 벽이 없거나 반대쪽이 확실히 가까울 때만 바꾼다
+        const cur = dist[wallSide < 0 ? 0 : 1]!;
+        const other = dist[near < 0 ? 0 : 1]!;
+        if (near !== wallSide && (cur === Infinity || other < cur - 0.12)) wallSide = near;
+        const d = dist[wallSide < 0 ? 0 : 1]!;
+        let want = 0;
+        if (d < HUG_LOOK) {
+          const low = sideHit(pos.x, pos.y, 0.12, wallSide * rx, wallSide * rz, [walls, furniture]);
+          want = Math.max(0, Math.min(HUG_MAX, d - HUG_GAP, low - KID_CLEAR));
+          // 벽에 닿는 자리 — 어깨보다 조금 높이, 조금 앞
+          touch.set(pos.x + wallSide * rx * (d - 0.014) + fx * 0.05, shoulderY + 0.05, pos.y + wallSide * rz * (d - 0.014) + fz * 0.05);
+        }
+        hug += (want * wallSide - hug) * (reduced ? 1 : Math.min(1, dt * 3));
+        reach = d - hug * wallSide;
+      } else {
+        hug += (0 - hug) * (reduced ? 1 : Math.min(1, dt * 3));
+      }
+      pos = { x: pos.x + rx * hug, y: pos.y + rz * hug };
+      kid.root.position.set(pos.x, 0, pos.y);
       const hip = crouch ? KID_HIP_LOW : KID_HIP;
       kid.body.rotation.x += ((crouch ? KID_BEND_LOW : indoors ? KID_BEND : 0) - kid.body.rotation.x) * ease;
       kid.body.position.y += (hip - kid.body.position.y) * ease;
-      const swing = moving && !reduced ? Math.sin(time * 14) * 0.5 : 0;
+      kid.root.updateMatrixWorld(true);
+      kid.body.getWorldQuaternion(bodyInv).invert();
+      const phase = time * 14;
+      const swing = moving && !reduced ? Math.sin(phase) * 0.5 : 0;
+
+      // 다리 — 발은 바닥에 두고 걸음마다 앞뒤로 옮긴다. 무릎은 앞으로 굽는다
       kid.legs.forEach((leg, i) => {
-        leg.scale.y = kid.body.position.y / KID_HIP;
-        leg.position.y = kid.body.position.y / 2;
-        leg.rotation.x = i ? -swing : swing;
+        const s = i ? -1 : 1;
+        leg.upper.position.y = kid.body.position.y;
+        hipAt.copy(leg.upper.position);
+        const stride = moving && !reduced ? Math.sin(phase) * s * (crouch ? 0.03 : 0.042) : 0;
+        const lift = moving && !reduced ? Math.max(0, Math.cos(phase) * s) * 0.024 : 0;
+        footAt.set(leg.side * 0.052, KID_ANKLE + lift, stride + (crouch ? 0.02 : 0));
+        solveLimb(leg, hipAt, footAt, knee, flatQ, legPose[i]!);
+        applyPose(leg, legPose[i]!);
       });
-      kid.arms[0]!.rotation.x = -swing * 0.8;
-      kid.arms[1]!.rotation.x += ((crouch ? -2.3 : swing * 0.8) - kid.arms[1]!.rotation.x) * (crouch ? ease : 1);
+
+      // 팔 — 흔드는 팔에서 손수건 든 손과 벽 짚는 손으로 섞는다
+      const mouthSide = -wallSide;
+      const clothWant = indoors ? 1 : 0;
+      clothShow += (clothWant - clothShow) * (reduced ? 1 : Math.min(1, dt * 4));
+      kid.arms.forEach((arm, i) => {
+        swingArm(arm, arm.side < 0 ? -swing * 0.8 : swing * 0.8, swingPose[i]!);
+        const isMouth = arm.side === mouthSide;
+        const isWall = arm.side === wallSide && reach <= HUG_REACH;
+        mouthW[i] = mouthW[i]! + ((isMouth ? clothWant : 0) - mouthW[i]!) * blend;
+        wallW[i] = wallW[i]! + ((isWall ? 1 : 0) - wallW[i]!) * blend;
+        blendPose(swingPose[i]!, swingPose[i]!, 0, mixPose[i]!);
+        if (mouthW[i]! > 0.001) {
+          // 손바닥으로 손수건을 누른다. 손끝은 위로, 몸 가운데 쪽으로 기운다
+          fingers.set(-arm.side * 0.55, 0.83, 0.1).normalize();
+          palm.set(0, 0, -1);
+          handFacing(fingers, palm, endQ);
+          tmpV.copy(PALM_AT_MOUTH).addScaledVector(fingers, -0.024);
+          tmpV.x += arm.side * 0.012;
+          pole.set(arm.side * 0.6, -1, -0.2);
+          solveLimb(arm, arm.upper.position, tmpV, pole, endQ, mouthPose[i]!);
+          blendPose(mixPose[i]!, mouthPose[i]!, mouthW[i]!, mixPose[i]!);
+        }
+        if (wallW[i]! > 0.001) {
+          // 벽을 짚는 손 — 손바닥이 벽을 보고 손끝은 위로 간다. 자리는 세상에서 재어 윗몸 공간으로 옮긴다
+          tmpV.copy(touch);
+          kid.body.worldToLocal(tmpV);
+          toWall.set(arm.side * rx, 0, arm.side * rz).applyQuaternion(bodyInv);
+          fingers.set(0, 1, 0).applyQuaternion(bodyInv).addScaledVector(toWall, 0.15).normalize();
+          palm.copy(toWall);
+          handFacing(fingers, palm, endQ);
+          tmpV.addScaledVector(fingers, -0.026);
+          pole.set(0, -1, -0.5);
+          solveLimb(arm, arm.upper.position, tmpV, pole, endQ, wallPose[i]!);
+          blendPose(mixPose[i]!, wallPose[i]!, wallW[i]!, mixPose[i]!);
+        }
+        applyPose(arm, mixPose[i]!);
+      });
+      waveCloth(kid.cloth, time, moving && !reduced, clothShow);
+      kid.smile.visible = clothShow < 0.5;
+      const touching = wallW.some((w) => w > 0.5);
+      if (touching) wallSeen = true;
       mount.dataset.kidBend = kid.body.rotation.x.toFixed(2);
+      mount.dataset.kidCloth = clothShow > 0.5 ? '1' : '0';
+      mount.dataset.kidWall = touching ? '1' : '0';
+      mount.dataset.kidWallSeen = wallSeen ? '1' : '0';
+      mount.dataset.kidHug = Math.abs(hug).toFixed(2);
 
       // 위험 — 이전 차례 값에서 지금 값으로 서서히 옮겨 간다
       const prev = list[Math.max(0, idx - 1)]!.snap.field;
@@ -1130,6 +1174,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         else mat?.dispose?.();
       });
       [roomTex, passTex, newTex, smokeTex, sparkTex].forEach((t) => t.dispose());
+      kid.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };

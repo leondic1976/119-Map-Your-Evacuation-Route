@@ -1,4 +1,4 @@
-/** 7. 돌아보기 — 잘한 점 · 고칠 점 · 3D 다시 보기 · 인쇄 */
+/** 7. 돌아보기 — 잘한 점 · 고칠 점 · 3D 다시 보기 · 인쇄 · PDF 로 저장 */
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { escapeAids } from '../core/aids';
 import { hasOtherRoute } from '../core/auto';
@@ -11,7 +11,7 @@ import { STAMPS } from '../content/stamps';
 import { isVerified } from '../content/sources';
 import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, planGaps, retryDrill, say, STEP_LABEL, useApp } from '../store/app';
-import { IconCheck, IconCube, IconHelp, IconPencil, IconPlay, IconPrint, StampGlyph } from './art';
+import { IconCheck, IconCube, IconHelp, IconPdf, IconPencil, IconPlay, IconPrint, StampGlyph } from './art';
 import { PlanView } from './PlanView';
 import { Quiz, IconOx } from './Quiz';
 import './quiz.css';
@@ -31,6 +31,20 @@ export function ReviewStep() {
   const report = useMemo(() => (drill ? buildReport(drill, plan, currentBand()) : null), [drill, plan]);
   const stamps = useMemo(() => (drill ? earnedStamps(drill, currentBand()) : []), [drill]);
   const [replay, setReplay] = useState(false);
+  const name = useApp((s) => s.profile?.name ?? '');
+  const [saving, setSaving] = useState(false);
+  /** 인쇄 한 장을 PDF 파일로 내려 준다(대장 #190). 만들지 못하는 기기에서는 인쇄 창을 연다 — 거기서도 PDF 로 저장할 수 있다 */
+  const savePdf = (): void => {
+    const sheet = document.querySelector<HTMLElement>('.print-sheet');
+    if (saving || !sheet) return;
+    const title = name ? `${name}의 우리집 대피지도` : '우리집 대피지도';
+    setSaving(true);
+    // PDF 를 만드는 코드는 누를 때 받는다 — 첫 묶음을 키우지 않는다
+    import('./sheet')
+      .then(async (m) => host.saveFile(m.sheetFileName(title), await m.sheetPdf(sheet, { title, stamps, secondRoute: plan.route2.length > 0, noExtinguisher: Boolean(plan.noExtinguisher) })))
+      .catch(() => host.print())
+      .finally(() => setSaving(false));
+  };
   const gaps = useMemo(() => planGaps(plan), [plan]);
   const empty = layout.cells.length === 0;
   // 5~6학년 — 연습 뒤에 OX 로 묻고, 지도에 그린 피난 시설을 알려 준다(대장 #188)
@@ -66,6 +80,9 @@ export function ReviewStep() {
           <>
             <button type="button" className="tool tall" data-testid="print" onClick={() => host.print()}>
               <IconPrint size={30} /> 지도 인쇄하기
+            </button>
+            <button type="button" className="tool tall" data-testid="save-pdf" aria-busy={saving} onClick={savePdf}>
+              <IconPdf size={30} /> PDF로 저장하기
             </button>
             <button type="button" className="tool tall" data-testid="retry" onClick={retryDrill}>
               <IconPlay size={28} /> {drill ? '다시 연습하기' : '연습하러 가기'}

@@ -593,6 +593,20 @@ async function main(): Promise<void> {
     assert.equal(pages, 1, `인쇄는 한 장이어야 한다: ${pages}장`);
     await page.emulateMedia({ media: 'screen' });
 
+    // PDF 로 저장 — 선생님께 낼 파일 한 장 (대장 #190)
+    const [file] = await Promise.all([page.waitForEvent('download'), page.click(t('save-pdf'))]);
+    assert.ok(/우리집 대피지도\.pdf$/.test(file.suggestedFilename()), `파일 이름: ${file.suggestedFilename()}`);
+    const saved = fs.readFileSync((await file.path())!);
+    fs.writeFileSync(path.join(SHOTS, '11-save.pdf'), saved);
+    const savedText = saved.toString('latin1');
+    assert.ok(savedText.startsWith('%PDF-'), 'PDF 파일이다');
+    assert.equal((savedText.match(/\/Type \/Page[^s]/g) ?? []).length, 1, '한 장이다');
+    const from = savedText.indexOf('stream\n') + 7;
+    const picture = saved.subarray(from, savedText.indexOf('\nendstream', from));
+    fs.writeFileSync(path.join(SHOTS, '11-save.jpg'), picture);
+    assert.ok(picture[0] === 0xff && picture[1] === 0xd8, '그림이 들어 있다');
+    assert.ok(picture.length > 60_000, `지도와 글이 그려졌다: ${picture.length}`);
+
     // 3D
     await page.click(t('open-replay'));
     await page.waitForSelector(t('replay-canvas'), { timeout: 20000 });

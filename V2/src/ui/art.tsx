@@ -67,6 +67,10 @@ export const IconSpeaker = ({ size = 26, on = true }: { size?: number; on?: bool
 export const IconPrint = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M7 8V3h10v5" /><rect x="3" y="8" width="18" height="9" rx="2" /><path d="M7 14h10v7H7z" /></Svg>
 );
+/** 귀 접힌 종이와 내려받는 화살표 */
+export const IconPdf = ({ size = 26 }: { size?: number }) => (
+  <Svg size={size}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /><path d="M12 10v7M9 14l3 3 3-3" /></Svg>
+);
 export const IconPlay = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M7 4.5v15l12-7.5z" /></Svg>
 );

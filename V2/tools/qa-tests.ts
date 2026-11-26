@@ -56,7 +56,7 @@ export function runQaTests(check: Check): void {
     for (const f of srcFiles) {
       if (rel(f).startsWith('src/platform/')) continue;
       const c = code(f);
-      for (const api of ['localStorage', 'window.print', 'new Audio', 'AudioContext', 'sessionStorage', 'serviceWorker']) {
+      for (const api of ['localStorage', 'window.print', 'new Audio', 'AudioContext', 'sessionStorage', 'serviceWorker', 'createObjectURL']) {
         assert.ok(!c.includes(api), `${rel(f)}: ${api}`);
       }
     }

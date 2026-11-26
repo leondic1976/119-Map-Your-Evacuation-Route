@@ -11,6 +11,8 @@ export interface Host {
   loadSession<T>(key: string): T | null;
   saveSession(key: string, value: unknown): void;
   print(): void;
+  /** 만든 파일을 기기에 내려 준다. 어디에도 보내지 않는다 */
+  saveFile(name: string, blob: Blob): void;
   /** 음성 MP3 재생. 실패하면 조용히 멈춘다. onDone 은 끝나거나 실패했을 때 한 번 부른다 */
   playVoice(id: string, onDone?: () => void): void;
   stopVoice(): void;
@@ -80,6 +82,19 @@ class WebHost implements Host {
 
   print(): void {
     window.print();
+  }
+
+  saveFile(name: string, blob: Blob): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // 받기가 시작된 뒤에 놓아 준다
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   playVoice(id: string, onDone?: () => void): void {

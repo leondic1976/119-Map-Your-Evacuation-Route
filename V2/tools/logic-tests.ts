@@ -1,5 +1,6 @@
 /** 연산 로직 — 화면 없이 돈다 */
 import assert from 'node:assert/strict';
+import { A4, jpegPdf } from '../src/core/pdf';
 import { autoDoors, autoMarks, autoRoute, autoRoute2, autoTag, findSecondRoute, splitLargestCell } from '../src/core/auto';
 import {
   closeLastDoor,
@@ -107,6 +108,7 @@ function walkOut(plan: Plan, seed: number, band: Band): DrillState {
 
 export function runLogicTests(check: Check): void {
   quizChecks(check);
+  pdfChecks(check);
   check('[칸] 선으로 둘러싸면 칸이 하나 생긴다', () => {
     const plan = addEdges(emptyPlan(8, 6), box(1, 1, 3, 3));
     const layout = analyze(plan);
@@ -2100,6 +2102,24 @@ export function runLogicTests(check: Check): void {
       assert.deepEqual(normalize(plan), plan, t.id);
       assert.deepEqual(JSON.parse(JSON.stringify(plan)), plan, t.id);
     }
+  });
+}
+
+export function pdfChecks(check: (name: string, fn: () => void) => void): void {
+  check('[PDF] 그림 한 장을 A4 한 쪽으로 싸고, 차례표가 가리키는 자리가 맞는다 (대장 #190)', () => {
+    const jpeg = Uint8Array.from([0xff, 0xd8, 1, 2, 3, 0xff, 0xd9]);
+    const pdf = Buffer.from(jpegPdf(jpeg, { w: 10, h: 14 }, '가나')).toString('latin1');
+    assert.ok(pdf.startsWith('%PDF-1.4'), '머리');
+    assert.ok(pdf.trimEnd().endsWith('%%EOF'), '꼬리');
+    assert.equal((pdf.match(/\/Type \/Page[^s]/g) ?? []).length, 1, '한 쪽이다');
+    assert.ok(pdf.includes(`/MediaBox [0 0 ${A4.w} ${A4.h}]`), 'A4 다');
+    assert.ok(pdf.includes('/Width 10 /Height 14') && pdf.includes('/Filter /DCTDecode /Length 7'), '그림의 크기와 길이');
+    assert.ok(pdf.includes('<FEFFAC00B098>'), '한글 제목');
+    const xref = Number(/startxref\n(\d+)/.exec(pdf)![1]);
+    assert.equal(pdf.slice(xref, xref + 4), 'xref', '차례표의 자리');
+    const rows = [...pdf.slice(xref).matchAll(/(\d{10}) 00000 n /g)].map((m) => Number(m[1]));
+    assert.equal(rows.length, 6);
+    rows.forEach((at, i) => assert.ok(pdf.slice(at).startsWith(`${i + 1} 0 obj`), `${i + 1}번 자리`));
   });
 }
 

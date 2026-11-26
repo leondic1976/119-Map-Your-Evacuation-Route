@@ -264,8 +264,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 /* 스케치북 틀 */
 .home-btn { flex: none; }
-/* 그리는 화면에서는 두 손가락으로 화면 전체가 커지지 않는다(지도는 제 확대를 쓴다). 둥근 모서리와 홈 막대 자리는 비운다 */
-.studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--paper); touch-action: pan-x pan-y;
+/* 그리는 화면에서는 두 손가락으로 화면 전체가 커지지 않는다(지도는 제 확대를 쓴다). 둥근 모서리와 홈 막대 자리는 비운다. 폴짝 뛰는 캐릭터가 화면 아래로 나가도 화면이 밀리지 않게 틀에서 자른다 */
+.studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--paper); touch-action: pan-x pan-y; overflow: hidden; overflow: clip;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 /* 스크롤하는 칸 아래에 더 있으면 흐려지는 띠와 아래 화살표로 알린다. 태블릿에는 스크롤 막대가 보이지 않는다 */
 [data-more] { --cue: var(--paper); }

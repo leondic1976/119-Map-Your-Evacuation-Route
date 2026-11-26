@@ -4,7 +4,7 @@
 import { useSyncExternalStore } from 'react';
 import { autoDoors, autoMarks, autoRoute, autoTag, splitLargestCell } from '../core/auto';
 import type { DrillState } from '../core/drill';
-import { changeGrid, densityOf } from '../core/density';
+import { changeGrid, densityOf, fineOf } from '../core/density';
 import { addEdges, emptyPlan, normalize, setNoExtinguisher } from '../core/edit';
 import { analyze, unreachableCells } from '../core/grid';
 import { markDone } from '../core/marks';
@@ -340,7 +340,6 @@ const MISTAKE_LINES = new Set<LineId>([
   'route-dead-end',
   'route-same',
   'item-door',
-  'dots-lost-cell',
 ]);
 
 /** 지도 고치기. merge 면 되돌리기 한 번에 함께 묶인다 */
@@ -366,7 +365,7 @@ function ratioOf(plan: Plan): { rx: number; ry: number } {
 }
 
 /** 그린 것을 모두 걷어 낸 종이. 모눈과 집 밖 자리만 남는다 */
-const BLANK: Pick<Plan, 'walls' | 'openings' | 'tags' | 'marks' | 'route' | 'route2' | 'items' | 'doorTurns' | 'doorSizes' | 'extraExtinguishers' | 'noExtinguisher'> = {
+const BLANK: Pick<Plan, 'walls' | 'openings' | 'tags' | 'marks' | 'route' | 'route2' | 'items' | 'doorTurns' | 'doorSizes' | 'doorSlides' | 'extraExtinguishers' | 'extraAlarms' | 'noExtinguisher'> = {
   walls: [],
   openings: {},
   tags: {},
@@ -376,7 +375,9 @@ const BLANK: Pick<Plan, 'walls' | 'openings' | 'tags' | 'marks' | 'route' | 'rou
   items: [],
   doorTurns: undefined,
   doorSizes: undefined,
+  doorSlides: undefined,
   extraExtinguishers: undefined,
+  extraAlarms: undefined,
   noExtinguisher: undefined,
 };
 
@@ -397,16 +398,6 @@ export function applyTemplate(id: string): void {
   const blank: Plan = { ...state.plan, ...BLANK };
   const { rx, ry } = ratioOf(blank);
   commit(addEdges(blank, [...segEdges(t.outer, rx, ry), ...segEdges(t.inner, rx, ry)]));
-}
-
-/** 점 개수를 바꾼다. 벽은 가장 가까운 점으로 옮겨 가고, 되돌리기로 돌아갈 수 있다 */
-export function setGrid(cols: number, rows: number): void {
-  const before = analyze(state.plan).cells.length;
-  const prevCols = state.plan.cols;
-  const next = changeGrid(state.plan, cols, rows);
-  commit(next);
-  if (analyze(next).cells.length < before) say('dots-lost-cell');
-  else if (densityOf(next) >= 2 && cols > prevCols) say('draw-dense');
 }
 
 /** 「우리 집에 소화기가 없어」(대장 #169) — 없다고 적고, 나중에라도 꼭 두자고 말한다. 다시 누르면 푼다 */
@@ -562,9 +553,11 @@ export function retryDrill(): void {
 
 /** 처음부터 — 이름표는 남기고 종이만 새로 깐다 */
 export function resetPlan(): void {
-  const density = densityOf(state.plan);
+  // 반 칸으로 나눈 종이는 처음 모눈으로 돌린다
+  const fine = fineOf(state.plan);
+  const density = densityOf(state.plan) / fine;
   set({
-    plan: { ...emptyPlan(state.plan.cols, state.plan.rows), ...(density !== 1 ? { density } : {}), ...(state.plan.outside ? { outside: state.plan.outside } : {}) },
+    plan: { ...emptyPlan(state.plan.cols / fine, state.plan.rows / fine), ...(density !== 1 ? { density } : {}), ...(state.plan.outside ? { outside: state.plan.outside } : {}) },
     past: [],
     drill: null,
     view: null,

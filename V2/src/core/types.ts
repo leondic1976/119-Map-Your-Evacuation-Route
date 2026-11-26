@@ -44,6 +44,8 @@ export interface Plan {
   rows: number;
   /** 처음 네모 한 칸이 지금 몇 칸인가. 소수일 수 있고 없으면 1 이다 */
   density?: number;
+  /** 모눈 한 칸이 지금 점 몇 칸인가. 크게 보고 반 칸에 그리면 2 가 된다(대장 #191). 없으면 1 이다 */
+  fine?: number;
   /** 집 밖 띠가 놓이는 쪽. 없으면 아래다 */
   outside?: OutsideSide;
   /** 아이가 놓은 가구 */
@@ -56,12 +58,16 @@ export interface Plan {
   doorTurns?: Record<string, number>;
   /** 문 토막 열쇠 → 문 폭 배율. 없으면 1 이다(대장 #170) */
   doorSizes?: Record<string, number>;
+  /** 문 토막 열쇠 → 미닫이문이다. 없으면 여닫이문이다(대장 #193) */
+  doorSlides?: Record<string, true>;
   /** 조각 열쇠(`x,y` · `x,y:ne`) → 칸 표지 */
   tags: Record<string, CellTag>;
   /** 표시. 안전한 곳만 집 밖의 자유 좌표이고 나머지는 조각 가운데에 놓인다 */
   marks: Partial<Record<MarkId, Pt>>;
   /** 둘째부터의 소화기 자리. 첫째는 `marks.extinguisher` 다(대장 #169) */
   extraExtinguishers?: Pt[];
+  /** 둘째부터의 화재 감지기 자리. 첫째는 `marks.alarm` 이다(대장 #194) */
+  extraAlarms?: Pt[];
   /** 우리 집에 소화기가 없다고 골랐다. 소화기를 놓으면 사라진다 */
   noExtinguisher?: boolean;
   /** 첫째 길 — 조각 열쇠 나열, 끝이 `out` 이면 밖까지 이어진 것이다 */

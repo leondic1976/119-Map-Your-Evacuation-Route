@@ -67,20 +67,6 @@
       "hash": "5f86360c49941b6c"
     },
     {
-      "id": "draw-dense",
-      "filename": "draw-dense.mp3",
-      "speaker": "ungi",
-      "text": "점이 아주 촘촘해. 손가락으로 그릴 때는 크게 보기를 누르면 쉬워.",
-      "hash": "f359f19c37912516"
-    },
-    {
-      "id": "dots-lost-cell",
-      "filename": "dots-lost-cell.mp3",
-      "speaker": "ungi",
-      "text": "점을 줄였더니 칸이 없어졌어. 되돌리기를 누르면 다시 돌아와.",
-      "hash": "2221edea0d26cc5b"
-    },
-    {
       "id": "draw-need-cell",
       "filename": "draw-need-cell.mp3",
       "speaker": "ungi",

@@ -195,6 +195,7 @@ export function autoMarks(input: Plan, band: Band): Plan {
       .filter(([id]) => id !== 'meet')
       .map(([, m]) => m!),
     ...(plan.extraExtinguishers ?? []),
+    ...(plan.extraAlarms ?? []),
   ];
   const clear = (p: Pt, gap: number): boolean => used.every((u) => Math.hypot(u.x - p.x, u.y - p.y) >= gap);
 

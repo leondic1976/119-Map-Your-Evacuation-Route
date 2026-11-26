@@ -423,6 +423,8 @@ export function moveTo(
     stoodInHazard: state.stats.stoodInHazard + (wasInHazard && !state.crouch ? 1 : 0),
   };
   const visited = [...state.visited, move.to];
+  // 밖으로 나오면 나온 문을 닫는다(대장 #197). 문을 지나는 이번 걸음에는 열려 있고, 다음 걸음부터 닫혀 있다
+  const behind = move.to === OUT && !move.open ? [...closed, move.edge] : closed;
   const walk = [state.pt, ...hop];
   const snapshot: Snapshot = {
     turn: state.turn + 1,
@@ -440,7 +442,7 @@ export function moveTo(
     at: move.to,
     pt,
     field,
-    closed,
+    closed: behind,
     stats,
     visited,
     lastDoor: move.to === OUT || move.open ? null : move.edge,

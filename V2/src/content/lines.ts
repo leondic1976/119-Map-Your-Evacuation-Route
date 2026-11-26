@@ -29,8 +29,6 @@ export const LINES = {
   'draw-make-rooms': { speaker: 'yeongi', emotion: 'happy', text: '집 모양이 다 됐어! 이제 안에 선을 그어서 방을 만들어 보자.', sourceIds: GUIDE },
   'draw-rooms-done': { speaker: 'yeongi', emotion: 'happy', text: '방이 생겼어! 방을 다 만들었으면 다음을 눌러 칸을 칠해 보자.', sourceIds: GUIDE },
   'draw-armed': { speaker: 'ungi', emotion: 'normal', text: '파란 점에서 이어져. 다음 점을 누르고, 잘못 눌렀으면 파란 점을 다시 눌러.', sourceIds: GUIDE },
-  'draw-dense': { speaker: 'ungi', emotion: 'thinking', text: '점이 아주 촘촘해. 손가락으로 그릴 때는 크게 보기를 누르면 쉬워.', sourceIds: GUIDE },
-  'dots-lost-cell': { speaker: 'ungi', emotion: 'thinking', text: '점을 줄였더니 칸이 없어졌어. 되돌리기를 누르면 다시 돌아와.', sourceIds: GUIDE },
   'draw-need-cell': { speaker: 'ungi', emotion: 'thinking', text: '아직 칸이 없어. 선을 빙 둘러서 닫아 보자. 어려우면 도와줘를 눌러.', sourceIds: GUIDE },
 
   'sort-low': { speaker: 'yeongi', emotion: 'normal', text: '크레용을 고르고 칸을 눌러 칠해 보자. 문을 닫을 수 있는 곳은 노란색, 걸어서 지나가는 곳은 파란색이야.', sourceIds: GUIDE },

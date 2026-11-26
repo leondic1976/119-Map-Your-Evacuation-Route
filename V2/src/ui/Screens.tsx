@@ -10,7 +10,7 @@ import { WelcomeScene } from './WelcomeScene';
 /** 연필이 집을 그리고, 칸이 칠해지고, 빨간 길을 따라 아이가 나가는 그림. 되풀이한다 */
 function CoverDrawing() {
   return (
-    <svg className="cover-art" viewBox="0 0 640 440" role="img" aria-label="점을 이어 그린 집과 빨간 나가는 길">
+    <svg className="cover-art" viewBox="0 0 640 440" role="img" aria-label="모눈종이에 그린 집과 빨간 나가는 길">
       <defs>
         <pattern id="cv-room" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(32)">
           <rect width="22" height="22" fill="#ffe3a3" />
@@ -23,23 +23,20 @@ function CoverDrawing() {
       </defs>
       <g className="cv-all">
       <g className="cv-fills">
-        <rect className="cv-fill f1" x="120" y="60" width="190" height="150" fill="url(#cv-room)" />
-        <rect className="cv-fill f2" x="310" y="60" width="210" height="150" fill="url(#cv-room)" />
-        <rect className="cv-fill f3" x="120" y="210" width="400" height="130" fill="url(#cv-pass)" />
+        <rect className="cv-fill f1" x="120" y="60" width="200" height="160" fill="url(#cv-room)" />
+        <rect className="cv-fill f2" x="320" y="60" width="200" height="160" fill="url(#cv-room)" />
+        <rect className="cv-fill f3" x="120" y="220" width="400" height="120" fill="url(#cv-pass)" />
       </g>
-      <g fill="#a9b7bd">
-        {Array.from({ length: 6 }, (_, y) =>
-          Array.from({ length: 8 }, (_, x) => <circle key={`${x}-${y}`} cx={50 + x * 76} cy={40 + y * 70} r="4.5" />),
-        )}
-      </g>
+      {/* 모눈종이 — 점은 찍지 않고 줄만 깐다. 벽은 줄이 만나는 곳을 잇는다(대장 #191) */}
+      <path className="cv-grid" d={`${Array.from({ length: 15 }, (_, x) => `M${40 + x * 40} 0V440`).join('')}${Array.from({ length: 11 }, (_, y) => `M0 ${20 + y * 40}H640`).join('')}`} />
       <path className="cv-line l1" d="M120 60H520V340H120Z" />
-      <path className="cv-line l2" d="M310 60V210" />
-      <path className="cv-line l3" d="M120 210H520" />
-      <path className="cv-route" d="M215 135V275H340V378" />
+      <path className="cv-line l2" d="M320 60V220" />
+      <path className="cv-line l3" d="M120 220H520" />
+      <path className="cv-route" d="M220 140V280H340V378" />
       <path className="cv-arrow" d="M322 366 340 396 358 366z" />
       <g className="cv-word">
-        <text x="215" y="110">방</text>
-        <text x="415" y="110">방</text>
+        <text x="220" y="110">방</text>
+        <text x="420" y="110">방</text>
         <text x="420" y="282">지나가는 곳</text>
       </g>
       <g className="cv-walker">
@@ -93,9 +90,9 @@ export function Welcome() {
           <h1>
             <span>우리집</span> 대피지도
           </h1>
-          <p className="welcome-lead">점을 이어 우리 집을 그리고, 불이 나면 어디로 나갈지 미리 찾아보자.</p>
+          <p className="welcome-lead">모눈종이에 우리 집을 그리고, 불이 나면 어디로 나갈지 미리 찾아보자.</p>
           <ol className="welcome-steps">
-            <li><b>1</b> 점을 이어 집 그리기</li>
+            <li><b>1</b> 모눈종이에 집 그리기</li>
             <li><b>2</b> 칸을 눌러 나가는 길 찾기</li>
             <li><b>3</b> 화재 대피 연습하기</li>
           </ol>

@@ -65,7 +65,12 @@ export interface PlanViewProps {
   plan: Plan;
   layout: Layout;
   look?: LookId;
-  showDots?: boolean;
+  /** 모눈종이를 깔고 줄이 만나는 곳에 그린다 */
+  showGrid?: boolean;
+  /** 모눈 줄 사이(종이의 점 단위). 없으면 모눈 한 칸이다. 크게 보면 반 칸이 된다 */
+  gridStep?: number;
+  /** 손 아래에서 붙을 자리 */
+  aim?: Pt | null;
   /** 그리는 중인 획 */
   stroke?: Pt[];
   /** 획이 아직 그은 것이 아니라 미리 보이는 것이다 — 연하게 그린다 */
@@ -120,7 +125,7 @@ function pencilPath(key: string, a: Pt, b: Pt, u: number): string {
 const piecePoints = (s: Piece, u: number): string => s.polygon.map((p) => `${p.x * u},${p.y * u}`).join(' ');
 
 function PlanViewBase(props: PlanViewProps) {
-  const { plan, layout, showDots, stroke, armed, hotEdge, glow, warn, showRoute, hazard, closedDoors } = props;
+  const { plan, layout, showGrid, stroke, armed, hotEdge, glow, warn, showRoute, hazard, closedDoors } = props;
   const svgRef = useRef<SVGSVGElement>(null);
   // 인쇄용 그림과 화면 그림이 한 문서에 있어 무늬 이름이 겹치면 숨긴 쪽을 가리키게 된다
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
@@ -129,6 +134,9 @@ function PlanViewBase(props: PlanViewProps) {
 
   const u = unitOf(plan);
   const k = plan.density ?? 1;
+  // 모눈 한 칸과 줄 사이 — 종이의 점 단위
+  const coarse = plan.fine ?? 1;
+  const gridStep = props.gridStep ?? coarse;
   const width = plan.cols * u;
   const height = plan.rows * u;
   const side = plan.outside ?? 'bottom';
@@ -294,37 +302,23 @@ function PlanViewBase(props: PlanViewProps) {
     return () => svg.removeEventListener('wheel', onWheel);
   }, [zoomable]);
 
-  // 모눈종이 — 연한 줄을 긋고 줄이 만나는 자리에 작은 점을 찍는다(대장 #137). 점이 많아도 손을 움직일 때마다 다시 만들지 않는다.
-  // 배로 늘렸을 때는 처음 점과 처음 줄을 조금 진하게 그려 자리를 잡기 쉽게 한다
-  const grid = useMemo(() => {
-    if (!showDots) return null;
-    const whole = Number.isInteger(k) && k > 1;
-    const main = (n: number): boolean => whole && n % k === 0;
-    const line = (key: string, d: string, strong: boolean) => <path key={key} d={d} className={strong ? 'grid-line strong' : 'grid-line'} />;
+  // 모눈종이(대장 #137 · #191) — 줄만 긋고 점은 찍지 않는다. 줄이 만나는 곳이 점이다.
+  // 크게 보아 반 칸 줄이 나오면 모눈 한 칸의 줄을 조금 진하게 그려 자리를 잡기 쉽게 한다
+  const sheet = useMemo(
+    () => (showGrid ? <rect className="grid-sheet" x={-16} y={-16} width={width + 32} height={height + 32} rx={12} pointerEvents="none" /> : null),
+    [showGrid, width, height],
+  );
+  const gridLines = useMemo(() => {
+    if (!showGrid) return null;
+    const halved = gridStep < coarse;
+    const cls = (n: number): string => (halved && (n * gridStep) % coarse !== 0 ? 'grid-line half' : 'grid-line');
     return (
-      <g className="grid" pointerEvents="none">
-        <rect className="grid-sheet" x={-16} y={-16} width={width + 32} height={height + 32} rx={12} />
-        {Array.from({ length: plan.rows + 1 }, (_, y) => line(`r${y}`, `M0 ${y * u}H${width}`, main(y)))}
-        {Array.from({ length: plan.cols + 1 }, (_, x) => line(`c${x}`, `M${x * u} 0V${height}`, main(x)))}
+      <g className="grid" data-step={gridStep} pointerEvents="none">
+        {Array.from({ length: Math.round(plan.rows / gridStep) + 1 }, (_, y) => <path key={`r${y}`} d={`M0 ${y * gridStep * u}H${width}`} className={cls(y)} />)}
+        {Array.from({ length: Math.round(plan.cols / gridStep) + 1 }, (_, x) => <path key={`c${x}`} d={`M${x * gridStep * u} 0V${height}`} className={cls(x)} />)}
       </g>
     );
-  }, [showDots, plan.rows, plan.cols, u, k, width, height]);
-  // 점은 칸 색칠과 벽 위에 찍는다. 집 안에서도 점이 보여야 안쪽 벽을 그린다
-  const dots = useMemo(() => {
-    if (!showDots) return null;
-    const whole = Number.isInteger(k) && k > 1;
-    const each = k >= 4 ? 3 : k > 1.6 ? 4 : 5;
-    const main = (n: number): boolean => whole && n % k === 0;
-    return (
-      <g className="dots">
-        {Array.from({ length: plan.rows + 1 }, (_, y) =>
-          Array.from({ length: plan.cols + 1 }, (_, x) => (
-            <circle key={`${x},${y}`} cx={x * u} cy={y * u} r={main(x) && main(y) ? each + 2 : each} className={main(x) && main(y) ? 'dot strong' : 'dot'} />
-          )),
-        )}
-      </g>
-    );
-  }, [showDots, plan.rows, plan.cols, u, k]);
+  }, [showGrid, plan.rows, plan.cols, u, gridStep, coarse, width, height]);
 
   // 밖까지 나온 길은 안전한 곳까지 이어 그린다 — 나가는 것으로 끝이 아니라 가족을 만나야 끝이다
   const toMeet = (steps: string[]): Pt[] => {
@@ -346,19 +340,24 @@ function PlanViewBase(props: PlanViewProps) {
   const closedSet = new Set(closedDoors ?? []);
   const openEdgeSet = useMemo(() => new Set(layout.openEdges), [layout]);
 
+  // 둘째부터의 소화기와 화재 감지기(대장 #169 · #194)
+  const extras = useMemo<{ id: MarkId; at: Pt; n: number }[]>(
+    () => [...(plan.extraExtinguishers ?? []).map((at, i) => ({ id: 'extinguisher' as MarkId, at, n: i + 1 })), ...(plan.extraAlarms ?? []).map((at, i) => ({ id: 'alarm' as MarkId, at, n: i + 1 }))],
+    [plan.extraExtinguishers, plan.extraAlarms],
+  );
+
   // 글자 자리 — 표시 이름, 칸 이름, 가구 이름 순서로 잡아 서로와 표시 그림에 겹치지 않게 한다
   const labelInfo = useMemo(() => {
     const textW = (s: string, f: number): number => s.length * f * 0.98 + 8;
     const list: (Label & { text: string; size: number; cls: string })[] = [];
-    const extras = plan.extraExtinguishers ?? [];
-    const glyphs: Rect[] = [...(Object.values(plan.marks) as Pt[]), ...extras].map((m) => ({ x: m.x * u, y: m.y * u - 2, w: 70, h: 78 }));
+    const glyphs: Rect[] = [...(Object.values(plan.marks) as Pt[]), ...extras.map((e) => e.at)].map((m) => ({ x: m.x * u, y: m.y * u - 2, w: 70, h: 78 }));
     for (const [id, at] of Object.entries(plan.marks) as [MarkId, Pt][]) {
       const size = fit(id === 'alarm' ? 20 : 22, 14);
       list.push({ id: `m-${id}`, x: at.x * u, y: at.y * u + 40 + size * 0.6, w: textW(MARK_NAME[id], size), h: size * 1.15, text: MARK_NAME[id], size, cls: 'mark-label' });
     }
-    extras.forEach((at, i) => {
-      const size = fit(22, 14);
-      list.push({ id: `x-${i}`, x: at.x * u, y: at.y * u + 40 + size * 0.6, w: textW(MARK_NAME.extinguisher, size), h: size * 1.15, text: MARK_NAME.extinguisher, size, cls: 'mark-label' });
+    extras.forEach(({ id, at }, i) => {
+      const size = fit(id === 'alarm' ? 20 : 22, 14);
+      list.push({ id: `x-${i}`, x: at.x * u, y: at.y * u + 40 + size * 0.6, w: textW(MARK_NAME[id], size), h: size * 1.15, text: MARK_NAME[id], size, cls: 'mark-label' });
     });
     if (showLabels) {
       for (const cell of layout.cells.filter((c) => c.kind)) {
@@ -402,6 +401,8 @@ function PlanViewBase(props: PlanViewProps) {
       data-route2={plan.route2.join(' ')}
       data-marks={Object.keys(plan.marks).sort().join(' ')}
       data-extinguishers={(plan.marks.extinguisher ? 1 : 0) + (plan.extraExtinguishers?.length ?? 0)}
+      data-alarms={(plan.marks.alarm ? 1 : 0) + (plan.extraAlarms?.length ?? 0)}
+      data-slides={Object.keys(plan.doorSlides ?? {}).length}
       data-no-extinguisher={plan.noExtinguisher ? '1' : '0'}
       data-turned={Object.keys(plan.doorTurns ?? {}).length}
       data-resized={Object.keys(plan.doorSizes ?? {}).length}
@@ -446,7 +447,7 @@ function PlanViewBase(props: PlanViewProps) {
       </g>
 
       {/* 모눈종이 */}
-      {grid}
+      {sheet}
 
       {/* 칸 색칠 */}
       {layout.cells.map((cell) => {
@@ -463,6 +464,9 @@ function PlanViewBase(props: PlanViewProps) {
           </g>
         );
       })}
+
+      {/* 모눈 줄 — 칸 색칠 위에 긋는다. 집 안에서도 줄이 보여야 안쪽 벽을 그린다 */}
+      {gridLines}
 
       {/* 밖으로 이어지지 않은 칸 */}
       {layout.cells.filter((c) => warnSet.has(c.id)).map((cell) => (
@@ -551,7 +555,7 @@ function PlanViewBase(props: PlanViewProps) {
 
       {/* 문과 창 */}
       {Object.entries(plan.openings).map(([edge, kind]) => (
-        <OpeningShape key={edge} edge={edge} kind={kind} layout={layout} closed={closedSet.has(edge)} hot={edge === hotEdge} u={u} density={k} wordSize={fit(18, 13)} swing={kind === 'door' ? doorSwing(plan, layout, edge) : null} turn={doorTurn(plan, edge)} size={doorSize(plan, edge)} fit={openingWidth(plan, layout, edge)} joined={kind === 'gap' ? gapJoins(plan, edge) : NO_JOIN} />
+        <OpeningShape key={edge} edge={edge} kind={kind} layout={layout} closed={closedSet.has(edge)} hot={edge === hotEdge} u={u} density={k} wordSize={fit(18, 13)} swing={kind === 'door' ? doorSwing(plan, layout, edge) : null} turn={doorTurn(plan, edge)} slide={plan.doorSlides?.[edge] === true} size={doorSize(plan, edge)} fit={openingWidth(plan, layout, edge)} joined={kind === 'gap' ? gapJoins(plan, edge) : NO_JOIN} />
       ))}
 
       {/* 그리는 중인 획 */}
@@ -560,7 +564,7 @@ function PlanViewBase(props: PlanViewProps) {
       )}
 
       {/* 이름을 아직 안 정한 칸 */}
-      {showLabels && props.showUnknown !== false && props.glow === undefined && props.showDots !== true && layout.cells.filter((c) => !c.kind).map((cell) => (
+      {showLabels && props.showUnknown !== false && props.glow === undefined && props.showGrid !== true && layout.cells.filter((c) => !c.kind).map((cell) => (
         <text key={`q${cell.id}`} className="cell-unknown" x={cell.anchor.x * u} y={cell.anchor.y * u}>?</text>
       ))}
 
@@ -587,10 +591,10 @@ function PlanViewBase(props: PlanViewProps) {
           <MarkGlyph id={id} look={props.look} />
         </g>
       ))}
-      {/* 둘째부터의 소화기 */}
-      {(plan.extraExtinguishers ?? []).map((at, i) => (
-        <g key={`x${i}`} transform={`translate(${at.x * u} ${at.y * u})`} data-mark="extinguisher" data-extra={i + 1} className="mark">
-          <MarkGlyph id="extinguisher" />
+      {/* 둘째부터의 소화기와 화재 감지기 */}
+      {extras.map(({ id, at, n }) => (
+        <g key={`x-${id}-${n}`} transform={`translate(${at.x * u} ${at.y * u})`} data-mark={id} data-extra={n} className="mark">
+          <MarkGlyph id={id} />
         </g>
       ))}
 
@@ -602,9 +606,9 @@ function PlanViewBase(props: PlanViewProps) {
         })}
       </g>
 
-      {/* 점 */}
-      {dots}
-      {showDots && armed && <circle cx={armed.x * u} cy={armed.y * u} r={k <= 1.6 ? 15 : 11} className="dot armed" />}
+      {/* 붙을 자리와 잡아 둔 점 */}
+      {showGrid && props.aim && <circle cx={props.aim.x * u} cy={props.aim.y * u} r={gridStep * u >= 60 ? 11 : 8} className="snap aim" />}
+      {showGrid && armed && <circle cx={armed.x * u} cy={armed.y * u} r={gridStep * u >= 60 ? 15 : 11} className="snap armed" data-testid="armed-dot" />}
 
       {props.children}
     </svg>
@@ -665,7 +669,7 @@ function gapJoins(plan: Plan, edge: string): [number, number] {
   return [before, after];
 }
 
-function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize, swing: door, turn, size, fit, joined }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean; u: number; density: number; wordSize: number; swing: DoorSwing | null; turn: number; size: number; fit: number; joined: [number, number] }) {
+function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize, swing: door, turn, slide, size, fit, joined }: { edge: string; kind: string; layout: Layout; closed: boolean; hot: boolean; u: number; density: number; wordSize: number; swing: DoorSwing | null; turn: number; slide: boolean; size: number; fit: number; joined: [number, number] }) {
   const m = edgeMid(edge);
   const angle = edgeAngle(edge);
   const normal = edgeNormal(edge);
@@ -721,11 +725,17 @@ function OpeningShape({ edge, kind, layout, closed, hot, u, density, wordSize, s
   const nx = normal.x * toward;
   const ny = normal.y * toward;
   return (
-    <g data-door={edge} data-exit={exit ? '1' : '0'} data-inner={inner ? '1' : '0'} data-turn={turn} data-size={size} data-width={fit.toFixed(2)} data-side={swing} data-hinge={hingeAtStart ? 'a' : 'b'}>
+    <g data-door={edge} data-exit={exit ? '1' : '0'} data-inner={inner ? '1' : '0'} data-turn={turn} data-size={size} data-width={fit.toFixed(2)} data-side={swing} data-hinge={hingeAtStart ? 'a' : 'b'} data-slide={slide ? '1' : '0'}>
       <g transform={place}>
         <line x1={8} y1={0} x2={92} y2={0} stroke="#fffdf6" strokeWidth={16} />
         {closed ? (
           <line x1={10} y1={0} x2={90} y2={0} stroke={color} strokeWidth={15} strokeLinecap="round" />
+        ) : slide ? (
+          // 미닫이문(대장 #193) — 문짝이 벽 옆으로 밀려 있고, 화살표가 미는 쪽을 가리킨다. 「방향 바꾸기」로 밀리는 쪽과 놓이는 쪽을 바꾼다
+          <g className="door-leaf slide" transform={hingeAtStart ? undefined : 'translate(100 0) scale(-1 1)'}>
+            <line x1={-22} y1={swing * 13} x2={36} y2={swing * 13} stroke={color} strokeWidth={10} strokeLinecap="round" />
+            <path d={`M48 ${swing * 13}H84M74 ${swing * 13 - 8}L84 ${swing * 13}L74 ${swing * 13 + 8}`} fill="none" stroke={color} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+          </g>
         ) : (
           // 경첩이 반대쪽 끝이면 그림을 좌우로 뒤집는다
           <g className="door-leaf" transform={hingeAtStart ? undefined : 'translate(100 0) scale(-1 1)'}>

@@ -11,7 +11,7 @@ import type { Plan, Pt } from './types';
 export const sameDot = (a: Pt, b: Pt): boolean => a.x === b.x && a.y === b.y;
 
 /** 포인터 근처의 점. radius 안에 없으면 null */
-export function nearestDot(plan: Plan, p: Pt, radius = 0.5): Pt | null {
+export function nearestDot(plan: Pick<Plan, 'cols' | 'rows'>, p: Pt, radius = 0.5): Pt | null {
   const x = Math.round(p.x);
   const y = Math.round(p.y);
   if (x < 0 || y < 0 || x > plan.cols || y > plan.rows) return null;

@@ -17,11 +17,11 @@ import type { LookId } from '../../content/names';
 import { host as platform } from '../../platform/host';
 import { getApp } from '../../store/app';
 import { IconClose, IconPlay } from '../art';
-import { KID_ANKLE, KID_HIP, KID_HIP_LOW, PALM_AT_MOUTH, applyPose, blendPose, handFacing, makeKid, newPose, solveLimb, swingArm, waveCloth } from './kid';
+import { KID_ANKLE, KID_HIP, KID_HIP_LOW, PALM_AT_MOUTH, animateFace, applyPose, blendPose, handFacing, makeKid, newPose, poseHand, solveLimb, swingArm, waveCloth } from './kid';
 
 /**
- * 벽과 문의 높이(대장 #177). 아이 키(0.68)가 벽의 절반쯤, 어른(0.87)이 문보다 조금 작게 보이도록
- * 진짜 집의 비율(천장 2.3m · 문 2m · 초등학생 1.2~1.4m)에 맞췄다. 예전 벽은 0.72 로 아이 키와 비슷했다.
+ * 벽과 문의 높이(대장 #177 · #196). 진짜 집의 비율(천장 2.3m · 문 1.9m · 어른 1.7m · 초등학생 1.3m)에 맞췄다.
+ * 아이 키(0.73)는 벽의 반을 조금 넘고, 어른(0.95)은 문보다 조금 작다. 예전 벽은 0.72 로 아이 키와 비슷했다.
  */
 const WALL_H = 1.3;
 const DOOR_H = 1.08;
@@ -265,12 +265,12 @@ function sparkTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-/** 아이 키 — 어른(0.87)보다 한 뼘 넘게 작다. 눈은 머리 가운데쯤이다 */
-const KID_SCALE = 1.05;
-const KID_EYE = 0.56;
+/** 아이 키(0.73) — 어른(0.95)의 어깨쯤이다(대장 #196). 눈은 머리 가운데쯤이다 */
+const KID_SCALE = 1.12;
+const KID_EYE = 0.6;
 /** 집 안에서는 허리를 숙이고 가므로 눈이 조금 낮다. 몸을 낮추면 더 낮다 */
-const KID_EYE_BENT = 0.5;
-const KID_EYE_LOW = 0.34;
+const KID_EYE_BENT = 0.53;
+const KID_EYE_LOW = 0.36;
 /** 숙이는 각도(라디안) — 집 안에서 걸을 때와, 연기 속에서 몸을 낮췄을 때 */
 const KID_BEND = 0.6;
 const KID_BEND_LOW = 0.95;
@@ -279,9 +279,22 @@ const CAM_BACK = 1.1;
 const CAM_SIDE = 0.26;
 /** 눈보다 이만큼 위에서 내려다본다 — 손수건 든 손과 벽 짚는 손, 발까지 온몸이 보인다(대장 #189) */
 const CAM_OVER = 0.26;
-/** 어른 키(0.87)에 맞춘 가족의 크기 — 옆으로는 덜 키워 머리가 커 보이지 않게 한다 */
-const ADULT_TALL = 1.34;
-const ADULT_WIDE = 1.16;
+/** 어른 키(0.95)에 맞춘 가족의 크기 — 옆으로는 덜 키워 머리가 커 보이지 않게 한다 */
+const ADULT_TALL = 1.31;
+const ADULT_WIDE = 1.14;
+/** 끝 장면의 눈 자리(대장 #196) — 가족에게서 이만큼 물러나고 옆으로 비켜, 가족이 가운데에 서고 나는 그 옆 앞쪽에 보인다 */
+const END_BACK = 1.75;
+const END_SIDE = 0.95;
+const END_UP = 0.24;
+/** 앞모습 보여 주기(대장 #195) — 집 안을 걷는 동안 이만큼마다 이만큼씩 눈이 내 앞으로 돌아와, 손수건으로 입과 코를 막은 모습을 보인다 */
+const FRONT_EVERY = 7;
+const FRONT_HOLD = 2.6;
+/** 뒤에서 앞으로 도는 각도 — 똑바로 앞이 아니라 조금 옆에서 본다 */
+const FRONT_TURN = 2.55;
+/** 앞으로 돌려면 머리 앞에 이만큼은 비어 있어야 한다 */
+const FRONT_ROOM = 0.66;
+/** 앞에서 볼 때 머리에서 떨어지는 가장 가까운 거리 */
+const FRONT_NEAR = 0.5;
 /** 가족 앞에서 내가 멈추는 거리. 뒤에서 보는 눈과 가족 사이에 선다 */
 const KID_STOP = 0.75;
 /** 벽 짚기(대장 #186) — 옆으로 이만큼 안에 벽이 있으면 짚으러 간다. 벽에서 이만큼 떨어져 걷고, 붙는 거리는 이만큼까지다 */
@@ -334,7 +347,9 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const planCols = plan.cols / density;
     const planRows = plan.rows / density;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // 배율이 1 인 화면도 1.5배로 그려 얼굴과 손가락 가장자리가 곱다(대장 #198). 느린 기기는 아래에서 낮춘다
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio, 1.5), 2));
+    mount.dataset.pixelRatio = String(renderer.getPixelRatio());
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // 크레용 색이 탁해지지 않게 색을 그대로 낸다
@@ -411,6 +426,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const doorPanels = new Map<string, THREE.Object3D>();
     // 문마다 열린 각도. 지도에서 바꾼 문짝 방향을 그대로 따른다(대장 #168)
     const doorAngles = new Map<string, number>();
+    // 미닫이문(대장 #193) — 돌지 않고 벽을 따라 옆으로 밀린다
+    const slidePanels = new Map<string, { leaf: THREE.Object3D; open: number; shut: number }>();
     const doorMat = material(0x9a5b2a);
     const exitMat = material(0x2e8b57);
     const walls = new THREE.Group();
@@ -494,6 +511,17 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           const atStart = Math.abs(hingeAt - start) <= Math.abs(hingeAt - end);
           // 벽 틀의 +z 는 줄이 가는 쪽의 오른쪽이다
           const zSide = -(b.y - a.y) * sw.toward.x + (b.x - a.x) * sw.toward.y >= 0 ? 1 : -1;
+          if (plan.doorSlides?.[o.edge]) {
+            const away = (atStart ? -1 : 1) * width * 0.92;
+            const leaf = new THREE.Group();
+            leaf.position.set(o.at + away, 0, zSide * (WALL_T / 2 + 0.032));
+            leaf.add(box(width, DOOR_H - 0.02, 0.04, isExit ? exitMat : doorMat, 0, (DOOR_H - 0.02) / 2, 0));
+            // 손잡이 — 미는 쪽 끝에 세로로 붙는다
+            leaf.add(box(0.03, 0.2, 0.06, trimMat, (atStart ? 1 : -1) * (width / 2 - 0.06), DOOR_H * 0.48, 0));
+            wall.add(leaf);
+            slidePanels.set(o.edge, { leaf, open: o.at + away, shut: o.at });
+            return;
+          }
           const open = -DOOR_OPEN * zSide * (atStart ? 1 : -1);
           const pivot = new THREE.Group();
           pivot.position.set(atStart ? start : end, 0, 0);
@@ -554,7 +582,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const meet = plan.marks.meet ? world(plan.marks.meet) : null;
     const adults: THREE.Group[] = [];
     const people: ReturnType<typeof makeKid>[] = [];
-    const family = meet ? new THREE.Vector3(meet.x + 0.57, 0.66, meet.y - 0.04) : null;
+    const family = meet ? new THREE.Vector3(meet.x + 0.62, 0.7, meet.y - 0.04) : null;
     if (meet) {
       const flag = new THREE.Group();
       flag.position.set(meet.x, 0, meet.y);
@@ -781,6 +809,20 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     const rayFrom = new THREE.Vector3();
     const rayDir = new THREE.Vector3();
     let back = CAM_BACK;
+    // 표정과 몸짓(대장 #198)
+    let joy = 0;
+    let cheer = 0;
+    let worried = 0;
+    const cheerPose = [newPose(), newPose()];
+    const cheerEuler = new THREE.Euler();
+    // 눈이 내 앞으로 얼마나 돌아와 있는가(0 뒤 ~ 1 앞)
+    let front = 0;
+    let frontSeen = false;
+    const headAt = new THREE.Vector3();
+    // 앞모습을 보인 지 얼마나 되었는가, 앞모습을 얼마나 더 보일 것인가
+    let sinceFace = FRONT_EVERY - FRONT_HOLD - 3;
+    let faceLeft = 0;
+    let faceWay = 1;
     let heading = 0;
     let lastAbove = aboveRef.current;
     const firstWalk = list.find((e) => e.snap.walk.length >= 2)?.snap.walk;
@@ -827,6 +869,7 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           lowered = true;
           sun.castShadow = false;
           renderer.setPixelRatio(1);
+          mount.dataset.pixelRatio = '1';
           resize();
           mount.dataset.quality = 'low';
         }
@@ -898,6 +941,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       kid.root.position.set(pos.x, 0, pos.y);
       const hip = crouch ? KID_HIP_LOW : KID_HIP;
       kid.body.rotation.x += ((crouch ? KID_BEND_LOW : indoors ? KID_BEND : 0) - kid.body.rotation.x) * ease;
+      // 걸음에 맞춰 어깨가 앞뒤로 돈다 — 내딛는 발의 반대쪽 어깨가 나간다(대장 #198)
+      kid.body.rotation.y = moving && !reduced ? Math.sin(time * 14) * (indoors ? 0.05 : 0.11) : 0;
       kid.body.position.y += (hip - kid.body.position.y) * ease;
       kid.root.updateMatrixWorld(true);
       kid.body.getWorldQuaternion(bodyInv).invert();
@@ -927,6 +972,14 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         mouthW[i] = mouthW[i]! + ((isMouth ? clothWant : 0) - mouthW[i]!) * blend;
         wallW[i] = wallW[i]! + ((isWall ? 1 : 0) - wallW[i]!) * blend;
         blendPose(swingPose[i]!, swingPose[i]!, 0, mixPose[i]!);
+        if (cheer > 0.001) {
+          // 가족을 만나면 두 팔을 번쩍 들고 흔든다
+          const wave = reduced ? 0 : Math.sin(time * 7 + i * 1.3) * 0.2;
+          cheerPose[i]!.upper.setFromEuler(cheerEuler.set(0, 0, arm.side * (2.5 + wave)));
+          cheerPose[i]!.lower.setFromEuler(cheerEuler.set(0, 0, arm.side * (0.4 + wave)));
+          cheerPose[i]!.end.setFromEuler(cheerEuler.set(0, -arm.side * 1.35, 0));
+          blendPose(mixPose[i]!, cheerPose[i]!, cheer, mixPose[i]!);
+        }
         if (mouthW[i]! > 0.001) {
           // 손바닥으로 손수건을 누른다. 손끝은 위로, 몸 가운데 쪽으로 기운다
           fingers.set(-arm.side * 0.55, 0.83, 0.1).normalize();
@@ -952,9 +1005,26 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           blendPose(mixPose[i]!, wallPose[i]!, wallW[i]!, mixPose[i]!);
         }
         applyPose(arm, mixPose[i]!);
+        // 손 모양 — 걸을 때는 가볍게 쥐고, 손수건은 손바닥으로 누르고, 벽은 손가락을 펴서 짚고, 가족 앞에서는 활짝 편다
+        const flat = Math.max(mouthW[i]!, wallW[i]!, cheer);
+        const curl = 0.5 * (1 - flat) + 0.16 * mouthW[i]! + 0.04 * Math.max(wallW[i]!, cheer) + (moving && !reduced && flat < 0.5 ? Math.sin(time * 14 + i * 3) * 0.05 : 0);
+        poseHand(kid.hands[i]!, curl, 0.2 * wallW[i]! + 0.75 * cheer);
       });
       waveCloth(kid.cloth, time, moving && !reduced, clothShow);
       kid.smile.visible = clothShow < 0.5;
+      // 얼굴 — 집 안에서는 걱정스럽고, 밖에 나오면 풀리고, 가족을 만나면 활짝 웃는다. 숨이 차서 고개가 조금 끄덕인다
+      joy += ((nearFamily ? 1 : 0) - joy) * Math.min(1, dt * 3);
+      cheer += ((nearFamily && time >= total - PARTY_SECONDS ? 1 : 0) - cheer) * Math.min(1, dt * 3);
+      const worry = indoors ? (crouch ? 1 : 0.7) : 0;
+      worried += (worry - worried) * Math.min(1, dt * 3);
+      animateFace(kid, time, worried * (1 - joy), joy, 0, reduced);
+      // 손수건을 댄 동안에는 고개를 두지 않는다 — 손과 손수건이 얼굴에서 떨어진다
+      const free = 1 - clothShow;
+      kid.head.rotation.set(reduced ? 0 : free * (Math.sin(time * 2.1) * 0.03 - joy * 0.1), free * -kid.body.rotation.y * 0.8, 0);
+      kid.root.position.y = reduced ? 0 : cheer * Math.abs(Math.sin(time * 6)) * 0.035;
+      mount.dataset.kidJoy = joy.toFixed(2);
+      mount.dataset.kidWorry = worried.toFixed(2);
+      mount.dataset.kidFingers = String(kid.hands[0]!.fingers.length + 1);
       const touching = wallW.some((w) => w > 0.5);
       if (touching) wallSeen = true;
       mount.dataset.kidBend = kid.body.rotation.x.toFixed(2);
@@ -1011,6 +1081,9 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       doorPanels.forEach((pivot, edge) => {
         const goal = closedNow.has(edge) ? 0 : (doorAngles.get(edge) ?? DOOR_OPEN);
         pivot.rotation.y += (goal - pivot.rotation.y) * 0.14;
+      });
+      slidePanels.forEach(({ leaf, open, shut }, edge) => {
+        leaf.position.x += ((closedNow.has(edge) ? shut : open) - leaf.position.x) * 0.14;
       });
 
       // 축포 — 끝 장면에서 차례로 솟아올라 터지고 되풀이한다
@@ -1114,17 +1187,20 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           // 내 어깨 너머로 가족이 보이게 옆으로 조금 비켜 선다
           const ax = approach.x / approachLen;
           const az = approach.y / approachLen;
-          const cx2 = stop ? family.x + ax * FAMILY_STOP - az * CAM_SIDE * 1.6 : pos.x;
-          const cz2 = stop ? family.z + az * FAMILY_STOP + ax * CAM_SIDE * 1.6 : pos.y;
-          const ease = Math.min(1, dt * 5);
-          camera.position.set(camera.position.x + (cx2 - camera.position.x) * ease, eye + bob, camera.position.z + (cz2 - camera.position.z) * ease);
+          // 가족이 가운데에 서고 나는 그 옆 앞쪽에 보이게, 뒤로 물러나 옆으로 비켜 조금 위에서 본다(대장 #196)
+          const cx2 = stop ? family.x + ax * END_BACK - az * END_SIDE : pos.x;
+          const cz2 = stop ? family.z + az * END_BACK + ax * END_SIDE : pos.y;
+          const ease = Math.min(1, dt * (stop ? 2.4 : 5));
+          const cy2 = eye + bob + (stop ? END_UP : 0);
+          camera.position.set(camera.position.x + (cx2 - camera.position.x) * ease, camera.position.y + (cy2 - camera.position.y) * ease, camera.position.z + (cz2 - camera.position.z) * ease);
+          front += (0 - front) * Math.min(1, dt * 4);
           const want = Math.atan2(family.x - camera.position.x, family.z - camera.position.z);
           const turn = Math.atan2(Math.sin(want - heading), Math.cos(want - heading));
           heading += turn * Math.min(1, dt * 4);
           // 나도 가족을 바라본다
           if (stop) kid.root.rotation.y = Math.atan2(family.x - pos.x, family.z - pos.y);
           const far = Math.max(0.3, Math.hypot(family.x - camera.position.x, family.z - camera.position.z));
-          lookAhead.set(camera.position.x + Math.sin(heading), eye + bob + (family.y - eye) / far, camera.position.z + Math.cos(heading));
+          lookAhead.set(camera.position.x + Math.sin(heading), camera.position.y + (family.y - 0.2 - camera.position.y) / far, camera.position.z + Math.cos(heading));
           camera.lookAt(lookAhead);
           camera.updateMatrixWorld();
           familyNdc.copy(family).project(camera);
@@ -1134,10 +1210,57 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           const fx = Math.sin(heading);
           const fz = Math.cos(heading);
           // 어깨 너머 자리 — 뒤로 물러나고 옆으로 조금 비켜 앞이 보이게 한다
-          const wantX = -fx * CAM_BACK - fz * CAM_SIDE;
-          const wantZ = -fz * CAM_BACK + fx * CAM_SIDE;
+          // 집 안을 걷는 동안 잠깐씩 눈이 내 앞으로 돌아온다 — 손수건으로 입과 코를 막은 얼굴이 보인다(대장 #195).
+          // 머리 앞과 옆에 자리가 있을 때만 돈다. 좁은 곳에서 돌면 눈이 몸이나 벽 속으로 들어간다
+          kid.head.getWorldPosition(headAt);
+          const behindX = -fx * CAM_BACK - fz * CAM_SIDE;
+          const behindZ = -fz * CAM_BACK + fx * CAM_SIDE;
+          const turned = (angle: number): [number, number] => [behindX * Math.cos(angle) + behindZ * Math.sin(angle), -behindX * Math.sin(angle) + behindZ * Math.cos(angle)];
+          // 벽을 짚고 걸으면 한쪽은 벽이다. 비어 있는 쪽으로 돈다
+          const clearOn = (way: number, far = FRONT_ROOM, angles = [FRONT_TURN, FRONT_TURN / 2]): boolean =>
+            angles.every((angle) => {
+              const [tx, tz] = turned(angle * way);
+              rayFrom.set(headAt.x, headAt.y, headAt.z);
+              rayDir.set(tx, 0, tz).normalize();
+              ray.set(rayFrom, rayDir);
+              ray.far = far;
+              return !ray.intersectObject(walls, true)[0];
+            });
+          const clear = (): boolean => {
+            // 돌고 난 뒤에는 눈이 서 있는 자리만 비어 있으면 된다
+            if (faceLeft > 0) return clearOn(faceWay, FRONT_NEAR + 0.08, [FRONT_TURN]);
+            if (clearOn(faceWay)) return true;
+            if (!clearOn(-faceWay)) return false;
+            faceWay = -faceWay;
+            return true;
+          };
+          // 때가 되었고 자리가 나면 돈다. 도는 동안 좁아지면 곧바로 돌아온다
+          let showFace = false;
+          if (reduced || !indoors || !moving) faceLeft = 0;
+          else if (faceLeft > 0) {
+            faceLeft -= dt;
+            showFace = clear();
+            if (!showFace) {
+              // 좁아져 일찍 돌아왔으면 곧 다시 해 본다
+              faceLeft = 0;
+              sinceFace = FRONT_EVERY - FRONT_HOLD - 1.2;
+            }
+          } else {
+            sinceFace += dt;
+            if (sinceFace > FRONT_EVERY - FRONT_HOLD && clear()) {
+              faceLeft = FRONT_HOLD;
+              sinceFace = 0;
+              showFace = true;
+            }
+          }
+          front += ((showFace ? 1 : 0) - front) * Math.min(1, dt * 2.4);
+          if (front > 0.9) frontSeen = true;
+          const [wantX, wantZ] = turned(front * FRONT_TURN * faceWay);
           const wantLen = Math.hypot(wantX, wantZ);
-          rayFrom.set(pos.x, eye, pos.y);
+          // 앞에서 볼 때는 숙인 머리를 가운데에 두고 조금 더 가까이에서 본다
+          const midX = pos.x + (headAt.x - pos.x) * front;
+          const midZ = pos.y + (headAt.z - pos.y) * front;
+          rayFrom.set(midX, eye, midZ);
           rayDir.set(wantX / wantLen, 0, wantZ / wantLen);
           ray.set(rayFrom, rayDir);
           ray.far = wantLen + 0.12;
@@ -1146,13 +1269,21 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
           // 벽이 가까우면 곧바로 당기고, 넓어지면 천천히 물러난다
           const goal = Math.min(1, room) * CAM_BACK;
           back = goal < back ? goal : back + (goal - back) * Math.min(1, dt * 4);
-          const k = back / CAM_BACK;
+          // 앞에서는 가까이에서 본다. 머리 속으로 들어가지 않을 만큼은 떨어진다
+          const k = Math.max(front * FRONT_NEAR, (back / CAM_BACK) * (1 - front * 0.3) * wantLen) / wantLen;
           // 벽에 밀려 가까워지면 조금 더 올라가 머리 너머로 본다
-          camera.position.set(pos.x + wantX * k, eye + CAM_OVER + (1 - k) * 0.4 + bob, pos.y + wantZ * k);
-          const ahead = 0.5 + 0.6 * k;
-          lookAhead.set(pos.x + fx * ahead, (crouch ? 0.24 : 0.32) + bob, pos.y + fz * ahead);
+          const overY = eye + CAM_OVER + (1 - back / CAM_BACK) * 0.4;
+          // 숙인 얼굴은 아래를 본다. 얼굴보다 낮은 데서 올려다봐야 눈과 손수건이 보인다
+          const lowY = Math.max(0.14, headAt.y - 0.2);
+          camera.position.set(midX + wantX * k, overY + (lowY - overY) * front + bob, midZ + wantZ * k);
+          // 앞에서 볼 때는 가는 쪽이 아니라 내 얼굴을 본다
+          const ahead = (0.5 + 0.6 * (back / CAM_BACK)) * (1 - front);
+          const lookY = crouch ? 0.24 : 0.32;
+          lookAhead.set(midX + fx * ahead, lookY + (headAt.y - 0.05 - lookY) * front + bob, midZ + fz * ahead);
           camera.lookAt(lookAhead);
           mount.dataset.camBack = Math.hypot(camera.position.x - pos.x, camera.position.z - pos.y).toFixed(2);
+          mount.dataset.camFront = front.toFixed(2);
+          mount.dataset.camFrontSeen = frontSeen ? '1' : '0';
         }
         mount.dataset.camY = camera.position.y.toFixed(2);
       }
@@ -1163,6 +1294,9 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
         const wave = reduced ? 0 : Math.sin(time * 6 + i * 1.7) * 0.22;
         arm.upper.rotation.set(0, 0, arm.side * (2.45 + wave));
         arm.lower.rotation.set(0, 0, arm.side * (0.35 + wave));
+        // 흔드는 손은 활짝 펴고, 내린 손은 가볍게 쥔다. 가족은 나를 보며 웃는다
+        person.hands.forEach((hand, n) => poseHand(hand, n === i % 2 ? 0.04 : 0.45, n === i % 2 ? 0.8 : 0));
+        animateFace(person, time + i * 1.3, 0, 1, 0, reduced);
       });
       adults.forEach((adult) => {
         adult.getWorldPosition(familyDir);
@@ -1217,7 +1351,11 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
 function captionFor(snap: Snapshot, drill: DrillState, count: number, idx: number, ending: boolean, light: number, indoors: boolean): string {
   if (ending) return drill.end === 'rescue' ? '문을 닫고 119에 알렸어' : '대피 성공! 가족과 만났어';
   if (idx === 0) return '내 자리에서 시작';
-  if (idx === count - 1 && drill.end === 'meet') return '안전한 곳으로 가는 중';
+  if (idx === count - 1 && drill.end === 'meet') {
+    // 나오면서 닫은 문이 있으면 그것도 알린다(대장 #197)
+    const before = drill.timeline[drill.timeline.length - 2]?.closed ?? [];
+    return snap.closed.some((e) => !before.includes(e)) ? '나온 문을 닫고 안전한 곳으로 가는 중' : '안전한 곳으로 가는 중';
+  }
   if (snap.at === OUT) return indoors ? '나가는 길을 따라가는 중' : '밖으로 나왔어';
   const here = snap.field[snap.at] ?? 0;
   if (here >= light) return snap.crouch ? '몸을 낮추고 지나가는 중' : '연기 속을 지나가는 중';

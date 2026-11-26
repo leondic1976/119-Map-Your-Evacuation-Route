@@ -4,12 +4,12 @@ import { howToFor, type HowToStep } from '../content/howto';
 import { closeHowTo, currentBand } from '../store/app';
 import { HandGlyph, IconClose } from './art';
 
-const Dots = ({ cols = 5, rows = 4 }: { cols?: number; rows?: number }) => (
-  <g fill="#9aa8ad">
-    {Array.from({ length: rows }, (_, y) =>
-      Array.from({ length: cols }, (_, x) => <circle key={`${x}-${y}`} cx={60 + x * 50} cy={14 + y * 40} r="4" />),
-    )}
-  </g>
+/** 모눈종이 — 줄이 만나는 곳이 점이다(대장 #191) */
+const Paper = ({ cols = 5, rows = 4 }: { cols?: number; rows?: number }) => (
+  <path
+    className="demo-grid"
+    d={`${Array.from({ length: cols }, (_, x) => `M${60 + x * 50} 4V144`).join('')}${Array.from({ length: rows }, (_, y) => `M40 ${14 + y * 40}H280`).join('')}`}
+  />
 );
 
 /** 방 둘 · 지나가는 곳 하나 · 집 밖 띠 */
@@ -66,7 +66,7 @@ function Demo({ step }: { step: HowToStep }) {
     case 'draw':
       return (
         <>
-          <Dots />
+          <Paper />
           <path className="demo-line demo-draw-line" d="M60 14H260V134H60Z" />
           <g className="demo-hand demo-hand-draw"><HandGlyph /></g>
         </>

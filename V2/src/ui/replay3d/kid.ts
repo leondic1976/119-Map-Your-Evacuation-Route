@@ -211,13 +211,14 @@ const FINGER_LEN = [0.93, 1, 0.94, 0.76];
  */
 function makeHand(skin: THREE.Material, nail: THREE.Material, side: -1 | 1): { group: THREE.Group; hand: Hand } {
   const group = new THREE.Group();
-  const add = (mesh: THREE.Mesh, parent: THREE.Object3D): THREE.Mesh => {
-    mesh.castShadow = true;
+  // 손가락 마디는 작아 그림자가 보이지 않는다. 그림자는 손바닥만 드리워 느린 기기의 일을 줄인다
+  const add = (mesh: THREE.Mesh, parent: THREE.Object3D, shadow = false): THREE.Mesh => {
+    mesh.castShadow = shadow;
     parent.add(mesh);
     return mesh;
   };
   // 손바닥 — 손목 쪽은 좁고 손가락 쪽은 넓다. 엄지 두덩이 불룩하다
-  const palm = add(new THREE.Mesh(new THREE.SphereGeometry(0.024, 18, 12), skin), group);
+  const palm = add(new THREE.Mesh(new THREE.SphereGeometry(0.024, 18, 12), skin), group, true);
   palm.scale.set(1.02, 1.12, 0.5);
   palm.position.y = -0.021;
   const mound = add(new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), skin), group);
@@ -229,7 +230,6 @@ function makeHand(skin: THREE.Material, nail: THREE.Material, side: -1 | 1): { g
     group.add(base);
     const a = 0.0155 * len;
     const b = 0.0165 * len;
-    add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.08, 8, 6), skin), base);
     add(new THREE.Mesh(new THREE.CapsuleGeometry(r, a, 3, 8), skin), base).position.y = -a / 2;
     const mid = new THREE.Group();
     mid.position.y = -a;
@@ -239,7 +239,6 @@ function makeHand(skin: THREE.Material, nail: THREE.Material, side: -1 | 1): { g
     const tip = add(new THREE.Mesh(new THREE.SphereGeometry(r * 0.78, 8, 6), nail), mid);
     tip.scale.set(1, 1.15, 0.35);
     tip.position.set(0, -b + r * 0.25, -r * 0.72);
-    tip.castShadow = false;
     return { base, mid };
   };
   const fingers = FINGER_LEN.map((len, i) => finger((i - 1.5) * 0.0118 * -side, -0.041 + Math.abs(i - 1.5) * 0.0035, len, 0.0061 - (i === 3 ? 0.0006 : 0)));

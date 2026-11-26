@@ -818,9 +818,10 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
     // 눈이 내 앞으로 얼마나 돌아와 있는가(0 뒤 ~ 1 앞)
     let front = 0;
     let frontSeen = false;
+    let clothSeen = false;
     const headAt = new THREE.Vector3();
     // 앞모습을 보인 지 얼마나 되었는가, 앞모습을 얼마나 더 보일 것인가
-    let sinceFace = FRONT_EVERY - FRONT_HOLD - 3;
+    let sinceFace = FRONT_EVERY - FRONT_HOLD - 2;
     let faceLeft = 0;
     let faceWay = 1;
     let heading = 0;
@@ -1029,6 +1030,8 @@ export default function Replay3D({ plan, drill, look, onClose }: Props) {
       if (touching) wallSeen = true;
       mount.dataset.kidBend = kid.body.rotation.x.toFixed(2);
       mount.dataset.kidCloth = clothShow > 0.5 ? '1' : '0';
+      if (clothShow > 0.5 && indoors) clothSeen = true;
+      mount.dataset.kidClothSeen = clothSeen ? '1' : '0';
       mount.dataset.kidIndoors = indoors ? '1' : '0';
       mount.dataset.kidWall = touching ? '1' : '0';
       mount.dataset.kidWallSeen = wallSeen ? '1' : '0';

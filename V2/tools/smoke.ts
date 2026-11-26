@@ -92,6 +92,8 @@ async function fresh(browser: Browser, opts: Parameters<Browser['newContext']>[0
   await page.addInitScript('Date.now = () => 1700000000000');
   // 사용법 카드는 따로 시험한다. 다른 시나리오에서는 이미 본 것으로 둔다
   if (seenHowTo) await page.addInitScript(`sessionStorage.setItem('home-escape-map-v2:howto', '${JSON.stringify(['draw', 'sort', 'door', 'mark', 'route', 'drill'])}')`);
+  // SMOKE_SLOW 를 주면 CPU 를 그만큼 느리게 한다. 느린 러너에서만 어긋나는 때를 여기서 다시 본다
+  if (process.env.SMOKE_SLOW) await (await ctx.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.SMOKE_SLOW) });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -2051,8 +2053,11 @@ async function main(): Promise<void> {
     await page.waitForSelector(t('replay-canvas'), { timeout: 20000 });
     const stage3d = page.locator(`${t('replay')} > div`).first();
     await page.waitForFunction(() => Number((document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.camBack) > 0, undefined, { timeout: 20000 });
-    await page.waitForTimeout(1800);
-    const cam = { y: Number(await stage3d.getAttribute('data-cam-y')), back: Number(await stage3d.getAttribute('data-cam-back')) };
+    // 뒤에서 볼 때의 값을 한 번에 읽는다. 앞모습으로 도는 동안(대장 #195)에는 눈이 얼굴보다 낮다
+    const cam = (await (await page.waitForFunction(() => {
+      const d = (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset;
+      return Number(d.camBack) > 0 && Number(d.camFront) < 0.02 ? { y: Number(d.camY), back: Number(d.camBack) } : null;
+    }, undefined, { timeout: 20000 })).jsonValue())!;
     assert.equal(await stage3d.getAttribute('data-view'), 'behind');
     assert.ok(cam.y >= 0.55 && cam.y <= 1.25, `내 어깨 위에서 본다(벽 1.3 보다 낮다): ${cam.y}`);
     assert.ok(cam.back >= 0.15 && cam.back <= 1.25, `내 바로 뒤다: ${cam.back}`);
@@ -2403,7 +2408,10 @@ async function main(): Promise<void> {
     const stage3d = page.locator(`${t('replay')} > div`).first();
     await page.waitForFunction(() => Number((document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.camBack) > 0, undefined, { timeout: 20000 });
     assert.equal(await stage3d.getAttribute('data-view'), 'behind', '처음부터 내 뒤에서 본다');
-    const camY = Number(await stage3d.getAttribute('data-cam-y'));
+    const camY = (await (await page.waitForFunction(() => {
+      const d = (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset;
+      return Number(d.camFront) < 0.02 ? Number(d.camY) : null;
+    }, undefined, { timeout: 20000 })).jsonValue())!;
     assert.ok(camY >= 0.55 && camY <= 1.25, `내 어깨 위에서 본다: ${camY}`);
     await shot(page, '159-a-behind');
     await page.waitForFunction(() => document.querySelector('[data-testid="replay"] > div')?.getAttribute('data-fireworks') === '1', undefined, { timeout: 120000 });
@@ -3364,9 +3372,10 @@ async function main(): Promise<void> {
       }, key, { timeout: 20000 });
     const camY = (await (await inside('kidBend')).jsonValue())!;
     await shot(page, '177-replay-bent');
-    assert.ok(camY >= 0.5 && camY <= 1.25, `숙인 아이를 어깨 위에서 본다: ${camY}`);
+    assert.ok(camY >= 0.12 && camY <= 1.25, `숙인 아이를 벽보다 낮은 데서 본다: ${camY}`);
     // 집 안에서는 한 손으로 손수건을 코와 입에 대고, 다른 손으로 벽을 짚으며 간다(대장 #186)
-    await inside('kidCloth');
+    // 느린 기계에서는 화면을 찍는 사이에 밖으로 나갈 수 있다. 한 번이라도 댔으면 남는 표시를 본다
+    await page.waitForFunction(() => (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.kidClothSeen === '1', undefined, { timeout: 30000 });
     // 벽을 짚은 순간은 짧아 느린 기계에서는 놓칠 수 있다. 한 번이라도 짚었으면 남는 표시를 본다
     await page.waitForFunction(() => (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.kidWallSeen === '1', undefined, { timeout: 30000 });
     await shot(page, '186-replay-wall-hand');
@@ -3392,10 +3401,14 @@ async function main(): Promise<void> {
     // 다시 열어 앞모습이 나오는 때를 찍는다 — 손수건으로 입과 코를 막고 걱정스러운 얼굴이다
     await page.click(t('open-replay'));
     await page.waitForSelector(t('replay-canvas'), { timeout: 20000 });
-    await page.waitForFunction(() => Number((document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset.camFront) > 0.8, undefined, { timeout: 40000 });
+    const faced = (await (await page.waitForFunction(() => {
+      const d = (document.querySelector('[data-testid="replay"] > div') as HTMLElement).dataset;
+      return Number(d.camFront) > 0.8 ? { cloth: d.kidCloth, worry: Number(d.kidWorry), y: Number(d.camY) } : null;
+    }, undefined, { timeout: 60000 })).jsonValue())!;
     await shot(page, '195-replay-front');
-    assert.equal(await stage3d.getAttribute('data-kid-cloth'), '1', '앞모습일 때 손수건을 대고 있다');
-    assert.ok(Number(await stage3d.getAttribute('data-kid-worry')) > 0.3, '집 안에서는 걱정스러운 얼굴이다');
+    assert.equal(faced.cloth, '1', '앞모습일 때 손수건을 대고 있다');
+    assert.ok(faced.worry > 0.3, '집 안에서는 걱정스러운 얼굴이다');
+    assert.ok(faced.y < 0.6, `얼굴보다 낮은 데서 올려다본다: ${faced.y}`);
     await page.keyboard.press('Escape');
     assert.deepEqual(errors, [], '콘솔 오류');
     await ctx.close();

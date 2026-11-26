@@ -81,6 +81,8 @@ export function DrillStep() {
   const [following, setFollowing] = useState(false);
   // 지도를 누르면 방향키 판을 흔들어 여기를 쓰라고 알린다
   const [nudge, setNudge] = useState(0);
+  // 방향키 판이 있는 쪽 — 지도는 반대쪽으로 붙는다
+  const [padLeft, setPadLeft] = useState(false);
 
   const stopAuto = () => {
     auto.current = false;
@@ -458,6 +460,7 @@ export function DrillStep() {
           }}
           className="cursor-keys"
           zoomable
+          padSide={padLeft ? 'left' : 'right'}
           ariaLabel="대피 연습 지도"
         >
           <g className="prints" data-testid="prints" data-count={prints.length}>
@@ -489,6 +492,8 @@ export function DrillStep() {
           targets={targets}
           onArrow={onArrow}
           nudge={nudge}
+          left={padLeft}
+          onSide={setPadLeft}
           label="방향키로 움직이기"
           title={outside ? '안전한 곳으로 가자' : '가운데는 내가 그린 길로'}
           center={{ testid: 'pad-follow', label: outside ? '안전한 곳으로' : '내가 그린 길로 가기', icon: <IconPlay size={26} />, onClick: startFollow, disabled: busy || met || (!outside && !canFollow), strong: true }}

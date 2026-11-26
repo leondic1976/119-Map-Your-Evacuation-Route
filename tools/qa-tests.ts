@@ -13,9 +13,11 @@
  * 죽은 CSS(쓰지 않는 규칙)도 여기서 잡는다. 챗봇을 걷어내면서 남은 잔재가
  * 실제로 있었다 — 규칙이 남아 있으면 다음 사람이 그 화면이 아직 있는 줄 안다.
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FloorPlan } from '../src/types/plan';
+import { countsFromRelease, foldAssets, kindOfAsset, readLedger, releaseNotes, totalCounts } from './download-counts.mjs';
 import { BLOCKS, GUIDE_CARDS, GUIDE_RULES, HAZARD_PRESETS, REPORT_ITEMS, RULE_MESSAGES, TEMPLATES, fuelOf } from '../src/content';
 import { guideVoiceFilename, VOICE_LINES } from '../src/content/voice';
 import { buildGraph } from '../src/core/graph/build';
@@ -290,6 +292,8 @@ export function qaTests(check: Check, assert: Assert): void {
     /^https:\/\/cdn\.jsdelivr\.net(\/gh\/orioncactus\/pretendard|$)/,
     /* 공유용 메타(og:image)의 절대 주소 기준 — 웹 배포에서만 렌더하고 요청은 없다 */
     /^https:\/\/leondic1976\.github\.io(\/|$)/,
+    /* 안내 페이지의 받기 단추가 가리키는 공개 저장소의 Release 파일 — 받은 횟수를 세려는 링크이고 요청은 없다 (대장 #181) */
+    /^https:\/\/github\.com\/\$\{RELEASE_REPO\}\/releases\/download\//,
   ];
 
   check('[점검] 코드가 이용자의 것을 밖으로 보내지 않는다 (NFR-1 · NFR-7)', () => {
@@ -370,7 +374,12 @@ export function qaTests(check: Check, assert: Assert): void {
     const deploy = read(path.join(root, '.github', 'workflows', 'deploy.yml'));
     assert(deploy.includes('gh release download desktop') && deploy.includes('dist/desktop'), '배포 워크플로가 Release 의 설치 파일을 Pages 에 싣지 않는다');
     const page = read(path.join(root, 'src/ui/DownloadPage.tsx'));
-    assert(!/https?:\/\//.test(page) && page.includes('data-desktop-state="pending"') && page.includes('data-desktop-state="ready"'), '안내 페이지가 바깥 주소를 쓰거나 설치 파일 준비 중/받기 상태가 없다');
+    assert(!/https?:\/\//.test(page) && page.includes('data-desktop-state="pending"') && page.includes('data-desktop-state="ready"'), '안내 페이지가 바깥 주소를 직접 적거나 설치 파일 준비 중/받기 상태가 없다');
+    // 받기 단추는 Release 파일을 가리켜 받은 횟수가 세어지고, 막힌 곳을 위해 같은 사이트의 파일도 둔다. 스스로 보내는 요청은 없다 (대장 #181)
+    assert(page.includes('releaseAssetUrl(assetNames.setup)') && page.includes('releaseAssetUrl(assetNames.portable)') && page.includes('releaseAssetUrl(OFFLINE_ZIP_NAME)'), '받기 단추가 Release 파일을 가리키지 않는다 — 받은 횟수가 세어지지 않는다');
+    assert(page.includes('kids-download-desktop-here') && page.includes('kids-download-zip-here'), '같은 사이트 안에서 받는 길이 없다');
+    assert(page.includes('data-download-count') && !/\bfetch\s*\(/.test(page), '받은 횟수를 보이지 않거나 안내 페이지가 요청을 보낸다');
+    assert(!page.includes('data-release-setup'), '지난 판의 설치판을 받는 단추가 남아 있다 (대장 #180)');
     assert(pack.includes('manifest.webmanifest') && pack.includes('icons/maskable-512.png'), '매니페스트·아이콘 생성이 없다');
     for (const icon of ['icon-192.png', 'icon-512.png', 'maskable-512.png']) assert(fs.existsSync(path.join(root, 'public', 'icons', icon)), `아이콘이 없다: public/icons/${icon}`);
     const layout = read(path.join(root, 'src/app/layout.tsx'));
@@ -443,9 +452,87 @@ export function qaTests(check: Check, assert: Assert): void {
     const urls = main.match(/https?:\/\/[^\s'"`]+/g) ?? [];
     assert(urls.length === 1 && urls[0] === 'https://leondic1976.github.io/119-Map-Your-Evacuation-Route/download/', `데스크톱 껍데기의 바깥 주소: ${urls.join(', ')}`);
     assert(main.includes('HEM_NO_UPDATE') && main.includes("createHash('sha256')") && main.includes("['/S', '--force-run']"), '새 판 확인·sha256 검증·조용한 덮어쓰기가 없다');
+    /* 새 판은 업데이트한다고 알린 뒤 설치한다. 고르는 것은 언제 바뀌느냐뿐이고 어느 쪽이든 새 판이 된다 (대장 #182) */
+    assert(main.includes('으로 자동 업데이트한다.') && main.includes("buttons: ['지금 업데이트', '닫을 때 업데이트']") && main.includes('HEM_UPDATE_ANSWER') && main.includes("updateLog('notice')"), '업데이트한다는 알림이 없다');
+    assert(main.includes("announced !== latest.version") && main.includes("app.on('will-quit'"), '알림을 판마다 한 번만 내지 않거나 닫을 때 설치하지 않는다');
+    assert(main.includes('HEM_RESTART'), '무설치판을 지금 업데이트한 뒤 다시 켜지 않는다');
     assert(fs.existsSync(path.join(root, 'desktop', 'icon.png')), 'desktop/icon.png 이 없다');
     const workflow = read(path.join(root, '.github', 'workflows', 'desktop.yml'));
     assert(workflow.includes('windows-latest') && workflow.includes('desktop:build') && workflow.includes('desktop:check'), '데스크톱 워크플로가 빌드·검증을 돌리지 않는다');
+  });
+
+  check('[점검] Release 에는 가장 새 판만 두고, 웹과 프로그램은 함께 올라간다 (대장 #180 · #184)', () => {
+    const pkg = JSON.parse(read(path.join(root, 'package.json'))) as { version: string };
+    const desktop = read(path.join(root, '.github', 'workflows', 'desktop.yml'));
+    assert(desktop.includes('node tools/download-counts.mjs notes "$VERSION"') && desktop.indexOf('download-counts.mjs notes') < desktop.indexOf('gh release upload desktop'), '파일을 갈기 전에 받은 횟수를 옮겨 적지 않는다');
+    assert(desktop.includes('gh release delete-asset desktop') && !/slice\(0,\s*2\)/.test(desktop), '지난 판의 파일을 지우지 않거나 두 판을 남긴다');
+    assert(desktop.includes('dist/home-escape-map-offline.zip') && desktop.includes('refs/tags/v${VERSION}'), '꾸러미를 Release 에 올리지 않거나 판 꼬리표를 달지 않는다');
+    const deploy = read(path.join(root, '.github', 'workflows', 'deploy.yml'));
+    assert(deploy.includes('fetch-depth: 0'), '배포 검증이 이력을 받지 않아 판 번호를 올렸는지 견주지 못한다');
+    assert(/"completed "\*\)[^\n]*exit 1/.test(deploy) && deploy.includes('test -s "dist/desktop/HomeEscapeMap-${KIND}-${VERSION}.exe"'), '설치 파일 없이 웹만 올라갈 수 있다');
+    assert(deploy.includes('node tools/release-sync.mjs out') && deploy.includes('node tools/release-sync.mjs "${{ steps.deployment.outputs.page_url }}"'), '올리기 전과 뒤에 판이 맞는지 보지 않는다');
+    assert(deploy.includes('schedule:') && deploy.includes('releases/tags/desktop" > dist/desktop/release.json'), '받은 횟수를 하루에 한 번 다시 읽지 않는다');
+    assert(!/slice\(1,\s*2\)/.test(deploy), '배포가 바로 앞 판의 설치판을 아직 싣는다');
+    // 웹 화면에 판 번호가 심겨 있어야 올린 뒤에 견줄 수 있다
+    assert(read(path.join(root, 'V2', 'vite.config.ts')).includes('<meta name="app-version"'), 'V2 화면에 판 번호를 심지 않는다');
+    const built = path.join(root, 'V2', 'dist', 'index.html');
+    if (fs.existsSync(built)) assert(read(built).includes(`<meta name="app-version" content="${pkg.version}"`), `V2/dist 의 판이 ${pkg.version} 이 아니다 — V2 를 다시 빌드한다`);
+    const offline = path.join(root, 'dist', 'home-escape-map.html');
+    if (fs.existsSync(offline)) assert(read(offline).includes(`<meta name="app-version" content="${pkg.version}"`), `오프라인 HTML 의 판이 ${pkg.version} 이 아니다 — npm run build:standalone 을 다시 돌린다`);
+  });
+
+  check('[점검] 앱을 고치면 판 번호를 올린다 — 깔린 프로그램은 판 번호로 새 판을 알아챈다 (대장 #180 · #184)', () => {
+    const pkg = JSON.parse(read(path.join(root, 'package.json'))) as { version: string };
+    const top = /^## (\d+\.\d+\.\d+)\s*$/m.exec(read(path.join(root, 'CHANGELOG.md')))?.[1];
+    assert(top === pkg.version, `CHANGELOG.md 맨 위는 ${top} 인데 package.json 은 ${pkg.version} 이다`);
+    const git = (args: string[]): string | null => {
+      const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      return r.status === 0 ? r.stdout.trim() : null;
+    };
+    // 이력이 없거나 얕게 받은 곳에서는 견줄 수 없다. 배포 워크플로는 이력을 다 받는다
+    if (git(['rev-parse', '--is-inside-work-tree']) !== 'true' || git(['rev-parse', '--is-shallow-repository']) !== 'false') {
+      process.stdout.write('    --  판 번호 올림 검사 건너뜀 (git 이력을 다 받지 않았다)\n');
+      return;
+    }
+    const head = git(['show', 'HEAD:package.json']);
+    // 이번 작업에서 판 번호를 올렸으면 됐다
+    if (!head || (JSON.parse(head) as { version: string }).version !== pkg.version) return;
+    // 판 번호를 마지막으로 바꾼 커밋 뒤로 앱(웹 화면 · 오프라인 판 · 윈도우 껍데기)이 바뀌었는가. 아직 커밋하지 않은 것도 본다
+    const bump = git(['log', '-1', '--format=%H', '-G', '^\\s*"version":', '--', 'package.json']);
+    if (!bump) return;
+    const APP = ['V2/src', 'V2/public', 'V2/index.html', 'V2/vite.config.ts', 'V2/tools/offline.ts', 'desktop'];
+    const changed = [...(git(['diff', '--name-only', bump, '--', ...APP]) ?? '').split('\n'), ...(git(['ls-files', '--others', '--exclude-standard', '--', ...APP]) ?? '').split('\n')].filter(Boolean);
+    assert(changed.length === 0, `판 ${pkg.version} 을 매긴 뒤 앱이 바뀌었다 (${changed.slice(0, 3).join(', ')}${changed.length > 3 ? ' …' : ''}). package.json 의 판 번호를 올리고 CHANGELOG.md 맨 위에 적는다 — 그래야 깔린 프로그램이 새 판을 받는다`);
+  });
+
+  check('[점검] 받은 횟수는 파일을 갈아도 이어서 세고 두 번 세지 않는다 (대장 #181)', () => {
+    assert(kindOfAsset('HomeEscapeMap-Setup-2.16.0.exe') === 'setup' && kindOfAsset('HomeEscapeMap-Portable-2.16.0.exe') === 'portable' && kindOfAsset('home-escape-map-offline.zip') === 'zip' && kindOfAsset('notes.md') === null, '파일 갈래를 잘못 안다');
+    const v1 = [
+      { id: 1, name: 'HomeEscapeMap-Setup-2.15.0.exe', download_count: 7 },
+      { id: 2, name: 'HomeEscapeMap-Portable-2.15.0.exe', download_count: 3 },
+      { id: 3, name: 'home-escape-map-offline.zip', download_count: 5 },
+      { id: 4, name: 'latest.yml', download_count: 99 },
+    ];
+    const empty = readLedger('장부가 없는 옛 글');
+    assert(JSON.stringify(totalCounts(empty, v1)) === JSON.stringify({ setup: 7, portable: 3, zip: 5 }), '장부가 없을 때 지금 파일의 숫자를 세지 않는다');
+    // 새 판을 올리기 바로 앞 — 옮겨 적는다. 옮겨 적은 뒤에도 옛 파일이 잠깐 남아 있지만 합계는 그대로다
+    const body = releaseNotes('2.16.0', foldAssets(empty, v1));
+    const folded = readLedger(body);
+    assert(JSON.stringify(totalCounts(folded, v1)) === JSON.stringify({ setup: 7, portable: 3, zip: 5 }), '옮겨 적으면 같은 횟수를 두 번 센다');
+    // 올리기가 실패해 옛 파일이 남은 채 더 받아도 잃지 않고, 다시 옮겨 적어도 늘지 않는다
+    const more = v1.map((a) => (a.id === 1 ? { ...a, download_count: 9 } : a));
+    assert(totalCounts(folded, more).setup === 9, '옮겨 적은 뒤에 받은 횟수를 잃는다');
+    const again = readLedger(releaseNotes('2.16.0', foldAssets(folded, more)));
+    assert(totalCounts(again, more).setup === 9 && again.base.setup === 9, '두 번 옮겨 적으면 횟수가 달라진다');
+    // 새 파일로 갈린 뒤 — 새 파일의 숫자가 더해진다
+    const v2 = [
+      { id: 11, name: 'HomeEscapeMap-Setup-2.16.0.exe', download_count: 4 },
+      { id: 12, name: 'HomeEscapeMap-Portable-2.16.0.exe', download_count: 0 },
+      { id: 13, name: 'home-escape-map-offline.zip', download_count: 2 },
+    ];
+    assert(JSON.stringify(countsFromRelease({ body: releaseNotes('2.16.0', again), assets: v2 })) === JSON.stringify({ setup: 13, portable: 3, zip: 7 }), '파일을 갈면 앞선 횟수를 잃는다');
+    assert(countsFromRelease(null) === null && JSON.stringify(readLedger('<!-- hem-downloads {깨짐} -->').base) === JSON.stringify({ setup: 0, portable: 0, zip: 0 }), '읽지 못한 Release 나 깨진 장부를 견디지 못한다');
+    assert(!/[\u{1F300}-\u{1FAFF}]/u.test(body) && body.includes('가장 새 판의 파일만'), 'Release 글이 다르다');
   });
 
   check('[점검] 런타임에 생성형 AI 를 부르지 않는다 (CON-1)', () => {

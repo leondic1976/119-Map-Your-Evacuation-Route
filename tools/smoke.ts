@@ -2324,9 +2324,10 @@ async function main(): Promise<void> {
       for (const word of ['설치하지 않아도 돼', '웹에서 바로 쓰기', '판 기록', '오프라인 꾸러미', '윈도우 설치 파일', '선생님·보호자께', '추가 정보']) assert(text.includes(word), `안내에 ${word}가 없다`);
       assert(!/점수|등급|순위|대시보드/.test(text), '안내에 점수·대시보드 문구가 있다');
       const zipHref = await dl.locator('[data-coach="kids-download-zip"]').getAttribute('href');
-      assert(Boolean(zipHref?.endsWith('/download/home-escape-map-offline.zip')), `꾸러미 주소가 다르다: ${zipHref}`);
+      assert(Boolean(zipHref?.endsWith('/download/home-escape-map-offline.zip') || zipHref?.endsWith('/releases/download/desktop/home-escape-map-offline.zip')), `꾸러미 주소가 다르다: ${zipHref}`);
       if (fs.existsSync(path.join(root, 'dist', 'home-escape-map-offline.zip'))) {
-        const zip = await dl.request.get(new URL(zipHref ?? '', dl.url()).href);
+        // 받은 횟수를 세는 Release 주소는 밖이라 누르지 않는다. 같은 사이트의 파일이 답하는지를 본다
+        const zip = await dl.request.get(new URL('download/home-escape-map-offline.zip', server.url).href);
         assert(zip.status() === 200, `꾸러미가 응답하지 않는다: ${zip.status()}`);
         const body = await zip.body();
         assert(body.length > 3 * 1024 * 1024 && body.readUInt32LE(0) === 0x04034b50, `꾸러미가 ZIP 이 아니다: ${body.length}바이트`);
@@ -2343,15 +2344,20 @@ async function main(): Promise<void> {
       assert(swRes.status() === 200 && (await swRes.text()).includes('const PRECACHE = ['), '서비스 워커가 없다');
       const manifestLink = await dl.locator('link[rel="manifest"]').getAttribute('href');
       assert(manifestLink === '/manifest.webmanifest', `매니페스트 링크가 다르다: ${manifestLink}`);
-      /* 바깥 주소로 나가는 링크가 없다 — 설치 파일도 같은 사이트 안에서 받는다 */
-      const outsideLinks = await dl.locator('[data-screen="download"] a[href^="http"]').count();
-      assert(outsideLinks === 0, `안내 페이지에 바깥 링크가 ${outsideLinks}개 있다`);
+      /* 바깥으로 나가는 링크는 받은 횟수를 세는 공개 저장소의 Release 파일뿐이다 (대장 #181). 페이지가 스스로 보내는 요청은 없다 */
+      const outsideLinks = await dl.locator('[data-screen="download"] a[href^="http"]').evaluateAll((list) => list.map((a) => a.getAttribute('href') ?? ''));
+      const strayLinks = outsideLinks.filter((href) => !href.startsWith('https://github.com/leondic1976/119-Map-Your-Evacuation-Route/releases/download/desktop/'));
+      assert(strayLinks.length === 0, `안내 페이지에 받는 곳이 아닌 바깥 링크가 있다: ${strayLinks.join(', ')}`);
+      assert((await dl.locator('[data-release-setup]').count()) === 0, '지난 판의 설치판을 받는 단추가 있다 (대장 #180)');
       if ((await dl.locator('[data-desktop-state="ready"]').count()) === 1) {
         for (const [link, name] of [['kids-download-desktop', 'HomeEscapeMap-Setup-'], ['kids-download-portable', 'HomeEscapeMap-Portable-']] as const) {
           const href = await dl.locator(`[data-coach="${link}"]`).getAttribute('href');
-          assert(Boolean(href?.includes(`/download/${name}`) && href.endsWith('.exe')), `${link} 주소가 다르다: ${href}`);
-          const head = await dl.request.head(new URL(href ?? '', dl.url()).href);
-          assert(head.status() === 200, `설치 파일이 응답하지 않는다: ${href} ${head.status()}`);
+          assert(Boolean(href?.includes(`/releases/download/desktop/${name}`) && href.endsWith('.exe')), `${link} 주소가 Release 파일이 아니다: ${href}`);
+          // 막힌 곳에서 받는 같은 사이트의 파일 — 프로그램의 자동 업데이트도 이 파일을 받는다
+          const here = await dl.locator(`[data-coach="${link}-here"]`).getAttribute('href');
+          assert(Boolean(here?.includes(`/download/${name}`) && here.endsWith('.exe')), `${link}-here 주소가 다르다: ${here}`);
+          const head = await dl.request.head(new URL(here ?? '', dl.url()).href);
+          assert(head.status() === 200, `설치 파일이 응답하지 않는다: ${here} ${head.status()}`);
         }
         /* 새 판 안내 — 데스크톱 앱이 읽는 latest.json 은 판·설치판 이름·sha256 을 품는다 (설계서 v2.0 §7) */
         const latestRes = await dl.request.get(new URL('download/latest.json', server.url).href);

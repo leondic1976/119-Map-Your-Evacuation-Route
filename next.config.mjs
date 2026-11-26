@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { countsFromRelease } from './tools/download-counts.mjs';
 import { readReleases } from './tools/releases.mjs';
 
 /** @type {import('next').NextConfig} */
@@ -18,6 +19,14 @@ const desktopSetupBytes = sizeOf(`HomeEscapeMap-Setup-${version}.exe`);
 const desktopPortableBytes = sizeOf(`HomeEscapeMap-Portable-${version}.exe`);
 /* 안내 페이지의 판 기록 (대장 #130) */
 const releases = readReleases(fileURLToPath(new URL('.', import.meta.url)), version);
+/* 받은 횟수 (대장 #181) — 배포 워크플로가 받아 둔 Release 응답에서 읽는다. 로컬 빌드에는 없어 안내 페이지가 숫자를 보이지 않는다 */
+let downloadCounts = '';
+try {
+  const counts = countsFromRelease(JSON.parse(readFileSync(new URL('./dist/desktop/release.json', import.meta.url), 'utf8')));
+  if (counts) downloadCounts = JSON.stringify(counts);
+} catch {
+  /* 없으면 보이지 않는다 */
+}
 
 const nextConfig = {
   output: 'export',
@@ -35,6 +44,7 @@ const nextConfig = {
     NEXT_PUBLIC_DESKTOP_SETUP_BYTES: desktopSetupBytes,
     NEXT_PUBLIC_DESKTOP_PORTABLE_BYTES: desktopPortableBytes,
     NEXT_PUBLIC_RELEASES: JSON.stringify(releases),
+    NEXT_PUBLIC_DOWNLOAD_COUNTS: downloadCounts,
   },
 };
 

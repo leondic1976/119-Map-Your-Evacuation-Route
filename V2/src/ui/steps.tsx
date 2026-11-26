@@ -509,6 +509,8 @@ export function RouteStep() {
   const [which, setWhich] = useState<'route' | 'route2'>('route');
   // 지도를 누르면 방향키 판을 흔들어 여기를 쓰라고 알린다
   const [nudge, setNudge] = useState(0);
+  // 방향키 판이 있는 쪽 — 지도는 반대쪽으로 붙는다
+  const [padLeft, setPadLeft] = useState(false);
 
   const route = plan[which];
   const done = route[route.length - 1] === OUT;
@@ -625,6 +627,7 @@ export function RouteStep() {
           }}
           zoomable
           className="cursor-keys"
+          padSide={padLeft ? 'left' : 'right'}
           ariaLabel="방향키로 나가는 길을 그리는 지도"
         >
           {cursor && route.length > 1 && (
@@ -642,6 +645,8 @@ export function RouteStep() {
           targets={targets}
           onArrow={onArrow}
           nudge={nudge}
+          left={padLeft}
+          onSide={setPadLeft}
           label="방향키로 나가는 길 그리기"
           title={done ? '밖까지 갔어!' : openDirs.length ? `${openDirs.join(' · ')}로 갈 수 있어` : '방향키로 그려'}
           center={{ testid: 'pad-back', label: '한 칸 뒤로', icon: <IconUndo size={24} />, onClick: stepBack, disabled: route.length <= 1 }}

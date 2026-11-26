@@ -6,7 +6,8 @@
 import { useState } from 'react';
 import type { AidId } from '../core/aids';
 import { QUIZ_REVIEW_MAX } from '../core/quiz';
-import { AID_NOTE, AID_TEXT, type QuizItem } from '../content/quiz';
+import { AID_NOTE, AID_TEXT } from '../content/aids';
+import type { QuizItem } from '../content/quiz';
 import { isVerified } from '../content/sources';
 import { enterStep, retryDrill } from '../store/app';
 import './quiz.css';
@@ -18,12 +19,6 @@ export const IconO = ({ size = 44 }: { size?: number }) => (
 );
 export const IconX = ({ size = 44 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 44 44" aria-hidden="true"><path d="M9 9l26 26M35 9L9 35" {...line} strokeWidth={6} /></svg>
-);
-export const IconOx = ({ size = 28 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 44 44" aria-hidden="true">
-    <circle cx="13" cy="22" r="9" {...line} strokeWidth={4.5} />
-    <path d="M27 14l14 16M41 14L27 30" {...line} strokeWidth={4.5} />
-  </svg>
 );
 
 interface Props {

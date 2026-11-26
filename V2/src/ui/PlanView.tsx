@@ -92,6 +92,8 @@ export interface PlanViewProps {
   ariaLabel?: string;
   /** 크게 보고 옮길 수 있다 */
   zoomable?: boolean;
+  /** 이쪽 아래에 방향키 판이 떠 있다. 지도를 반대쪽 위로 붙여 남는 자리를 판에 내준다 */
+  padSide?: 'left' | 'right';
   /** 끄는 손이 가장자리에 이르면 종이가 따라온다 */
   edgePan?: boolean;
   onPointer?: (kind: 'down' | 'move' | 'up' | 'cancel', p: Pt) => void;
@@ -380,7 +382,8 @@ function PlanViewBase(props: PlanViewProps) {
       ref={svgRef}
       className={`plan ${zoomable && panMode ? 'cursor-move' : (props.className ?? '')}`}
       viewBox={`${shown.x} ${shown.y} ${shown.w} ${shown.h}`}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={props.padSide === 'right' ? 'xMinYMin meet' : props.padSide === 'left' ? 'xMaxYMin meet' : 'xMidYMid meet'}
+      data-pad-side={props.padSide}
       role="img"
       aria-label={props.ariaLabel ?? '우리 집 지도'}
       data-density={k}

@@ -236,7 +236,7 @@ export function useRooms(plan: Plan, onBusy?: () => void) {
     <div className="layer" role="dialog" aria-label="방 넣기" data-testid="layer-rooms-panel">
       <button type="button" className="x" aria-label="닫기" data-testid="rooms-close" onClick={() => setOpen(false)}><IconClose /></button>
       <h3>방 넣기</h3>
-      <p className="layer-note">방을 고르고 지도를 눌러 놓아. 마우스로 끌어다 놓아도 돼. 놓은 다음에 크기를 바꿔. 안 써도 돼.</p>
+      <p className="layer-note">방을 고르고 지도를 눌러 놓아. <span className="mouse-only">마우스로 끌어다 놓아도 돼. </span>놓은 다음에 크기를 바꿔. 안 써도 돼.</p>
       <h4>노란색 칸</h4>
       <div className="layer-grid rooms">{groups.room.map(chip)}</div>
       <h4>파란색 칸</h4>

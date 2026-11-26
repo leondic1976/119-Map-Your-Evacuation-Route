@@ -1,11 +1,13 @@
 /**
- * 자동 업데이트 실행 검증 (대장 #131). windows 러너에서 `npm run desktop:build` 뒤에 돈다.
+ * 자동 업데이트 실행 검증 (대장 #131 · #182). windows 러너에서 `npm run desktop:build` 뒤에 돈다.
  *
  * 내 PC 의 설치본을 건드리지 않도록 손수 돌릴 때는 설치 단계를 건너뛴다(CI 에서만 설치한다).
  * 빌드본을 켜서 가짜 사이트의 latest.json 을 읽게 하고 다음을 본다.
- *   - 받은 파일이 사이트의 것과 다르면 설치하지 않는다
- *   - 무설치판은 창을 닫으면 새 파일로 스스로 바뀐다
- *   - 설치판은 묻지 않고 받아 두었다가 창을 닫으면 조용히 설치한다
+ *   - 받은 파일이 사이트의 것과 다르면 알리지도 설치하지도 않는다
+ *   - 새 판을 받으면 업데이트한다고 알린다. 알림 창은 자동 조작으로 누를 수 없어 HEM_UPDATE_ANSWER 로 답을 정해 둔다
+ *   - 「닫을 때 업데이트」: 무설치판은 창을 닫으면 새 파일로 스스로 바뀐다
+ *   - 「지금 업데이트」: 프로그램이 스스로 꺼지고 파일이 바뀐 뒤 다시 켠다
+ *   - 설치판은 창을 닫으면 조용히 설치한다
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -36,7 +38,8 @@ async function until(what: string, ms: number, ok: () => boolean): Promise<void>
   throw new Error(`기다려도 되지 않았다: ${what}`);
 }
 
-const portableBytes = Buffer.from('새 무설치판');
+// 「지금 업데이트」는 바꾼 파일을 다시 켠다. 켜도 아무 일 없이 끝나는 윈도우의 작은 실행 파일을 새 판 자리에 둔다
+const portableBytes = fs.readFileSync(path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'whoami.exe'));
 const setupFile = path.join(root, 'release', desktopAssetNames(pkg.version).setup);
 const setupBytes = fs.readFileSync(setupFile);
 let latest: unknown = null;
@@ -63,7 +66,7 @@ async function run(name: string, env: Record<string, string>, wait: string): Pro
   const app = spawn(exe, [], {
     cwd: root,
     stdio: 'ignore',
-    env: { ...process.env, HEM_UPDATE_URL: `http://127.0.0.1:${(server.address() as { port: number }).port}/`, HEM_UPDATE_LOG: log, ...env },
+    env: { ...process.env, HEM_UPDATE_URL: `http://127.0.0.1:${(server.address() as { port: number }).port}/`, HEM_UPDATE_LOG: log, HEM_UPDATE_ANSWER: 'later', ...env },
   });
   let ended = false;
   app.on('exit', () => {
@@ -90,23 +93,32 @@ async function main(): Promise<void> {
   // 받은 파일이 다르면 설치하지 않는다
   latest = { version: '99.0.0', setup: { ...setup, sha256: 'bad' }, portable };
   const bad = await run('bad-hash', {}, 'mismatch');
-  assert(!bad.includes('ready') && !bad.includes('install'), `다른 파일을 설치하려 했다: ${bad}`);
-  process.stdout.write('    OK  받은 파일이 사이트의 것과 다르면 설치하지 않는다\n');
+  assert(!bad.includes('ready') && !bad.includes('install') && !bad.includes('notice'), `다른 파일을 설치하려 했다: ${bad}`);
+  process.stdout.write('    OK  받은 파일이 사이트의 것과 다르면 알리지도 설치하지도 않는다\n');
 
   // 지금 판과 같으면 아무것도 하지 않는다
   latest = { version: pkg.version, setup, portable };
   const same = await run('same', {}, 'current');
-  assert(!same.includes('ready'), `같은 판을 받았다: ${same}`);
+  assert(!same.includes('ready') && !same.includes('notice'), `같은 판을 받았다: ${same}`);
   process.stdout.write('    OK  지금 판이 가장 새것이면 받지 않는다\n');
 
   // 무설치판 — 창을 닫으면 파일이 바뀐다
   latest = { version: '99.0.0', setup, portable };
   const old = path.join(tmp, '우리집 대피지도 무설치판.exe');
   fs.writeFileSync(old, 'old');
-  const portableLog = await run('portable', { PORTABLE_EXECUTABLE_FILE: old }, 'ready');
-  assert(portableLog.includes('install'), `닫을 때 설치하지 않았다: ${portableLog}`);
+  const portableLog = await run('portable', { PORTABLE_EXECUTABLE_FILE: old }, 'notice');
+  assert(portableLog.includes('ready') && portableLog.includes('notice'), `새 판을 받고도 알리지 않았다: ${portableLog}`);
+  assert(portableLog.includes('install') && !portableLog.includes('install restart'), `닫을 때 설치하지 않았다: ${portableLog}`);
   await until(`무설치판 파일이 바뀐다 (기록: ${portableLog})`, 60_000, () => fs.readFileSync(old).equals(portableBytes));
-  process.stdout.write('    OK  무설치판은 창을 닫으면 새 파일로 바뀐다\n');
+  process.stdout.write('    OK  새 판을 받으면 업데이트한다고 알리고, 「닫을 때 업데이트」면 창을 닫을 때 무설치판이 새 파일로 바뀐다\n');
+
+  // 「지금 업데이트」 — 닫지 않아도 스스로 꺼지고 파일이 바뀐 뒤 다시 켠다
+  const nowFile = path.join(tmp, '우리집 대피지도 지금.exe');
+  fs.writeFileSync(nowFile, 'old');
+  const nowLog = await run('portable-now', { PORTABLE_EXECUTABLE_FILE: nowFile, HEM_UPDATE_ANSWER: 'now' }, 'install restart');
+  assert(nowLog.includes('notice'), `알리지 않고 설치했다: ${nowLog}`);
+  await until(`지금 업데이트로 파일이 바뀐다 (기록: ${nowLog})`, 60_000, () => fs.readFileSync(nowFile).equals(portableBytes));
+  process.stdout.write('    OK  「지금 업데이트」면 스스로 꺼지고 새 파일로 바뀐 뒤 다시 켠다\n');
 
   // 설치판 — 실제로 설치되므로 CI 에서만 한다
   if (!process.env.CI) {
@@ -122,10 +134,10 @@ async function main(): Promise<void> {
       return null;
     };
     assert(installed() === null, '이미 설치돼 있다');
-    const setupLog = await run('setup', {}, 'ready');
-    assert(setupLog.includes('install'), `닫을 때 설치하지 않았다: ${setupLog}`);
+    const setupLog = await run('setup', {}, 'notice');
+    assert(setupLog.includes('ready') && setupLog.includes('install'), `닫을 때 설치하지 않았다: ${setupLog}`);
     await until('설치판이 조용히 설치된다', 240_000, () => installed() !== null);
-    process.stdout.write(`    OK  설치판은 묻지 않고 받아 창을 닫으면 조용히 설치된다 — ${installed()}\n`);
+    process.stdout.write(`    OK  설치판은 업데이트한다고 알린 뒤 창을 닫으면 조용히 설치된다 — ${installed()}\n`);
   }
   process.stdout.write('\n  자동 업데이트 검증 통과\n\n');
 }

@@ -18,6 +18,8 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+/* 손가락 기기 — 끌어 내려 새로 고침과 글자 크기 자동 조절을 막는다 */
+html { overscroll-behavior: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   background: var(--paper);
   color: var(--ink);
@@ -34,12 +36,18 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 :focus-visible { outline: 4px solid var(--blue); outline-offset: 2px; }
 .ico { flex: none; }
 
-.app-root { height: 100%; }
+/* 길게 눌러도 글자가 골라지거나 그림 저장 차림표가 뜨지 않고, 두 번 두드려도 화면이 커지지 않는다. 이름 칸은 글자를 고를 수 있다 */
+.app-root { height: 100%; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.app-root input { -webkit-user-select: text; user-select: text; }
+.app-root img { -webkit-user-drag: none; }
+/* 마우스가 없는 기기에서는 마우스로 하는 일을 말하지 않는다 */
+@media (hover: none) { .mouse-only { display: none; } }
 .too-small { display: none; }
-/* 폰처럼 좁거나 낮은 화면은 점을 눌러 그릴 수 없다 */
+/* 폰처럼 좁거나 낮은 화면은 점을 눌러 그릴 수 없다.
+   이름을 적는 동안은 가리지 않는다 — 자판이 화면을 줄이는 태블릿에서 적던 칸이 사라지면 안 된다 */
 @media (max-width: 719px), (max-height: 479px) {
-  .app-root { display: none; }
-  .too-small {
+  :root:not(:has(input:focus)) .app-root { display: none; }
+  :root:not(:has(input:focus)) .too-small {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 12px; height: 100%; padding: 24px; text-align: center;
   }
@@ -256,7 +264,19 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 /* 스케치북 틀 */
 .home-btn { flex: none; }
-.studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--paper); }
+/* 그리는 화면에서는 두 손가락으로 화면 전체가 커지지 않는다(지도는 제 확대를 쓴다). 둥근 모서리와 홈 막대 자리는 비운다 */
+.studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--paper); touch-action: pan-x pan-y;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+/* 스크롤하는 칸 아래에 더 있으면 흐려지는 띠와 아래 화살표로 알린다. 태블릿에는 스크롤 막대가 보이지 않는다 */
+[data-more] { --cue: var(--paper); }
+.layer[data-more], .sheet[data-more], .item-pad[data-more] { --cue: var(--paper-2); }
+.review-notes[data-more] { --cue: #fffdf6; }
+[data-more]::after {
+  content: ''; position: sticky; bottom: -1px; z-index: 2; flex: none; align-self: stretch; grid-column: 1 / -1; width: 100%; height: 34px; margin-top: -34px; pointer-events: none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2333363b' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 9l7 7 7-7'/%3E%3C/svg%3E") center 12px / 22px 22px no-repeat,
+    linear-gradient(transparent, var(--cue) 62%);
+}
 .top { position: relative; display: flex; align-items: center; gap: 8px; padding: 18px 12px 8px; }
 .spiral { position: absolute; left: 0; right: 0; top: 0; height: 12px; background-image: radial-gradient(circle at 12px 5px, var(--pencil) 3.4px, transparent 4px); background-size: 28px 12px; opacity: .7; }
 .ribbon { list-style: none; margin: 0; padding: 0; flex: 1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
@@ -337,48 +357,6 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .home-task { margin-top: 10px; padding: 8px 12px; background: var(--sun); border: 2px dashed var(--pencil); border-radius: 12px; font-size: 16px; }
 .promise { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 18px; line-height: 1.35; }
 
-/* 키가 낮은 창 — 왼쪽 패널을 두 줄로 펴서 잘리지 않게 하고 아래 줄을 줄여 지도를 키운다 */
-@media (min-width: 1024px) and (max-height: 799px) {
-  /* 대피 연습과 돌아보기는 단추가 적어 한 줄로 충분하다 */
-  .studio:not([data-step="drill"]):not([data-step="review"]) .stage { grid-template-columns: 208px minmax(0, 1fr); }
-  .studio:not([data-step="drill"]):not([data-step="review"]) .tools { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 5px; }
-  .tools-head, .tool-note, .link-btn, .stepper, .side-pick, .tool.wide, .checks, .tool-box { grid-column: 1 / -1; }
-  .studio:not([data-step="drill"]):not([data-step="review"]) .tool-row,
-  .studio:not([data-step="drill"]):not([data-step="review"]) .crayons,
-  .studio:not([data-step="drill"]):not([data-step="review"]) .marks-list { display: contents; }
-  .tools-head.pick-head { display: none; }
-  /* 칸 칠하기 — 「왜 나눌까?」는 크레용 옆 빈 자리에 선다. 크레용이 늘어도 한 줄을 더 쓰지 않는다(대장 #188) */
-  .studio[data-step="sort"] .link-btn { grid-column: auto; }
-  .side-pick { grid-template-columns: repeat(4, 1fr); }
-  .stepper { grid-template-columns: 1fr 1fr 1fr; align-items: center; }
-  .stepper-count { grid-column: auto; }
-  .tools.review-tools .tool.tall { min-height: 64px; }
-  .top { padding: 15px 10px 4px; }
-  .guide-bar { min-height: 78px; padding: 4px 10px 6px; }
-  .guide-who { width: 66px; height: 70px; }
-  .guide-avatar { max-width: 66px; max-height: 70px; }
-  .bubble { padding: 6px 12px; font-size: 18px; line-height: 1.25; }
-  .btn { padding: 6px 12px; font-size: 18px; }
-}
-@media (min-width: 1024px) and (max-height: 620px) {
-  .top { padding: 13px 8px 2px; }
-  .guide-bar { padding: 2px 8px 4px; }
-  .bubble { font-size: 16px; padding: 4px 10px; }
-  .tool.tall { min-height: var(--hit); }
-  .studio:not([data-step="drill"]):not([data-step="review"]) .tools { gap: 3px; padding: 2px 6px 2px 2px; }
-  .tools-head { margin: 0; }
-}
-/* 좁고 낮은 창 — 아래 줄과 왼쪽 도구를 줄여 종이 자리를 지킨다 */
-@media (max-width: 1023px) and (max-height: 799px) {
-  .top { padding: 15px 8px 2px; }
-  .guide-bar { gap: 6px; padding: 2px 8px 4px; min-height: 0; }
-  .guide-who { width: 56px; height: 60px; }
-  .guide-avatar { max-width: 56px; max-height: 60px; }
-  .bubble { flex-basis: calc(100% - 70px); padding: 4px 10px; font-size: 17px; line-height: 1.25; }
-  .btn { padding: 4px 12px; font-size: 17px; }
-  .tools { max-height: 24vh; }
-}
-
 /* 종이 위 안내 한 줄 */
 .map-note { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 3; max-width: calc(100% - 140px); padding: 6px 14px; background: var(--paper-2); border: 3px solid var(--pencil); border-radius: 12px; font-size: 18px; line-height: 1.25; text-align: center; pointer-events: none; }
 
@@ -446,6 +424,12 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .pad-btn.center { color: var(--ink-2); }
 .pad-btn.center.strong { background: var(--green); color: #fff; border-color: var(--pencil); box-shadow: 0 3px 0 var(--pencil); }
 .pad-btn.center:disabled { opacity: .4; cursor: default; box-shadow: none; }
+/* 세로로 든 작은 태블릿(너비 800 아래) — 판을 조금 줄여 집 그림을 가리지 않는다. 단추는 48 을 지킨다(대장 #183) */
+@media (max-width: 799px) {
+  .arrow-pad { right: 4px; bottom: 4px; padding: 5px; gap: 2px; }
+  .arrow-pad.left { left: 4px; }
+  .pad-keys { grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px); gap: 3px; }
+}
 /* 방향키로만 움직이는 지도 — 누르는 곳이 아니므로 손가락 모양을 보이지 않는다 */
 .cursor-keys { cursor: default; }
 /* 나가는 길의 끝 — 지금 서 있는 자리 */
@@ -623,6 +607,59 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .checks { flex: 1 1 100%; }
 }
 
+/* 키가 낮은 창 — 왼쪽 패널을 두 줄로 펴서 잘리지 않게 한다. 가로로 든 태블릿(높이 800 안팎)도 여기에 든다.
+   이 묶음은 아래 안내 줄의 기본 규칙보다 뒤에 있어야 한다. 앞에 두면 기본 규칙에 덮여 아래 줄이 줄지 않는다(대장 #183) */
+@media (min-width: 1024px) and (max-height: 919px) {
+  /* 나가는 길과 대피 연습, 돌아보기는 단추가 적어 한 줄로 충분하다. 나가는 길은 방향키 판이 지도를 가리지 않게 종이를 넓게 둔다 */
+  .studio:not([data-step="route"]):not([data-step="drill"]):not([data-step="review"]) .stage { grid-template-columns: 208px minmax(0, 1fr); }
+  .studio:not([data-step="route"]):not([data-step="drill"]):not([data-step="review"]) .tools { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 5px; }
+  .tools-head, .tool-note, .link-btn, .stepper, .side-pick, .tool.wide, .checks, .tool-box { grid-column: 1 / -1; }
+  .studio:not([data-step="route"]):not([data-step="drill"]):not([data-step="review"]) .tool-row,
+  .studio:not([data-step="route"]):not([data-step="drill"]):not([data-step="review"]) .crayons,
+  .studio:not([data-step="route"]):not([data-step="drill"]):not([data-step="review"]) .marks-list { display: contents; }
+  .tools-head.pick-head { display: none; }
+  /* 칸 칠하기 — 「왜 나눌까?」는 크레용 옆 빈 자리에 선다. 크레용이 늘어도 한 줄을 더 쓰지 않는다(대장 #188) */
+  .studio[data-step="sort"] .link-btn { grid-column: auto; }
+  .side-pick { grid-template-columns: repeat(4, 1fr); }
+  .stepper { grid-template-columns: 1fr 1fr 1fr; align-items: center; }
+  .stepper-count { grid-column: auto; }
+}
+/* 키가 800 아래 — 아래 줄을 줄여 지도를 키운다 */
+@media (min-width: 1024px) and (max-height: 799px) {
+  .tools.review-tools .tool.tall { min-height: 64px; }
+  .top { padding: 15px 10px 4px; }
+  .guide-bar { min-height: 78px; padding: 4px 10px 6px; }
+  .guide-who { width: 66px; height: 70px; }
+  .guide-avatar { max-width: 66px; max-height: 70px; }
+  .bubble { padding: 6px 12px; font-size: 18px; line-height: 1.25; }
+  .btn { padding: 6px 12px; font-size: 18px; }
+}
+/* 브라우저 줄을 뺀 태블릿(높이 720 아래) — 위아래 틀을 더 줄인다. 단추는 48 그대로다 */
+@media (min-width: 1024px) and (max-height: 720px) {
+  .top { padding: 13px 8px 2px; }
+  .guide-bar { min-height: 0; padding: 2px 8px 4px; }
+  .guide-who { width: 56px; height: 60px; }
+  .guide-avatar { max-width: 56px; max-height: 60px; }
+  .bubble { font-size: 17px; padding: 4px 10px; }
+  .stage { padding: 2px 8px; }
+}
+@media (min-width: 1024px) and (max-height: 620px) {
+  .bubble { font-size: 16px; }
+  .tool.tall { min-height: var(--hit); }
+  .studio:not([data-step="route"]):not([data-step="drill"]):not([data-step="review"]) .tools { gap: 3px; padding: 2px 6px 2px 2px; }
+  .tools-head { margin: 0; }
+}
+/* 좁고 낮은 창 — 아래 줄과 왼쪽 도구를 줄여 종이 자리를 지킨다 */
+@media (max-width: 1023px) and (max-height: 799px) {
+  .top { padding: 15px 8px 2px; }
+  .guide-bar { gap: 6px; padding: 2px 8px 4px; min-height: 0; }
+  .guide-who { width: 56px; height: 60px; }
+  .guide-avatar { max-width: 56px; max-height: 60px; }
+  .bubble { flex-basis: calc(100% - 70px); padding: 4px 10px; font-size: 17px; line-height: 1.25; }
+  .btn { padding: 4px 12px; font-size: 17px; }
+  .tools { max-height: 24vh; }
+}
+
 /* 돌아보기 */
 .review-paper { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); }
 .review-map { min-width: 0; min-height: 0; padding: 4px; }
@@ -641,8 +678,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .note-list li span:not(.note-dot) { flex: 1 1 70%; }
 .note-dot { flex: none; width: 14px; height: 14px; margin: 6px 4px 0; border-radius: 50%; background: #e3a62a; border: 2px solid var(--pencil); }
 @media (max-width: 1023px) {
-  .review-paper { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
-  .review-notes { border-left: 0; border-top: 3px solid var(--pencil); max-height: 56%; }
+  /* 글은 필요한 만큼 차지하고, 지도는 종이의 44% 아래로 줄지 않는다. 넘치는 글은 그 칸 안에서 스크롤한다 */
+  .review-paper { display: flex; flex-direction: column; }
+  .review-map { flex: 1 1 0; min-height: 44%; }
+  .review-notes { flex: 0 1 auto; min-height: 0; border-left: 0; border-top: 3px solid var(--pencil); }
   .gap-list { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
   .review-done { gap: 6px; }
   .review-badge { display: none; }

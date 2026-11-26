@@ -21,7 +21,8 @@ import {
   useApp,
   type StepId,
 } from '../store/app';
-import { GuideAvatar, IconClose, IconHelp, IconHome, IconMenu, IconNext, IconQuestion, IconSpeaker, IconUndo } from './art';
+import { host } from '../platform/host';
+import { GuideAvatar, IconClose, IconFill, IconHelp, IconHome, IconMenu, IconNext, IconQuestion, IconSpeaker, IconUndo } from './art';
 import { DrillStep } from './DrillStep';
 import { HowToCard } from './HowToCard';
 import { PrintSheet } from './PrintSheet';
@@ -75,6 +76,8 @@ function useEscape(fn: () => void): void {
 function SettingsMenu({ onClose }: { onClose: () => void }) {
   const soundOn = useApp((s) => s.soundOn);
   const [confirm, setConfirm] = useState(false);
+  // 태블릿 브라우저의 주소 줄을 걷어 종이를 키운다. 할 수 없는 기기에서는 단추를 보이지 않는다
+  const filled = host.isFilled();
   useEscape(onClose);
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="설정">
@@ -84,6 +87,11 @@ function SettingsMenu({ onClose }: { onClose: () => void }) {
         <button type="button" className="tool wide" data-testid="sound-toggle" aria-pressed={soundOn} onClick={() => setSound(!soundOn)}>
           <IconSpeaker on={soundOn} /> 소리 {soundOn ? '켜짐' : '꺼짐'}
         </button>
+        {host.canFill() && (
+          <button type="button" className="tool wide" data-testid="fill-screen" aria-pressed={filled} onClick={() => { host.setFilled(!filled); onClose(); }}>
+            <IconFill /> {filled ? '화면 가득 채우기 끄기' : '화면 가득 채우기'}
+          </button>
+        )}
         <button type="button" className="tool wide" data-testid="edit-tag" onClick={() => goto('nametag')}>이름표 바꾸기</button>
         <button type="button" className="tool wide" data-testid="menu-home" onClick={goHome}><IconHome /> 처음 화면으로</button>
         {!confirm ? (
@@ -101,9 +109,42 @@ function SettingsMenu({ onClose }: { onClose: () => void }) {
           이 앱은 인터넷으로 아무것도 보내지 않는다. 안전 문장은 국민안전24의 화재 행동요령과 소방청 등이 낸 아파트 입주자 화재 안내 원문에 맞췄다.
           소방청 캐릭터 영이·일구·웅이는 공공누리 제1유형(출처표시)으로 공개된 그림이다.
         </p>
+        <p className="sheet-note" data-testid="app-version">우리집 대피지도 {__APP_VERSION__}</p>
       </div>
     </div>
   );
+}
+
+/** 스크롤하는 칸 — 아래에 더 있으면 `data-more` 를 붙여 알린다. 태블릿에는 스크롤 막대가 보이지 않는다(대장 #183) */
+const SCROLL_BOXES = '.tools, .review-notes, .layer, .sheet, .item-pad.room-pad';
+
+function useScrollCue(): void {
+  useEffect(() => {
+    let frame = 0;
+    const mark = () => {
+      frame = 0;
+      for (const box of document.querySelectorAll<HTMLElement>(SCROLL_BOXES)) {
+        if (box.scrollHeight - box.scrollTop - box.clientHeight > 8) box.dataset.more = '1';
+        else delete box.dataset.more;
+      }
+    };
+    const ask = () => {
+      if (!frame) frame = requestAnimationFrame(mark);
+    };
+    const root = document.querySelector('.studio');
+    const seen = new MutationObserver(ask);
+    if (root) seen.observe(root, { childList: true, subtree: true });
+    window.addEventListener('resize', ask);
+    document.addEventListener('scroll', ask, true);
+    void document.fonts?.ready.then(ask);
+    ask();
+    return () => {
+      cancelAnimationFrame(frame);
+      seen.disconnect();
+      window.removeEventListener('resize', ask);
+      document.removeEventListener('scroll', ask, true);
+    };
+  }, []);
 }
 
 function GuideBar() {
@@ -176,6 +217,7 @@ export function Studio() {
   const howTo = useApp((s) => s.howTo);
   const [menu, setMenu] = useState(false);
   const closeMenu = useRef(() => setMenu(false)).current;
+  useScrollCue();
   const View = VIEW[step];
 
   return (

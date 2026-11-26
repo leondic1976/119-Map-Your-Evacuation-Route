@@ -3,20 +3,20 @@ import { lazy, Suspense, useMemo, useState } from 'react';
 import { escapeAids } from '../core/aids';
 import { hasOtherRoute } from '../core/auto';
 import { analyze } from '../core/grid';
-import { pickQuiz } from '../core/quiz';
 import { buildReport, earnedStamps } from '../core/report';
-import { AID_NOTE, AID_TEXT, FIX_TOPIC, QUIZ } from '../content/quiz';
+import { AID_NOTE, AID_TEXT } from '../content/aids';
 import { FIX, NO_EXTINGUISHER, PRAISE } from '../content/report';
 import { STAMPS } from '../content/stamps';
 import { isVerified } from '../content/sources';
 import { host } from '../platform/host';
 import { currentBand, enterStep, fillForDrill, planGaps, retryDrill, say, STEP_LABEL, useApp } from '../store/app';
-import { IconCheck, IconCube, IconHelp, IconPdf, IconPencil, IconPlay, IconPrint, StampGlyph } from './art';
+import { IconCheck, IconCube, IconHelp, IconOx, IconPdf, IconPencil, IconPlay, IconPrint, StampGlyph } from './art';
 import { PlanView } from './PlanView';
-import { Quiz, IconOx } from './Quiz';
 import './quiz.css';
 
 const Replay3D = lazy(() => import('./replay3d/Replay3D'));
+/** OX 문제는 누를 때 받는다 — 문제 글이 첫 묶음을 키우지 않는다 */
+const QuizRound = lazy(() => import('./QuizRound'));
 
 export function Unverified({ sourceIds }: { sourceIds: string[] }) {
   if (isVerified(sourceIds)) return null;
@@ -53,12 +53,6 @@ export function ReviewStep() {
   const needSecond = high && plan.route2.length === 0 && hasOtherRoute(plan);
   const [quiz, setQuiz] = useState<number | null>(null);
   const [rounds, setRounds] = useState(0);
-  const questions = useMemo(() => {
-    if (quiz === null || !report) return [];
-    const want = [...report.fixes.map((f) => FIX_TOPIC[f]!), 'aids', 'plan'];
-    const ids = pickQuiz(QUIZ, want, quiz);
-    return ids.map((id) => QUIZ.find((q) => q.id === id)!);
-  }, [quiz, report]);
 
   return (
     <>
@@ -99,7 +93,9 @@ export function ReviewStep() {
         </div>
         <div className="review-notes">
           {report && quiz !== null ? (
-            <Quiz key={quiz} questions={questions} aids={aids} needSecond={needSecond} onClose={() => setQuiz(null)} onAgain={() => { setQuiz(rounds); setRounds((n) => n + 1); }} />
+            <Suspense fallback={null}>
+              <QuizRound round={quiz} fixes={report.fixes} aids={aids} needSecond={needSecond} onClose={() => setQuiz(null)} onAgain={() => { setQuiz(rounds); setRounds((n) => n + 1); }} />
+            </Suspense>
           ) : report ? (
             <>
               {high && (

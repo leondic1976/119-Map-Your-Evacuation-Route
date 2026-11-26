@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DESKTOP_DIST_DIR, OFFLINE_ZIP_NAME, desktopAssetNames } from '../src/content/release';
+import { countsFromRelease } from './download-counts.mjs';
 import { readReleases } from './releases.mjs';
 
 const root = process.cwd();
@@ -65,7 +66,7 @@ if (fs.existsSync(zipSource)) {
 
 /*
  * 1b. 윈도우 설치 파일 — deploy.yml 이 Release `desktop` 에서 받아 dist/desktop/ 에 둔 것을 같은 사이트에 싣는다.
- * 받는 곳을 같은 사이트 안에 두려는 것이다(저장소는 대장 #167 에서 공개로 바꿨다). 둘 다 있을 때만 싣는다(안내 페이지가 준비 중/받기를 가른다).
+ * 프로그램의 자동 업데이트가 이 파일을 받고, GitHub 이 막힌 곳에서는 사람도 여기서 받는다. 둘 다 있을 때만 싣는다(안내 페이지가 준비 중/받기를 가른다).
  */
 const assetNames = desktopAssetNames(pkg.version);
 const desktopFiles = [assetNames.setup, assetNames.portable].map((name) => path.join(distDir, DESKTOP_DIST_DIR, name));
@@ -96,8 +97,8 @@ if (desktopFiles.every((file) => fs.existsSync(file))) {
 }
 
 /*
- * 1d. 판 기록 (대장 #130) — 무엇이 바뀌었는지와 받을 수 있는 설치판을 download/releases.json 에 적는다.
- * 지난 판의 설치판도 함께 실어 안내 페이지에서 받을 수 있게 한다.
+ * 1d. 판 기록 (대장 #130) — 무엇이 바뀌었는지를 download/releases.json 에 적는다.
+ * 설치판은 지금 판만 싣는다. 지난 판의 파일은 어디에도 두지 않는다(대장 #180).
  */
 const releaseList = readReleases(root, pkg.version);
 {
@@ -110,6 +111,20 @@ const releaseList = readReleases(root, pkg.version);
     return { ...entry, setup: { ...entry.setup, sha256: createHash('sha256').update(fs.readFileSync(source)).digest('hex') } };
   });
   fs.writeFileSync(path.join(downloadDir, 'releases.json'), JSON.stringify({ current: pkg.version, releases: listed }, null, 2), 'utf8');
+}
+
+/*
+ * 1e. 받은 횟수 (대장 #181) — deploy.yml 이 받아 둔 Release 응답에서 합계를 내어 download/counts.json 에 적는다.
+ * 안내 페이지에는 next.config.mjs 가 같은 숫자를 심는다. 로컬 빌드에는 Release 응답이 없어 적지 않는다.
+ */
+let countNote = '없음 — 배포 워크플로가 Release 에서 읽는다';
+{
+  const file = path.join(distDir, DESKTOP_DIST_DIR, 'release.json');
+  const counts = fs.existsSync(file) ? countsFromRelease(JSON.parse(fs.readFileSync(file, 'utf8')) as Parameters<typeof countsFromRelease>[0]) : null;
+  if (counts) {
+    fs.writeFileSync(path.join(outDir, 'download', 'counts.json'), JSON.stringify({ ...counts, countedAt: new Date().toISOString() }, null, 2), 'utf8');
+    countNote = `설치판 ${counts.setup} · 무설치판 ${counts.portable} · 꾸러미 ${counts.zip}`;
+  }
 }
 
 /** CHANGELOG.md 맨 위 판의 글머리 줄들 — 새 판 대화상자에 그대로 실린다 */
@@ -158,7 +173,7 @@ fs.writeFileSync(path.join(outDir, 'manifest.webmanifest'), JSON.stringify(manif
 const files = walk(outDir).filter((file) => {
   const rel = path.relative(outDir, file).split(path.sep).join('/');
   /* latest.json 은 늘 새것을 읽어야 하므로 선캐시하지 않는다 */
-  if (rel === 'sw.js' || rel.startsWith('voice/') || rel.endsWith('.zip') || rel.endsWith('.exe') || rel === 'download/latest.json') return false;
+  if (rel === 'sw.js' || rel.startsWith('voice/') || rel.endsWith('.zip') || rel.endsWith('.exe') || rel === 'download/latest.json' || rel === 'download/counts.json') return false;
   return PRECACHE_EXT.has(path.extname(rel).toLowerCase());
 });
 const precache = Array.from(new Set(files.map(toUrl))).sort();
@@ -185,5 +200,6 @@ process.stdout.write(`    기준 경로   ${scope}\n`);
 process.stdout.write(`    꾸러미      ${zipNote}\n`);
 process.stdout.write(`    설치 파일   ${desktopNote}\n`);
 process.stdout.write(`    판 기록     download/releases.json · ${releaseList.length}개 판 · 받을 수 있는 설치판 ${releaseList.filter((r) => r.setup).length}개\n`);
+process.stdout.write(`    받은 횟수   ${countNote}\n`);
 process.stdout.write(`    매니페스트  out/manifest.webmanifest\n`);
 process.stdout.write(`    서비스 워커 out/sw.js · 선캐시 ${precache.length}개 · 배경 음성 ${voice.length}개 · ${cacheName}\n\n`);

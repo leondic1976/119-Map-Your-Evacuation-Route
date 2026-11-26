@@ -3,7 +3,7 @@
  * 나가는 길과 대피 연습이 함께 쓴다. 갈 수 있는 쪽만 켜지고, 손잡이를 누르면 반대쪽 아래로 옮겨 간다.
  * 누르고 있으면 이어서 간다. 키보드 방향키가 같은 일을 한다.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { ArrowDir } from '../core/path';
 import { getApp } from '../store/app';
 
@@ -89,15 +89,17 @@ interface Props {
   center: { testid: string; label: string; icon: ReactNode; onClick: () => void; disabled?: boolean; strong?: boolean };
   /** 지도를 눌렀을 때 잠깐 흔들어 여기를 쓰라고 알린다 */
   nudge?: number;
+  /** 판이 왼쪽 아래에 있는가. 지도는 판의 반대쪽으로 붙어 가려지지 않는다 */
+  left: boolean;
+  onSide: (left: boolean) => void;
 }
 
-export function ArrowPad({ targets, onArrow, label, title, center, nudge = 0 }: Props) {
-  const [left, setLeft] = useState(false);
+export function ArrowPad({ targets, onArrow, label, title, center, nudge = 0, left, onSide }: Props) {
   return (
     <div className={left ? 'arrow-pad left' : 'arrow-pad'} role="group" aria-label={label} data-testid="arrow-pad" data-nudge={nudge}>
       <p className="pad-title">{title}</p>
       <div key={nudge} className={nudge ? 'pad-keys nudged' : 'pad-keys'}>
-        <button type="button" className="pad-btn small" style={{ gridArea: 'move' }} data-testid="pad-move" aria-label="방향키를 다른 쪽으로 옮기기" onClick={() => setLeft((v) => !v)}>
+        <button type="button" className="pad-btn small" style={{ gridArea: 'move' }} data-testid="pad-move" aria-label="방향키를 다른 쪽으로 옮기기" onClick={() => onSide(!left)}>
           <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">{[9, 19].flatMap((x) => [7, 14, 21].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="2.4" fill="currentColor" />))}</svg>
         </button>
         {PAD.map((key) => <PadKey key={key.dir} {...key} to={targets[key.dir]} onArrow={onArrow} />)}

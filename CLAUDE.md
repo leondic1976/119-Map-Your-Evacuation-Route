@@ -156,11 +156,12 @@ app   →  ui
 - 이 아래 서비스 워커·설치 묻기는 이전 판 화면의 검증용이고 공개되지 않는다.
 - 서비스 워커·설치 묻기(`beforeinstallprompt`)는 `platform/host.ts` 의 `installer` 에서만 다룬다. `file://` 과
   오프라인 HTML 에서는 등록하지 않는다. `npm test` 가 경계를 지킨다.
-- 윈도우 프로그램은 스스로 새 판을 받아 창을 닫을 때 설치한다(대장 #131). 묻는 대화상자를 되살리지 않는다. `npm run desktop:update-check` 가 windows 러너에서 지킨다.
+- 윈도우 프로그램은 스스로 새 판을 받고, 「새 판으로 자동 업데이트한다」고 알린 뒤 설치한다(대장 #131 · #182). 알림에서 고르는 것은 언제 바뀌느냐뿐이다(지금 · 닫을 때). 업데이트할지를 묻는 대화상자로 바꾸지 않는다. `npm run desktop:update-check` 가 windows 러너에서 지킨다.
 - `/download/` 의 판 기록은 `CHANGELOG.md` 와 Release 에서 만든다(대장 #130, `tools/releases.mjs`).
 - 윈도우 설치 파일은 `.github/workflows/desktop.yml`(windows 러너)이 만들어 Release `desktop` 태그에 덮어쓴다.
-  Pages 배포를 막지 않는다. **안내 페이지는 Release 주소를 곧장 가리키지 않는다**(저장소는 대장 #167 에서 공개로 바꿨고, 받는 곳은 그대로 같은 사이트 안에 둔다) — `deploy.yml` 이 받아
-  `dist/desktop/` 에 두면 `pack.ts` 가 Pages 의 `download/` 에 싣고, 안내 페이지는 같은 사이트 안만 가리킨다. `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
+  웹과 프로그램은 **함께 올라간다**(대장 #184) — `deploy.yml` 이 같은 커밋의 설치 파일을 기다리고, 없으면 웹도 올리지 않는다. Release 에는 가장 새 판의 파일만 둔다(대장 #180).
+  안내 페이지의 받기 단추는 Release 파일을 가리켜 GitHub 이 받은 횟수를 세고(대장 #181), 같은 사이트의 파일도 「여기서 받기」로 둔다. 바깥 주소는 `src/content/release.ts` 한 곳에서 만든다. `deploy.yml` 이 받아
+  `dist/desktop/` 에 두면 `pack.ts` 가 Pages 의 `download/` 에 싣는다(자동 업데이트가 받는 파일이다). `desktop/main.cjs` 는 오프라인 HTML 을 그대로 열 뿐이며 `Host` 를 갈아 끼우지 않는다.
   산출물 이름은 `src/content/release.ts` 한 곳에서 정한다 — 안내 페이지와 빌드가 같은 이름을 써야 한다.
 - 런타임 의존성 목록(설계서 v1.4 §1.1)은 그대로다. `electron`·`electron-builder` 는 개발 의존성이다.
 - 3D 의 사실감(환경광·물리 하늘·PCSS·절차형 PBR 재질·노이즈 불꽃·연기·후처리)은 **전부 코드**로 낸다(설계서 v1.19 §4).

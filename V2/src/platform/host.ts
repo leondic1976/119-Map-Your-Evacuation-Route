@@ -28,6 +28,10 @@ export interface Host {
   forgetOldCopies(): void;
   /** 설치 안내 주소. 이미 설치했거나 오프라인 판이면 null */
   installGuide(): string | null;
+  /** 화면 가득 채우기 — 태블릿 브라우저의 주소 줄을 걷어 종이를 키운다. 할 수 없는 기기면 canFill 이 false 다 */
+  canFill(): boolean;
+  isFilled(): boolean;
+  setFilled(on: boolean): void;
 }
 
 const PREFIX = 'home-escape-map-v2:';
@@ -35,8 +39,105 @@ const PREFIX = 'home-escape-map-v2:';
 /** 사이트에서 연 웹 판인가. 오프라인 HTML 과 윈도우 프로그램, 개발 서버는 아니다 */
 const isWebBuild = (): boolean => import.meta.env.PROD && import.meta.env.MODE !== 'offline' && window.location.protocol.startsWith('http');
 
+/** 소리 없는 아주 짧은 소리 — 첫 누름에 재생기를 풀 때만 쓴다. 말은 언제나 MP3 다 */
+const SILENCE = 'data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+/** 짧은 소리가 끝난 뒤 소리 장치를 쉬게 하기까지 */
+const SOUND_IDLE_MS = 6000;
+
+type FillDoc = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void; webkitFullscreenEnabled?: boolean };
+type FillEl = HTMLElement & { webkitRequestFullscreen?: () => void };
+
 class WebHost implements Host {
+  /**
+   * 음성은 재생기 하나를 돌려 쓴다. 아이패드는 손이 닿아 한 번 소리를 낸 재생기에만 그 뒤의 재생을 허락한다.
+   * 대사마다 새 재생기를 만들면 앞 대사가 끝나고 이어지는 대사가 막힌다(대장 #135 · #183). 그래서 첫 누름에 이 재생기를 풀어 둔다.
+   */
   private audio: HTMLAudioElement | null = null;
+  /** 지금 재생하는 대사. 멈추면 0 이다 */
+  private voice = 0;
+  private voiceCount = 0;
+  private voiceDone: (() => void) | undefined;
+  /** 짧은 소리(경보 · 발소리 · 도장 · 축하)가 함께 쓰는 소리 장치 */
+  private sound: AudioContext | null = null;
+  private soundIdle = 0;
+  private unlocked = false;
+
+  constructor() {
+    if (typeof window === 'undefined') return;
+    // 손이 닿은 것으로 치는 신호들 — 첫 신호에 재생기와 소리 장치를 풀고 그만 듣는다
+    const events = ['pointerup', 'touchend', 'click', 'keydown'] as const;
+    const unlock = (): void => {
+      if (this.unlocked) return;
+      this.unlocked = true;
+      for (const name of events) window.removeEventListener(name, unlock, true);
+      this.ctx();
+      // 말하는 중이면 재생기는 이미 풀렸다
+      if (this.voice) return;
+      const audio = this.player();
+      const count = this.voiceCount;
+      audio.src = SILENCE;
+      audio
+        .play()
+        .then(() => {
+          if (this.voiceCount === count && !this.voice) audio.pause();
+        })
+        .catch(() => undefined);
+    };
+    for (const name of events) window.addEventListener(name, unlock, true);
+  }
+
+  private player(): HTMLAudioElement {
+    if (this.audio) return this.audio;
+    const audio = new Audio();
+    const root = document.documentElement;
+    audio.preload = 'auto';
+    // 재생기가 하나라 앞 대사의 늦은 신호가 올 수 있다. 재생기의 지금 상태로 한 번 더 가린다
+    audio.addEventListener('playing', () => {
+      if (this.voice && !audio.paused) root.dataset.voiceState = 'playing';
+    });
+    audio.addEventListener('ended', () => {
+      if (!this.voice || !audio.ended) return;
+      root.dataset.voiceState = 'ended';
+      this.finishVoice();
+    });
+    audio.addEventListener('error', () => {
+      if (this.voice && audio.error) this.failVoice(this.voice);
+    });
+    this.audio = audio;
+    return audio;
+  }
+
+  private finishVoice(): void {
+    const done = this.voiceDone;
+    this.voice = 0;
+    this.voiceDone = undefined;
+    done?.();
+  }
+
+  private failVoice(voice: number): void {
+    if (this.voice !== voice) return;
+    document.documentElement.dataset.voiceState = 'failed';
+    this.finishVoice();
+  }
+
+  /** 함께 쓰는 소리 장치. 쓸 때 깨우고, 한동안 소리가 없으면 쉬게 한다 */
+  private ctx(): AudioContext | null {
+    try {
+      if (!this.sound || this.sound.state === 'closed') {
+        const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        this.sound = new Ctx();
+      }
+      const sound = this.sound;
+      if (sound.state !== 'running') void sound.resume().catch(() => undefined);
+      window.clearTimeout(this.soundIdle);
+      this.soundIdle = window.setTimeout(() => {
+        if (sound.state === 'running') void sound.suspend().catch(() => undefined);
+      }, SOUND_IDLE_MS);
+      return sound;
+    } catch {
+      return null;
+    }
+  }
 
   load<T>(key: string): T | null {
     try {
@@ -100,39 +201,26 @@ class WebHost implements Host {
   playVoice(id: string, onDone?: () => void): void {
     this.stopVoice();
     const root = document.documentElement;
-    const audio = new Audio(`./voice/${id}.mp3`);
-    this.audio = audio;
+    const audio = this.player();
+    const voice = ++this.voiceCount;
+    this.voice = voice;
+    this.voiceDone = onDone;
     root.dataset.voiceLast = id;
     root.dataset.voiceState = 'loading';
-    audio.addEventListener('playing', () => {
-      if (this.audio === audio) root.dataset.voiceState = 'playing';
-    });
-    audio.addEventListener('ended', () => {
-      if (this.audio === audio) {
-        root.dataset.voiceState = 'ended';
-        onDone?.();
-      }
-    });
-    const failed = (): void => {
-      if (this.audio !== audio || root.dataset.voiceState === 'failed') return;
-      root.dataset.voiceState = 'failed';
-      onDone?.();
-    };
-    audio.addEventListener('error', failed);
-    audio.play().catch(failed);
+    audio.src = `./voice/${id}.mp3`;
+    audio.play().catch(() => this.failVoice(voice));
   }
 
   stopVoice(): void {
-    if (this.audio) {
-      this.audio.pause();
-      this.audio = null;
-    }
+    this.voice = 0;
+    this.voiceDone = undefined;
+    this.audio?.pause();
   }
 
   alarm(): void {
     try {
-      const Ctx = window.AudioContext;
-      const ctx = new Ctx();
+      const ctx = this.ctx();
+      if (!ctx) return;
       const gain = ctx.createGain();
       gain.gain.value = 0.05;
       gain.connect(ctx.destination);
@@ -144,7 +232,6 @@ class WebHost implements Host {
         osc.start(ctx.currentTime + i * 0.5);
         osc.stop(ctx.currentTime + i * 0.5 + 0.4);
       }
-      window.setTimeout(() => void ctx.close(), 2200);
     } catch {
       /* 소리가 없어도 다 된다 */
     }
@@ -152,7 +239,8 @@ class WebHost implements Host {
 
   cheer(): void {
     try {
-      const ctx = new window.AudioContext();
+      const ctx = this.ctx();
+      if (!ctx) return;
       const out = ctx.createGain();
       out.gain.value = 0.16;
       out.connect(ctx.destination);
@@ -204,7 +292,6 @@ class WebHost implements Host {
         pop.start(t0 + at + 0.24);
       });
       document.documentElement.dataset.cheer = String(Number(document.documentElement.dataset.cheer ?? 0) + 1);
-      window.setTimeout(() => void ctx.close(), 5200);
     } catch {
       /* 소리가 없어도 다 된다 */
     }
@@ -213,9 +300,9 @@ class WebHost implements Host {
   /** 짧은 소리 몇 개를 차례로 낸다. 소리가 없어도 다 된다 */
   private blip(notes: [number, number, number][], type: OscillatorType, volume: number): void {
     try {
-      const ctx = new window.AudioContext();
+      const ctx = this.ctx();
+      if (!ctx) return;
       const t0 = ctx.currentTime + 0.01;
-      let end = 0;
       for (const [freq, at, len] of notes) {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
@@ -228,9 +315,7 @@ class WebHost implements Host {
         g.connect(ctx.destination);
         osc.start(t0 + at);
         osc.stop(t0 + at + len + 0.02);
-        end = Math.max(end, at + len);
       }
-      window.setTimeout(() => void ctx.close(), end * 1000 + 300);
     } catch {
       /* 소리가 없어도 다 된다 */
     }
@@ -262,6 +347,28 @@ class WebHost implements Host {
   installGuide(): string | null {
     if (!isWebBuild() || window.matchMedia('(display-mode: standalone)').matches) return null;
     return '../download/';
+  }
+
+  canFill(): boolean {
+    const doc = document as FillDoc;
+    return Boolean(doc.fullscreenEnabled ?? doc.webkitFullscreenEnabled);
+  }
+
+  isFilled(): boolean {
+    const doc = document as FillDoc;
+    return Boolean(doc.fullscreenElement ?? doc.webkitFullscreenElement);
+  }
+
+  setFilled(on: boolean): void {
+    const doc = document as FillDoc;
+    const el = document.documentElement as FillEl;
+    try {
+      if (on === this.isFilled()) return;
+      if (on) void (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }).catch(() => undefined) : el.webkitRequestFullscreen?.());
+      else void (doc.exitFullscreen ? doc.exitFullscreen().catch(() => undefined) : doc.webkitExitFullscreen?.());
+    } catch {
+      /* 가득 채우지 못해도 다 된다 */
+    }
   }
 }
 

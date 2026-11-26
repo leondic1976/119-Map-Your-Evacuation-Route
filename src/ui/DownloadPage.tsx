@@ -5,14 +5,16 @@
  *
  * 첫 줄은 설치 없이 웹에서 바로 쓰는 길이다. 주소는 하드코딩하지 않고 지금 열린 주소에서 만든다.
  * 웹은 저장본을 남기지 않아 인터넷이 있어야 열린다(대장 #132). 인터넷 없이 쓰는 길은 두 갈래다.
- *   윈도우 프로그램     설치판·무설치판. 스스로 새 판을 받아 창을 닫을 때 바뀐다
+ *   윈도우 프로그램     설치판·무설치판. 새 판이 나오면 업데이트한다고 알리고 스스로 바뀐다(대장 #182)
  *   오프라인 꾸러미     ZIP 을 받아 압축을 풀고 HTML 을 두 번 누른다. USB 로 옮겨도 된다
- * 아래에 판 기록을 두어 어느 판에서 무엇이 바뀌었는지 보고 지난 판도 받는다(대장 #130).
+ * 아래에 판 기록을 두어 어느 판에서 무엇이 바뀌었는지 본다(대장 #130). 받을 수 있는 것은 언제나 가장 새 판뿐이다(대장 #180).
  *
- * 바깥으로 나가는 링크는 공개 저장소 하나다. 요청(fetch)은 보내지 않는다.
+ * 받기 단추는 공개 저장소의 Release 파일을 가리킨다 — GitHub 이 그 파일을 받은 횟수를 세어 주고, 배포할 때 읽은
+ * 그 숫자를 단추 아래에 보인다(대장 #181). GitHub 이 막힌 곳을 위해 같은 사이트 안의 파일도 함께 둔다.
+ * 이 페이지가 스스로 보내는 요청(fetch)은 없다. 바깥 주소는 `content/release.ts` 한 곳에서 만든다.
  */
 import React, { useEffect, useState } from 'react';
-import { OFFLINE_BUNDLE_DIR, OFFLINE_ZIP_NAME, desktopDownloadPaths, humanBytes } from '../content/release';
+import { OFFLINE_BUNDLE_DIR, OFFLINE_ZIP_NAME, desktopAssetNames, desktopDownloadPaths, humanBytes, releaseAssetUrl, type DownloadCounts } from '../content/release';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '';
@@ -23,6 +25,17 @@ const desktop = desktopDownloadPaths(basePath, APP_VERSION);
 const setupSize = humanBytes(Number(process.env.NEXT_PUBLIC_DESKTOP_SETUP_BYTES ?? ''));
 const portableSize = humanBytes(Number(process.env.NEXT_PUBLIC_DESKTOP_PORTABLE_BYTES ?? ''));
 const desktopReady = Boolean(setupSize && portableSize);
+const assetNames = desktopAssetNames(APP_VERSION);
+/* 받은 횟수 — 배포할 때 Release 에서 읽은 숫자다. 로컬 빌드에는 없어 보이지 않는다 */
+const counts = ((): DownloadCounts | null => {
+  try {
+    const raw = JSON.parse(process.env.NEXT_PUBLIC_DOWNLOAD_COUNTS || 'null') as DownloadCounts | null;
+    return raw && [raw.setup, raw.portable, raw.zip].every((n) => Number.isFinite(n)) ? raw : null;
+  } catch {
+    return null;
+  }
+})();
+const times = (n: number): string => `${n.toLocaleString('ko-KR')}번`;
 
 interface ReleaseEntry {
   version: string;
@@ -89,14 +102,20 @@ export default function DownloadPage() {
             <li><span>압축을 풀면 <b>{OFFLINE_BUNDLE_DIR}</b> 폴더가 생긴다. 폴더를 통째로 둔다.</span></li>
             <li><span>폴더 안 <b>home-escape-map.html</b>을 두 번 누른다. 그림 폴더(art)와 목소리 폴더(voice)는 옆에 그대로 둔다.</span></li>
           </ol>
-          <a className="k-dl-action secondary" href={`${basePath}/download/${OFFLINE_ZIP_NAME}`} download data-coach="kids-download-zip">
+          <a className="k-dl-action secondary" href={desktopReady ? releaseAssetUrl(OFFLINE_ZIP_NAME) : `${basePath}/download/${OFFLINE_ZIP_NAME}`} download data-coach="kids-download-zip">
             <DownloadIcon /> 꾸러미 받기 <span className="k-dl-size">({zipSize})</span>
           </a>
-          <p className="k-dl-note">폴더 안의 「읽어주세요.txt」에 같은 내용이 적혀 있어.</p>
+          {counts && (
+            <p className="k-dl-count" data-download-count="zip" data-count={counts.zip}>지금까지 {times(counts.zip)} 받았어.</p>
+          )}
+          {desktopReady && (
+            <a className="k-dl-fallback" href={`${basePath}/download/${OFFLINE_ZIP_NAME}`} download data-coach="kids-download-zip-here">받아지지 않으면 여기서 받기</a>
+          )}
+          <p className="k-dl-note">폴더 안의 「읽어주세요.txt」에 같은 내용이 적혀 있어. 꾸러미는 스스로 새 판이 되지 않으니 가끔 다시 받아 줘.</p>
         </article>
 
         <article className="k-dl-card recommended" data-download-card="desktop">
-          <span className="k-dl-badge">새 판이 저절로</span>
+          <span className="k-dl-badge">새 판으로 스스로</span>
           <span className="k-dl-icon" aria-hidden="true">
             <svg viewBox="0 0 32 32"><rect x="4" y="5" width="24" height="18" rx="3" /><path d="M4 11h24M11 27h10M16 23v4" /></svg>
           </span>
@@ -108,26 +127,38 @@ export default function DownloadPage() {
             <li><span>설치판은 안내대로 「다음」을 누르면 바탕화면 아이콘이 생긴다.</span></li>
           </ol>
           {desktopReady ? (
-            <div className="k-dl-actions" data-desktop-state="ready">
-              <a className="k-dl-action secondary" href={desktop.setup} data-coach="kids-download-desktop">
-                <DownloadIcon /> 설치판 받기 <span className="k-dl-size">({setupSize})</span>
-              </a>
-              <a className="k-dl-action ghost" href={desktop.portable} data-coach="kids-download-portable">
-                무설치판 받기 <span className="k-dl-size">({portableSize})</span>
-              </a>
-            </div>
+            <>
+              <div className="k-dl-actions" data-desktop-state="ready">
+                <a className="k-dl-action secondary" href={releaseAssetUrl(assetNames.setup)} data-coach="kids-download-desktop">
+                  <DownloadIcon /> 설치판 받기 <span className="k-dl-size">({setupSize})</span>
+                </a>
+                <a className="k-dl-action ghost" href={releaseAssetUrl(assetNames.portable)} data-coach="kids-download-portable">
+                  무설치판 받기 <span className="k-dl-size">({portableSize})</span>
+                </a>
+              </div>
+              {counts && (
+                <p className="k-dl-count" data-download-count="desktop" data-count={counts.setup + counts.portable}>
+                  지금까지 설치판 {times(counts.setup)}, 무설치판 {times(counts.portable)} 받았어.
+                </p>
+              )}
+              <p className="k-dl-fallbacks">
+                받아지지 않으면 여기서 받기
+                <a className="k-dl-fallback" href={desktop.setup} data-coach="kids-download-desktop-here">설치판</a>
+                <a className="k-dl-fallback" href={desktop.portable} data-coach="kids-download-portable-here">무설치판</a>
+              </p>
+            </>
           ) : (
             <p className="k-dl-status" data-desktop-state="pending">
               설치 파일은 만드는 중이야. 조금 뒤 이 자리에서 받을 수 있어. 지금은 꾸러미를 받아 줘.
             </p>
           )}
-          <p className="k-dl-note">윈도우 10·11 64비트 · 판 {APP_VERSION} · 켜 두면 새 판을 스스로 받아 두었다가 창을 닫을 때 설치해. 그리는 도중에는 꺼지지 않아.</p>
+          <p className="k-dl-note">윈도우 10·11 64비트 · 판 {APP_VERSION} · 새 판이 나오면 프로그램이 「새 판으로 업데이트한다」고 알려 주고 스스로 바뀌어. 그린 지도는 그대로 남아.</p>
         </article>
       </div>
 
       <section className="k-dl-releases" aria-labelledby="k-dl-releases-title" data-releases>
         <h2 id="k-dl-releases-title">판 기록</h2>
-        <p>지금 판은 {APP_VERSION} 이야. 프로그램은 저절로 새 판이 되니까 지난 판은 문제가 있을 때만 받아.</p>
+        <p>지금 판은 {APP_VERSION} 이야. 받을 수 있는 것은 언제나 가장 새 판 하나야. 프로그램은 스스로 새 판이 되니까 지난 판의 파일은 두지 않아.</p>
         <ul>
           {releases.map((release) => (
             <li key={release.version} data-release={release.version} className={release.current ? 'current' : ''}>
@@ -140,11 +171,6 @@ export default function DownloadPage() {
                 <ul className="k-dl-release-notes">
                   {release.notes.map((note) => <li key={note}>{note}</li>)}
                 </ul>
-                {release.setup && !release.current && (
-                  <a className="k-dl-action ghost" href={`${basePath}/download/${release.setup.name}`} data-release-setup={release.version}>
-                    <DownloadIcon /> {release.version} 설치판 받기 <span className="k-dl-size">({humanBytes(release.setup.size)})</span>
-                  </a>
-                )}
               </details>
             </li>
           ))}
@@ -172,7 +198,14 @@ export default function DownloadPage() {
           </div>
           <div>
             <dt>문의</dt>
-            <dd>인천소방본부 어린이 화재안전교육. 이 페이지와 프로그램은 바깥 주소로 아무것도 보내지 않는다. 프로그램은 새 판을 확인하고 받으려고 이 사이트만 읽고, 받을 파일도 모두 이 사이트 안에 있다.</dd>
+            <dd>인천소방본부 어린이 화재안전교육. 이 페이지와 프로그램은 이용자의 것을 바깥으로 보내지 않는다. 프로그램은 새 판을 확인하고 받으려고 이 사이트만 읽는다.</dd>
+          </div>
+          <div>
+            <dt>받는 곳과 받은 횟수</dt>
+            <dd>
+              받기 단추는 이 사이트를 싣고 있는 GitHub 의 공개 저장소에서 파일을 받는다. GitHub 이 그 파일을 받은 횟수를 세어 주고, 이 페이지는 하루에 한 번 그 숫자를 옮겨 적는다.
+              누가 받았는지는 세지 않는다. 프로그램이 스스로 새 판을 받는 것과 「여기서 받기」로 받은 것은 횟수에 들지 않는다.
+            </dd>
           </div>
         </dl>
       </section>

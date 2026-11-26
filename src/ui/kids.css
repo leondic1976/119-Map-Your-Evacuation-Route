@@ -3817,6 +3817,40 @@
   fill: currentColor;
 }
 
+/* 받은 횟수와, GitHub 이 막힌 곳에서 같은 사이트의 파일을 받는 길 (대장 #181) */
+.k-dl-count {
+  margin: 0;
+  color: #173f68;
+  font-size: 15px;
+  font-weight: 800;
+  word-break: keep-all;
+}
+
+.k-dl-fallbacks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  color: #4f6276;
+  font-size: 14px;
+  word-break: keep-all;
+}
+
+.k-dl-fallback {
+  display: inline-flex;
+  align-items: center;
+  min-width: var(--k-hit);
+  min-height: var(--k-hit);
+  padding: 0 6px;
+  color: #173f68;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  word-break: keep-all;
+}
+
 .k-dl-size {
   font-weight: 750;
   font-variant-numeric: tabular-nums;

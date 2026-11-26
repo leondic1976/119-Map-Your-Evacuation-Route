@@ -49,6 +49,10 @@ export const IconWindow = ({ size = 26 }: { size?: number }) => (
 export const IconQuestion = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><circle cx="12" cy="12" r="9.5" /><path d="M9.2 9.3a2.9 2.9 0 1 1 4.6 2.4c-1 .7-1.8 1.3-1.8 2.6" /><circle cx="12" cy="17.4" r=".7" fill="currentColor" /></Svg>
 );
+/** 화면 가득 채우기 — 네 귀퉁이가 바깥으로 벌어진다 */
+export const IconFill = ({ size = 26 }: { size?: number }) => (
+  <Svg size={size}><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" /></Svg>
+);
 export const IconHome = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M3.5 11.5 12 4l8.5 7.5" /><path d="M6 10v10h12V10" /><path d="M10 20v-6h4v6" /></Svg>
 );
@@ -66,6 +70,13 @@ export const IconSpeaker = ({ size = 26, on = true }: { size?: number; on?: bool
 );
 export const IconPrint = ({ size = 26 }: { size?: number }) => (
   <Svg size={size}><path d="M7 8V3h10v5" /><rect x="3" y="8" width="18" height="9" rx="2" /><path d="M7 14h10v7H7z" /></Svg>
+);
+/** O 와 X 가 나란히 */
+export const IconOx = ({ size = 28 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 44 44" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="4.5">
+    <circle cx="13" cy="22" r="9" />
+    <path d="M27 14l14 16M41 14L27 30" />
+  </svg>
 );
 /** 귀 접힌 종이와 내려받는 화살표 */
 export const IconPdf = ({ size = 26 }: { size?: number }) => (
